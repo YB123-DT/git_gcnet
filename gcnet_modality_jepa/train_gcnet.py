@@ -591,7 +591,7 @@ if __name__ == '__main__':
         all_losses = []
         all_labels = []
         val_fscores = []
-        test_fscores, test_accs, test_recon = [], [], []
+        test_fscores, test_accs, test_recon, test_jepa = [], [], [], []
         best_val_so_far = -float("inf")
         best_model_state = None
         best_test_rng_state = None
@@ -622,15 +622,17 @@ if __name__ == '__main__':
             test_accs.append(test_acc)
             test_fscores.append(test_fscore)
             test_recon.append(test_loss[2])
+            test_jepa.append(test_loss[3])
             all_losses.append({'train_loss':train_loss, 'val_loss':val_loss, 'test_loss':test_loss})
             all_labels.append({'test_labels':testsave[1], 'test_preds':testsave[0], 'test_hiddens':testsave[3], 'test_names':test_names, 'test_fmask':testsave[4]})
-            print(f'epoch:{epoch+1}; train_fscore:{train_fscore:2.2%}; train_loss:{train_loss[0]}; train_loss1:{train_loss[1]}; train_loss2:{train_loss[2]}')
+            print(f'epoch:{epoch+1}; train_fscore:{train_fscore:2.2%}; train_loss:{train_loss[0]}; train_loss1:{train_loss[1]}; train_loss2:{train_loss[2]}; train_loss3:{train_loss[3]}')
 
         print (f'Step3: saving and testing on the {ii+1} folder')
         best_index = np.argmax(np.array(val_fscores))
         bestf1 = test_fscores[best_index]
         bestacc = test_accs[best_index]
         bestrecon = test_recon[best_index]
+        bestjepa = test_jepa[best_index]
         bestsave = all_labels[best_index]
         assert best_model_state is not None and best_test_rng_state is not None
         model.load_state_dict(best_model_state)
@@ -663,6 +665,7 @@ if __name__ == '__main__':
             "weighted_f1": float(bestf1),
             "accuracy": float(bestacc),
             "reconstruction_loss": float(bestrecon),
+            "jepa_loss": float(bestjepa),
             "peak_memory_mb": float(peak_memory_mb),
             "diagnostics": bestdiagnostics,
         }
