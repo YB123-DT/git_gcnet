@@ -30,6 +30,7 @@ class ExperimentIsolationTest(unittest.TestCase):
         self.assertAlmostEqual(metrics["accuracy"], 2 / 3)
         self.assertAlmostEqual(metrics["weighted_f1"], 2 / 3)
         self.assertAlmostEqual(metrics["macro_f1"], 2 / 3)
+        self.assertAlmostEqual(metrics["unweighted_accuracy"], 0.75)
 
     def test_builds_sixteen_isolated_jobs_on_two_plus_two_gpus(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

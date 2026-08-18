@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, f1_score
 
 
 def classification_metrics_from_saved_fold(saved_fold: dict) -> dict[str, float | int]:
@@ -17,6 +17,7 @@ def classification_metrics_from_saved_fold(saved_fold: dict) -> dict[str, float 
         "weighted_f1": float(f1_score(labels, predictions, average="weighted")),
         "macro_f1": float(f1_score(labels, predictions, average="macro")),
         "accuracy": float(accuracy_score(labels, predictions)),
+        "unweighted_accuracy": float(balanced_accuracy_score(labels, predictions)),
     }
 
 
@@ -30,7 +31,9 @@ def summarize_npz(path: Path) -> dict:
         metrics["best_epoch"] = int(fold_snapshots[0]) + 1
         fold_metrics.append(metrics)
     summary = {}
-    for metric_name in ("weighted_f1", "macro_f1", "accuracy"):
+    for metric_name in (
+        "weighted_f1", "macro_f1", "accuracy", "unweighted_accuracy"
+    ):
         values = np.asarray([fold[metric_name] for fold in fold_metrics], dtype=float)
         summary[metric_name] = {
             "mean": float(values.mean()),
