@@ -207,9 +207,11 @@ class ModalityJEPAGraphModel(GraphModel):
             dropout, time_attn, no_cuda,
         )
         hidden_dim = 2 * D_e + graph_hidden_size
+        rng_state = torch.get_rng_state()
         self.modality_predictor = ModalityPredictor(
             hidden_dim, adim, tdim, vdim, predictor_dropout
         )
+        torch.set_rng_state(rng_state)
 
     def forward(self, inputfeats, qmask, umask, seq_lengths):
         log_prob, rec_outputs, hidden = super().forward(

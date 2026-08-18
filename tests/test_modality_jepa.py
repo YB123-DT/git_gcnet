@@ -8,11 +8,37 @@ import torch
 
 from gcnet_modality_jepa.loss import masked_centered_cosine_loss
 from gcnet_modality_jepa.metrics import compute_modality_diagnostics
-from gcnet_modality_jepa.model import ModalityPredictor
+from gcnet_modality_jepa.model import GraphModel, ModalityJEPAGraphModel, ModalityPredictor
 from gcnet_modality_jepa.targets import ModalityMeans, compute_modality_means
 
 
 class ModalityJEPATest(unittest.TestCase):
+    def test_jepa_head_initialization_does_not_advance_backbone_rng(self) -> None:
+        common = dict(
+            base_model="LSTM",
+            adim=2,
+            tdim=3,
+            vdim=4,
+            D_e=4,
+            graph_hidden_size=2,
+            n_speakers=2,
+            window_past=1,
+            window_future=1,
+            n_classes=6,
+            dropout=0.0,
+            time_attn=False,
+            no_cuda=True,
+        )
+        torch.manual_seed(66)
+        GraphModel(**common)
+        baseline_next_random = torch.rand(4)
+
+        torch.manual_seed(66)
+        ModalityJEPAGraphModel(**common, predictor_dropout=0.0)
+        jepa_next_random = torch.rand(4)
+
+        torch.testing.assert_close(jepa_next_random, baseline_next_random)
+
     def test_fold_means_select_speaker_and_ignore_padding(self) -> None:
         # [seq=2, batch=2, dim=1]
         audio_host = torch.tensor([[[1.0], [2.0]], [[3.0], [99.0]]])
