@@ -209,7 +209,8 @@ def random_mask(view_num, input_len, missing_rate):
 
 
 def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
-                        modality_means, mask_rate=None, optimizer=None, train=False):
+                        modality_means, mask_rate=None, optimizer=None, train=False,
+                        compute_diagnostics=False):
     preds, masks, labels, vidnames = [], [], [], []
     savepreds, savelabels, savespeakers, savehiddens, savefmask = [], [], [], [], []
     losses, losses1, losses2, losses3 = [], [], [], []
@@ -388,7 +389,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         if not args.loss_recon: loss = loss1
         loss = loss + args.jepa_weight * loss3
 
-        if not train:
+        if not train and compute_diagnostics:
             valid = umask.transpose(0, 1).bool()
             dimensions = (adim, tdim, vdim)
             target_parts = torch.split(input_features[0], dimensions, dim=-1)
@@ -449,7 +450,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         
     avg_loss3 = round(np.sum(losses3)/np.sum(masks), 4)
     diagnostics = {}
-    if not train:
+    if not train and compute_diagnostics:
         for modality_name in ("audio", "text", "visual"):
             if diagnostic_predictions[modality_name]:
                 diagnostics[modality_name] = compute_modality_diagnostics(
@@ -579,7 +580,10 @@ if __name__ == '__main__':
         all_losses = []
         all_labels = []
         val_fscores = []
-        test_fscores, test_accs, test_recon, test_diagnostics = [], [], [], []
+        test_fscores, test_accs, test_recon = [], [], []
+        best_val_so_far = -float("inf")
+        best_model_state = None
+        best_test_rng_state = None
         for epoch in range(args.epochs):
             assert args.mask_type.startswith('constant'), f'mask_type should be constant-x.x'
             mask_rate = float(args.mask_type.split('-')[-1])
@@ -589,15 +593,24 @@ if __name__ == '__main__':
                                                                             mask_rate=mask_rate, optimizer=optimizer, train=True)
             val_acc, val_fscore, val_names, val_loss, valsave, _ = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, val_loader, modality_means, \
                                                                             mask_rate=mask_rate, optimizer=None, train=False)
-            test_acc, test_fscore, test_names, test_loss, testsave, testdiag = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, test_loader, modality_means, \
+            test_rng_state = (
+                torch.get_rng_state(), np.random.get_state(), random.getstate()
+            )
+            test_acc, test_fscore, test_names, test_loss, testsave, _ = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, test_loader, modality_means, \
                                                                             mask_rate=mask_rate, optimizer=None, train=False)
+            if val_fscore > best_val_so_far:
+                best_val_so_far = val_fscore
+                best_model_state = {
+                    name: value.detach().cpu().clone()
+                    for name, value in model.state_dict().items()
+                }
+                best_test_rng_state = test_rng_state
 
             ## save
             val_fscores.append(val_fscore)
             test_accs.append(test_acc)
             test_fscores.append(test_fscore)
             test_recon.append(test_loss[2])
-            test_diagnostics.append(testdiag)
             all_losses.append({'train_loss':train_loss, 'val_loss':val_loss, 'test_loss':test_loss})
             all_labels.append({'test_labels':testsave[1], 'test_preds':testsave[0], 'test_hiddens':testsave[3], 'test_names':test_names, 'test_fmask':testsave[4]})
             print(f'epoch:{epoch+1}; train_fscore:{train_fscore:2.2%}; train_loss:{train_loss[0]}; train_loss1:{train_loss[1]}; train_loss2:{train_loss[2]}')
@@ -608,7 +621,17 @@ if __name__ == '__main__':
         bestacc = test_accs[best_index]
         bestrecon = test_recon[best_index]
         bestsave = all_labels[best_index]
-        bestdiagnostics = test_diagnostics[best_index]
+        assert best_model_state is not None and best_test_rng_state is not None
+        model.load_state_dict(best_model_state)
+        torch.set_rng_state(best_test_rng_state[0])
+        np.random.set_state(best_test_rng_state[1])
+        random.setstate(best_test_rng_state[2])
+        diagnostic_acc, diagnostic_f1, _, _, _, bestdiagnostics = train_or_eval_model(
+            args, model, reg_loss, cls_loss, rec_loss, test_loader, modality_means,
+            mask_rate=mask_rate, optimizer=None, train=False, compute_diagnostics=True
+        )
+        if not np.isclose(diagnostic_acc, bestacc) or not np.isclose(diagnostic_f1, bestf1):
+            raise RuntimeError("best-epoch diagnostic replay did not reproduce test metrics")
         folder_f1.append(bestf1)
         folder_acc.append(bestacc)
         folder_recon.append(bestrecon)
