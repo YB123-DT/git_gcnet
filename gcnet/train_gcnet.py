@@ -25,6 +25,16 @@ from dataloader_iemocap import IEMOCAPDataset
 from dataloader_cmumosi import CMUMOSIDataset
 from loss import MaskedCELoss, MaskedMSELoss, MaskedReconLoss
 
+
+def set_random_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_size, num_workers, seed):
 
     ###########################################################################
@@ -438,6 +448,7 @@ if __name__ == '__main__':
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
     args = parser.parse_args()
+    set_random_seed(args.seed)
 
     if args.dataset in ['CMUMOSI', 'CMUMOSEI']:
         args.num_folder = 1

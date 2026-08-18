@@ -34,6 +34,16 @@ from .loss import (
 from .metrics import compute_modality_diagnostics
 from .targets import ModalityMeans, compute_modality_means
 
+
+def set_random_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_size, num_workers, seed):
 
     ###########################################################################
@@ -504,6 +514,7 @@ if __name__ == '__main__':
     parser.add_argument('--output-dir', type=str, default=None, help='isolated result directory')
     parser.add_argument('--allow-short-run', action='store_true', default=False, help='allow fewer than 60 epochs for smoke tests')
     args = parser.parse_args()
+    set_random_seed(args.seed)
 
     if args.dataset in ['CMUMOSI', 'CMUMOSEI']:
         args.num_folder = 1
