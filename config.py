@@ -15,11 +15,15 @@ def get_host_ip():
 
 ############ For LINUX ##############
 # path
+_REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+_LOCAL_DATASET_ROOT = os.environ.get(
+	'GCNET_DATASET_ROOT', os.path.join(_REPO_ROOT, 'dataset')
+)
 DATA_DIR = {
-	'CMUMOSI': '/share/home/lianzheng/gcnet-master/dataset/CMUMOSI',   # for nlpr
-	'CMUMOSEI': '/share/home/lianzheng/gcnet-master/dataset/CMUMOSEI',# for nlpr
-	'IEMOCAPSix': '/share/home/lianzheng/gcnet-master/dataset/IEMOCAP', # for nlpr
-	'IEMOCAPFour': '/share/home/lianzheng/gcnet-master/dataset/IEMOCAP', # for nlpr
+	'CMUMOSI': os.path.join(_LOCAL_DATASET_ROOT, 'CMUMOSI'),
+	'CMUMOSEI': os.path.join(_LOCAL_DATASET_ROOT, 'CMUMOSEI'),
+	'IEMOCAPSix': os.path.join(_LOCAL_DATASET_ROOT, 'IEMOCAP'),
+	'IEMOCAPFour': os.path.join(_LOCAL_DATASET_ROOT, 'IEMOCAP'),
 }
 PATH_TO_RAW_AUDIO = {
 	'CMUMOSI': os.path.join(DATA_DIR['CMUMOSI'], 'subaudio'),
@@ -58,7 +62,9 @@ PATH_TO_OPENSMILE = '/share/home/lianzheng/tools/opensmile-2.3.0/'
 PATH_TO_FFMPEG = '/share/home/lianzheng/tools/ffmpeg-4.4.1-i686-static/ffmpeg'
 
 # dir
-SAVED_ROOT = os.path.join('../saved')
+SAVED_ROOT = os.environ.get(
+	'GCNET_SAVED_ROOT', os.path.join(_REPO_ROOT, 'saved')
+)
 DATA_DIR = os.path.join(SAVED_ROOT, 'data')
 MODEL_DIR = os.path.join(SAVED_ROOT, 'model')
 LOG_DIR = os.path.join(SAVED_ROOT, 'log')
@@ -95,4 +101,3 @@ PATH_TO_FEATURES_Win = {
 
 PATH_TO_OPENFACE_Win = "H:\\desktop\\Multimedia-Transformer\\gcnet-master\\OpenFace_2.2.0_win_x64\\OpenFace_2.2.0_win_x64"
 PATH_TO_FFMPEG_Win = "H:\\desktop\\Multimedia-Transformer\\tools\\ffmpeg-3.4.1-win32-static\\bin\\ffmpeg"
-

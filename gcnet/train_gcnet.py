@@ -185,12 +185,12 @@ def random_mask(view_num, input_len, missing_rate):
         ## further generate one_num samples
         one_num = view_num * alldata_len * one_rate - alldata_len  # left one_num after previous step
         ratio = one_num / (view_num * alldata_len)                 # now processed ratio
-        matrix_iter = (randint(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(np.int) # based on ratio => matrix_iter
-        a = np.sum(((matrix_iter + view_preserve) > 1).astype(np.int)) # a: overlap number
+        matrix_iter = (randint(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(np.int64) # based on ratio => matrix_iter
+        a = np.sum(((matrix_iter + view_preserve) > 1).astype(np.int64)) # a: overlap number
         one_num_iter = one_num / (1 - a / one_num)
         ratio = one_num_iter / (view_num * alldata_len)
-        matrix_iter = (randint(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(np.int)
-        matrix = ((matrix_iter + view_preserve) > 0).astype(np.int)
+        matrix_iter = (randint(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(np.int64)
+        matrix = ((matrix_iter + view_preserve) > 0).astype(np.int64)
         ratio = np.sum(matrix) / (view_num * alldata_len)
         error = abs(one_rate - ratio)
     
