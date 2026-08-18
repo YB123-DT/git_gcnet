@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import numpy as np
+import sys
 import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "gcnet"))
 
 from train_gcnet import random_mask
 

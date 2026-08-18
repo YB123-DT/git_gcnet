@@ -5,6 +5,8 @@ import math
 import pickle
 import random
 import argparse
+import json
+from pathlib import Path
 import numpy as np
 from numpy.random import randint
 
@@ -20,10 +22,17 @@ import sys
 sys.path.append('../')
 import config
 
-from model import GraphModel
-from dataloader_iemocap import IEMOCAPDataset
-from dataloader_cmumosi import CMUMOSIDataset
-from loss import MaskedCELoss, MaskedMSELoss, MaskedReconLoss
+from .model import ModalityJEPAGraphModel
+from .dataloader_iemocap import IEMOCAPDataset
+from .dataloader_cmumosi import CMUMOSIDataset
+from .loss import (
+    MaskedCELoss,
+    MaskedMSELoss,
+    MaskedReconLoss,
+    masked_centered_cosine_loss,
+)
+from .metrics import compute_modality_diagnostics
+from .targets import ModalityMeans, compute_modality_means
 
 def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_size, num_workers, seed):
 
@@ -124,7 +133,7 @@ def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_si
 def build_model(args, adim, tdim, vdim):
     D_e = args.hidden
     graph_h = args.hidden // 2
-    model = GraphModel(args.base_model,
+    model = ModalityJEPAGraphModel(args.base_model,
                        adim, tdim, vdim, D_e, graph_h,
                        n_speakers=args.n_speakers,
                        window_past=args.windowp,
@@ -132,7 +141,8 @@ def build_model(args, adim, tdim, vdim):
                        n_classes=args.n_classes,
                        dropout=args.dropout,
                        time_attn=args.time_attn,
-                       no_cuda=args.no_cuda)
+                       no_cuda=args.no_cuda,
+                       predictor_dropout=args.predictor_dropout)
     print("Model have {} paramerters in total".format(sum(x.numel() for x in model.parameters())))
     print ('Graph NN with', args.base_model, 'as base model.')
     return model
@@ -198,11 +208,13 @@ def random_mask(view_num, input_len, missing_rate):
     return matrix
 
 
-def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader, 
-                        mask_rate=None, optimizer=None, train=False):
+def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
+                        modality_means, mask_rate=None, optimizer=None, train=False):
     preds, masks, labels, vidnames = [], [], [], []
     savepreds, savelabels, savespeakers, savehiddens, savefmask = [], [], [], [], []
-    losses, losses1, losses2 = [], [], []
+    losses, losses1, losses2, losses3 = [], [], [], []
+    diagnostic_predictions = {"audio": [], "text": [], "visual": []}
+    diagnostic_targets = {"audio": [], "text": [], "visual": []}
 
     dataset = args.dataset
     reccls_flag = args.reccls_flag
@@ -335,10 +347,10 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         # input_features_recon # padded, ?*[seqlen, batch, dim]
         '''
         if reccls_flag: # whether use reconstruction features for classification
-            _, recon_input_features, _ = model(masked_input_features, qmask, umask, lengths)
-            log_prob, _, hidden = model(recon_input_features, qmask, umask, lengths)
+            _, recon_input_features, _, _ = model(masked_input_features, qmask, umask, lengths)
+            log_prob, _, hidden, modality_predictions = model(recon_input_features, qmask, umask, lengths)
         else:
-            log_prob, recon_input_features, hidden = model(masked_input_features, qmask, umask, lengths)
+            log_prob, recon_input_features, hidden, modality_predictions = model(masked_input_features, qmask, umask, lengths)
 
         ## gain saved results [utterance-level]
         tempseqlen = np.sum(umask.cpu().data.numpy(), 1) # [batch]
@@ -365,8 +377,41 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         if dataset in ['IEMOCAPFour', 'IEMOCAPSix']: loss1 = cls_loss(lp_, labels_, umask)
         if dataset in ['CMUMOSI', 'CMUMOSEI']  : loss1 = reg_loss(lp_, labels_, umask)
         loss2 = rec_loss(recon_input_features, input_features, input_features_mask, umask, adim, tdim, vdim)
+        loss3, missing_counts = masked_centered_cosine_loss(
+            modality_predictions,
+            input_features[0],
+            input_features_mask[0],
+            umask,
+            modality_means,
+        )
         if args.loss_recon: loss = loss1 + loss2
         if not args.loss_recon: loss = loss1
+        loss = loss + args.jepa_weight * loss3
+
+        if not train:
+            valid = umask.transpose(0, 1).bool()
+            dimensions = (adim, tdim, vdim)
+            target_parts = torch.split(input_features[0], dimensions, dim=-1)
+            pred_parts = (
+                modality_predictions.audio,
+                modality_predictions.text,
+                modality_predictions.visual,
+            )
+            mean_parts = (
+                modality_means.audio,
+                modality_means.text,
+                modality_means.visual,
+            )
+            for modality_index, modality_name in enumerate(("audio", "text", "visual")):
+                selected = valid & (input_features_mask[0][..., modality_index] == 0)
+                if selected.any():
+                    diagnostic_predictions[modality_name].append(
+                        pred_parts[modality_index][selected].detach().cpu()
+                    )
+                    diagnostic_targets[modality_name].append(
+                        (target_parts[modality_index][selected] - mean_parts[modality_index])
+                        .detach().cpu()
+                    )
         
         ## save batch results
         # pred_ = torch.argmax(lp_,1) # [batch*seq_len]
@@ -376,6 +421,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         losses.append(loss.item()*masks[-1].sum())
         losses1.append(loss1.item()*masks[-1].sum())
         losses2.append(loss2.item()*masks[-1].sum())
+        losses3.append(loss3.item()*masks[-1].sum())
 
         if train:
             loss.backward()
@@ -401,8 +447,22 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         avg_accuracy = accuracy_score((labels[non_zeros] > 0), (preds[non_zeros] > 0))
         avg_fscore = f1_score((labels[non_zeros] > 0), (preds[non_zeros] > 0), average='weighted')
         
+    avg_loss3 = round(np.sum(losses3)/np.sum(masks), 4)
+    diagnostics = {}
+    if not train:
+        for modality_name in ("audio", "text", "visual"):
+            if diagnostic_predictions[modality_name]:
+                diagnostics[modality_name] = compute_modality_diagnostics(
+                    torch.cat(diagnostic_predictions[modality_name], dim=0),
+                    torch.cat(diagnostic_targets[modality_name], dim=0),
+                    shuffle_seed=args.seed,
+                )
+            else:
+                diagnostics[modality_name] = compute_modality_diagnostics(
+                    torch.empty(0, 1), torch.empty(0, 1), shuffle_seed=args.seed
+                )
     print (f'sample number: {np.sum(masks)}')
-    return avg_accuracy, avg_fscore, vidnames, [avg_loss, avg_loss1, avg_loss2], [savepreds, savelabels, savespeakers, savehiddens, savefmask]
+    return avg_accuracy, avg_fscore, vidnames, [avg_loss, avg_loss1, avg_loss2, avg_loss3], [savepreds, savelabels, savespeakers, savehiddens, savefmask], diagnostics
 
 
 if __name__ == '__main__':
@@ -437,6 +497,11 @@ if __name__ == '__main__':
     parser.add_argument('--loss-recon', action='store_true', default=False, help='whether to use reconstrctuion loss')
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
+    parser.add_argument('--jepa-weight', type=float, default=0.1, help='centered modality prediction loss weight')
+    parser.add_argument('--predictor-dropout', type=float, default=0.1, help='dropout inside modality predictors')
+    parser.add_argument('--fold', type=int, choices=range(1, 6), default=None, help='run only one 1-based IEMOCAP fold')
+    parser.add_argument('--output-dir', type=str, default=None, help='isolated result directory')
+    parser.add_argument('--allow-short-run', action='store_true', default=False, help='allow fewer than 60 epochs for smoke tests')
     args = parser.parse_args()
 
     if args.dataset in ['CMUMOSI', 'CMUMOSEI']:
@@ -481,7 +546,9 @@ if __name__ == '__main__':
     folder_save = []      # save best epoch
     folder_losswhole = [] # save whole epoch
     folder_savewhole = [] # save whole epoch
-    for ii in range(args.num_folder):
+    fold_indices = [args.fold - 1] if args.fold is not None else list(range(args.num_folder))
+    fold_records = []
+    for ii in fold_indices:
         print (f'>>>>> Cross-validation: training on the {ii+1} folder >>>>>')
         train_loader = train_loaders[ii]
         val_loader = val_loaders[ii]
@@ -490,6 +557,13 @@ if __name__ == '__main__':
 
         print (f'Step1: build model (each folder has its own model)')
         model = build_model(args, adim, tdim, vdim)
+        torch_rng_state = torch.get_rng_state()
+        numpy_rng_state = np.random.get_state()
+        python_rng_state = random.getstate()
+        modality_means = compute_modality_means(train_loader)
+        torch.set_rng_state(torch_rng_state)
+        np.random.set_state(numpy_rng_state)
+        random.setstate(python_rng_state)
         reg_loss = MaskedMSELoss()
         cls_loss = MaskedCELoss()
         rec_loss = MaskedReconLoss()
@@ -497,23 +571,25 @@ if __name__ == '__main__':
             model.cuda()
             cls_loss.cuda()
             rec_loss.cuda()
+            modality_means = modality_means.to("cuda")
+            torch.cuda.reset_peak_memory_stats()
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
         print (f'Step2: training (multiple epoches)')
         all_losses = []
         all_labels = []
         val_fscores = []
-        test_fscores, test_accs, test_recon = [], [], []
+        test_fscores, test_accs, test_recon, test_diagnostics = [], [], [], []
         for epoch in range(args.epochs):
             assert args.mask_type.startswith('constant'), f'mask_type should be constant-x.x'
             mask_rate = float(args.mask_type.split('-')[-1])
            
             ## training, validation and testing
-            train_acc, train_fscore, train_names, train_loss, trainsave = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, train_loader, \
+            train_acc, train_fscore, train_names, train_loss, trainsave, _ = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, train_loader, modality_means, \
                                                                             mask_rate=mask_rate, optimizer=optimizer, train=True)
-            val_acc, val_fscore, val_names, val_loss, valsave = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, val_loader, \
+            val_acc, val_fscore, val_names, val_loss, valsave, _ = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, val_loader, modality_means, \
                                                                             mask_rate=mask_rate, optimizer=None, train=False)
-            test_acc, test_fscore, test_names, test_loss, testsave = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, test_loader, \
+            test_acc, test_fscore, test_names, test_loss, testsave, testdiag = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, test_loader, modality_means, \
                                                                             mask_rate=mask_rate, optimizer=None, train=False)
 
             ## save
@@ -521,6 +597,7 @@ if __name__ == '__main__':
             test_accs.append(test_acc)
             test_fscores.append(test_fscore)
             test_recon.append(test_loss[2])
+            test_diagnostics.append(testdiag)
             all_losses.append({'train_loss':train_loss, 'val_loss':val_loss, 'test_loss':test_loss})
             all_labels.append({'test_labels':testsave[1], 'test_preds':testsave[0], 'test_hiddens':testsave[3], 'test_names':test_names, 'test_fmask':testsave[4]})
             print(f'epoch:{epoch+1}; train_fscore:{train_fscore:2.2%}; train_loss:{train_loss[0]}; train_loss1:{train_loss[1]}; train_loss2:{train_loss[2]}')
@@ -531,19 +608,37 @@ if __name__ == '__main__':
         bestacc = test_accs[best_index]
         bestrecon = test_recon[best_index]
         bestsave = all_labels[best_index]
+        bestdiagnostics = test_diagnostics[best_index]
         folder_f1.append(bestf1)
         folder_acc.append(bestacc)
         folder_recon.append(bestrecon)
         folder_save.append(bestsave)
         folder_losswhole.append(all_losses)
-        assert args.epochs >= 60, f'epoch number should large then 60'
-        folder_savewhole.append([best_index, all_labels[10], all_labels[20], all_labels[50], all_labels[best_index]])
+        if not args.allow_short_run:
+            assert args.epochs >= 60, f'epoch number should large then 60'
+        snapshot_indices = [min(index, args.epochs - 1) for index in (10, 20, 50)]
+        folder_savewhole.append([best_index] + [all_labels[index] for index in snapshot_indices] + [all_labels[best_index]])
+        peak_memory_mb = (
+            torch.cuda.max_memory_allocated() / (1024 ** 2) if cuda else 0.0
+        )
+        fold_record = {
+            "fold": ii + 1,
+            "seed": args.seed,
+            "missing_rate": mask_rate,
+            "best_epoch": int(best_index + 1),
+            "weighted_f1": float(bestf1),
+            "accuracy": float(bestacc),
+            "reconstruction_loss": float(bestrecon),
+            "peak_memory_mb": float(peak_memory_mb),
+            "diagnostics": bestdiagnostics,
+        }
+        fold_records.append(fold_record)
         end_time = time.time()
         print (f'>>>>> Finish: training on the {ii+1} folder, duration: {end_time - start_time} >>>>>')
 
 
     print (f'====== Saving =======')
-    save_root = config.MODEL_DIR
+    save_root = args.output_dir or config.MODEL_DIR
     if not os.path.exists(save_root): os.makedirs(save_root)
     ## gain suffix_name
     mask_rate = args.mask_type.split('-')[-1]
@@ -564,3 +659,6 @@ if __name__ == '__main__':
                         folder_losswhole=np.array(folder_losswhole, dtype=object),
                         folder_savewhole=np.array(folder_savewhole, dtype=object)
                         )
+    metrics_path = Path(save_root) / "fold_metrics.json"
+    metrics_path.write_text(json.dumps(fold_records, indent=2), encoding="utf-8")
+    print(f'save fold metrics in {metrics_path}')
