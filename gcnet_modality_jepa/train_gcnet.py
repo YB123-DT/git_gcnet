@@ -237,6 +237,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         model.train()
     else:
         model.eval()
+    enable_prediction = bool(mask_rate and args.jepa_weight)
 
     for data in dataloader:
         if train: optimizer.zero_grad()
@@ -358,10 +359,19 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         # input_features_recon # padded, ?*[seqlen, batch, dim]
         '''
         if reccls_flag: # whether use reconstruction features for classification
-            _, recon_input_features, _, _ = model(masked_input_features, qmask, umask, lengths)
-            log_prob, _, hidden, modality_predictions = model(recon_input_features, qmask, umask, lengths)
+            _, recon_input_features, _, _ = model(
+                masked_input_features, qmask, umask, lengths,
+                predict_modalities=enable_prediction,
+            )
+            log_prob, _, hidden, modality_predictions = model(
+                recon_input_features, qmask, umask, lengths,
+                predict_modalities=enable_prediction,
+            )
         else:
-            log_prob, recon_input_features, hidden, modality_predictions = model(masked_input_features, qmask, umask, lengths)
+            log_prob, recon_input_features, hidden, modality_predictions = model(
+                masked_input_features, qmask, umask, lengths,
+                predict_modalities=enable_prediction,
+            )
 
         ## gain saved results [utterance-level]
         tempseqlen = np.sum(umask.cpu().data.numpy(), 1) # [batch]
@@ -388,18 +398,22 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         if dataset in ['IEMOCAPFour', 'IEMOCAPSix']: loss1 = cls_loss(lp_, labels_, umask)
         if dataset in ['CMUMOSI', 'CMUMOSEI']  : loss1 = reg_loss(lp_, labels_, umask)
         loss2 = rec_loss(recon_input_features, input_features, input_features_mask, umask, adim, tdim, vdim)
-        loss3, missing_counts = masked_centered_cosine_loss(
-            modality_predictions,
-            input_features[0],
-            input_features_mask[0],
-            umask,
-            modality_means,
-        )
+        if modality_predictions is None:
+            loss3 = hidden.sum() * 0.0
+            missing_counts = {"audio": 0, "text": 0, "visual": 0}
+        else:
+            loss3, missing_counts = masked_centered_cosine_loss(
+                modality_predictions,
+                input_features[0],
+                input_features_mask[0],
+                umask,
+                modality_means,
+            )
         if args.loss_recon: loss = loss1 + loss2
         if not args.loss_recon: loss = loss1
         loss = loss + args.jepa_weight * loss3
 
-        if not train and compute_diagnostics:
+        if not train and compute_diagnostics and modality_predictions is not None:
             valid = umask.transpose(0, 1).bool()
             dimensions = (adim, tdim, vdim)
             target_parts = torch.split(input_features[0], dimensions, dim=-1)

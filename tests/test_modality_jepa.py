@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import unittest
+from unittest import mock
 
 import numpy as np
 import torch
@@ -38,6 +39,32 @@ class ModalityJEPATest(unittest.TestCase):
         jepa_next_random = torch.rand(4)
 
         torch.testing.assert_close(jepa_next_random, baseline_next_random)
+
+    def test_disabled_prediction_does_not_execute_predictor(self) -> None:
+        model = ModalityJEPAGraphModel(
+            base_model="LSTM",
+            adim=2,
+            tdim=3,
+            vdim=4,
+            D_e=4,
+            graph_hidden_size=2,
+            n_speakers=2,
+            window_past=1,
+            window_future=1,
+            n_classes=6,
+            dropout=0.0,
+            time_attn=False,
+            no_cuda=True,
+            predictor_dropout=0.1,
+        )
+        hidden = torch.randn(2, 1, 10)
+        with mock.patch.object(
+            model.modality_predictor, "forward", wraps=model.modality_predictor.forward
+        ) as predictor_forward:
+            predictions = model.predict_modalities(hidden, enabled=False)
+
+        self.assertIsNone(predictions)
+        predictor_forward.assert_not_called()
 
     def test_fold_means_select_speaker_and_ignore_padding(self) -> None:
         # [seq=2, batch=2, dim=1]

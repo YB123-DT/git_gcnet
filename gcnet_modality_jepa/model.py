@@ -213,9 +213,14 @@ class ModalityJEPAGraphModel(GraphModel):
         )
         torch.set_rng_state(rng_state)
 
-    def forward(self, inputfeats, qmask, umask, seq_lengths):
+    def predict_modalities(self, hidden, enabled=True):
+        if not enabled:
+            return None
+        return self.modality_predictor(hidden)
+
+    def forward(self, inputfeats, qmask, umask, seq_lengths, predict_modalities=True):
         log_prob, rec_outputs, hidden = super().forward(
             inputfeats, qmask, umask, seq_lengths
         )
-        predictions = self.modality_predictor(hidden)
+        predictions = self.predict_modalities(hidden, enabled=predict_modalities)
         return log_prob, rec_outputs, hidden, predictions
