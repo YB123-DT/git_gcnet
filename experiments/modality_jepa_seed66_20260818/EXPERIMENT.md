@@ -7,6 +7,7 @@
 - 输出与 Original GCNet 完全隔离。
 - 第一轮 smoke：35,966,654 参数；比原始 34,140,166 新增 1,826,488（5.35%）；PyTorch peak allocated 1353.09MB；训练/验证/测试及诊断均为有限值。
 - 1 epoch 仅验证链路，不解释分类效果；Real–Shuffle gap 为 Audio 0.0024、Text 0.0008、Visual 0.0049。
+- **后续 parity 更正：** `missing_rate=0` 时 JEPA objective 与 Predictor 均严格关闭；独立运行得到的 -1.43 points 是 GCNet/PyG CUDA 训练轨迹噪声，不能作为 JEPA 效果。证据见 `../miss0_parity_20260819/EXPERIMENT.md`。后续 miss=0 直接复用同一 baseline checkpoint 和指标。
 
 ## 最终对照
 

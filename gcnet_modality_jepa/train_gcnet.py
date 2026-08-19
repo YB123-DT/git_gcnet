@@ -32,6 +32,7 @@ from .loss import (
     masked_centered_cosine_loss,
 )
 from .metrics import compute_modality_diagnostics
+from .parity import miss0_jepa_loss
 from .targets import ModalityMeans, compute_modality_means
 
 
@@ -399,7 +400,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         if dataset in ['CMUMOSI', 'CMUMOSEI']  : loss1 = reg_loss(lp_, labels_, umask)
         loss2 = rec_loss(recon_input_features, input_features, input_features_mask, umask, adim, tdim, vdim)
         if modality_predictions is None:
-            loss3 = hidden.sum() * 0.0
+            loss3, _ = miss0_jepa_loss(model)
             missing_counts = {"audio": 0, "text": 0, "visual": 0}
         else:
             loss3, missing_counts = masked_centered_cosine_loss(
@@ -411,7 +412,8 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
             )
         if args.loss_recon: loss = loss1 + loss2
         if not args.loss_recon: loss = loss1
-        loss = loss + args.jepa_weight * loss3
+        if enable_prediction:
+            loss = loss + args.jepa_weight * loss3
 
         if not train and compute_diagnostics and modality_predictions is not None:
             valid = umask.transpose(0, 1).bool()
