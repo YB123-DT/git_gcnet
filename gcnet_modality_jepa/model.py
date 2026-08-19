@@ -127,7 +127,8 @@ D_g, D_p, D_h, D_a, graph_hidden_size
 class GraphModel(nn.Module):
 
     def __init__(self, base_model, adim, tdim, vdim, D_e, graph_hidden_size, n_speakers, window_past, window_future,
-                 n_classes ,dropout=0.5, time_attn=True, no_cuda=False):
+                 n_classes ,dropout=0.5, time_attn=True, no_cuda=False,
+                 enable_reconstruction=True):
         
         super(GraphModel, self).__init__()
 
@@ -155,7 +156,9 @@ class GraphModel(nn.Module):
         ## classification and reconstruction
         D_h = 2*D_e + graph_hidden_size
         self.smax_fc  = nn.Linear(D_h, n_classes)
-        self.linear_rec = nn.Linear(D_h, adim+tdim+vdim)
+        self.enable_reconstruction = enable_reconstruction
+        if enable_reconstruction:
+            self.linear_rec = nn.Linear(D_h, adim+tdim+vdim)
 
     def forward(self, inputfeats, qmask, umask, seq_lengths):
         """
@@ -189,7 +192,7 @@ class GraphModel(nn.Module):
         log_prob = self.smax_fc(hidden) # [seqlen, batch, n_classes]
 
         ## for reconstruction
-        rec_outputs = [self.linear_rec(hidden)]
+        rec_outputs = [self.linear_rec(hidden)] if self.enable_reconstruction else []
 
         return log_prob, rec_outputs, hidden
 

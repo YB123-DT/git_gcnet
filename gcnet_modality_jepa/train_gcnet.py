@@ -34,6 +34,7 @@ from .loss import (
 from .metrics import compute_modality_diagnostics
 from .parity import miss0_jepa_loss
 from .targets import ModalityMeans, compute_modality_means
+from gcnet_jepa_replacement.model import ReplacementJEPAGraphModel
 
 
 def set_random_seed(seed):
@@ -146,7 +147,12 @@ def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_si
 def build_model(args, adim, tdim, vdim):
     D_e = args.hidden
     graph_h = args.hidden // 2
-    model = ModalityJEPAGraphModel(args.base_model,
+    model_class = (
+        ReplacementJEPAGraphModel
+        if getattr(args, "model_variant", "addon") == "replacement"
+        else ModalityJEPAGraphModel
+    )
+    model = model_class(args.base_model,
                        adim, tdim, vdim, D_e, graph_h,
                        n_speakers=args.n_speakers,
                        window_past=args.windowp,
@@ -400,7 +406,10 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         labels_ = label.view(-1) # [batch*seq_len]
         if dataset in ['IEMOCAPFour', 'IEMOCAPSix']: loss1 = cls_loss(lp_, labels_, umask)
         if dataset in ['CMUMOSI', 'CMUMOSEI']  : loss1 = reg_loss(lp_, labels_, umask)
-        loss2 = rec_loss(recon_input_features, input_features, input_features_mask, umask, adim, tdim, vdim)
+        if recon_input_features:
+            loss2 = rec_loss(recon_input_features, input_features, input_features_mask, umask, adim, tdim, vdim)
+        else:
+            loss2 = log_prob.new_zeros(())
         if modality_predictions is None:
             loss3, _ = miss0_jepa_loss(model)
             missing_counts = {"audio": 0, "text": 0, "visual": 0}
@@ -529,11 +538,14 @@ if __name__ == '__main__':
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
     parser.add_argument('--jepa-weight', type=float, default=0.1, help='centered modality prediction loss weight')
     parser.add_argument('--predictor-dropout', type=float, default=0.1, help='dropout inside modality predictors')
+    parser.add_argument('--model-variant', choices=['addon', 'replacement'], default='addon')
     parser.add_argument('--fold', type=int, choices=range(1, 6), default=None, help='run only one 1-based IEMOCAP fold')
     parser.add_argument('--output-dir', type=str, default=None, help='isolated result directory')
     parser.add_argument('--allow-short-run', action='store_true', default=False, help='allow fewer than 60 epochs for smoke tests')
     args = parser.parse_args()
     torch.set_num_threads(args.num_threads)
+    if args.model_variant == 'replacement' and args.loss_recon:
+        parser.error('--model-variant replacement cannot be combined with --loss-recon')
     set_random_seed(args.seed)
 
     if args.dataset in ['CMUMOSI', 'CMUMOSEI']:
