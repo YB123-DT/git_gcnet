@@ -5,12 +5,58 @@ import tqdm
 import pickle
 import random
 import argparse
+import fcntl
+import hashlib
 import numpy as np
 import pandas as pd
+from pathlib import Path
+from typing import Callable, TypeVar
 
 import torch
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
+
+
+T = TypeVar("T")
+
+
+def build_feature_path_index(feature_root, names):
+    """Map utterance ids to paths with one directory scan."""
+    root = Path(feature_root)
+    requested = set(names)
+    index = {}
+    for entry in root.iterdir():
+        utterance_id = entry.stem if entry.is_file() else entry.name
+        if utterance_id in requested:
+            if utterance_id in index:
+                raise ValueError(f"duplicate feature path for {utterance_id}")
+            index[utterance_id] = entry
+    missing = requested.difference(index)
+    if missing:
+        raise FileNotFoundError(f"missing {len(missing)} features in {root}")
+    return index
+
+
+def load_or_create_cache(cache_path: Path, factory: Callable[[], T]) -> T:
+    """Load a pickle cache or atomically create it under an inter-process lock."""
+    cache_path = Path(cache_path)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = cache_path.with_suffix(cache_path.suffix + ".lock")
+    with lock_path.open("a+b") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        if cache_path.exists():
+            with cache_path.open("rb") as cache_file:
+                return pickle.load(cache_file)
+        value = factory()
+        temporary_path = cache_path.with_name(
+            f"{cache_path.name}.{os.getpid()}.tmp"
+        )
+        with temporary_path.open("wb") as cache_file:
+            pickle.dump(value, cache_file, protocol=pickle.HIGHEST_PROTOCOL)
+            cache_file.flush()
+            os.fsync(cache_file.fileno())
+        os.replace(temporary_path, cache_path)
+        return value
 
 
 ## gain name2features
@@ -28,13 +74,12 @@ def read_data(label_path, feature_root):
         speakers.extend(spks_video)
 
     ## (names, speakers) => features
+    feature_paths = build_feature_path_index(feature_root, names)
     features = []
     feature_dim = -1
     for ii, name in enumerate(names):
         speaker = speakers[ii]
-        feature_dir = glob.glob(os.path.join(feature_root, name+'*'))
-        assert len(feature_dir) == 1
-        feature_path = feature_dir[0]
+        feature_path = str(feature_paths[name])
 
         feature = {'F':[], 'M':[]}
         if feature_path.endswith('.npy'): # audio/text => belong to speaker
@@ -170,3 +215,23 @@ class IEMOCAPDataset(Dataset):
             else:
                 datnew.append(dat[i].tolist()) # origin
         return datnew
+
+
+def load_iemocap_dataset(label_path, audio_root, text_root, video_root):
+    """Load the assembled dataset from a cache shared by repeated trials."""
+    sources = [label_path, audio_root, text_root, video_root]
+    fingerprint_parts = []
+    for source in sources:
+        path = Path(source).resolve()
+        fingerprint_parts.extend((str(path), str(path.stat().st_mtime_ns)))
+    fingerprint = hashlib.sha256("\0".join(fingerprint_parts).encode()).hexdigest()[:16]
+    cache_root = Path(
+        os.environ.get(
+            "GCNET_CACHE_ROOT", str(Path(label_path).resolve().parent / ".gcnet_cache")
+        )
+    )
+    cache_path = cache_root / f"iemocap_{fingerprint}.pkl"
+    return load_or_create_cache(
+        cache_path,
+        lambda: IEMOCAPDataset(label_path, audio_root, text_root, video_root),
+    )

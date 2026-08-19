@@ -23,7 +23,7 @@ sys.path.append('../')
 import config
 
 from .model import ModalityJEPAGraphModel
-from .dataloader_iemocap import IEMOCAPDataset
+from .dataloader_iemocap import load_iemocap_dataset
 from .dataloader_cmumosi import CMUMOSIDataset
 from .loss import (
     MaskedCELoss,
@@ -94,10 +94,12 @@ def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_si
     ###########################################################################
     if dataset in ['IEMOCAPFour', 'IEMOCAPSix']: ## five folder cross-validation, each fold contains (train, test)
 
-        dataset = IEMOCAPDataset(label_path=config.PATH_TO_LABEL[dataset],
-                                 audio_root=audio_root,
-                                 text_root=text_root,
-                                 video_root=video_root)
+        dataset = load_iemocap_dataset(
+            label_path=config.PATH_TO_LABEL[dataset],
+            audio_root=audio_root,
+            text_root=text_root,
+            video_root=video_root,
+        )
 
         ## gain index for cross-validation
         session_to_idx = {}
@@ -517,6 +519,7 @@ if __name__ == '__main__':
     parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
     parser.add_argument('--dropout', type=float, default=0.5, metavar='dropout', help='dropout rate')
     parser.add_argument('--batch-size', type=int, default=32, metavar='BS', help='batch size')
+    parser.add_argument('--num-threads', type=int, default=6, help='Torch CPU threads per process')
     parser.add_argument('--epochs', type=int, default=100, metavar='E', help='number of epochs')
     parser.add_argument('--num-folder', type=int, default=5, help='folders for cross-validation [defined by args.dataset]')
     parser.add_argument('--seed', type=int, default=100, help='make split manner is same with same seed')
@@ -530,6 +533,7 @@ if __name__ == '__main__':
     parser.add_argument('--output-dir', type=str, default=None, help='isolated result directory')
     parser.add_argument('--allow-short-run', action='store_true', default=False, help='allow fewer than 60 epochs for smoke tests')
     args = parser.parse_args()
+    torch.set_num_threads(args.num_threads)
     set_random_seed(args.seed)
 
     if args.dataset in ['CMUMOSI', 'CMUMOSEI']:
