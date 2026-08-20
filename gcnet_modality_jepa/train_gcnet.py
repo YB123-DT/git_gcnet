@@ -6,6 +6,7 @@ import pickle
 import random
 import argparse
 import json
+from contextlib import contextmanager
 from pathlib import Path
 import numpy as np
 from numpy.random import randint
@@ -26,18 +27,25 @@ from .model import ModalityJEPAGraphModel
 from .dataloader_iemocap import load_iemocap_dataset
 from .dataloader_cmumosi import CMUMOSIDataset
 from .loss import (
+    AllModalReconLoss,
     MaskedCELoss,
     MaskedMSELoss,
     MaskedReconLoss,
     masked_centered_cosine_loss,
 )
-from .metrics import compute_modality_diagnostics
+from .metrics import (
+    compute_epoch_collapse_diagnostics,
+    compute_modality_diagnostics,
+)
 from .parity import miss0_jepa_loss
+from .protocol import SeedBundle
 from .targets import ModalityMeans, compute_modality_means
 from gcnet_jepa_replacement.model import ReplacementJEPAGraphModel
 
 
-def set_random_seed(seed):
+def set_random_seed(seed, strict_deterministic=False):
+    if strict_deterministic:
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -45,6 +53,8 @@ def set_random_seed(seed):
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+    if strict_deterministic:
+        torch.use_deterministic_algorithms(True)
 
 def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_size, num_workers, seed):
 
@@ -161,7 +171,10 @@ def build_model(args, adim, tdim, vdim):
                        dropout=args.dropout,
                        time_attn=args.time_attn,
                        no_cuda=args.no_cuda,
-                       predictor_dropout=args.predictor_dropout)
+                       predictor_dropout=args.predictor_dropout,
+                       enable_stability_reconstruction=(
+                           getattr(args, "stability_recon_weight", 0.0) > 0.0
+                       ))
     print("Model have {} paramerters in total".format(sum(x.numel() for x in model.parameters())))
     print ('Graph NN with', args.base_model, 'as base model.')
     return model
@@ -181,20 +194,26 @@ def generate_inputs(audio_host, text_host, visual_host, audio_guest, text_guest,
 
 
 ## follow cpm-net's masking manner
-def random_mask(view_num, input_len, missing_rate):
+def random_mask(view_num, input_len, missing_rate, rng=None):
     """Randomly generate incomplete data information, simulate partial view data with complete view data
     """
 
     assert missing_rate is not None
+    if rng is None:
+        random_integers = randint
+    elif hasattr(rng, "integers"):
+        random_integers = rng.integers
+    else:
+        random_integers = rng.randint
     one_rate = 1 - missing_rate      # missing_rate: 0.8; one_rate: 0.2
 
     if one_rate <= (1 / view_num): # 
         enc = OneHotEncoder(categories=[np.arange(view_num)])
-        view_preserve = enc.fit_transform(randint(0, view_num, size=(input_len, 1))).toarray() # only select one view [avoid all zero input]
+        view_preserve = enc.fit_transform(random_integers(0, view_num, size=(input_len, 1))).toarray() # only select one view [avoid all zero input]
         return view_preserve # [samplenum, viewnum] => one value set=1, others=0
 
     if one_rate == 1:
-        matrix = randint(1, 2, size=(input_len, view_num)) # [samplenum, viewnum] => all ones
+        matrix = random_integers(1, 2, size=(input_len, view_num)) # [samplenum, viewnum] => all ones
         return matrix
 
     ## for one_rate between [1 / view_num, 1] => can have multi view input
@@ -209,16 +228,16 @@ def random_mask(view_num, input_len, missing_rate):
 
         ## gain initial view_preserve
         enc = OneHotEncoder(categories=[np.arange(view_num)])
-        view_preserve = enc.fit_transform(randint(0, view_num, size=(alldata_len, 1))).toarray() # [samplenum, viewnum=2] => one value set=1, others=0
+        view_preserve = enc.fit_transform(random_integers(0, view_num, size=(alldata_len, 1))).toarray() # [samplenum, viewnum=2] => one value set=1, others=0
 
         ## further generate one_num samples
         one_num = view_num * alldata_len * one_rate - alldata_len  # left one_num after previous step
         ratio = one_num / (view_num * alldata_len)                 # now processed ratio
-        matrix_iter = (randint(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(np.int64) # based on ratio => matrix_iter
+        matrix_iter = (random_integers(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(np.int64) # based on ratio => matrix_iter
         a = np.sum(((matrix_iter + view_preserve) > 1).astype(np.int64)) # a: overlap number
         one_num_iter = one_num / (1 - a / one_num)
         ratio = one_num_iter / (view_num * alldata_len)
-        matrix_iter = (randint(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(np.int64)
+        matrix_iter = (random_integers(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(np.int64)
         matrix = ((matrix_iter + view_preserve) > 0).astype(np.int64)
         ratio = np.sum(matrix) / (view_num * alldata_len)
         error = abs(one_rate - ratio)
@@ -227,14 +246,231 @@ def random_mask(view_num, input_len, missing_rate):
     return matrix
 
 
-def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
-                        modality_means, mask_rate=None, optimizer=None, train=False,
-                        compute_diagnostics=False):
+def build_masked_auxiliary_view(input_tensor, missing_rate, dimensions, rng=None):
+    """Create a training-only masked view while preserving the full target.
+
+    Args:
+        input_tensor: Full fused features [seq, batch, A+T+V].
+        missing_rate: Probability-like rate used by GCNet's random_mask.
+        dimensions: Tuple of audio, text, and visual dimensions.
+
+    Returns:
+        masked_tensor: Auxiliary input [seq, batch, A+T+V].
+        availability: Modality availability mask [seq, batch, 3].
+    """
+    if input_tensor.ndim != 3 or len(dimensions) != 3:
+        raise ValueError("expected input [seq, batch, D] and three dimensions")
+    if sum(dimensions) != input_tensor.size(-1):
+        raise ValueError("modality dimensions do not match input feature size")
+    sequence_length, batch_size, _ = input_tensor.shape
+    matrix = random_mask(
+        3, sequence_length * batch_size, missing_rate, rng=rng
+    )
+    availability = torch.as_tensor(
+        matrix,
+        dtype=input_tensor.dtype,
+        device=input_tensor.device,
+    ).reshape(sequence_length, batch_size, 3)
+    expanded = torch.cat(
+        [
+            availability[..., index:index + 1].expand(
+                sequence_length, batch_size, dimension
+            )
+            for index, dimension in enumerate(dimensions)
+        ],
+        dim=-1,
+    )
+    return input_tensor * expanded, availability
+
+
+def create_stability_mask_rng(seed):
+    component_seed = SeedBundle(master_seed=seed).derive("stability_mask")
+    return np.random.RandomState(component_seed)
+
+
+@contextmanager
+def preserve_torch_rng_state():
+    cpu_rng_state = torch.get_rng_state()
+    cuda_rng_states = (
+        torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None
+    )
+    try:
+        yield
+    finally:
+        torch.set_rng_state(cpu_rng_state)
+        if cuda_rng_states is not None:
+            torch.cuda.set_rng_state_all(cuda_rng_states)
+
+
+def compute_stability_reconstruction_loss(
+    args,
+    model,
+    rec_loss,
+    input_features,
+    qmask,
+    umask,
+    lengths,
+    dimensions,
+    train,
+    stability_mask_rng,
+):
+    if not train or getattr(args, "stability_recon_weight", 0.0) <= 0.0:
+        return None
+    auxiliary_tensor, auxiliary_availability = build_masked_auxiliary_view(
+        input_features[0],
+        missing_rate=args.stability_aux_mask_rate,
+        dimensions=dimensions,
+        rng=stability_mask_rng,
+    )
+    with preserve_torch_rng_state():
+        _, _, auxiliary_hidden, _ = model(
+            [auxiliary_tensor],
+            qmask,
+            umask,
+            lengths,
+            predict_modalities=False,
+            detach_predictor_input=False,
+        )
+        auxiliary_reconstruction = [
+            model.reconstruct_stability(auxiliary_hidden)
+        ]
+    adim, tdim, vdim = dimensions
+    return rec_loss(
+        auxiliary_reconstruction,
+        input_features,
+        [auxiliary_availability],
+        umask,
+        adim,
+        tdim,
+        vdim,
+    )
+
+
+def validate_training_args(args):
+    if args.model_variant == "replacement" and args.loss_recon:
+        raise ValueError(
+            "--model-variant replacement cannot be combined with --loss-recon"
+        )
+    if args.model_variant == "replacement" and args.all_modal_recon_weight:
+        raise ValueError(
+            "--all-modal-recon-weight requires the addon reconstruction head"
+        )
+    if not 0.0 <= args.stability_aux_mask_rate <= 0.7:
+        raise ValueError(
+            "--stability-aux-mask-rate must be between 0.0 and 0.7"
+        )
+    if args.stability_recon_weight < 0.0:
+        raise ValueError("--stability-recon-weight must be non-negative")
+
+
+def compose_total_loss(
+    args,
+    regression_loss,
+    missing_reconstruction_loss,
+    jepa_loss,
+    all_modal_reconstruction_loss,
+    enable_prediction,
+    stability_reconstruction_loss=None,
+):
+    loss = regression_loss
+    if args.loss_recon:
+        loss = loss + missing_reconstruction_loss
+    if enable_prediction:
+        loss = loss + args.jepa_weight * jepa_loss
+    loss = loss + args.all_modal_recon_weight * all_modal_reconstruction_loss
+    if stability_reconstruction_loss is not None:
+        loss = (
+            loss
+            + args.stability_recon_weight * stability_reconstruction_loss
+        )
+    return loss
+
+
+def build_loss_vector(
+    total,
+    primary,
+    missing_reconstruction,
+    jepa,
+    all_modal_reconstruction,
+    stability_reconstruction,
+):
+    return [
+        total,
+        primary,
+        missing_reconstruction,
+        jepa,
+        all_modal_reconstruction,
+        stability_reconstruction,
+    ]
+
+
+def train_or_eval_model(
+    args,
+    model,
+    reg_loss,
+    cls_loss,
+    rec_loss,
+    dataloader,
+    modality_means,
+    mask_rate=None,
+    optimizer=None,
+    train=False,
+    compute_diagnostics=False,
+    *,
+    all_modal_rec_loss=None,
+    stability_mask_rng=None,
+):
+    if all_modal_rec_loss is None:
+        all_modal_rec_loss = AllModalReconLoss()
+    if stability_mask_rng is None:
+        stability_mask_rng = create_stability_mask_rng(args.seed)
+    return _train_or_eval_model_impl(
+        args,
+        model,
+        reg_loss,
+        cls_loss,
+        rec_loss,
+        dataloader,
+        modality_means,
+        mask_rate=mask_rate,
+        optimizer=optimizer,
+        train=train,
+        compute_diagnostics=compute_diagnostics,
+        all_modal_rec_loss=all_modal_rec_loss,
+        stability_mask_rng=stability_mask_rng,
+    )
+
+
+def _train_or_eval_model_impl(
+    args,
+    model,
+    reg_loss,
+    cls_loss,
+    rec_loss,
+    dataloader,
+    modality_means,
+    mask_rate=None,
+    optimizer=None,
+    train=False,
+    compute_diagnostics=False,
+    *,
+    all_modal_rec_loss,
+    stability_mask_rng,
+):
     preds, masks, labels, vidnames = [], [], [], []
     savepreds, savelabels, savespeakers, savehiddens, savefmask = [], [], [], [], []
-    losses, losses1, losses2, losses3 = [], [], [], []
+    losses, losses1, losses2, losses3, losses4, losses5 = [], [], [], [], [], []
     diagnostic_predictions = {"audio": [], "text": [], "visual": []}
     diagnostic_targets = {"audio": [], "text": [], "visual": []}
+    collapse_tensors = {
+        "temporal_pre": [],
+        "temporal_hidden": [],
+        "speaker_pre": [],
+        "speaker_hidden": [],
+        "final_hidden": [],
+        "predictions": [],
+        "labels": [],
+    }
 
     dataset = args.dataset
     reccls_flag = args.reccls_flag
@@ -247,6 +483,13 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
     else:
         model.eval()
     enable_prediction = bool(mask_rate and args.jepa_weight)
+    record_epoch_collapse = bool(
+        train
+        and getattr(args, "epoch_collapse_diagnostics", False)
+        and dataset in ["CMUMOSI", "CMUMOSEI"]
+    )
+    model.graph_net_temporal.record_activation_diagnostics = record_epoch_collapse
+    model.graph_net_speaker.record_activation_diagnostics = record_epoch_collapse
 
     for data in dataloader:
         if train: optimizer.zero_grad()
@@ -371,15 +614,48 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
             _, recon_input_features, _, _ = model(
                 masked_input_features, qmask, umask, lengths,
                 predict_modalities=enable_prediction,
+                detach_predictor_input=args.detach_predictor_input,
             )
             log_prob, _, hidden, modality_predictions = model(
                 recon_input_features, qmask, umask, lengths,
                 predict_modalities=enable_prediction,
+                detach_predictor_input=args.detach_predictor_input,
             )
         else:
             log_prob, recon_input_features, hidden, modality_predictions = model(
                 masked_input_features, qmask, umask, lengths,
                 predict_modalities=enable_prediction,
+                detach_predictor_input=args.detach_predictor_input,
+            )
+
+        if record_epoch_collapse:
+            valid = umask.transpose(0, 1).bool()
+            temporal_pre = model.graph_net_temporal.last_pre_activation
+            temporal_hidden = model.graph_net_temporal.last_hidden
+            speaker_pre = model.graph_net_speaker.last_pre_activation
+            speaker_hidden = model.graph_net_speaker.last_hidden
+            if any(value is None for value in (
+                temporal_pre, temporal_hidden, speaker_pre, speaker_hidden
+            )):
+                raise RuntimeError("activation diagnostics were not captured")
+            collapse_tensors["temporal_pre"].append(
+                temporal_pre[valid].detach().cpu()
+            )
+            collapse_tensors["temporal_hidden"].append(
+                temporal_hidden[valid].detach().cpu()
+            )
+            collapse_tensors["speaker_pre"].append(
+                speaker_pre[valid].detach().cpu()
+            )
+            collapse_tensors["speaker_hidden"].append(
+                speaker_hidden[valid].detach().cpu()
+            )
+            collapse_tensors["final_hidden"].append(hidden[valid].detach().cpu())
+            collapse_tensors["predictions"].append(
+                log_prob[valid].detach().cpu()
+            )
+            collapse_tensors["labels"].append(
+                label[umask.bool()].detach().cpu()
             )
 
         ## gain saved results [utterance-level]
@@ -410,6 +686,12 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
             loss2 = rec_loss(recon_input_features, input_features, input_features_mask, umask, adim, tdim, vdim)
         else:
             loss2 = log_prob.new_zeros(())
+        if args.all_modal_recon_weight and recon_input_features:
+            loss4 = all_modal_rec_loss(
+                recon_input_features, input_features, umask, adim, tdim, vdim
+            )
+        else:
+            loss4 = log_prob.new_zeros(())
         if modality_predictions is None:
             loss3, _ = miss0_jepa_loss(model)
             missing_counts = {"audio": 0, "text": 0, "visual": 0}
@@ -421,10 +703,32 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
                 umask,
                 modality_means,
             )
-        if args.loss_recon: loss = loss1 + loss2
-        if not args.loss_recon: loss = loss1
-        if enable_prediction:
-            loss = loss + args.jepa_weight * loss3
+        stability_reconstruction_loss = compute_stability_reconstruction_loss(
+            args=args,
+            model=model,
+            rec_loss=rec_loss,
+            input_features=input_features,
+            qmask=qmask,
+            umask=umask,
+            lengths=lengths,
+            dimensions=(adim, tdim, vdim),
+            train=train,
+            stability_mask_rng=stability_mask_rng,
+        )
+        loss5 = (
+            log_prob.new_zeros(())
+            if stability_reconstruction_loss is None
+            else stability_reconstruction_loss
+        )
+        loss = compose_total_loss(
+            args,
+            loss1,
+            loss2,
+            loss3,
+            loss4,
+            enable_prediction,
+            stability_reconstruction_loss=loss5,
+        )
 
         if not train and compute_diagnostics and modality_predictions is not None:
             valid = umask.transpose(0, 1).bool()
@@ -460,6 +764,8 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         losses1.append(loss1.item()*masks[-1].sum())
         losses2.append(loss2.item()*masks[-1].sum())
         losses3.append(loss3.item()*masks[-1].sum())
+        losses4.append(loss4.item()*masks[-1].sum())
+        losses5.append(loss5.item()*masks[-1].sum())
 
         if train:
             loss.backward()
@@ -486,7 +792,22 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         avg_fscore = f1_score((labels[non_zeros] > 0), (preds[non_zeros] > 0), average='weighted')
         
     avg_loss3 = round(np.sum(losses3)/np.sum(masks), 4)
+    avg_loss4 = round(np.sum(losses4)/np.sum(masks), 4)
+    avg_loss5 = round(np.sum(losses5)/np.sum(masks), 4)
     diagnostics = {}
+    if record_epoch_collapse:
+        diagnostics = compute_epoch_collapse_diagnostics(
+            temporal_pre=torch.cat(collapse_tensors["temporal_pre"], dim=0),
+            temporal_hidden=torch.cat(collapse_tensors["temporal_hidden"], dim=0),
+            speaker_pre=torch.cat(collapse_tensors["speaker_pre"], dim=0),
+            speaker_hidden=torch.cat(collapse_tensors["speaker_hidden"], dim=0),
+            final_hidden=torch.cat(collapse_tensors["final_hidden"], dim=0),
+            predictions=torch.cat(collapse_tensors["predictions"], dim=0),
+            labels=torch.cat(collapse_tensors["labels"], dim=0),
+            regression_head=model.smax_fc,
+        )
+    model.graph_net_temporal.record_activation_diagnostics = False
+    model.graph_net_speaker.record_activation_diagnostics = False
     if not train and compute_diagnostics:
         for modality_name in ("audio", "text", "visual"):
             if diagnostic_predictions[modality_name]:
@@ -500,7 +821,15 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
                     torch.empty(0, 1), torch.empty(0, 1), shuffle_seed=args.seed
                 )
     print (f'sample number: {np.sum(masks)}')
-    return avg_accuracy, avg_fscore, vidnames, [avg_loss, avg_loss1, avg_loss2, avg_loss3], [savepreds, savelabels, savespeakers, savehiddens, savefmask], diagnostics
+    loss_vector = build_loss_vector(
+        total=avg_loss,
+        primary=avg_loss1,
+        missing_reconstruction=avg_loss2,
+        jepa=avg_loss3,
+        all_modal_reconstruction=avg_loss4,
+        stability_reconstruction=avg_loss5,
+    )
+    return avg_accuracy, avg_fscore, vidnames, loss_vector, [savepreds, savelabels, savespeakers, savehiddens, savefmask], diagnostics
 
 
 if __name__ == '__main__':
@@ -537,16 +866,24 @@ if __name__ == '__main__':
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
     parser.add_argument('--jepa-weight', type=float, default=0.1, help='centered modality prediction loss weight')
+    parser.add_argument('--all-modal-recon-weight', type=float, default=0.0, help='diagnostic reconstruction weight over complete observed modalities')
+    parser.add_argument('--detach-predictor-input', action='store_true', default=False, help='train only the Predictor with JEPA gradients')
     parser.add_argument('--predictor-dropout', type=float, default=0.1, help='dropout inside modality predictors')
     parser.add_argument('--model-variant', choices=['addon', 'replacement'], default='addon')
     parser.add_argument('--fold', type=int, choices=range(1, 6), default=None, help='run only one 1-based IEMOCAP fold')
     parser.add_argument('--output-dir', type=str, default=None, help='isolated result directory')
     parser.add_argument('--allow-short-run', action='store_true', default=False, help='allow fewer than 60 epochs for smoke tests')
+    parser.add_argument('--epoch-collapse-diagnostics', action='store_true', default=False, help='record per-epoch GCNet activation and regression-collapse metrics')
+    parser.add_argument('--strict-deterministic', action='store_true', default=False, help='error if CUDA/PyTorch selects a nondeterministic operation')
+    parser.add_argument('--stability-aux-mask-rate', type=float, default=0.1, help='training-only missing rate for auxiliary reconstruction')
+    parser.add_argument('--stability-recon-weight', type=float, default=0.0, help='weight for training-only masked reconstruction stability loss')
     args = parser.parse_args()
     torch.set_num_threads(args.num_threads)
-    if args.model_variant == 'replacement' and args.loss_recon:
-        parser.error('--model-variant replacement cannot be combined with --loss-recon')
-    set_random_seed(args.seed)
+    try:
+        validate_training_args(args)
+    except ValueError as error:
+        parser.error(str(error))
+    set_random_seed(args.seed, strict_deterministic=args.strict_deterministic)
 
     if args.dataset in ['CMUMOSI', 'CMUMOSEI']:
         args.num_folder = 1
@@ -592,6 +929,8 @@ if __name__ == '__main__':
     folder_savewhole = [] # save whole epoch
     fold_indices = [args.fold - 1] if args.fold is not None else list(range(args.num_folder))
     fold_records = []
+    epoch_collapse_records = []
+    stability_mask_rng = create_stability_mask_rng(args.seed)
     for ii in fold_indices:
         print (f'>>>>> Cross-validation: training on the {ii+1} folder >>>>>')
         train_loader = train_loaders[ii]
@@ -611,10 +950,12 @@ if __name__ == '__main__':
         reg_loss = MaskedMSELoss()
         cls_loss = MaskedCELoss()
         rec_loss = MaskedReconLoss()
+        all_modal_rec_loss = AllModalReconLoss()
         if cuda:
             model.cuda()
             cls_loss.cuda()
             rec_loss.cuda()
+            all_modal_rec_loss.cuda()
             modality_means = modality_means.to("cuda")
             torch.cuda.reset_peak_memory_stats()
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
@@ -623,7 +964,7 @@ if __name__ == '__main__':
         all_losses = []
         all_labels = []
         val_fscores = []
-        test_fscores, test_accs, test_recon, test_jepa = [], [], [], []
+        test_fscores, test_accs, test_recon, test_jepa, test_all_recon = [], [], [], [], []
         best_val_so_far = -float("inf")
         best_model_state = None
         best_test_rng_state = None
@@ -632,15 +973,15 @@ if __name__ == '__main__':
             mask_rate = float(args.mask_type.split('-')[-1])
            
             ## training, validation and testing
-            train_acc, train_fscore, train_names, train_loss, trainsave, _ = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, train_loader, modality_means, \
-                                                                            mask_rate=mask_rate, optimizer=optimizer, train=True)
+            train_acc, train_fscore, train_names, train_loss, trainsave, train_diagnostics = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, train_loader, modality_means, \
+                                                                            mask_rate=mask_rate, optimizer=optimizer, train=True, all_modal_rec_loss=all_modal_rec_loss, stability_mask_rng=stability_mask_rng)
             val_acc, val_fscore, val_names, val_loss, valsave, _ = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, val_loader, modality_means, \
-                                                                            mask_rate=mask_rate, optimizer=None, train=False)
+                                                                            mask_rate=mask_rate, optimizer=None, train=False, all_modal_rec_loss=all_modal_rec_loss, stability_mask_rng=stability_mask_rng)
             test_rng_state = (
                 torch.get_rng_state(), np.random.get_state(), random.getstate()
             )
             test_acc, test_fscore, test_names, test_loss, testsave, _ = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, test_loader, modality_means, \
-                                                                            mask_rate=mask_rate, optimizer=None, train=False)
+                                                                            mask_rate=mask_rate, optimizer=None, train=False, all_modal_rec_loss=all_modal_rec_loss, stability_mask_rng=stability_mask_rng)
             if val_fscore > best_val_so_far:
                 best_val_so_far = val_fscore
                 best_model_state = {
@@ -655,9 +996,22 @@ if __name__ == '__main__':
             test_fscores.append(test_fscore)
             test_recon.append(test_loss[2])
             test_jepa.append(test_loss[3])
+            test_all_recon.append(test_loss[4])
             all_losses.append({'train_loss':train_loss, 'val_loss':val_loss, 'test_loss':test_loss})
             all_labels.append({'test_labels':testsave[1], 'test_preds':testsave[0], 'test_hiddens':testsave[3], 'test_names':test_names, 'test_fmask':testsave[4]})
-            print(f'epoch:{epoch+1}; train_fscore:{train_fscore:2.2%}; train_loss:{train_loss[0]}; train_loss1:{train_loss[1]}; train_loss2:{train_loss[2]}; train_loss3:{train_loss[3]}')
+            if args.epoch_collapse_diagnostics:
+                epoch_collapse_records.append({
+                    "fold": ii + 1,
+                    "epoch": epoch + 1,
+                    "train_weighted_f1": float(train_fscore),
+                    "val_weighted_f1": float(val_fscore),
+                    "test_weighted_f1": float(test_fscore),
+                    "train_total_loss": float(train_loss[0]),
+                    "train_regression_loss": float(train_loss[1]),
+                    "train_stability_reconstruction_loss": float(train_loss[5]),
+                    **train_diagnostics,
+                })
+            print(f'epoch:{epoch+1}; train_fscore:{train_fscore:2.2%}; train_loss:{train_loss[0]}; train_loss1:{train_loss[1]}; train_loss2:{train_loss[2]}; train_loss3:{train_loss[3]}; train_loss4:{train_loss[4]}; train_loss5:{train_loss[5]}')
 
         print (f'Step3: saving and testing on the {ii+1} folder')
         best_index = np.argmax(np.array(val_fscores))
@@ -665,6 +1019,7 @@ if __name__ == '__main__':
         bestacc = test_accs[best_index]
         bestrecon = test_recon[best_index]
         bestjepa = test_jepa[best_index]
+        bestallrecon = test_all_recon[best_index]
         bestsave = all_labels[best_index]
         assert best_model_state is not None and best_test_rng_state is not None
         model.load_state_dict(best_model_state)
@@ -673,7 +1028,9 @@ if __name__ == '__main__':
         random.setstate(best_test_rng_state[2])
         diagnostic_acc, diagnostic_f1, _, _, _, bestdiagnostics = train_or_eval_model(
             args, model, reg_loss, cls_loss, rec_loss, test_loader, modality_means,
-            mask_rate=mask_rate, optimizer=None, train=False, compute_diagnostics=True
+            mask_rate=mask_rate, optimizer=None, train=False, compute_diagnostics=True,
+            all_modal_rec_loss=all_modal_rec_loss,
+            stability_mask_rng=stability_mask_rng,
         )
         if not np.isclose(diagnostic_acc, bestacc) or not np.isclose(diagnostic_f1, bestf1):
             raise RuntimeError("best-epoch diagnostic replay did not reproduce test metrics")
@@ -692,12 +1049,17 @@ if __name__ == '__main__':
         fold_record = {
             "fold": ii + 1,
             "seed": args.seed,
+            "strict_deterministic": bool(args.strict_deterministic),
+            "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
             "missing_rate": mask_rate,
             "best_epoch": int(best_index + 1),
             "weighted_f1": float(bestf1),
             "accuracy": float(bestacc),
             "reconstruction_loss": float(bestrecon),
             "jepa_loss": float(bestjepa),
+            "all_modal_reconstruction_loss": float(bestallrecon),
+            "stability_aux_mask_rate": float(args.stability_aux_mask_rate),
+            "stability_recon_weight": float(args.stability_recon_weight),
             "peak_memory_mb": float(peak_memory_mb),
             "diagnostics": bestdiagnostics,
         }
@@ -731,3 +1093,9 @@ if __name__ == '__main__':
     metrics_path = Path(save_root) / "fold_metrics.json"
     metrics_path.write_text(json.dumps(fold_records, indent=2), encoding="utf-8")
     print(f'save fold metrics in {metrics_path}')
+    if args.epoch_collapse_diagnostics:
+        epoch_diagnostics_path = Path(save_root) / "epoch_collapse_diagnostics.json"
+        epoch_diagnostics_path.write_text(
+            json.dumps(epoch_collapse_records, indent=2), encoding="utf-8"
+        )
+        print(f'save epoch collapse diagnostics in {epoch_diagnostics_path}')

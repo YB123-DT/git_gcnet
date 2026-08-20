@@ -74,6 +74,9 @@ class GraphNetwork(torch.nn.Module):
         ## sequence attention
         self.matchatt = MatchingAttention(2*D_h, 2*D_h, att_type='general2')
         self.linear = nn.Linear(2*D_h, D_h)
+        self.record_activation_diagnostics = False
+        self.last_pre_activation = None
+        self.last_hidden = None
 
 
     def forward(self, features, edge_index, edge_type, seq_lengths, umask):
@@ -110,10 +113,17 @@ class GraphNetwork(torch.nn.Module):
                 att_emotions.append(att_em.unsqueeze(0)) # [1, batch, mem_dim]
                 alpha.append(alpha_[:,0,:]) # [batch, seqlen]
             att_emotions = torch.cat(att_emotions, dim=0) # [seqlen, batch, mem_dim]
-            hidden = F.relu(self.linear(att_emotions)) # [seqlen, batch, D_h]
+            pre_activation = self.linear(att_emotions)
         else:
             alpha = []
-            hidden = F.relu(self.linear(outputs)) # [seqlen, batch, D_h]
+            pre_activation = self.linear(outputs)
+        hidden = F.relu(pre_activation) # [seqlen, batch, D_h]
+        if self.record_activation_diagnostics:
+            self.last_pre_activation = pre_activation.detach()
+            self.last_hidden = hidden.detach()
+        else:
+            self.last_pre_activation = None
+            self.last_hidden = None
 
         return hidden # [seqlen, batch, D_h]
 
@@ -128,7 +138,8 @@ class GraphModel(nn.Module):
 
     def __init__(self, base_model, adim, tdim, vdim, D_e, graph_hidden_size, n_speakers, window_past, window_future,
                  n_classes ,dropout=0.5, time_attn=True, no_cuda=False,
-                 enable_reconstruction=True):
+                 enable_reconstruction=True,
+                 enable_stability_reconstruction=False):
         
         super(GraphModel, self).__init__()
 
@@ -156,9 +167,23 @@ class GraphModel(nn.Module):
         ## classification and reconstruction
         D_h = 2*D_e + graph_hidden_size
         self.smax_fc  = nn.Linear(D_h, n_classes)
+        stability_rng_state = torch.get_rng_state()
+        self.enable_stability_reconstruction = enable_stability_reconstruction
         self.enable_reconstruction = enable_reconstruction
         if enable_reconstruction:
             self.linear_rec = nn.Linear(D_h, adim+tdim+vdim)
+        if enable_stability_reconstruction:
+            rng_state_after_existing_heads = torch.get_rng_state()
+            try:
+                torch.set_rng_state(stability_rng_state)
+                self.stability_rec_head = nn.Linear(D_h, adim+tdim+vdim)
+            finally:
+                torch.set_rng_state(rng_state_after_existing_heads)
+
+    def reconstruct_stability(self, hidden):
+        if not self.enable_stability_reconstruction:
+            raise RuntimeError("stability reconstruction is disabled")
+        return self.stability_rec_head(hidden)
 
     def forward(self, inputfeats, qmask, umask, seq_lengths):
         """
@@ -203,11 +228,13 @@ class ModalityJEPAGraphModel(GraphModel):
     def __init__(self, base_model, adim, tdim, vdim, D_e, graph_hidden_size,
                  n_speakers, window_past, window_future, n_classes,
                  dropout=0.5, time_attn=True, no_cuda=False,
-                 predictor_dropout=0.1):
+                 predictor_dropout=0.1,
+                 enable_stability_reconstruction=False):
         super().__init__(
             base_model, adim, tdim, vdim, D_e, graph_hidden_size,
             n_speakers, window_past, window_future, n_classes,
             dropout, time_attn, no_cuda,
+            enable_stability_reconstruction=enable_stability_reconstruction,
         )
         hidden_dim = 2 * D_e + graph_hidden_size
         rng_state = torch.get_rng_state()
@@ -216,14 +243,27 @@ class ModalityJEPAGraphModel(GraphModel):
         )
         torch.set_rng_state(rng_state)
 
-    def predict_modalities(self, hidden, enabled=True):
+    def predict_modalities(self, hidden, enabled=True, detach_input=False):
         if not enabled:
             return None
-        return self.modality_predictor(hidden)
+        predictor_input = hidden.detach() if detach_input else hidden
+        return self.modality_predictor(predictor_input)
 
-    def forward(self, inputfeats, qmask, umask, seq_lengths, predict_modalities=True):
+    def forward(
+        self,
+        inputfeats,
+        qmask,
+        umask,
+        seq_lengths,
+        predict_modalities=True,
+        detach_predictor_input=False,
+    ):
         log_prob, rec_outputs, hidden = super().forward(
             inputfeats, qmask, umask, seq_lengths
         )
-        predictions = self.predict_modalities(hidden, enabled=predict_modalities)
+        predictions = self.predict_modalities(
+            hidden,
+            enabled=predict_modalities,
+            detach_input=detach_predictor_input,
+        )
         return log_prob, rec_outputs, hidden, predictions

@@ -24,6 +24,7 @@ class ReplacementJEPAGraphModel(GraphModel):
         time_attn=True,
         no_cuda=False,
         predictor_dropout=0.1,
+        enable_stability_reconstruction=False,
     ):
         super().__init__(
             base_model,
@@ -40,6 +41,7 @@ class ReplacementJEPAGraphModel(GraphModel):
             time_attn,
             no_cuda,
             enable_reconstruction=False,
+            enable_stability_reconstruction=enable_stability_reconstruction,
         )
         hidden_dim = 2 * D_e + graph_hidden_size
         rng_state = torch.get_rng_state()
@@ -49,12 +51,17 @@ class ReplacementJEPAGraphModel(GraphModel):
         torch.set_rng_state(rng_state)
 
     def forward(
-        self, inputfeats, qmask, umask, seq_lengths, predict_modalities=True
+        self,
+        inputfeats,
+        qmask,
+        umask,
+        seq_lengths,
+        predict_modalities=True,
+        detach_predictor_input=False,
     ):
         log_prob, no_reconstruction, hidden = super().forward(
             inputfeats, qmask, umask, seq_lengths
         )
-        predictions = (
-            self.modality_predictor(hidden) if predict_modalities else None
-        )
+        predictor_input = hidden.detach() if detach_predictor_input else hidden
+        predictions = self.modality_predictor(predictor_input) if predict_modalities else None
         return log_prob, no_reconstruction, hidden, predictions
