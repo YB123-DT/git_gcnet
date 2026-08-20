@@ -1,0 +1,72 @@
+{
+  "protocol_version": 1,
+  "environment": {
+    "interpreter": "/data2/yb/reproduction_envs/gcnet-official/bin/python",
+    "definition": "environments/gcnet-official/environment.yml"
+  },
+  "datasets": [
+    "IEMOCAPFour",
+    "IEMOCAPSix",
+    "CMUMOSI",
+    "CMUMOSEI"
+  ],
+  "features": {
+    "audio": "wav2vec-large-c-UTT",
+    "text": "deberta-large-4-UTT",
+    "visual": "manet_UTT"
+  },
+  "evaluation": {
+    "iemocap_folds": 5,
+    "iemocap_validation_fraction": 0.1,
+    "mosi_mosei_split": "official",
+    "checkpoint_metric": "validation_weighted_f1",
+    "test_calls_per_fold": 1
+  },
+  "pairing": {
+    "formal_seeds": [66, 67, 68, 69, 70, 71, 72, 73, 74, 75],
+    "seed_components": [
+      "model_init",
+      "training_stochasticity",
+      "split",
+      "data_order",
+      "missing_mask",
+      "stability_mask"
+    ],
+    "required_equal_evidence": [
+      "environment",
+      "git_revision_and_status",
+      "feature_metadata",
+      "split",
+      "sampler_order",
+      "mask_schedule",
+      "shared_initialization",
+      "stability_configuration"
+    ]
+  },
+  "missing_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+  "stability": {
+    "enabled_for_both_variants": true,
+    "auxiliary_mask_rate": 0.1,
+    "reconstruction_weight": 0.01
+  },
+  "training": {
+    "epochs": 100,
+    "learning_rate": 0.001,
+    "hidden": 200,
+    "dropout": 0.5,
+    "batch_size": 32,
+    "window_past": 2,
+    "window_future": 2
+  },
+  "collapse_monitoring": {
+    "mosi_weighted_f1_collapsed_at_or_below": 0.6,
+    "mosi_weighted_f1_normal_at_or_above": 0.8,
+    "always_record": [
+      "prediction_std",
+      "final_hidden_std",
+      "final_hidden_effective_rank",
+      "regression_head_weight_norm",
+      "regression_bias_label_mean_gap"
+    ]
+  }
+}
