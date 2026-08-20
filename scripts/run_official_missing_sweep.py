@@ -7,6 +7,8 @@ import argparse
 import json
 import os
 import subprocess
+import sys
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -14,11 +16,21 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from gcnet_modality_jepa.run_manifest import ManifestValidationError, load_manifest
+
 
 DATASETS = ("IEMOCAPFour", "IEMOCAPSix", "CMUMOSI", "CMUMOSEI")
 METHODS = ("baseline", "jepa")
 RATES = tuple(round(index / 10.0, 1) for index in range(8))
 SEEDS = tuple(range(66, 76))
+DEFAULT_GPUS = (0, 1, 2, 3, 5, 6, 7)
+CLAIM_FILE = ".official-sweep.claim"
+EXPECTED_JOB_COUNT = 640
+EXPECTED_PAIR_COUNT = 320
 
 
 @dataclass(frozen=True)
@@ -105,7 +117,7 @@ def _common_command(
 def build_jobs(
     output_root: Path,
     python: str,
-    gpus: Sequence[int] = (0, 1, 2, 3, 5),
+    gpus: Sequence[int] = DEFAULT_GPUS,
     jobs_per_gpu: int = 3,
     epochs: int = 100,
 ) -> List[OfficialJob]:
@@ -174,25 +186,123 @@ def _latest_manifest(output_dir: Path) -> Path | None:
     return manifests[-1] if manifests else None
 
 
-def is_complete(output_dir: Path) -> bool:
-    status_path = output_dir / "status.json"
+def _manifest_matches_job(manifest: dict, job: OfficialJob) -> bool:
+    expected_fold = 5 if job.dataset.startswith("IEMOCAP") else 1
+    expected_method = (
+        {
+            "model_variant": "addon",
+            "jepa_weight": 0.0,
+            "loss_reconstruction": True,
+        }
+        if job.method == "baseline"
+        else {
+            "model_variant": "replacement",
+            "jepa_weight": 0.1,
+            "loss_reconstruction": False,
+        }
+    )
+    return (
+        manifest["run"]["dataset"] == job.dataset
+        and manifest["run"]["fold"] == expected_fold
+        and manifest["run"]["master_seed"] == job.seed
+        and manifest["masks"]["requested_missing_rate"] == job.missing_rate
+        and manifest["lifecycle"]["evaluation_protocol"] == "official"
+        and all(
+            manifest["method"][key] == value
+            for key, value in expected_method.items()
+        )
+    )
+
+
+def is_complete(job: OfficialJob) -> bool:
+    status_path = job.output_dir / "status.json"
     if not status_path.exists():
         return False
     try:
         status = json.loads(status_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
-    return status.get("returncode") == 0 and _latest_manifest(output_dir) is not None
+    if status.get("identity") != job.identity:
+        return False
+    returncode = status.get("returncode")
+    if type(returncode) is not int or returncode != 0:
+        return False
+    manifest_path = _latest_manifest(job.output_dir)
+    if manifest_path is None:
+        return False
+    try:
+        manifest = load_manifest(manifest_path)
+    except ManifestValidationError:
+        return False
+    return _manifest_matches_job(manifest, job)
 
 
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False, default=str) + "\n",
-        encoding="utf-8",
-    )
-    os.replace(temporary, path)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=str(path.parent),
+            prefix=".{}.".format(path.name),
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            json.dump(payload, handle, indent=2, ensure_ascii=False, default=str)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(str(temporary), str(path))
+    except Exception:
+        if temporary is not None:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
+        raise
+
+
+def _acquire_claim(job: OfficialJob) -> Path | None:
+    job.output_dir.mkdir(parents=True, exist_ok=True)
+    claim_path = job.output_dir / CLAIM_FILE
+    try:
+        descriptor = os.open(
+            str(claim_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644
+        )
+    except FileExistsError:
+        return None
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "identity": job.identity,
+                    "pid": os.getpid(),
+                    "claimed_at_unix": time.time(),
+                },
+                handle,
+                indent=2,
+            )
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except Exception:
+        try:
+            claim_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+    return claim_path
+
+
+def _release_claim(claim_path: Path | None) -> None:
+    if claim_path is None:
+        return
+    try:
+        claim_path.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def _gpu_memory_mb(gpu: int) -> int:
@@ -234,43 +344,82 @@ def _environment(root: Path, gpu: int) -> Dict[str, str]:
 
 
 def run_job(job: OfficialJob, root: Path, stop_event: threading.Event) -> bool:
-    if is_complete(job.output_dir):
+    if is_complete(job):
         return True
     if stop_event.is_set():
         return False
-    job.output_dir.mkdir(parents=True, exist_ok=True)
-    _write_json(
-        job.output_dir / "command.json",
-        {
-            **asdict(job),
-            "output_dir": str(job.output_dir),
-            "command": list(job.command),
-        },
-    )
     started_at = time.time()
-    with (job.output_dir / "train.log").open("w", encoding="utf-8") as log:
-        result = subprocess.run(
-            job.command,
-            cwd=str(root),
-            env=_environment(root, job.gpu),
-            stdout=log,
-            stderr=subprocess.STDOUT,
+    returncode = None
+    claim_path: Path | None = None
+    try:
+        claim_path = _acquire_claim(job)
+        if claim_path is None:
+            stop_event.set()
+            return False
+        if is_complete(job):
+            return True
+        if stop_event.is_set():
+            return False
+        _write_json(
+            job.output_dir / "command.json",
+            {
+                **asdict(job),
+                "output_dir": str(job.output_dir),
+                "command": list(job.command),
+            },
         )
-    _write_json(
-        job.output_dir / "status.json",
-        {
+        with (job.output_dir / "train.log").open("w", encoding="utf-8") as log:
+            result = subprocess.run(
+                job.command,
+                cwd=str(root),
+                env=_environment(root, job.gpu),
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        returncode = result.returncode
+        status = {
             "identity": job.identity,
             "gpu": job.gpu,
             "slot": job.slot,
-            "returncode": result.returncode,
+            "returncode": returncode,
             "started_at_unix": started_at,
             "finished_at_unix": time.time(),
-        },
-    )
-    if result.returncode != 0:
+        }
+        if returncode != 0:
+            status["error"] = "training process exited with return code {}".format(
+                returncode
+            )
+        _write_json(job.output_dir / "status.json", status)
+        if returncode != 0:
+            stop_event.set()
+            return False
+        if not is_complete(job):
+            status["error"] = "return code 0 without a matching valid manifest"
+            status["finished_at_unix"] = time.time()
+            _write_json(job.output_dir / "status.json", status)
+            stop_event.set()
+            return False
+        return True
+    except Exception as error:
         stop_event.set()
+        try:
+            _write_json(
+                job.output_dir / "status.json",
+                {
+                    "identity": job.identity,
+                    "gpu": job.gpu,
+                    "slot": job.slot,
+                    "returncode": returncode,
+                    "started_at_unix": started_at,
+                    "finished_at_unix": time.time(),
+                    "error": "{}: {}".format(type(error).__name__, error),
+                },
+            )
+        except Exception:
+            pass
         return False
-    return True
+    finally:
+        _release_claim(claim_path)
 
 
 def _run_lane(
@@ -284,40 +433,87 @@ def _run_lane(
 
 def audit_completed_pairs(
     jobs: Sequence[OfficialJob], root: Path, python: str
-) -> int:
+) -> Tuple[int, int]:
     pairs: Dict[Tuple[str, float, int], Dict[str, OfficialJob]] = {}
     for job in jobs:
         pairs.setdefault(
             (job.dataset, job.missing_rate, job.seed), {}
         )[job.method] = job
     failures = 0
+    audited_pairs = 0
     audit_script = root / "scripts" / "audit_paired_runs.py"
     for pair_jobs in pairs.values():
         if set(pair_jobs) != set(METHODS):
+            failures += 1
             continue
         baseline = pair_jobs["baseline"]
         jepa = pair_jobs["jepa"]
-        if not is_complete(baseline.output_dir) or not is_complete(jepa.output_dir):
+        if not is_complete(baseline) or not is_complete(jepa):
+            failures += 1
             continue
         baseline_manifest = _latest_manifest(baseline.output_dir)
         jepa_manifest = _latest_manifest(jepa.output_dir)
         audit_path = baseline.output_dir.parent / "paired_audit.log"
-        result = subprocess.run(
-            [
-                python,
-                str(audit_script),
-                str(baseline_manifest),
-                str(jepa_manifest),
-            ],
-            cwd=str(root),
-            env=_environment(root, baseline.gpu),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        audit_path.write_text(result.stdout, encoding="utf-8")
+        try:
+            result = subprocess.run(
+                [
+                    python,
+                    str(audit_script),
+                    str(baseline_manifest),
+                    str(jepa_manifest),
+                ],
+                cwd=str(root),
+                env=_environment(root, baseline.gpu),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            audit_path.write_text(result.stdout, encoding="utf-8")
+        except Exception as error:
+            failures += 1
+            try:
+                audit_path.write_text(
+                    "audit exception: {}: {}\n".format(type(error).__name__, error),
+                    encoding="utf-8",
+                )
+            except OSError:
+                pass
+            continue
+        audited_pairs += 1
         failures += int(result.returncode != 0)
-    return failures
+    return audited_pairs, failures
+
+
+def _collect_worker_results(
+    futures: Sequence[object], stop_event: threading.Event
+) -> Tuple[bool, List[str]]:
+    failed_workers = 0
+    errors: List[str] = []
+    for future in futures:
+        try:
+            if future.result() is not True:
+                failed_workers += 1
+        except Exception as error:
+            stop_event.set()
+            failed_workers += 1
+            errors.append("{}: {}".format(type(error).__name__, error))
+    return failed_workers == 0, errors
+
+
+def _scheduler_succeeded(
+    worker_success: bool,
+    complete_jobs: int,
+    total_jobs: int,
+    audited_pairs: int,
+    audit_failures: int,
+) -> bool:
+    return (
+        worker_success
+        and total_jobs == EXPECTED_JOB_COUNT
+        and complete_jobs == EXPECTED_JOB_COUNT
+        and audited_pairs == EXPECTED_PAIR_COUNT
+        and audit_failures == 0
+    )
 
 
 def _parse_gpus(value: str) -> Tuple[int, ...]:
@@ -331,7 +527,7 @@ def main() -> int:
         "--python",
         default="/data2/yb/reproduction_envs/gcnet-official/bin/python",
     )
-    parser.add_argument("--gpus", type=_parse_gpus, default=(0, 1, 2, 3, 5))
+    parser.add_argument("--gpus", type=_parse_gpus, default=DEFAULT_GPUS)
     parser.add_argument("--jobs-per-gpu", type=int, default=3)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--dry-run", action="store_true")
@@ -375,18 +571,28 @@ def main() -> int:
             executor.submit(_run_lane, lane_jobs, root, stop_event)
             for lane_jobs in lanes.values()
         ]
-        success = all(future.result() for future in futures)
-    audit_failures = audit_completed_pairs(jobs, root, args.python)
+        success, worker_errors = _collect_worker_results(futures, stop_event)
+    audited_pairs, audit_failures = audit_completed_pairs(jobs, root, args.python)
+    complete_jobs = sum(is_complete(job) for job in jobs)
     _write_json(
         output_root / "scheduler_status.json",
         {
-            "complete_jobs": sum(is_complete(job.output_dir) for job in jobs),
+            "complete_jobs": complete_jobs,
             "total_jobs": len(jobs),
             "worker_success": success,
+            "worker_errors": worker_errors,
+            "paired_audits": audited_pairs,
+            "expected_pair_audits": EXPECTED_PAIR_COUNT,
             "paired_audit_failures": audit_failures,
         },
     )
-    return 0 if success and audit_failures == 0 else 1
+    return 0 if _scheduler_succeeded(
+        success,
+        complete_jobs,
+        len(jobs),
+        audited_pairs,
+        audit_failures,
+    ) else 1
 
 
 if __name__ == "__main__":
