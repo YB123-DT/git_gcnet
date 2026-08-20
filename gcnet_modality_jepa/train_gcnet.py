@@ -15,7 +15,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.utils.data.sampler import SubsetRandomSampler
 from sklearn.metrics import f1_score, accuracy_score
 from sklearn.preprocessing import OneHotEncoder
 
@@ -38,7 +37,10 @@ from .metrics import (
     compute_modality_diagnostics,
 )
 from .parity import miss0_jepa_loss
-from .protocol import SeedBundle
+from .mask_schedule import ConversationMaskSchedule
+from .protocol import EpochSeededSubsetSampler, SeedBundle
+from .shared_state import load_shared_checkpoint, shared_state_hash
+from .splits import build_iemocap_loso_split, build_official_split
 from .targets import ModalityMeans, compute_modality_means
 from gcnet_jepa_replacement.model import ReplacementJEPAGraphModel
 
@@ -56,41 +58,86 @@ def set_random_seed(seed, strict_deterministic=False):
     if strict_deterministic:
         torch.use_deterministic_algorithms(True)
 
-def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_size, num_workers, seed):
+
+def reset_training_stochasticity(
+    master_seed,
+    fold,
+    strict_deterministic=False,
+):
+    """Reset global training RNGs after variant-specific setup has completed."""
+    training_seed = SeedBundle(master_seed).derive(
+        "training_stochasticity:fold:{}".format(fold)
+    )
+    set_random_seed(
+        training_seed,
+        strict_deterministic=strict_deterministic,
+    )
+    return training_seed
+
+
+def _build_protocol_loader(
+    dataset,
+    indices,
+    dataset_name,
+    fold,
+    split,
+    batch_size,
+    num_workers,
+    seed_bundle,
+):
+    sampler_seed = seed_bundle.derive(
+        "data_order:{}:fold:{}:{}".format(dataset_name, fold, split)
+    )
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        sampler=EpochSeededSubsetSampler(indices, seed=sampler_seed),
+        collate_fn=dataset.collate_fn,
+        num_workers=num_workers,
+        pin_memory=False,
+    )
+
+
+def get_loaders(
+    audio_root,
+    text_root,
+    video_root,
+    num_folder,
+    dataset,
+    batch_size,
+    num_workers,
+    seed,
+    validation_fraction=0.1,
+):
+    dataset_name = dataset
+    seed_bundle = SeedBundle(master_seed=seed)
 
     ###########################################################################
     ###########################################################################
-    if dataset in ['CMUMOSI', 'CMUMOSEI']:
+    if dataset_name in ['CMUMOSI', 'CMUMOSEI']:
 
-        dataset = CMUMOSIDataset(label_path=config.PATH_TO_LABEL[dataset],
+        dataset = CMUMOSIDataset(label_path=config.PATH_TO_LABEL[dataset_name],
                                  audio_root=audio_root,
                                  text_root=text_root,
                                  video_root=video_root)
-        trainNum = len(dataset.trainVids)
-        valNum = len(dataset.valVids)
-        testNum = len(dataset.testVids)
-        train_idxs = list(range(0, trainNum))
-        val_idxs = list(range(trainNum, trainNum+valNum))
-        test_idxs = list(range(trainNum+valNum, trainNum+valNum+testNum))
-
-        train_loader = DataLoader(dataset,
-                                  batch_size=batch_size,
-                                  sampler=SubsetRandomSampler(train_idxs),
-                                  collate_fn=dataset.collate_fn,
-                                  num_workers=num_workers,
-                                  pin_memory=False)
-        val_loader = DataLoader(dataset,
-                                batch_size=batch_size,
-                                sampler=SubsetRandomSampler(val_idxs),
-                                collate_fn=dataset.collate_fn,
-                                num_workers=num_workers,
-                                pin_memory=False)
-        test_loader = DataLoader(dataset,
-                                 batch_size=batch_size,
-                                 sampler=SubsetRandomSampler(test_idxs),
-                                 collate_fn=dataset.collate_fn,
-                                 num_workers=num_workers,
-                                 pin_memory=False)
+        split_indices = build_official_split(
+            dataset.vids,
+            train_vids=dataset.trainVids,
+            validation_vids=dataset.valVids,
+            test_vids=dataset.testVids,
+        )
+        train_loader = _build_protocol_loader(
+            dataset, split_indices.train, dataset_name, 1, "train",
+            batch_size, num_workers, seed_bundle,
+        )
+        val_loader = _build_protocol_loader(
+            dataset, split_indices.validation, dataset_name, 1, "validation",
+            batch_size, num_workers, seed_bundle,
+        )
+        test_loader = _build_protocol_loader(
+            dataset, split_indices.test, dataset_name, 1, "test",
+            batch_size, num_workers, seed_bundle,
+        )
 
         train_loaders = [train_loader]
         val_loaders = [val_loader]
@@ -103,55 +150,52 @@ def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_si
 
     ###########################################################################
     ###########################################################################
-    if dataset in ['IEMOCAPFour', 'IEMOCAPSix']: ## five folder cross-validation, each fold contains (train, test)
+    if dataset_name in ['IEMOCAPFour', 'IEMOCAPSix']:
 
         dataset = load_iemocap_dataset(
-            label_path=config.PATH_TO_LABEL[dataset],
+            label_path=config.PATH_TO_LABEL[dataset_name],
             audio_root=audio_root,
             text_root=text_root,
             video_root=video_root,
         )
+        if num_folder != 5:
+            raise ValueError("IEMOCAP requires exactly five LOSO folds")
+        labels_by_vid = getattr(dataset, "videoLabelsNew", None)
+        if labels_by_vid is None:
+            labels_by_vid = getattr(dataset, "videoLabels", None)
+        if labels_by_vid is None:
+            raise ValueError("IEMOCAP dataset does not expose conversation labels")
 
-        ## gain index for cross-validation
-        session_to_idx = {}
-        for idx, vid in enumerate(dataset.vids):
-            session = int(vid[4]) - 1
-            if session not in session_to_idx: session_to_idx[session] = []
-            session_to_idx[session].append(idx)
-        assert len(session_to_idx) == num_folder, f'Must split into five folder'
-
-        train_test_idxs = []
-        for ii in range(num_folder): # ii in [0, 4]
-            test_idxs = session_to_idx[ii]
-            train_idxs = []
-            for jj in range(num_folder):
-                if jj != ii: train_idxs.extend(session_to_idx[jj])
-            train_test_idxs.append([train_idxs, test_idxs])
-
-        ## gain train and test loaders
         train_loaders = []
+        val_loaders = []
         test_loaders = []
-        for ii in range(len(train_test_idxs)):
-            train_idxs = train_test_idxs[ii][0]
-            test_idxs = train_test_idxs[ii][1]
-            train_loader = DataLoader(dataset,
-                                      batch_size=batch_size,
-                                      sampler=SubsetRandomSampler(train_idxs), # random sampler will shuffle index
-                                      collate_fn=dataset.collate_fn,
-                                      num_workers=num_workers,
-                                      pin_memory=False)
-            test_loader = DataLoader(dataset,
-                                     batch_size=batch_size,
-                                     sampler=SubsetRandomSampler(test_idxs),
-                                     collate_fn=dataset.collate_fn,
-                                     num_workers=num_workers,
-                                     pin_memory=False)
-            train_loaders.append(train_loader)
-            test_loaders.append(test_loader)
+        split_seed = seed_bundle.derive("split")
+        for fold in range(1, num_folder + 1):
+            split_indices = build_iemocap_loso_split(
+                dataset.vids,
+                labels_by_vid,
+                test_session=fold,
+                validation_fraction=validation_fraction,
+                seed=split_seed,
+            )
+            train_loaders.append(_build_protocol_loader(
+                dataset, split_indices.train, dataset_name, fold, "train",
+                batch_size, num_workers, seed_bundle,
+            ))
+            val_loaders.append(_build_protocol_loader(
+                dataset, split_indices.validation, dataset_name, fold,
+                "validation", batch_size, num_workers, seed_bundle,
+            ))
+            test_loaders.append(_build_protocol_loader(
+                dataset, split_indices.test, dataset_name, fold, "test",
+                batch_size, num_workers, seed_bundle,
+            ))
 
         ## return loaders
         adim, tdim, vdim = dataset.get_featDim()
-        return train_loaders, test_loaders, test_loaders, adim, tdim, vdim
+        return train_loaders, val_loaders, test_loaders, adim, tdim, vdim
+
+    raise ValueError("unsupported dataset: {}".format(dataset_name))
 
 
 def build_model(args, adim, tdim, vdim):
@@ -191,6 +235,58 @@ def generate_inputs(audio_host, text_host, visual_host, audio_guest, text_guest,
     select_feat = torch.where(tmask==0, feat1, feat2) # -> [seqlen, batch, featdim]
     input_features.append(select_feat) # 1 * [seqlen, batch, dim]
     return input_features
+
+
+def build_mask_schedule(args, split, fold, mask_rate):
+    """Build the primary missing-modality schedule for one fold and split."""
+    return ConversationMaskSchedule(
+        dataset=args.dataset,
+        split=split,
+        fold=fold,
+        requested_missing_rate=mask_rate,
+        mask_seed=SeedBundle(master_seed=args.seed).derive("missing_mask"),
+    )
+
+
+def build_primary_mask_tensors(
+    mask_schedule,
+    conversation_ids,
+    umask,
+    epoch,
+):
+    """Materialize host/guest ``[sequence, batch, 3]`` availability tensors."""
+    if not isinstance(mask_schedule, ConversationMaskSchedule):
+        raise TypeError("mask_schedule must be a ConversationMaskSchedule")
+    if umask.ndim != 2:
+        raise ValueError("umask must have shape [batch, sequence]")
+    conversation_ids = list(conversation_ids)
+    batch_size, sequence_length = umask.shape
+    if len(conversation_ids) != batch_size:
+        raise ValueError("conversation IDs must match the umask batch size")
+
+    side_tensors = []
+    for side in ("host", "guest"):
+        conversations = []
+        for batch_index, conversation_id in enumerate(conversation_ids):
+            valid_length = int(umask[batch_index].sum().item())
+            if valid_length < 1:
+                raise ValueError(
+                    "conversation {!r} has no real utterances".format(
+                        conversation_id
+                    )
+                )
+            generated = mask_schedule.generate(
+                str(conversation_id),
+                length=sequence_length,
+                valid_length=valid_length,
+                side=side,
+                epoch=epoch,
+            )
+            conversations.append(torch.as_tensor(generated.availability))
+        side_tensors.append(
+            torch.stack(conversations, dim=1).to(device=umask.device)
+        )
+    return tuple(side_tensors)
 
 
 ## follow cpm-net's masking manner
@@ -361,6 +457,9 @@ def validate_training_args(args):
         )
     if args.stability_recon_weight < 0.0:
         raise ValueError("--stability-recon-weight must be non-negative")
+    validation_fraction = getattr(args, "validation_fraction", 0.1)
+    if not math.isfinite(validation_fraction) or not 0.0 < validation_fraction < 1.0:
+        raise ValueError("--validation-fraction must be strictly between 0 and 1")
 
 
 def compose_total_loss(
@@ -419,11 +518,20 @@ def train_or_eval_model(
     *,
     all_modal_rec_loss=None,
     stability_mask_rng=None,
+    split=None,
+    fold=1,
+    epoch=0,
+    mask_schedule=None,
+    collect_artifacts=True,
 ):
     if all_modal_rec_loss is None:
         all_modal_rec_loss = AllModalReconLoss()
     if stability_mask_rng is None:
         stability_mask_rng = create_stability_mask_rng(args.seed)
+    if split is None:
+        split = "train" if train else "validation"
+    if mask_schedule is None and mask_rate is not None:
+        mask_schedule = build_mask_schedule(args, split, fold, mask_rate)
     return _train_or_eval_model_impl(
         args,
         model,
@@ -438,6 +546,11 @@ def train_or_eval_model(
         compute_diagnostics=compute_diagnostics,
         all_modal_rec_loss=all_modal_rec_loss,
         stability_mask_rng=stability_mask_rng,
+        split=split,
+        fold=fold,
+        epoch=epoch,
+        mask_schedule=mask_schedule,
+        collect_artifacts=collect_artifacts,
     )
 
 
@@ -456,6 +569,11 @@ def _train_or_eval_model_impl(
     *,
     all_modal_rec_loss,
     stability_mask_rng,
+    split,
+    fold,
+    epoch,
+    mask_schedule,
+    collect_artifacts,
 ):
     preds, masks, labels, vidnames = [], [], [], []
     savepreds, savelabels, savespeakers, savehiddens, savefmask = [], [], [], [], []
@@ -505,7 +623,8 @@ def _train_or_eval_model_impl(
         audio_host, text_host, visual_host = data[0], data[1], data[2]
         audio_guest, text_guest, visual_guest = data[3], data[4], data[5]
         qmask, umask, label = data[6], data[7], data[8]
-        vidnames += data[-1]
+        if collect_artifacts:
+            vidnames += data[-1]
         adim = audio_host.size(2)
         tdim = text_host.size(2)
         vdim = visual_host.size(2)
@@ -520,29 +639,20 @@ def _train_or_eval_model_impl(
         # if video_feature is None: video_feature = text_feature
         # mask sure, same mask for same features [include padded features]
         """
-        seqlen = audio_host.size(0)
-        batch = audio_host.size(1)
-        ## host mask [!!use original audio_feature!!]
-        view_num = 3
-        matrix = random_mask(view_num, seqlen*batch, mask_rate) # [seqlen*batch, view_num]
-        audio_host_mask = np.reshape(matrix[:, 0], (seqlen, batch, 1)) 
-        text_host_mask = np.reshape(matrix[:, 1], (seqlen, batch, 1))
-        visual_host_mask = np.reshape(matrix[:, 2], (seqlen, batch, 1))
-        audio_host_mask = torch.LongTensor(audio_host_mask)
-        text_host_mask = torch.LongTensor(text_host_mask)
-        visual_host_mask = torch.LongTensor(visual_host_mask)
-
-        # guest mask
-        view_num = 3
-        matrix = random_mask(view_num, seqlen*batch, mask_rate) # [seqlen*batch, view_num]
-        audio_guest_mask = np.reshape(matrix[:, 0], (seqlen, batch, 1)) 
-        text_guest_mask = np.reshape(matrix[:, 1], (seqlen, batch, 1))
-        visual_guest_mask = np.reshape(matrix[:, 2], (seqlen, batch, 1))
-        audio_guest_mask = torch.LongTensor(audio_guest_mask)
-        text_guest_mask = torch.LongTensor(text_guest_mask)
-        visual_guest_mask = torch.LongTensor(visual_guest_mask)
-        if view_num == 2: assert mask_rate <= 0.500001, f'Warning: at least one view exists'
-        if view_num == 3: assert mask_rate <= 0.700001, f'Warning: at least one view exists'
+        if mask_schedule is None:
+            raise ValueError("primary masking requires an explicit mask schedule")
+        host_availability, guest_availability = build_primary_mask_tensors(
+            mask_schedule,
+            conversation_ids=data[-1],
+            umask=umask,
+            epoch=epoch,
+        )
+        audio_host_mask = host_availability[..., 0:1]
+        text_host_mask = host_availability[..., 1:2]
+        visual_host_mask = host_availability[..., 2:3]
+        audio_guest_mask = guest_availability[..., 0:1]
+        text_guest_mask = guest_availability[..., 1:2]
+        visual_guest_mask = guest_availability[..., 2:3]
 
         ## lower bound==True => remove missing data
         if not lower_bound:
@@ -658,24 +768,25 @@ def _train_or_eval_model_impl(
                 label[umask.bool()].detach().cpu()
             )
 
-        ## gain saved results [utterance-level]
-        tempseqlen = np.sum(umask.cpu().data.numpy(), 1) # [batch]
-        temphidden = hidden.transpose(0,1).cpu().data.numpy() # [batch, seqlen, featdim]
-        temppred = log_prob.transpose(0,1).cpu().data.numpy() # [batch, seqlen, num_classes]
-        templabel = label.cpu().data.numpy() # [batch, seqlen]
-        tempqmask = qmask.cpu().data.numpy() # [batch, seqlen]
-        tempfmask = input_features_mask[0].transpose(0,1).cpu().data.numpy() # [seqlen, batch, 3] -> [batch, seqlen, 3]
-        for ii in range(len(tempseqlen)): # utt_number for each conversation
-            itemhidden = temphidden[ii][:int(tempseqlen[ii]), :] # [seqlen, featdim]
-            itempred   = temppred[ii][:int(tempseqlen[ii]), :]   # [seqlen, num_classes]
-            itemfmask  = tempfmask[ii][:int(tempseqlen[ii]), :]  # [seqlen, 3]
-            itemlabel  = templabel[ii][:int(tempseqlen[ii])]     # [len, ]
-            itemspks   = tempqmask[ii][:int(tempseqlen[ii])]     # [len, ]
-            savehiddens.append(itemhidden)
-            savepreds.append(itempred)
-            savefmask.append(itemfmask)
-            savelabels.append(itemlabel)
-            savespeakers.append(itemspks)
+        if collect_artifacts:
+            ## gain saved results [utterance-level]
+            tempseqlen = np.sum(umask.cpu().data.numpy(), 1) # [batch]
+            temphidden = hidden.transpose(0,1).cpu().data.numpy() # [batch, seqlen, featdim]
+            temppred = log_prob.transpose(0,1).cpu().data.numpy() # [batch, seqlen, num_classes]
+            templabel = label.cpu().data.numpy() # [batch, seqlen]
+            tempqmask = qmask.cpu().data.numpy() # [batch, seqlen]
+            tempfmask = input_features_mask[0].transpose(0,1).cpu().data.numpy() # [seqlen, batch, 3] -> [batch, seqlen, 3]
+            for ii in range(len(tempseqlen)): # utt_number for each conversation
+                itemhidden = temphidden[ii][:int(tempseqlen[ii]), :] # [seqlen, featdim]
+                itempred   = temppred[ii][:int(tempseqlen[ii]), :]   # [seqlen, num_classes]
+                itemfmask  = tempfmask[ii][:int(tempseqlen[ii]), :]  # [seqlen, 3]
+                itemlabel  = templabel[ii][:int(tempseqlen[ii])]     # [len, ]
+                itemspks   = tempqmask[ii][:int(tempseqlen[ii])]     # [len, ]
+                savehiddens.append(itemhidden)
+                savepreds.append(itempred)
+                savefmask.append(itemfmask)
+                savelabels.append(itemlabel)
+                savespeakers.append(itemspks)
 
         ## calculate loss
         lp_ = log_prob.transpose(0,1).contiguous().view(-1, log_prob.size(2)) # [batch*seq_len, n_classes]
@@ -729,6 +840,17 @@ def _train_or_eval_model_impl(
             enable_prediction,
             stability_reconstruction_loss=loss5,
         )
+        named_losses = (
+            ("total", loss),
+            ("primary", loss1),
+            ("missing reconstruction", loss2),
+            ("JEPA", loss3),
+            ("all-modal reconstruction", loss4),
+            ("stability reconstruction", loss5),
+        )
+        for loss_name, loss_value in named_losses:
+            if not bool(torch.isfinite(loss_value.detach()).all().item()):
+                raise ValueError("{} loss must be finite".format(loss_name))
 
         if not train and compute_diagnostics and modality_predictions is not None:
             valid = umask.transpose(0, 1).bool()
@@ -832,17 +954,207 @@ def _train_or_eval_model_impl(
     return avg_accuracy, avg_fscore, vidnames, loss_vector, [savepreds, savelabels, savespeakers, savehiddens, savefmask], diagnostics
 
 
-if __name__ == '__main__':
+def _require_finite_result(result, split):
+    try:
+        losses = result[3]
+    except (IndexError, TypeError) as error:
+        raise ValueError("{} result does not contain a loss vector".format(split)) from error
+    for index, value in enumerate(losses):
+        try:
+            finite = math.isfinite(float(value))
+        except (TypeError, ValueError):
+            finite = False
+        if not finite:
+            raise ValueError(
+                "{} loss at index {} must be finite".format(split, index)
+            )
+    try:
+        fscore = float(result[1])
+    except (IndexError, TypeError, ValueError) as error:
+        raise ValueError("{} weighted F1 must be finite".format(split)) from error
+    if not math.isfinite(fscore):
+        raise ValueError("{} weighted F1 must be finite".format(split))
 
+
+def _snapshot_cpu_state(model):
+    return {
+        name: value.detach().cpu().clone()
+        for name, value in model.state_dict().items()
+    }
+
+
+def _compact_epoch_result(result):
+    diagnostics = result[5]
+    if isinstance(diagnostics, dict):
+        diagnostics = dict(diagnostics)
+    return {
+        "accuracy": float(result[0]),
+        "weighted_f1": float(result[1]),
+        "loss": [float(value) for value in result[3]],
+        "diagnostics": diagnostics,
+    }
+
+
+def build_fold_archive_entry(best_epoch, final_test_payload):
+    """Keep the legacy zero-based checkpoint index plus one final payload."""
+    return [int(best_epoch) - 1, final_test_payload]
+
+
+def run_training_fold(
+    *,
+    args,
+    model,
+    reg_loss,
+    cls_loss,
+    rec_loss,
+    train_loader,
+    val_loader,
+    test_loader,
+    modality_means,
+    mask_rate,
+    optimizer,
+    fold,
+    all_modal_rec_loss=None,
+    stability_mask_rng=None,
+    evaluation_fn=None,
+):
+    """Train/select on validation, restore the best state, and test once."""
+    if evaluation_fn is None:
+        evaluation_fn = train_or_eval_model
+    schedules = {
+        split: build_mask_schedule(args, split, fold, mask_rate)
+        for split in ("train", "validation", "test")
+    }
+    epoch_records = []
+    best_validation_f1 = -float("inf")
+    best_epoch = None
+    best_model_state = None
+
+    for epoch in range(args.epochs):
+        sampler = getattr(train_loader, "sampler", None)
+        if sampler is None or not hasattr(sampler, "set_epoch"):
+            raise TypeError("train loader sampler must implement set_epoch")
+        sampler.set_epoch(epoch)
+
+        train_result = evaluation_fn(
+            args,
+            model,
+            reg_loss,
+            cls_loss,
+            rec_loss,
+            train_loader,
+            modality_means,
+            mask_rate=mask_rate,
+            optimizer=optimizer,
+            train=True,
+            compute_diagnostics=False,
+            all_modal_rec_loss=all_modal_rec_loss,
+            stability_mask_rng=stability_mask_rng,
+            split="train",
+            fold=fold,
+            epoch=epoch,
+            mask_schedule=schedules["train"],
+            collect_artifacts=False,
+        )
+        _require_finite_result(train_result, "train")
+        validation_result = evaluation_fn(
+            args,
+            model,
+            reg_loss,
+            cls_loss,
+            rec_loss,
+            val_loader,
+            modality_means,
+            mask_rate=mask_rate,
+            optimizer=None,
+            train=False,
+            compute_diagnostics=False,
+            all_modal_rec_loss=all_modal_rec_loss,
+            stability_mask_rng=stability_mask_rng,
+            split="validation",
+            fold=fold,
+            epoch=0,
+            mask_schedule=schedules["validation"],
+            collect_artifacts=False,
+        )
+        _require_finite_result(validation_result, "validation")
+        validation_f1 = float(validation_result[1])
+        if validation_f1 > best_validation_f1:
+            best_validation_f1 = validation_f1
+            best_epoch = epoch + 1
+            best_model_state = _snapshot_cpu_state(model)
+        epoch_records.append({
+            "epoch": epoch + 1,
+            "train": _compact_epoch_result(train_result),
+            "validation": _compact_epoch_result(validation_result),
+        })
+
+    if best_model_state is None or best_epoch is None:
+        raise RuntimeError("no finite validation checkpoint was selected")
+    model.load_state_dict(best_model_state, strict=True)
+    test_result = evaluation_fn(
+        args,
+        model,
+        reg_loss,
+        cls_loss,
+        rec_loss,
+        test_loader,
+        modality_means,
+        mask_rate=mask_rate,
+        optimizer=None,
+        train=False,
+        compute_diagnostics=True,
+        all_modal_rec_loss=all_modal_rec_loss,
+        stability_mask_rng=stability_mask_rng,
+        split="test",
+        fold=fold,
+        epoch=0,
+        mask_schedule=schedules["test"],
+        collect_artifacts=True,
+    )
+    _require_finite_result(test_result, "test")
+    return {
+        "best_epoch": best_epoch,
+        "best_validation_f1": best_validation_f1,
+        "epoch_records": epoch_records,
+        "test_result": test_result,
+        "test_call_count": 1,
+        "mask_schedule_hashes": {
+            split: schedule.config_hash for split, schedule in schedules.items()
+        },
+    }
+
+
+def prepare_shared_initialization(
+    model,
+    checkpoint_path=None,
+    required_hash=None,
+):
+    """Load/validate shared tensors without touching variant-specific heads."""
+    if checkpoint_path is not None:
+        return load_shared_checkpoint(
+            checkpoint_path,
+            model,
+            expected_hash=required_hash,
+        )
+    actual_hash = shared_state_hash(model)
+    if required_hash is not None and actual_hash != required_hash:
+        raise ValueError(
+            "required shared initialization hash does not match: {} != {}".format(
+                required_hash, actual_hash
+            )
+        )
+    return actual_hash
+
+
+def build_argument_parser():
     parser = argparse.ArgumentParser()
 
-    ## Params for input
     parser.add_argument('--audio-feature', type=str, default=None, help='audio feature name')
     parser.add_argument('--text-feature', type=str, default=None, help='text feature name')
     parser.add_argument('--video-feature', type=str, default=None, help='video feature name')
     parser.add_argument('--dataset', type=str, default='IEMOCAPFour', help='dataset type')
 
-    ## Params for model
     parser.add_argument('--base-model', type=str, choices=['LSTM', 'GRU'], help='base recurrent model, must be one of LSTM/GRU')
     parser.add_argument('--time-attn', action='store_true', default=False, help='whether to use nodal attention in graph model: Equation 4,5,6 in Paper')
     parser.add_argument('--windowp', type=int, default=6, help='context window size for constructing edges in graph model for past utterances, -1: fully connect')
@@ -851,7 +1163,6 @@ if __name__ == '__main__':
     parser.add_argument('--n_classes', type=int, default=2, help='number of classes [defined by args.dataset]')
     parser.add_argument('--n_speakers', type=int, default=2, help='number of speakers [defined by args.dataset]')
 
-    ## Params for training
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
     parser.add_argument('--lr', type=float, default=0.0001, metavar='LR', help='learning rate')
     parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
@@ -861,6 +1172,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=100, metavar='E', help='number of epochs')
     parser.add_argument('--num-folder', type=int, default=5, help='folders for cross-validation [defined by args.dataset]')
     parser.add_argument('--seed', type=int, default=100, help='make split manner is same with same seed')
+    parser.add_argument('--validation-fraction', type=float, default=0.1, help='IEMOCAP validation conversation fraction from non-test sessions')
     parser.add_argument('--mask-type', type=str, default='constant-0.1', help='mask rate [0~1] for input argumentation: constant-float; linear; convex; concave')
     parser.add_argument('--loss-recon', action='store_true', default=False, help='whether to use reconstrctuion loss')
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
@@ -877,6 +1189,13 @@ if __name__ == '__main__':
     parser.add_argument('--strict-deterministic', action='store_true', default=False, help='error if CUDA/PyTorch selects a nondeterministic operation')
     parser.add_argument('--stability-aux-mask-rate', type=float, default=0.1, help='training-only missing rate for auxiliary reconstruction')
     parser.add_argument('--stability-recon-weight', type=float, default=0.0, help='weight for training-only masked reconstruction stability loss')
+    parser.add_argument('--shared-init-checkpoint', type=str, default=None, help='load shared encoder/classifier initialization from this checkpoint')
+    parser.add_argument('--require-shared-init-hash', type=str, default=None, help='require this shared initialization SHA-256 hash')
+    return parser
+
+
+if __name__ == '__main__':
+    parser = build_argument_parser()
     args = parser.parse_args()
     torch.set_num_threads(args.num_threads)
     try:
@@ -916,7 +1235,8 @@ if __name__ == '__main__':
                                                                               batch_size = args.batch_size,
                                                                               dataset = args.dataset,
                                                                               num_workers = 0,
-                                                                              seed = args.seed)
+                                                                              seed = args.seed,
+                                                                              validation_fraction = args.validation_fraction)
     assert len(train_loaders) == args.num_folder, f'Error: folder number'
 
     
@@ -930,7 +1250,6 @@ if __name__ == '__main__':
     fold_indices = [args.fold - 1] if args.fold is not None else list(range(args.num_folder))
     fold_records = []
     epoch_collapse_records = []
-    stability_mask_rng = create_stability_mask_rng(args.seed)
     for ii in fold_indices:
         print (f'>>>>> Cross-validation: training on the {ii+1} folder >>>>>')
         train_loader = train_loaders[ii]
@@ -939,7 +1258,20 @@ if __name__ == '__main__':
         start_time = time.time()
 
         print (f'Step1: build model (each folder has its own model)')
+        model_seed = SeedBundle(args.seed).derive(
+            "model_init:fold:{}".format(ii + 1)
+        )
+        set_random_seed(
+            model_seed,
+            strict_deterministic=args.strict_deterministic,
+        )
         model = build_model(args, adim, tdim, vdim)
+        shared_init_hash = prepare_shared_initialization(
+            model,
+            checkpoint_path=args.shared_init_checkpoint,
+            required_hash=args.require_shared_init_hash,
+        )
+        print('shared initialization hash: {}'.format(shared_init_hash))
         torch_rng_state = torch.get_rng_state()
         numpy_rng_state = np.random.get_state()
         python_rng_state = random.getstate()
@@ -958,82 +1290,80 @@ if __name__ == '__main__':
             all_modal_rec_loss.cuda()
             modality_means = modality_means.to("cuda")
             torch.cuda.reset_peak_memory_stats()
+        # Shared tensors must be loaded and validated before optimizer state exists.
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
 
         print (f'Step2: training (multiple epoches)')
-        all_losses = []
-        all_labels = []
-        val_fscores = []
-        test_fscores, test_accs, test_recon, test_jepa, test_all_recon = [], [], [], [], []
-        best_val_so_far = -float("inf")
-        best_model_state = None
-        best_test_rng_state = None
-        for epoch in range(args.epochs):
-            assert args.mask_type.startswith('constant'), f'mask_type should be constant-x.x'
-            mask_rate = float(args.mask_type.split('-')[-1])
-           
-            ## training, validation and testing
-            train_acc, train_fscore, train_names, train_loss, trainsave, train_diagnostics = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, train_loader, modality_means, \
-                                                                            mask_rate=mask_rate, optimizer=optimizer, train=True, all_modal_rec_loss=all_modal_rec_loss, stability_mask_rng=stability_mask_rng)
-            val_acc, val_fscore, val_names, val_loss, valsave, _ = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, val_loader, modality_means, \
-                                                                            mask_rate=mask_rate, optimizer=None, train=False, all_modal_rec_loss=all_modal_rec_loss, stability_mask_rng=stability_mask_rng)
-            test_rng_state = (
-                torch.get_rng_state(), np.random.get_state(), random.getstate()
+        if not args.mask_type.startswith('constant'):
+            raise ValueError('mask_type must be constant-x.x')
+        mask_rate = float(args.mask_type.split('-')[-1])
+        stability_mask_rng = np.random.RandomState(
+            SeedBundle(args.seed).derive(
+                "stability_mask:fold:{}".format(ii + 1)
             )
-            test_acc, test_fscore, test_names, test_loss, testsave, _ = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, test_loader, modality_means, \
-                                                                            mask_rate=mask_rate, optimizer=None, train=False, all_modal_rec_loss=all_modal_rec_loss, stability_mask_rng=stability_mask_rng)
-            if val_fscore > best_val_so_far:
-                best_val_so_far = val_fscore
-                best_model_state = {
-                    name: value.detach().cpu().clone()
-                    for name, value in model.state_dict().items()
-                }
-                best_test_rng_state = test_rng_state
-
-            ## save
-            val_fscores.append(val_fscore)
-            test_accs.append(test_acc)
-            test_fscores.append(test_fscore)
-            test_recon.append(test_loss[2])
-            test_jepa.append(test_loss[3])
-            test_all_recon.append(test_loss[4])
-            all_losses.append({'train_loss':train_loss, 'val_loss':val_loss, 'test_loss':test_loss})
-            all_labels.append({'test_labels':testsave[1], 'test_preds':testsave[0], 'test_hiddens':testsave[3], 'test_names':test_names, 'test_fmask':testsave[4]})
+        )
+        training_seed = reset_training_stochasticity(
+            args.seed,
+            ii + 1,
+            strict_deterministic=args.strict_deterministic,
+        )
+        print('training stochasticity seed: {}'.format(training_seed))
+        lifecycle = run_training_fold(
+            args=args,
+            model=model,
+            reg_loss=reg_loss,
+            cls_loss=cls_loss,
+            rec_loss=rec_loss,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            test_loader=test_loader,
+            modality_means=modality_means,
+            mask_rate=mask_rate,
+            optimizer=optimizer,
+            fold=ii + 1,
+            all_modal_rec_loss=all_modal_rec_loss,
+            stability_mask_rng=stability_mask_rng,
+        )
+        all_losses = []
+        for epoch_record in lifecycle["epoch_records"]:
+            train_result = epoch_record["train"]
+            validation_result = epoch_record["validation"]
+            train_fscore = train_result["weighted_f1"]
+            train_loss = train_result["loss"]
+            val_fscore = validation_result["weighted_f1"]
+            val_loss = validation_result["loss"]
+            train_diagnostics = train_result["diagnostics"]
+            all_losses.append({
+                'train_loss': train_loss,
+                'val_loss': val_loss,
+            })
             if args.epoch_collapse_diagnostics:
                 epoch_collapse_records.append({
                     "fold": ii + 1,
-                    "epoch": epoch + 1,
+                    "epoch": epoch_record["epoch"],
                     "train_weighted_f1": float(train_fscore),
                     "val_weighted_f1": float(val_fscore),
-                    "test_weighted_f1": float(test_fscore),
                     "train_total_loss": float(train_loss[0]),
                     "train_regression_loss": float(train_loss[1]),
                     "train_stability_reconstruction_loss": float(train_loss[5]),
                     **train_diagnostics,
                 })
-            print(f'epoch:{epoch+1}; train_fscore:{train_fscore:2.2%}; train_loss:{train_loss[0]}; train_loss1:{train_loss[1]}; train_loss2:{train_loss[2]}; train_loss3:{train_loss[3]}; train_loss4:{train_loss[4]}; train_loss5:{train_loss[5]}')
+            print(f'epoch:{epoch_record["epoch"]}; train_fscore:{train_fscore:2.2%}; train_loss:{train_loss[0]}; train_loss1:{train_loss[1]}; train_loss2:{train_loss[2]}; train_loss3:{train_loss[3]}; train_loss4:{train_loss[4]}; train_loss5:{train_loss[5]}')
 
         print (f'Step3: saving and testing on the {ii+1} folder')
-        best_index = np.argmax(np.array(val_fscores))
-        bestf1 = test_fscores[best_index]
-        bestacc = test_accs[best_index]
-        bestrecon = test_recon[best_index]
-        bestjepa = test_jepa[best_index]
-        bestallrecon = test_all_recon[best_index]
-        bestsave = all_labels[best_index]
-        assert best_model_state is not None and best_test_rng_state is not None
-        model.load_state_dict(best_model_state)
-        torch.set_rng_state(best_test_rng_state[0])
-        np.random.set_state(best_test_rng_state[1])
-        random.setstate(best_test_rng_state[2])
-        diagnostic_acc, diagnostic_f1, _, _, _, bestdiagnostics = train_or_eval_model(
-            args, model, reg_loss, cls_loss, rec_loss, test_loader, modality_means,
-            mask_rate=mask_rate, optimizer=None, train=False, compute_diagnostics=True,
-            all_modal_rec_loss=all_modal_rec_loss,
-            stability_mask_rng=stability_mask_rng,
+        bestacc, bestf1, test_names, test_loss, testsave, bestdiagnostics = (
+            lifecycle["test_result"]
         )
-        if not np.isclose(diagnostic_acc, bestacc) or not np.isclose(diagnostic_f1, bestf1):
-            raise RuntimeError("best-epoch diagnostic replay did not reproduce test metrics")
+        bestrecon = test_loss[2]
+        bestjepa = test_loss[3]
+        bestallrecon = test_loss[4]
+        bestsave = {
+            'test_labels': testsave[1],
+            'test_preds': testsave[0],
+            'test_hiddens': testsave[3],
+            'test_names': test_names,
+            'test_fmask': testsave[4],
+        }
         folder_f1.append(bestf1)
         folder_acc.append(bestacc)
         folder_recon.append(bestrecon)
@@ -1041,8 +1371,9 @@ if __name__ == '__main__':
         folder_losswhole.append(all_losses)
         if not args.allow_short_run:
             assert args.epochs >= 60, f'epoch number should large then 60'
-        snapshot_indices = [min(index, args.epochs - 1) for index in (10, 20, 50)]
-        folder_savewhole.append([best_index] + [all_labels[index] for index in snapshot_indices] + [all_labels[best_index]])
+        folder_savewhole.append(build_fold_archive_entry(
+            lifecycle["best_epoch"], bestsave
+        ))
         peak_memory_mb = (
             torch.cuda.max_memory_allocated() / (1024 ** 2) if cuda else 0.0
         )
@@ -1052,7 +1383,8 @@ if __name__ == '__main__':
             "strict_deterministic": bool(args.strict_deterministic),
             "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
             "missing_rate": mask_rate,
-            "best_epoch": int(best_index + 1),
+            "best_epoch": int(lifecycle["best_epoch"]),
+            "best_validation_f1": float(lifecycle["best_validation_f1"]),
             "weighted_f1": float(bestf1),
             "accuracy": float(bestacc),
             "reconstruction_loss": float(bestrecon),
@@ -1060,6 +1392,9 @@ if __name__ == '__main__':
             "all_modal_reconstruction_loss": float(bestallrecon),
             "stability_aux_mask_rate": float(args.stability_aux_mask_rate),
             "stability_recon_weight": float(args.stability_recon_weight),
+            "shared_init_hash": shared_init_hash,
+            "mask_schedule_hashes": lifecycle["mask_schedule_hashes"],
+            "test_call_count": lifecycle["test_call_count"],
             "peak_memory_mb": float(peak_memory_mb),
             "diagnostics": bestdiagnostics,
         }
