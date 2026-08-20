@@ -39,6 +39,15 @@ from .metrics import (
 from .parity import miss0_jepa_loss
 from .mask_schedule import ConversationMaskSchedule
 from .protocol import EpochSeededSubsetSampler, SeedBundle
+from .run_manifest import (
+    MANIFEST_NAME,
+    MANIFEST_VERSION,
+    collect_environment,
+    collect_provenance,
+    feature_metadata_hash,
+    sampler_signature,
+    write_manifest_atomic,
+)
 from .shared_state import load_shared_checkpoint, shared_state_hash
 from .splits import build_iemocap_loso_split, build_official_split
 from .targets import ModalityMeans, compute_modality_means
@@ -84,11 +93,12 @@ def _build_protocol_loader(
     batch_size,
     num_workers,
     seed_bundle,
+    split_hash,
 ):
     sampler_seed = seed_bundle.derive(
         "data_order:{}:fold:{}:{}".format(dataset_name, fold, split)
     )
-    return DataLoader(
+    loader = DataLoader(
         dataset,
         batch_size=batch_size,
         sampler=EpochSeededSubsetSampler(indices, seed=sampler_seed),
@@ -96,6 +106,15 @@ def _build_protocol_loader(
         num_workers=num_workers,
         pin_memory=False,
     )
+    loader.protocol_metadata = {
+        "split": split,
+        "fold": int(fold),
+        "indices": [int(index) for index in indices],
+        "split_hash": split_hash,
+        "order_seed": sampler_seed,
+        "order_signature": sampler_signature(indices, sampler_seed),
+    }
+    return loader
 
 
 def get_loaders(
@@ -128,15 +147,15 @@ def get_loaders(
         )
         train_loader = _build_protocol_loader(
             dataset, split_indices.train, dataset_name, 1, "train",
-            batch_size, num_workers, seed_bundle,
+            batch_size, num_workers, seed_bundle, split_indices.split_hash,
         )
         val_loader = _build_protocol_loader(
             dataset, split_indices.validation, dataset_name, 1, "validation",
-            batch_size, num_workers, seed_bundle,
+            batch_size, num_workers, seed_bundle, split_indices.split_hash,
         )
         test_loader = _build_protocol_loader(
             dataset, split_indices.test, dataset_name, 1, "test",
-            batch_size, num_workers, seed_bundle,
+            batch_size, num_workers, seed_bundle, split_indices.split_hash,
         )
 
         train_loaders = [train_loader]
@@ -180,15 +199,16 @@ def get_loaders(
             )
             train_loaders.append(_build_protocol_loader(
                 dataset, split_indices.train, dataset_name, fold, "train",
-                batch_size, num_workers, seed_bundle,
+                batch_size, num_workers, seed_bundle, split_indices.split_hash,
             ))
             val_loaders.append(_build_protocol_loader(
                 dataset, split_indices.validation, dataset_name, fold,
                 "validation", batch_size, num_workers, seed_bundle,
+                split_indices.split_hash,
             ))
             test_loaders.append(_build_protocol_loader(
                 dataset, split_indices.test, dataset_name, fold, "test",
-                batch_size, num_workers, seed_bundle,
+                batch_size, num_workers, seed_bundle, split_indices.split_hash,
             ))
 
         ## return loaders
@@ -287,6 +307,29 @@ def build_primary_mask_tensors(
             torch.stack(conversations, dim=1).to(device=umask.device)
         )
     return tuple(side_tensors)
+
+
+def primary_mask_audit(host_availability, guest_availability, umask):
+    """Count missing modality elements over real utterances only."""
+    valid = umask.transpose(0, 1).bool().unsqueeze(-1)
+    missing_elements = 0
+    total_elements = 0
+    for availability in (host_availability, guest_availability):
+        expanded_valid = valid.expand_as(availability)
+        total_elements += int(expanded_valid.sum().item())
+        missing_elements += int(
+            ((availability == 0) & expanded_valid).sum().item()
+        )
+    realized = (
+        float(missing_elements) / float(total_elements)
+        if total_elements
+        else 0.0
+    )
+    return {
+        "missing_elements": missing_elements,
+        "total_elements": total_elements,
+        "realized_missing_rate": realized,
+    }
 
 
 ## follow cpm-net's masking manner
@@ -589,6 +632,8 @@ def _train_or_eval_model_impl(
         "predictions": [],
         "labels": [],
     }
+    mask_missing_elements = 0
+    mask_total_elements = 0
 
     dataset = args.dataset
     reccls_flag = args.reccls_flag
@@ -647,6 +692,11 @@ def _train_or_eval_model_impl(
             umask=umask,
             epoch=epoch,
         )
+        batch_mask_audit = primary_mask_audit(
+            host_availability, guest_availability, umask
+        )
+        mask_missing_elements += batch_mask_audit["missing_elements"]
+        mask_total_elements += batch_mask_audit["total_elements"]
         audio_host_mask = host_availability[..., 0:1]
         text_host_mask = host_availability[..., 1:2]
         visual_host_mask = host_availability[..., 2:3]
@@ -942,6 +992,15 @@ def _train_or_eval_model_impl(
                 diagnostics[modality_name] = compute_modality_diagnostics(
                     torch.empty(0, 1), torch.empty(0, 1), shuffle_seed=args.seed
                 )
+    diagnostics["primary_mask"] = {
+        "missing_elements": int(mask_missing_elements),
+        "total_elements": int(mask_total_elements),
+        "realized_missing_rate": (
+            float(mask_missing_elements) / float(mask_total_elements)
+            if mask_total_elements
+            else 0.0
+        ),
+    }
     print (f'sample number: {np.sum(masks)}')
     loss_vector = build_loss_vector(
         total=avg_loss,
@@ -998,6 +1057,133 @@ def _compact_epoch_result(result):
 def build_fold_archive_entry(best_epoch, final_test_payload):
     """Keep the legacy zero-based checkpoint index plus one final payload."""
     return [int(best_epoch) - 1, final_test_payload]
+
+
+def lifecycle_manifest_evidence(lifecycle):
+    """Extract compact mask/checkpoint evidence without retaining artifacts."""
+    train_rates = []
+    validation_rates = []
+    for record in lifecycle["epoch_records"]:
+        train_rates.append(
+            float(record["train"]["diagnostics"]["primary_mask"]["realized_missing_rate"])
+        )
+        validation_rates.append(
+            float(record["validation"]["diagnostics"]["primary_mask"]["realized_missing_rate"])
+        )
+    if not validation_rates or not train_rates:
+        raise ValueError("manifest requires nonempty train and validation mask evidence")
+    if not all(np.isclose(rate, validation_rates[0]) for rate in validation_rates):
+        raise ValueError("fixed validation mask produced inconsistent realized rates")
+    test_diagnostics = lifecycle["test_result"][5]
+    return {
+        "best_epoch": int(lifecycle["best_epoch"]),
+        "best_validation_f1": float(lifecycle["best_validation_f1"]),
+        "test_call_count": int(lifecycle["test_call_count"]),
+        "mask_schedule_hashes": dict(lifecycle["mask_schedule_hashes"]),
+        "realized_missing_rates": {
+            "train": train_rates,
+            "validation": validation_rates[0],
+            "test": float(
+                test_diagnostics["primary_mask"]["realized_missing_rate"]
+            ),
+        },
+    }
+
+
+def build_fold_run_manifest(
+    *,
+    args,
+    fold,
+    loader_metadata,
+    lifecycle_evidence,
+    fold_record,
+    feature_evidence,
+    environment,
+    provenance,
+    shared_init_hash,
+    training_seed,
+    mask_rate,
+    output_paths,
+):
+    """Assemble one complete, validation-ready fold manifest."""
+    split_hashes = {
+        metadata["split_hash"] for metadata in loader_metadata.values()
+    }
+    if len(split_hashes) != 1:
+        raise ValueError("train/validation/test loaders have different split hashes")
+    bundle = SeedBundle(args.seed)
+    return {
+        "schema": {"name": MANIFEST_NAME, "version": MANIFEST_VERSION},
+        "run": {
+            "dataset": args.dataset,
+            "fold": int(fold),
+            "master_seed": int(args.seed),
+        },
+        "environment": environment,
+        "provenance": provenance,
+        "features": feature_evidence,
+        "split": {
+            "indices": {
+                split: list(loader_metadata[split]["indices"])
+                for split in ("train", "validation", "test")
+            },
+            "hash": next(iter(split_hashes)),
+        },
+        "samplers": {
+            split: {
+                "seed": int(loader_metadata[split]["order_seed"]),
+                "signature": loader_metadata[split]["order_signature"],
+            }
+            for split in ("train", "validation", "test")
+        },
+        "masks": {
+            "requested_missing_rate": float(mask_rate),
+            "config_hashes": dict(lifecycle_evidence["mask_schedule_hashes"]),
+            "realized_missing_rates": dict(
+                lifecycle_evidence["realized_missing_rates"]
+            ),
+        },
+        "seeds": {
+            "model_init": bundle.derive("model_init:fold:{}".format(fold)),
+            "training_stochasticity": int(training_seed),
+            "split": bundle.derive("split"),
+            "data_order": {
+                split: int(loader_metadata[split]["order_seed"])
+                for split in ("train", "validation", "test")
+            },
+            "missing_mask": bundle.derive("missing_mask"),
+            "stability_mask": bundle.derive(
+                "stability_mask:fold:{}".format(fold)
+            ),
+        },
+        "initialization": {"shared_hash": shared_init_hash},
+        "stability": {
+            "enabled": bool(getattr(args, "stability_recon_weight", 0.0) > 0.0),
+            "mask_rate": float(getattr(args, "stability_aux_mask_rate", 0.0)),
+            "weight": float(getattr(args, "stability_recon_weight", 0.0)),
+        },
+        "method": {
+            "model_variant": getattr(args, "model_variant", "addon"),
+            "jepa_weight": float(getattr(args, "jepa_weight", 0.0)),
+            "loss_reconstruction": bool(getattr(args, "loss_recon", False)),
+            "all_modal_reconstruction_weight": float(
+                getattr(args, "all_modal_recon_weight", 0.0)
+            ),
+        },
+        "lifecycle": {
+            "checkpoint_metric": "validation_weighted_f1",
+            "best_epoch": int(lifecycle_evidence["best_epoch"]),
+            "best_validation_f1": float(
+                lifecycle_evidence["best_validation_f1"]
+            ),
+            "test_call_count": int(lifecycle_evidence["test_call_count"]),
+        },
+        "metrics": {
+            "weighted_f1": float(fold_record["weighted_f1"]),
+            "accuracy": float(fold_record["accuracy"]),
+        },
+        "outputs": dict(output_paths),
+    }
 
 
 def run_training_fold(
@@ -1228,6 +1414,22 @@ if __name__ == '__main__':
     text_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], text_feature)
     video_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], video_feature)
     assert os.path.exists(audio_root) and os.path.exists(text_root) and os.path.exists(video_root), f'features not exist!'
+    run_environment = collect_environment()
+    run_provenance = collect_provenance()
+    feature_evidence = {
+        "audio": {
+            "path": str(Path(audio_root).resolve()),
+            "metadata_sha256": feature_metadata_hash(audio_root),
+        },
+        "text": {
+            "path": str(Path(text_root).resolve()),
+            "metadata_sha256": feature_metadata_hash(text_root),
+        },
+        "visual": {
+            "path": str(Path(video_root).resolve()),
+            "metadata_sha256": feature_metadata_hash(video_root),
+        },
+    }
     train_loaders, val_loaders, test_loaders, adim, tdim, vdim = get_loaders( audio_root = audio_root,
                                                                               text_root  = text_root,
                                                                               video_root = video_root,
@@ -1249,6 +1451,7 @@ if __name__ == '__main__':
     folder_savewhole = [] # save whole epoch
     fold_indices = [args.fold - 1] if args.fold is not None else list(range(args.num_folder))
     fold_records = []
+    fold_manifest_contexts = []
     epoch_collapse_records = []
     for ii in fold_indices:
         print (f'>>>>> Cross-validation: training on the {ii+1} folder >>>>>')
@@ -1399,6 +1602,20 @@ if __name__ == '__main__':
             "diagnostics": bestdiagnostics,
         }
         fold_records.append(fold_record)
+        fold_manifest_contexts.append({
+            "fold": ii + 1,
+            "archive_fold_index": len(fold_manifest_contexts),
+            "loader_metadata": {
+                "train": dict(train_loader.protocol_metadata),
+                "validation": dict(val_loader.protocol_metadata),
+                "test": dict(test_loader.protocol_metadata),
+            },
+            "lifecycle_evidence": lifecycle_manifest_evidence(lifecycle),
+            "fold_record": dict(fold_record),
+            "shared_init_hash": shared_init_hash,
+            "training_seed": training_seed,
+            "mask_rate": mask_rate,
+        })
         end_time = time.time()
         print (f'>>>>> Finish: training on the {ii+1} folder, duration: {end_time - start_time} >>>>>')
 
@@ -1428,6 +1645,37 @@ if __name__ == '__main__':
     metrics_path = Path(save_root) / "fold_metrics.json"
     metrics_path.write_text(json.dumps(fold_records, indent=2), encoding="utf-8")
     print(f'save fold metrics in {metrics_path}')
+    run_id = str(int(time.time() * 1000000))
+    run_record_root = Path(save_root) / "run_records" / run_id
+    run_record_root.mkdir(parents=True, exist_ok=False)
+    immutable_metrics_path = run_record_root / "fold_metrics.json"
+    immutable_metrics_path.write_text(
+        json.dumps(fold_records, indent=2), encoding="utf-8"
+    )
+    for context in fold_manifest_contexts:
+        manifest = build_fold_run_manifest(
+            args=args,
+            fold=context["fold"],
+            loader_metadata=context["loader_metadata"],
+            lifecycle_evidence=context["lifecycle_evidence"],
+            fold_record=context["fold_record"],
+            feature_evidence=feature_evidence,
+            environment=run_environment,
+            provenance=run_provenance,
+            shared_init_hash=context["shared_init_hash"],
+            training_seed=context["training_seed"],
+            mask_rate=context["mask_rate"],
+            output_paths={
+                "result_archive": str(Path(save_path).resolve()),
+                "fold_metrics": str(immutable_metrics_path.resolve()),
+                "archive_fold_index": int(context["archive_fold_index"]),
+            },
+        )
+        manifest_path = run_record_root / "run_manifest_fold_{}.json".format(
+            context["fold"]
+        )
+        write_manifest_atomic(manifest_path, manifest)
+        print('save run manifest in {}'.format(manifest_path))
     if args.epoch_collapse_diagnostics:
         epoch_diagnostics_path = Path(save_root) / "epoch_collapse_diagnostics.json"
         epoch_diagnostics_path.write_text(

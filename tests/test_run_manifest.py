@@ -110,7 +110,10 @@ def complete_manifest() -> dict:
             "test_call_count": 1,
         },
         "metrics": {"weighted_f1": 0.70, "accuracy": 0.69},
-        "outputs": {"result_archive": "/outputs/result.npz"},
+        "outputs": {
+            "result_archive": "/outputs/result.npz",
+            "archive_fold_index": 0,
+        },
     }
 
 
@@ -258,7 +261,10 @@ class PairedAuditTest(unittest.TestCase):
             "loss_reconstruction": False,
         }
         jepa["metrics"] = {"weighted_f1": 0.73, "accuracy": 0.72}
-        jepa["outputs"] = {"result_archive": "/outputs/jepa.npz"}
+        jepa["outputs"] = {
+            "result_archive": "/outputs/jepa.npz",
+            "archive_fold_index": 0,
+        }
 
         self.assertEqual(audit_paired_manifests(baseline, jepa), [])
 

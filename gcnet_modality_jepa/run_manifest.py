@@ -90,6 +90,7 @@ _REQUIRED_PATHS = (
     "metrics.weighted_f1",
     "metrics.accuracy",
     "outputs.result_archive",
+    "outputs.archive_fold_index",
 )
 
 
@@ -342,6 +343,7 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     require_integer("lifecycle.test_call_count", minimum=0)
     require_number("metrics.weighted_f1", 0.0, 1.0)
     require_number("metrics.accuracy", 0.0, 1.0)
+    require_integer("outputs.archive_fold_index", minimum=0)
 
 
 def write_manifest_atomic(path: PathLike, manifest: Mapping[str, Any]) -> Path:
