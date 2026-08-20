@@ -1,5 +1,9 @@
 # GCNet unified Baseline/JEPA protocol
 
+> Superseded for paper-facing reruns on 2026-08-20 by the official evaluation
+> topology recorded in `OFFICIAL_RERUN_20260820.md`. The strict test-once
+> lifecycle below remains available only as a leakage diagnostic.
+
 This is the only protocol for new results. Historical sweeps produced before
 this file are diagnostic evidence, not formal Baseline/JEPA comparisons.
 

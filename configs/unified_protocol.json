@@ -1,5 +1,5 @@
 {
-  "protocol_version": 1,
+  "protocol_version": 2,
   "environment": {
     "interpreter": "/data2/yb/reproduction_envs/gcnet-official/bin/python",
     "definition": "environments/gcnet-official/environment.yml"
@@ -16,11 +16,13 @@
     "visual": "manet_UTT"
   },
   "evaluation": {
-    "iemocap_folds": 5,
-    "iemocap_validation_fraction": 0.1,
+    "mode": "official",
+    "iemocap_fold": 5,
+    "iemocap_validation_source": "held_out_session_5",
+    "iemocap_test_source": "held_out_session_5",
     "mosi_mosei_split": "official",
     "checkpoint_metric": "validation_weighted_f1",
-    "test_calls_per_fold": 1
+    "test_calls_per_fold": "one_per_epoch"
   },
   "pairing": {
     "formal_seeds": [66, 67, 68, 69, 70, 71, 72, 73, 74, 75],
