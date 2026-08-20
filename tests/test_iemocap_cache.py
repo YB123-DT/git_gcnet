@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from gcnet_modality_jepa.dataloader_iemocap import (
     build_feature_path_index,
     load_or_create_cache,
 )
+from gcnet_modality_jepa.dataloader_cmumosi import load_cmumosi_dataset
 
 
 class IEMOCAPCacheTest(unittest.TestCase):
@@ -33,6 +36,34 @@ class IEMOCAPCacheTest(unittest.TestCase):
         self.assertEqual(first, {"x": 3})
         self.assertEqual(second, {"x": 3})
         self.assertEqual(calls, [1])
+
+    def test_cmu_dataset_factory_is_cached_by_source_fingerprint(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            label = root / "labels.pkl"
+            label.write_bytes(b"labels")
+            feature_roots = []
+            for name in ("audio", "text", "visual"):
+                path = root / name
+                path.mkdir()
+                feature_roots.append(str(path))
+            sentinel = {"cached": True}
+            with mock.patch.dict(
+                os.environ, {"GCNET_CACHE_ROOT": str(root / "cache")}
+            ), mock.patch(
+                "gcnet_modality_jepa.dataloader_cmumosi.CMUMOSIDataset",
+                return_value=sentinel,
+            ) as constructor:
+                first = load_cmumosi_dataset(
+                    str(label), *feature_roots, dataset_name="CMUMOSI"
+                )
+                second = load_cmumosi_dataset(
+                    str(label), *feature_roots, dataset_name="CMUMOSI"
+                )
+
+        self.assertEqual(first, sentinel)
+        self.assertEqual(second, sentinel)
+        constructor.assert_called_once()
 
 
 if __name__ == "__main__":

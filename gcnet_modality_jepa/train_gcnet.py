@@ -24,7 +24,7 @@ import config
 
 from .model import ModalityJEPAGraphModel
 from .dataloader_iemocap import load_iemocap_dataset
-from .dataloader_cmumosi import CMUMOSIDataset
+from .dataloader_cmumosi import load_cmumosi_dataset
 from .loss import (
     AllModalReconLoss,
     MaskedCELoss,
@@ -135,10 +135,13 @@ def get_loaders(
     ###########################################################################
     if dataset_name in ['CMUMOSI', 'CMUMOSEI']:
 
-        dataset = CMUMOSIDataset(label_path=config.PATH_TO_LABEL[dataset_name],
-                                 audio_root=audio_root,
-                                 text_root=text_root,
-                                 video_root=video_root)
+        dataset = load_cmumosi_dataset(
+            label_path=config.PATH_TO_LABEL[dataset_name],
+            audio_root=audio_root,
+            text_root=text_root,
+            video_root=video_root,
+            dataset_name=dataset_name,
+        )
         split_indices = build_official_split(
             dataset.vids,
             train_vids=dataset.trainVids,

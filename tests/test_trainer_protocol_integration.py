@@ -50,7 +50,7 @@ class LoaderProtocolIntegrationTest(unittest.TestCase):
         dataset.testVids = {"test-a"}
 
         with mock.patch.object(
-            train_gcnet, "CMUMOSIDataset", return_value=dataset
+            train_gcnet, "load_cmumosi_dataset", return_value=dataset
         ), mock.patch.object(
             train_gcnet, "build_official_split", wraps=train_gcnet.build_official_split
         ) as split_builder:

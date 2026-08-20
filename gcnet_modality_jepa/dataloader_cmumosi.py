@@ -5,12 +5,16 @@ import tqdm
 import pickle
 import random
 import argparse
+import hashlib
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 import torch
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
+
+from .dataloader_iemocap import load_or_create_cache
 
 
 ## gain name2features [only one speaker]
@@ -160,3 +164,35 @@ class CMUMOSIDataset(Dataset):
             else:
                 datnew.append(dat[i].tolist()) # origin
         return datnew
+
+
+def load_cmumosi_dataset(
+    label_path, audio_root, text_root, video_root, dataset_name
+):
+    """Load an assembled MOSI/MOSEI dataset through a process-safe cache."""
+    sources = [label_path, audio_root, text_root, video_root]
+    fingerprint_parts = [dataset_name]
+    for source in sources:
+        path = Path(source).resolve()
+        fingerprint_parts.extend((str(path), str(path.stat().st_mtime_ns)))
+    fingerprint = hashlib.sha256(
+        "\0".join(fingerprint_parts).encode("utf-8")
+    ).hexdigest()[:16]
+    cache_root = Path(
+        os.environ.get(
+            "GCNET_CACHE_ROOT",
+            str(Path(label_path).resolve().parent / ".gcnet_cache"),
+        )
+    )
+    cache_path = cache_root / "{}_{}.pkl".format(
+        dataset_name.lower(), fingerprint
+    )
+    return load_or_create_cache(
+        cache_path,
+        lambda: CMUMOSIDataset(
+            label_path=label_path,
+            audio_root=audio_root,
+            text_root=text_root,
+            video_root=video_root,
+        ),
+    )

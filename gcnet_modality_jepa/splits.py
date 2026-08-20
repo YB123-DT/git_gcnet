@@ -14,7 +14,7 @@ from typing import Any, Iterable, Mapping, Sequence, Tuple
 
 
 _IEMOCAP_SESSION = re.compile(
-    r"Ses0([1-5])[FM]_(?:impro[0-9]+|script[0-9]+_[0-9]+)"
+    r"Ses0([1-5])[FM]_(?:impro[0-9]+|script[0-9]+_[0-9]+)[ab]?"
 )
 
 

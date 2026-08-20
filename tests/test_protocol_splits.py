@@ -158,6 +158,20 @@ class IemocapLosoSplitTest(unittest.TestCase):
 
         self.assertEqual(set(split.train + split.validation + split.test), set(range(10)))
 
+    def test_accepts_real_letter_suffixed_conversation_forms(self):
+        vids = []
+        labels_by_vid = {}
+        for session in range(1, 6):
+            impro_vid = "Ses0{}F_impro01a".format(session)
+            script_vid = "Ses0{}M_script01_1b".format(session)
+            vids.extend((impro_vid, script_vid))
+            labels_by_vid[impro_vid] = [0]
+            labels_by_vid[script_vid] = [1]
+
+        split = build_iemocap_loso_split(vids, labels_by_vid, 5, 0.25, 66)
+
+        self.assertEqual(set(split.train + split.validation + split.test), set(range(10)))
+
     def test_rejects_unknown_test_session(self):
         vids, labels_by_vid = synthetic_iemocap_data()
 
