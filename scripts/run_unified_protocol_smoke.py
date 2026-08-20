@@ -93,6 +93,13 @@ def _run_queue(jobs: Sequence[SmokeJob], cwd: Path, environment: Dict[str, str])
             raise RuntimeError("smoke job failed: {} {}".format(job.dataset, job.method))
 
 
+def _latest_manifest(output_dir: Path) -> Path:
+    manifests = sorted(output_dir.glob("run_records/*/run_manifest_fold_*.json"))
+    if not manifests:
+        raise RuntimeError("missing smoke manifest in {}".format(output_dir))
+    return manifests[-1]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-root", type=Path, required=True)
@@ -115,6 +122,16 @@ def main() -> int:
         futures = [executor.submit(_run_queue, queue, cwd, environment) for queue in queues.values()]
         for future in futures:
             future.result()
+    audit_script = cwd / "scripts" / "audit_paired_runs.py"
+    for dataset in DATASETS:
+        baseline = _latest_manifest(args.output_root.resolve() / dataset / "baseline")
+        jepa = _latest_manifest(args.output_root.resolve() / dataset / "jepa")
+        subprocess.run(
+            [args.python, str(audit_script), str(baseline), str(jepa)],
+            cwd=str(cwd),
+            env=environment,
+            check=True,
+        )
     return 0
 
 
