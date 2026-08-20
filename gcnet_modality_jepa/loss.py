@@ -16,6 +16,41 @@ from .model import ModalityPredictions
 from .targets import ModalityMeans
 
 
+class AllModalReconLoss(nn.Module):
+    """Reconstruct every observed modality at real, non-padding utterances."""
+
+    def forward(
+        self,
+        reconstruction,
+        target,
+        umask,
+        adim: int,
+        tdim: int,
+        vdim: int,
+    ):
+        if len(reconstruction) != 1 or len(target) != 1:
+            raise ValueError("expected one fused reconstruction and target tensor")
+        predicted = reconstruction[0]
+        expected = target[0].detach()
+        if predicted.shape != expected.shape:
+            raise ValueError("reconstruction and target shapes must match")
+        valid = umask.transpose(0, 1).to(predicted.dtype).unsqueeze(-1)
+        valid_count = valid.sum()
+        if valid_count.item() == 0:
+            return predicted.sum() * 0.0
+
+        dimensions = (adim, tdim, vdim)
+        predicted_parts = torch.split(predicted, dimensions, dim=-1)
+        expected_parts = torch.split(expected, dimensions, dim=-1)
+        modality_losses = []
+        for predicted_part, expected_part, dimension in zip(
+            predicted_parts, expected_parts, dimensions
+        ):
+            squared_error = (predicted_part - expected_part).square() * valid
+            modality_losses.append(squared_error.sum() / (valid_count * dimension))
+        return torch.stack(modality_losses).mean()
+
+
 def masked_centered_cosine_loss(
     predictions: ModalityPredictions,
     full_features: torch.Tensor,
@@ -63,33 +98,26 @@ class MaskedReconLoss(nn.Module):
         """
         assert len(recon_input) == 1
         recon = recon_input[0] # [seqlen, batch, dim]
-        target = target_input[0] # [seqlen, batch, dim]
+        target = target_input[0].detach() # [seqlen, batch, dim]
         mask = input_mask[0] # [seqlen, batch, 3]
+        real = umask.transpose(0, 1).bool()
 
-        recon  = torch.reshape(recon, (-1, recon.size(2)))   # [seqlen*batch, dim]
-        target = torch.reshape(target, (-1, target.size(2))) # [seqlen*batch, dim]
-        mask   = torch.reshape(mask, (-1, mask.size(2)))     # [seqlen*batch, 3] 1(exist); 0(mask)
-        umask = torch.reshape(umask, (-1, 1)) # [seqlen*batch, 1]
+        dimensions = (adim, tdim, vdim)
+        recon_parts = torch.split(recon, dimensions, dim=-1)
+        target_parts = torch.split(target, dimensions, dim=-1)
+        modality_losses = []
+        for index, (recon_part, target_part) in enumerate(
+            zip(recon_parts, target_parts)
+        ):
+            selected = real & (mask[..., index] == 0)
+            if not selected.any():
+                continue
+            squared_error = self.loss(recon_part[selected], target_part[selected])
+            modality_losses.append(squared_error.sum() / squared_error.numel())
 
-        A_rec = recon[:, :adim]
-        L_rec = recon[:, adim:adim+tdim]
-        V_rec = recon[:, adim+tdim:]
-        A_full = target[:, :adim]
-        L_full = target[:, adim:adim+tdim]
-        V_full = target[:, adim+tdim:]
-        A_miss_index = torch.reshape(mask[:, 0], (-1, 1))
-        L_miss_index = torch.reshape(mask[:, 1], (-1, 1))
-        V_miss_index = torch.reshape(mask[:, 2], (-1, 1))
-
-        loss_recon1 = self.loss(A_rec*umask, A_full*umask) * -1 * (A_miss_index - 1)
-        loss_recon2 = self.loss(L_rec*umask, L_full*umask) * -1 * (L_miss_index - 1)
-        loss_recon3 = self.loss(V_rec*umask, V_full*umask) * -1 * (V_miss_index - 1)
-        loss_recon1 = torch.sum(loss_recon1) / adim
-        loss_recon2 = torch.sum(loss_recon2) / tdim
-        loss_recon3 = torch.sum(loss_recon3) / vdim
-        loss_recon = (loss_recon1 + loss_recon2 + loss_recon3) / torch.sum(umask)
-
-        return loss_recon
+        if not modality_losses:
+            return recon.sum() * 0.0
+        return torch.stack(modality_losses).mean()
 
 
 ## iemocap loss function: same with CE loss
