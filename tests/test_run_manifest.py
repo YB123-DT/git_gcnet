@@ -104,10 +104,12 @@ def complete_manifest() -> dict:
             "loss_reconstruction": True,
         },
         "lifecycle": {
+            "evaluation_protocol": "strict",
             "checkpoint_metric": "validation_weighted_f1",
             "best_epoch": 7,
             "best_validation_f1": 0.71,
             "test_call_count": 1,
+            "epochs_completed": 10,
         },
         "metrics": {"weighted_f1": 0.70, "accuracy": 0.69},
         "outputs": {
@@ -320,8 +322,37 @@ class PairedAuditTest(unittest.TestCase):
         baseline["lifecycle"]["test_call_count"] = 2
         jepa["lifecycle"]["test_call_count"] = 2
 
-        mismatches = audit_paired_manifests(baseline, jepa)
-        self.assertTrue(any("test_call_count" in mismatch for mismatch in mismatches))
+        with self.assertRaisesRegex(ManifestValidationError, "test_call_count"):
+            audit_paired_manifests(baseline, jepa)
+
+    def test_official_iemocap_allows_validation_test_overlap_and_epoch_tests(self) -> None:
+        baseline = complete_manifest()
+        baseline["run"]["dataset"] = "IEMOCAPSix"
+        baseline["run"]["fold"] = 5
+        baseline["split"]["indices"] = {
+            "train": [0, 1],
+            "validation": [2, 3],
+            "test": [2, 3],
+        }
+        baseline["lifecycle"].update({
+            "evaluation_protocol": "official",
+            "test_call_count": 10,
+            "epochs_completed": 10,
+        })
+        baseline["masks"]["realized_missing_rates"].update({
+            "validation": [0.28, 0.30],
+            "test": [0.27, 0.29],
+        })
+        jepa = copy.deepcopy(baseline)
+        jepa["method"]["jepa_weight"] = 0.1
+
+        validate_manifest(baseline)
+        self.assertEqual(audit_paired_manifests(baseline, jepa), [])
+
+        invalid = copy.deepcopy(baseline)
+        invalid["lifecycle"]["test_call_count"] = 9
+        with self.assertRaisesRegex(ManifestValidationError, "test_call_count"):
+            validate_manifest(invalid)
 
     def test_cli_returns_zero_for_pair_and_nonzero_for_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

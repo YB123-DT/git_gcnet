@@ -6,6 +6,7 @@ import pickle
 import random
 import argparse
 import json
+import hashlib
 from contextlib import contextmanager
 from pathlib import Path
 import numpy as np
@@ -94,6 +95,7 @@ def _build_protocol_loader(
     num_workers,
     seed_bundle,
     split_hash,
+    evaluation_protocol="strict",
 ):
     sampler_seed = seed_bundle.derive(
         "data_order:{}:fold:{}:{}".format(dataset_name, fold, split)
@@ -113,8 +115,36 @@ def _build_protocol_loader(
         "split_hash": split_hash,
         "order_seed": sampler_seed,
         "order_signature": sampler_signature(indices, sampler_seed),
+        "evaluation_protocol": evaluation_protocol,
     }
     return loader
+
+
+def _build_iemocap_official_fold(vids, test_session):
+    """Return the original GCNet LOSO topology: held-out data is val and test."""
+    prefix = "Ses0{}".format(test_session)
+    test_indices = tuple(
+        index for index, vid in enumerate(vids) if str(vid).startswith(prefix)
+    )
+    train_indices = tuple(
+        index for index, vid in enumerate(vids) if index not in set(test_indices)
+    )
+    if not train_indices or not test_indices:
+        raise ValueError(
+            "IEMOCAP official fold {} must have nonempty train and test data".format(
+                test_session
+            )
+        )
+    payload = {
+        "evaluation_protocol": "official",
+        "test": list(test_indices),
+        "train": list(train_indices),
+        "validation": list(test_indices),
+    }
+    split_hash = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return train_indices, test_indices, split_hash
 
 
 def get_loaders(
@@ -127,7 +157,10 @@ def get_loaders(
     num_workers,
     seed,
     validation_fraction=0.1,
+    evaluation_protocol="strict",
 ):
+    if evaluation_protocol not in ("official", "strict"):
+        raise ValueError("evaluation_protocol must be official or strict")
     dataset_name = dataset
     seed_bundle = SeedBundle(master_seed=seed)
 
@@ -151,14 +184,17 @@ def get_loaders(
         train_loader = _build_protocol_loader(
             dataset, split_indices.train, dataset_name, 1, "train",
             batch_size, num_workers, seed_bundle, split_indices.split_hash,
+            evaluation_protocol,
         )
         val_loader = _build_protocol_loader(
             dataset, split_indices.validation, dataset_name, 1, "validation",
             batch_size, num_workers, seed_bundle, split_indices.split_hash,
+            evaluation_protocol,
         )
         test_loader = _build_protocol_loader(
             dataset, split_indices.test, dataset_name, 1, "test",
             batch_size, num_workers, seed_bundle, split_indices.split_hash,
+            evaluation_protocol,
         )
 
         train_loaders = [train_loader]
@@ -193,25 +229,37 @@ def get_loaders(
         test_loaders = []
         split_seed = seed_bundle.derive("split")
         for fold in range(1, num_folder + 1):
-            split_indices = build_iemocap_loso_split(
-                dataset.vids,
-                labels_by_vid,
-                test_session=fold,
-                validation_fraction=validation_fraction,
-                seed=split_seed,
-            )
+            if evaluation_protocol == "official":
+                train_indices, test_indices, split_hash = (
+                    _build_iemocap_official_fold(dataset.vids, fold)
+                )
+                validation_indices = test_indices
+            else:
+                split_indices = build_iemocap_loso_split(
+                    dataset.vids,
+                    labels_by_vid,
+                    test_session=fold,
+                    validation_fraction=validation_fraction,
+                    seed=split_seed,
+                )
+                train_indices = split_indices.train
+                validation_indices = split_indices.validation
+                test_indices = split_indices.test
+                split_hash = split_indices.split_hash
             train_loaders.append(_build_protocol_loader(
-                dataset, split_indices.train, dataset_name, fold, "train",
-                batch_size, num_workers, seed_bundle, split_indices.split_hash,
+                dataset, train_indices, dataset_name, fold, "train",
+                batch_size, num_workers, seed_bundle, split_hash,
+                evaluation_protocol,
             ))
             val_loaders.append(_build_protocol_loader(
-                dataset, split_indices.validation, dataset_name, fold,
+                dataset, validation_indices, dataset_name, fold,
                 "validation", batch_size, num_workers, seed_bundle,
-                split_indices.split_hash,
+                split_hash, evaluation_protocol,
             ))
             test_loaders.append(_build_protocol_loader(
-                dataset, split_indices.test, dataset_name, fold, "test",
-                batch_size, num_workers, seed_bundle, split_indices.split_hash,
+                dataset, test_indices, dataset_name, fold, "test",
+                batch_size, num_workers, seed_bundle, split_hash,
+                evaluation_protocol,
             ))
 
         ## return loaders
@@ -268,6 +316,9 @@ def build_mask_schedule(args, split, fold, mask_rate):
         fold=fold,
         requested_missing_rate=mask_rate,
         mask_seed=SeedBundle(master_seed=args.seed).derive("missing_mask"),
+        freeze_evaluation=(
+            getattr(args, "evaluation_protocol", "strict") == "strict"
+        ),
     )
 
 
@@ -1066,6 +1117,7 @@ def lifecycle_manifest_evidence(lifecycle):
     """Extract compact mask/checkpoint evidence without retaining artifacts."""
     train_rates = []
     validation_rates = []
+    test_rates = []
     for record in lifecycle["epoch_records"]:
         train_rates.append(
             float(record["train"]["diagnostics"]["primary_mask"]["realized_missing_rate"])
@@ -1073,22 +1125,37 @@ def lifecycle_manifest_evidence(lifecycle):
         validation_rates.append(
             float(record["validation"]["diagnostics"]["primary_mask"]["realized_missing_rate"])
         )
+        if "test" in record:
+            test_rates.append(
+                float(record["test"]["diagnostics"]["primary_mask"]["realized_missing_rate"])
+            )
     if not validation_rates or not train_rates:
         raise ValueError("manifest requires nonempty train and validation mask evidence")
-    if not all(np.isclose(rate, validation_rates[0]) for rate in validation_rates):
-        raise ValueError("fixed validation mask produced inconsistent realized rates")
-    test_diagnostics = lifecycle["test_result"][5]
+    evaluation_protocol = lifecycle.get("evaluation_protocol", "strict")
+    if evaluation_protocol == "strict":
+        if not all(np.isclose(rate, validation_rates[0]) for rate in validation_rates):
+            raise ValueError("fixed validation mask produced inconsistent realized rates")
+        test_diagnostics = lifecycle["test_result"][5]
+        validation_evidence = validation_rates[0]
+        test_evidence = float(
+            test_diagnostics["primary_mask"]["realized_missing_rate"]
+        )
+    else:
+        if len(test_rates) != len(train_rates):
+            raise ValueError("official protocol requires one test result per epoch")
+        validation_evidence = validation_rates
+        test_evidence = test_rates
     return {
+        "evaluation_protocol": evaluation_protocol,
+        "epochs_completed": len(lifecycle["epoch_records"]),
         "best_epoch": int(lifecycle["best_epoch"]),
         "best_validation_f1": float(lifecycle["best_validation_f1"]),
         "test_call_count": int(lifecycle["test_call_count"]),
         "mask_schedule_hashes": dict(lifecycle["mask_schedule_hashes"]),
         "realized_missing_rates": {
             "train": train_rates,
-            "validation": validation_rates[0],
-            "test": float(
-                test_diagnostics["primary_mask"]["realized_missing_rate"]
-            ),
+            "validation": validation_evidence,
+            "test": test_evidence,
         },
     }
 
@@ -1174,12 +1241,14 @@ def build_fold_run_manifest(
             ),
         },
         "lifecycle": {
+            "evaluation_protocol": lifecycle_evidence["evaluation_protocol"],
             "checkpoint_metric": "validation_weighted_f1",
             "best_epoch": int(lifecycle_evidence["best_epoch"]),
             "best_validation_f1": float(
                 lifecycle_evidence["best_validation_f1"]
             ),
             "test_call_count": int(lifecycle_evidence["test_call_count"]),
+            "epochs_completed": int(lifecycle_evidence["epochs_completed"]),
         },
         "metrics": {
             "weighted_f1": float(fold_record["weighted_f1"]),
@@ -1207,7 +1276,7 @@ def run_training_fold(
     stability_mask_rng=None,
     evaluation_fn=None,
 ):
-    """Train/select on validation, restore the best state, and test once."""
+    """Run either the official every-epoch test or strict test-once lifecycle."""
     if evaluation_fn is None:
         evaluation_fn = train_or_eval_model
     schedules = {
@@ -1218,12 +1287,23 @@ def run_training_fold(
     best_validation_f1 = -float("inf")
     best_epoch = None
     best_model_state = None
+    best_test_result = None
+    test_call_count = 0
+    evaluation_protocol = getattr(args, "evaluation_protocol", "strict")
+    if evaluation_protocol not in ("official", "strict"):
+        raise ValueError("evaluation_protocol must be official or strict")
 
     for epoch in range(args.epochs):
-        sampler = getattr(train_loader, "sampler", None)
-        if sampler is None or not hasattr(sampler, "set_epoch"):
-            raise TypeError("train loader sampler must implement set_epoch")
-        sampler.set_epoch(epoch)
+        epoch_loaders = (
+            (train_loader, val_loader, test_loader)
+            if evaluation_protocol == "official"
+            else (train_loader,)
+        )
+        for loader in epoch_loaders:
+            sampler = getattr(loader, "sampler", None)
+            if sampler is None or not hasattr(sampler, "set_epoch"):
+                raise TypeError("protocol loader sampler must implement set_epoch")
+            sampler.set_epoch(epoch)
 
         train_result = evaluation_fn(
             args,
@@ -1262,21 +1342,65 @@ def run_training_fold(
             stability_mask_rng=stability_mask_rng,
             split="validation",
             fold=fold,
-            epoch=0,
+            epoch=epoch if evaluation_protocol == "official" else 0,
             mask_schedule=schedules["validation"],
             collect_artifacts=False,
         )
         _require_finite_result(validation_result, "validation")
         validation_f1 = float(validation_result[1])
-        if validation_f1 > best_validation_f1:
+        is_best = validation_f1 > best_validation_f1
+        if is_best:
             best_validation_f1 = validation_f1
             best_epoch = epoch + 1
-            best_model_state = _snapshot_cpu_state(model)
-        epoch_records.append({
+            if evaluation_protocol == "strict":
+                best_model_state = _snapshot_cpu_state(model)
+        epoch_record = {
             "epoch": epoch + 1,
             "train": _compact_epoch_result(train_result),
             "validation": _compact_epoch_result(validation_result),
-        })
+        }
+        if evaluation_protocol == "official":
+            test_result = evaluation_fn(
+                args,
+                model,
+                reg_loss,
+                cls_loss,
+                rec_loss,
+                test_loader,
+                modality_means,
+                mask_rate=mask_rate,
+                optimizer=None,
+                train=False,
+                compute_diagnostics=is_best,
+                all_modal_rec_loss=all_modal_rec_loss,
+                stability_mask_rng=stability_mask_rng,
+                split="test",
+                fold=fold,
+                epoch=epoch,
+                mask_schedule=schedules["test"],
+                collect_artifacts=is_best,
+            )
+            test_call_count += 1
+            _require_finite_result(test_result, "test")
+            epoch_record["test"] = _compact_epoch_result(test_result)
+            if is_best:
+                best_test_result = test_result
+        epoch_records.append(epoch_record)
+
+    if evaluation_protocol == "official":
+        if best_test_result is None or best_epoch is None:
+            raise RuntimeError("no finite validation epoch was selected")
+        return {
+            "evaluation_protocol": evaluation_protocol,
+            "best_epoch": best_epoch,
+            "best_validation_f1": best_validation_f1,
+            "epoch_records": epoch_records,
+            "test_result": best_test_result,
+            "test_call_count": test_call_count,
+            "mask_schedule_hashes": {
+                split: schedule.config_hash for split, schedule in schedules.items()
+            },
+        }
 
     if best_model_state is None or best_epoch is None:
         raise RuntimeError("no finite validation checkpoint was selected")
@@ -1303,11 +1427,12 @@ def run_training_fold(
     )
     _require_finite_result(test_result, "test")
     return {
+        "evaluation_protocol": evaluation_protocol,
         "best_epoch": best_epoch,
         "best_validation_f1": best_validation_f1,
         "epoch_records": epoch_records,
         "test_result": test_result,
-        "test_call_count": 1,
+        "test_call_count": test_call_count + 1,
         "mask_schedule_hashes": {
             split: schedule.config_hash for split, schedule in schedules.items()
         },
@@ -1362,6 +1487,7 @@ def build_argument_parser():
     parser.add_argument('--num-folder', type=int, default=5, help='folders for cross-validation [defined by args.dataset]')
     parser.add_argument('--seed', type=int, default=100, help='make split manner is same with same seed')
     parser.add_argument('--validation-fraction', type=float, default=0.1, help='IEMOCAP validation conversation fraction from non-test sessions')
+    parser.add_argument('--evaluation-protocol', choices=['official', 'strict'], default='official', help='official evaluates test every epoch; strict uses internal validation and tests once')
     parser.add_argument('--mask-type', type=str, default='constant-0.1', help='mask rate [0~1] for input argumentation: constant-float; linear; convex; concave')
     parser.add_argument('--loss-recon', action='store_true', default=False, help='whether to use reconstrctuion loss')
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
@@ -1441,7 +1567,8 @@ if __name__ == '__main__':
                                                                               dataset = args.dataset,
                                                                               num_workers = 0,
                                                                               seed = args.seed,
-                                                                              validation_fraction = args.validation_fraction)
+                                                                              validation_fraction = args.validation_fraction,
+                                                                              evaluation_protocol = args.evaluation_protocol)
     assert len(train_loaders) == args.num_folder, f'Error: folder number'
 
     

@@ -54,6 +54,7 @@ def build_smoke_jobs(
                 "--dropout", "0.5", "--batch-size", "32",
                 "--epochs", str(epochs), "--seed", str(seed),
                 "--mask-type", "constant-0.3",
+                "--evaluation-protocol", "official",
                 "--stability-aux-mask-rate", "0.1",
                 "--stability-recon-weight", "0.01",
                 "--allow-short-run", "--output-dir", str(output_dir),

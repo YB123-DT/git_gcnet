@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 
 
-_ALGORITHM_VERSION = "conversation-mask-v1"
+_ALGORITHM_VERSION = "conversation-mask-v2"
 _EVALUATION_SPLITS = frozenset(("validation", "test"))
 _SPLIT_ALIASES = {
     "train": "train",
@@ -56,6 +56,7 @@ class ConversationMaskSchedule:
         fold: Union[int, str],
         requested_missing_rate: float,
         mask_seed: int,
+        freeze_evaluation: bool = True,
     ) -> None:
         if not isinstance(dataset, str) or not dataset:
             raise ValueError("dataset must be a non-empty string")
@@ -69,6 +70,8 @@ class ConversationMaskSchedule:
             )
         if isinstance(mask_seed, bool) or not isinstance(mask_seed, int):
             raise ValueError("mask_seed must be an integer")
+        if not isinstance(freeze_evaluation, bool):
+            raise TypeError("freeze_evaluation must be Boolean")
 
         rate = float(requested_missing_rate)
         if not math.isfinite(rate) or rate < 0.0 or rate > 0.7:
@@ -79,12 +82,14 @@ class ConversationMaskSchedule:
         self.fold = fold
         self.requested_missing_rate = rate
         self.mask_seed = mask_seed
+        self.freeze_evaluation = freeze_evaluation
         self.config_hash = hashlib.sha256(
             _stable_payload(
                 {
                     "algorithm": _ALGORITHM_VERSION,
                     "dataset": dataset,
                     "fold": fold,
+                    "freeze_evaluation": freeze_evaluation,
                     "mask_seed": mask_seed,
                     "requested_missing_rate": _rate_key(rate),
                     "split": canonical_split,
@@ -123,7 +128,11 @@ class ConversationMaskSchedule:
         ):
             raise ValueError("valid_length must be between one and length")
 
-        effective_epoch = 0 if self.split.lower() in _EVALUATION_SPLITS else epoch
+        effective_epoch = (
+            0
+            if self.freeze_evaluation and self.split in _EVALUATION_SPLITS
+            else epoch
+        )
         key = {
             "dataset": self.dataset,
             "split": self.split,

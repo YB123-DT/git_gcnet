@@ -90,6 +90,8 @@ class ManifestTrainerIntegrationTest(unittest.TestCase):
             }
 
         lifecycle_evidence = {
+            "evaluation_protocol": "strict",
+            "epochs_completed": 2,
             "best_epoch": 2,
             "best_validation_f1": 0.7,
             "test_call_count": 1,

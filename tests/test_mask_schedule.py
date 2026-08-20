@@ -33,6 +33,7 @@ class ConversationMaskScheduleTest(unittest.TestCase):
         split: str = "train",
         requested_missing_rate: float = 0.4,
         mask_seed: int = 66,
+        freeze_evaluation: bool = True,
     ) -> ConversationMaskSchedule:
         return ConversationMaskSchedule(
             dataset="CMUMOSI",
@@ -40,6 +41,7 @@ class ConversationMaskScheduleTest(unittest.TestCase):
             fold=2,
             requested_missing_rate=requested_missing_rate,
             mask_seed=mask_seed,
+            freeze_evaluation=freeze_evaluation,
         )
 
     def test_same_conversation_is_repeatable_and_order_independent(self) -> None:
@@ -90,6 +92,30 @@ class ConversationMaskScheduleTest(unittest.TestCase):
                 )
                 self.assertEqual(epoch_zero.schedule_hash, later_epoch.schedule_hash)
                 self.assertEqual(later_epoch.epoch, 0)
+
+    def test_official_evaluation_schedule_changes_deterministically_by_epoch(self) -> None:
+        schedule = self.make_schedule(
+            split="validation", freeze_evaluation=False
+        )
+
+        epoch_one = schedule.generate(
+            "conversation-a", 256, "guest", epoch=1
+        )
+        epoch_two = schedule.generate(
+            "conversation-a", 256, "guest", epoch=2
+        )
+        repeated = schedule.generate(
+            "conversation-a", 256, "guest", epoch=2
+        )
+
+        self.assertFalse(
+            np.array_equal(epoch_one.availability, epoch_two.availability)
+        )
+        self.assertTrue(
+            np.array_equal(epoch_two.availability, repeated.availability)
+        )
+        self.assertEqual(epoch_two.epoch, 2)
+        self.assertNotEqual(epoch_one.schedule_hash, epoch_two.schedule_hash)
 
     def test_split_aliases_and_case_share_canonical_keys_and_hashes(self) -> None:
         schedules = [
@@ -219,7 +245,7 @@ class ConversationMaskScheduleTest(unittest.TestCase):
 
         self.assertEqual(
             schedule.config_hash,
-            "be9f7c80e557c8ad8dba6f9f9b1b46f21a3200ebe156067816e3c980df43b7db",
+            "7eee6b89ec3ea2d960d016a969a229feb4bf34bdff3190830ba9e187a98c6e2e",
         )
         self.assertEqual(
             result.schedule_hash,

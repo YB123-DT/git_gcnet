@@ -18,7 +18,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 
 
 MANIFEST_NAME = "gcnet-unified-run-manifest"
-MANIFEST_VERSION = 1
+MANIFEST_VERSION = 2
 
 
 class ManifestValidationError(ValueError):
@@ -84,9 +84,11 @@ _REQUIRED_PATHS = (
     "method.jepa_weight",
     "method.loss_reconstruction",
     "lifecycle.checkpoint_metric",
+    "lifecycle.evaluation_protocol",
     "lifecycle.best_epoch",
     "lifecycle.best_validation_f1",
     "lifecycle.test_call_count",
+    "lifecycle.epochs_completed",
     "metrics.weighted_f1",
     "metrics.accuracy",
     "outputs.result_archive",
@@ -117,6 +119,8 @@ _PAIRED_INVARIANT_PATHS = (
     "initialization.shared_hash",
     "stability",
     "lifecycle.checkpoint_metric",
+    "lifecycle.evaluation_protocol",
+    "lifecycle.epochs_completed",
 )
 
 
@@ -299,7 +303,25 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         if len(set(values)) != len(values):
             raise ManifestValidationError("{} contains duplicates".format(path))
         split_groups[split] = set(int(value) for value in values)
-    if (split_groups["train"] & split_groups["validation"]
+    evaluation_protocol = _get_path(manifest, "lifecycle.evaluation_protocol")
+    if evaluation_protocol not in ("official", "strict"):
+        raise ManifestValidationError(
+            "lifecycle.evaluation_protocol must be official or strict"
+        )
+    dataset = _get_path(manifest, "run.dataset")
+    official_iemocap = (
+        evaluation_protocol == "official" and str(dataset).startswith("IEMOCAP")
+    )
+    if official_iemocap:
+        if split_groups["validation"] != split_groups["test"]:
+            raise ManifestValidationError(
+                "official IEMOCAP validation and test indices must match"
+            )
+        if split_groups["train"] & split_groups["test"]:
+            raise ManifestValidationError(
+                "official IEMOCAP train and held-out indices must be disjoint"
+            )
+    elif (split_groups["train"] & split_groups["validation"]
             or split_groups["train"] & split_groups["test"]
             or split_groups["validation"] & split_groups["test"]):
         raise ManifestValidationError("split.indices must be disjoint")
@@ -341,6 +363,18 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     require_integer("lifecycle.best_epoch", minimum=1)
     require_number("lifecycle.best_validation_f1", 0.0, 1.0)
     require_integer("lifecycle.test_call_count", minimum=0)
+    require_integer("lifecycle.epochs_completed", minimum=1)
+    expected_test_calls = (
+        _get_path(manifest, "lifecycle.epochs_completed")
+        if evaluation_protocol == "official"
+        else 1
+    )
+    if _get_path(manifest, "lifecycle.test_call_count") != expected_test_calls:
+        raise ManifestValidationError(
+            "lifecycle.test_call_count must be {} for {} protocol".format(
+                expected_test_calls, evaluation_protocol
+            )
+        )
     require_number("metrics.weighted_f1", 0.0, 1.0)
     require_number("metrics.accuracy", 0.0, 1.0)
     require_integer("outputs.archive_fold_index", minimum=0)
@@ -422,14 +456,6 @@ def audit_paired_manifests(
 
     for path in _PAIRED_INVARIANT_PATHS:
         compare(path, _get_path(baseline, path), _get_path(jepa, path))
-    for name, manifest in (("baseline", baseline), ("jepa", jepa)):
-        count = _get_path(manifest, "lifecycle.test_call_count")
-        if count != 1:
-            mismatches.append(
-                "lifecycle.test_call_count must be 1 for {} (got {!r})".format(
-                    name, count
-                )
-            )
     return mismatches
 
 
