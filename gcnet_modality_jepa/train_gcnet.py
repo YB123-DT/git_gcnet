@@ -95,7 +95,7 @@ def _build_protocol_loader(
     num_workers,
     seed_bundle,
     split_hash,
-    evaluation_protocol="strict",
+    evaluation_protocol="official",
 ):
     sampler_seed = seed_bundle.derive(
         "data_order:{}:fold:{}:{}".format(dataset_name, fold, split)
@@ -157,7 +157,7 @@ def get_loaders(
     num_workers,
     seed,
     validation_fraction=0.1,
-    evaluation_protocol="strict",
+    evaluation_protocol="official",
 ):
     if evaluation_protocol not in ("official", "strict"):
         raise ValueError("evaluation_protocol must be official or strict")
@@ -317,7 +317,7 @@ def build_mask_schedule(args, split, fold, mask_rate):
         requested_missing_rate=mask_rate,
         mask_seed=SeedBundle(master_seed=args.seed).derive("missing_mask"),
         freeze_evaluation=(
-            getattr(args, "evaluation_protocol", "strict") == "strict"
+            getattr(args, "evaluation_protocol", "official") == "strict"
         ),
     )
 
@@ -1131,7 +1131,7 @@ def lifecycle_manifest_evidence(lifecycle):
             )
     if not validation_rates or not train_rates:
         raise ValueError("manifest requires nonempty train and validation mask evidence")
-    evaluation_protocol = lifecycle.get("evaluation_protocol", "strict")
+    evaluation_protocol = lifecycle.get("evaluation_protocol", "official")
     if evaluation_protocol == "strict":
         if not all(np.isclose(rate, validation_rates[0]) for rate in validation_rates):
             raise ValueError("fixed validation mask produced inconsistent realized rates")
@@ -1289,7 +1289,7 @@ def run_training_fold(
     best_model_state = None
     best_test_result = None
     test_call_count = 0
-    evaluation_protocol = getattr(args, "evaluation_protocol", "strict")
+    evaluation_protocol = getattr(args, "evaluation_protocol", "official")
     if evaluation_protocol not in ("official", "strict"):
         raise ValueError("evaluation_protocol must be official or strict")
 

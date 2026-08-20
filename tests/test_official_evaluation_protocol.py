@@ -68,7 +68,7 @@ class OfficialEvaluationProtocolTest(unittest.TestCase):
 
         self.assertEqual(args.evaluation_protocol, "official")
 
-    def test_iemocap_official_uses_held_out_session_for_validation_and_test(self):
+    def test_iemocap_programmatic_default_uses_held_out_session_for_validation_and_test(self):
         dataset = _SyntheticIemocap()
         with mock.patch.object(
             train_gcnet, "load_iemocap_dataset", return_value=dataset
@@ -82,7 +82,6 @@ class OfficialEvaluationProtocolTest(unittest.TestCase):
                 batch_size=4,
                 num_workers=0,
                 seed=66,
-                evaluation_protocol="official",
             )
 
         self.assertEqual(len(train_loaders), 5)
@@ -109,12 +108,11 @@ class OfficialEvaluationProtocolTest(unittest.TestCase):
                 "official",
             )
 
-    def test_official_lifecycle_tests_every_epoch_and_selects_by_validation(self):
+    def test_programmatic_lifecycle_default_tests_every_epoch_and_selects_by_validation(self):
         args = SimpleNamespace(
             epochs=3,
             seed=66,
             dataset="CMUMOSI",
-            evaluation_protocol="official",
         )
         train_loader = _Loader()
         val_loader = _Loader()
@@ -179,6 +177,69 @@ class OfficialEvaluationProtocolTest(unittest.TestCase):
         self.assertEqual(lifecycle["test_result"][2], ["test-1"])
         self.assertEqual(lifecycle["test_call_count"], 3)
         self.assertTrue(all("test" in record for record in lifecycle["epoch_records"]))
+
+    def test_programmatic_mask_default_varies_evaluation_masks_by_epoch(self):
+        args = SimpleNamespace(dataset="CMUMOSI", seed=66)
+
+        schedule = train_gcnet.build_mask_schedule(
+            args=args,
+            split="validation",
+            fold=1,
+            mask_rate=0.5,
+        )
+        first = schedule.generate(
+            "conversation-a", length=256, side="host", epoch=0
+        )
+        second = schedule.generate(
+            "conversation-a", length=256, side="host", epoch=1
+        )
+
+        self.assertFalse(schedule.freeze_evaluation)
+        self.assertEqual((first.epoch, second.epoch), (0, 1))
+        self.assertNotEqual(first.schedule_hash, second.schedule_hash)
+
+    def test_lifecycle_manifest_evidence_defaults_to_official(self):
+        def compact_result(marker):
+            return {
+                "diagnostics": {
+                    "primary_mask": {"realized_missing_rate": marker}
+                }
+            }
+
+        lifecycle = {
+            "best_epoch": 2,
+            "best_validation_f1": 0.9,
+            "test_call_count": 2,
+            "test_result": _result(0.8),
+            "mask_schedule_hashes": {
+                "train": "1" * 64,
+                "validation": "2" * 64,
+                "test": "3" * 64,
+            },
+            "epoch_records": [
+                {
+                    "train": compact_result(0.10),
+                    "validation": compact_result(0.20),
+                    "test": compact_result(0.30),
+                },
+                {
+                    "train": compact_result(0.11),
+                    "validation": compact_result(0.20),
+                    "test": compact_result(0.31),
+                },
+            ],
+        }
+
+        evidence = train_gcnet.lifecycle_manifest_evidence(lifecycle)
+
+        self.assertEqual(evidence["evaluation_protocol"], "official")
+        self.assertEqual(evidence["epochs_completed"], 2)
+        self.assertEqual(
+            evidence["realized_missing_rates"]["validation"], [0.20, 0.20]
+        )
+        self.assertEqual(
+            evidence["realized_missing_rates"]["test"], [0.30, 0.31]
+        )
 
 
 if __name__ == "__main__":

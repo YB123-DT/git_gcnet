@@ -59,6 +59,7 @@ class EvaluationLifecycleTest(unittest.TestCase):
             seed=70,
             dataset="CMUMOSI",
             epoch_collapse_diagnostics=True,
+            evaluation_protocol="strict",
         )
 
     def test_selects_on_validation_restores_cpu_snapshot_and_tests_once(self):

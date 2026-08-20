@@ -115,6 +115,7 @@ class LoaderProtocolIntegrationTest(unittest.TestCase):
                 num_workers=0,
                 seed=23,
                 validation_fraction=0.25,
+                evaluation_protocol="strict",
             )
 
         self.assertEqual(split_builder.call_count, 5)
@@ -153,7 +154,12 @@ class LoaderProtocolIntegrationTest(unittest.TestCase):
 
 class PrimaryMaskIntegrationTest(unittest.TestCase):
     def make_schedule(self, split="train", model_variant="addon"):
-        args = SimpleNamespace(dataset="CMUMOSI", seed=71, model_variant=model_variant)
+        args = SimpleNamespace(
+            dataset="CMUMOSI",
+            seed=71,
+            model_variant=model_variant,
+            evaluation_protocol="strict",
+        )
         return train_gcnet.build_mask_schedule(
             args=args,
             split=split,
