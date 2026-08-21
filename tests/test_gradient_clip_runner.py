@@ -14,6 +14,14 @@ from scripts import run_mosi_gradient_clip_diagnostics as runner
 
 
 TEST_REVISION = "a" * 40
+TEST_GIT_STATUS = " M unrelated.txt"
+SOURCE_CONTRACT_RELATIVE_PATHS = (
+    Path("gcnet_modality_jepa/loss.py"),
+    Path("gcnet_modality_jepa/model.py"),
+    Path("gcnet_modality_jepa/run_manifest.py"),
+    Path("gcnet_modality_jepa/train_gcnet.py"),
+    Path("scripts/run_mosi_gradient_clip_diagnostics.py"),
+)
 
 
 def _sha256(path: Path) -> str:
@@ -32,11 +40,24 @@ def _contract_sha256(job: runner.GradientClipJob) -> str:
         "command": list(job.command),
         "identity": job.identity,
         "repository_root": str(runner.REPOSITORY_ROOT),
+        "source_contract_sha256": _source_contract_sha256(),
     }
     encoded = json.dumps(
         payload, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _source_contract_sha256() -> str:
+    digest = hashlib.sha256()
+    for relative in SOURCE_CONTRACT_RELATIVE_PATHS:
+        path_bytes = relative.as_posix().encode("utf-8")
+        content = (runner.REPOSITORY_ROOT / relative).read_bytes()
+        digest.update(len(path_bytes).to_bytes(8, "big"))
+        digest.update(path_bytes)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
 
 
 def _write_completion_evidence(
@@ -68,6 +89,7 @@ def _write_completion_evidence(
         "provenance": {
             "cwd": str(runner.REPOSITORY_ROOT),
             "git_revision": revision,
+            "git_status": TEST_GIT_STATUS,
             "command": _manifest_command(job),
         },
         "method": {
@@ -96,8 +118,14 @@ def _write_completion_evidence(
             _sha256(epoch_path) if epoch_path.exists() else "0" * 64
         ),
         "command_contract_sha256": _contract_sha256(job),
+        "source_contract_sha256": _source_contract_sha256(),
         "code_revision": revision,
+        "git_status": TEST_GIT_STATUS,
         "python_executable": str(Path(job.command[0]).resolve()),
+        "fold_metrics_path": str(metrics_path.resolve()),
+        "fold_metrics_sha256": _sha256(metrics_path),
+        "result_archive_path": str(result_path.resolve()),
+        "result_archive_sha256": _sha256(result_path),
     }
     (job.output_dir / "status.json").write_text(
         json.dumps(status) + "\n", encoding="utf-8"
@@ -134,11 +162,24 @@ def _bound_is_complete(
 ) -> bool:
     with mock.patch.object(
         runner, "load_manifest", return_value=manifest
-    ), mock.patch.object(runner, "_code_revision", return_value=revision):
+    ), mock.patch.object(
+        runner, "_code_revision", return_value=revision
+    ), mock.patch.object(
+        runner, "_git_status", return_value=TEST_GIT_STATUS
+    ):
         return runner.is_complete(job)
 
 
 class GradientClipRunnerTest(unittest.TestCase):
+    def test_source_contract_digest_covers_required_canonical_files(self) -> None:
+        self.assertEqual(
+            tuple(runner.SOURCE_CONTRACT_RELATIVE_PATHS),
+            SOURCE_CONTRACT_RELATIVE_PATHS,
+        )
+        self.assertEqual(
+            runner._source_contract_sha256(), _source_contract_sha256()
+        )
+
     def test_exact_six_job_matrix_matches_formal_mosi_protocol(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             jobs = runner.build_jobs(
@@ -370,6 +411,41 @@ class GradientClipRunnerTest(unittest.TestCase):
                     }
                     for record in valid_records
                 ],
+                "zero_clipped_above_threshold": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "clipped_steps": 0,
+                            "clipped_fraction": 0.0,
+                            "pre_clip_norm_mean": 0.5,
+                            "pre_clip_norm_max": 1.1,
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "clipped_without_exceeding_threshold": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "clipped_steps": 1,
+                            "pre_clip_norm_mean": 0.5,
+                            "pre_clip_norm_max": 1.0,
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "boolean_numeric": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "pre_clip_norm_max": True,
+                        },
+                    }
+                    for record in valid_records
+                ],
                 "duplicate_epoch": [
                     {**record, "epoch": 1} for record in valid_records
                 ],
@@ -427,7 +503,9 @@ class GradientClipRunnerTest(unittest.TestCase):
                 side_effect=lambda path: manifest_box["value"],
             ), mock.patch.object(
                 runner, "_code_revision", return_value=TEST_REVISION
-            ) as launch:
+            ), mock.patch.object(
+                runner, "_git_status", return_value=TEST_GIT_STATUS
+            ):
                 completed = runner.run_job(
                     job, runner.REPOSITORY_ROOT, threading.Event()
                 )
@@ -449,6 +527,10 @@ class GradientClipRunnerTest(unittest.TestCase):
             self.assertEqual(status["identity"], job.identity)
             self.assertEqual(status["returncode"], 0)
             self.assertEqual(status["code_revision"], TEST_REVISION)
+            self.assertEqual(status["git_status"], TEST_GIT_STATUS)
+            self.assertEqual(
+                status["source_contract_sha256"], _source_contract_sha256()
+            )
             self.assertEqual(
                 status["command_contract_sha256"], _contract_sha256(job)
             )
@@ -459,6 +541,10 @@ class GradientClipRunnerTest(unittest.TestCase):
                 "epoch_diagnostics_sha256",
                 "python_executable",
                 "attempt_started_at_unix",
+                "fold_metrics_path",
+                "fold_metrics_sha256",
+                "result_archive_path",
+                "result_archive_sha256",
             ):
                 self.assertIn(key, status)
 
@@ -483,6 +569,8 @@ class GradientClipRunnerTest(unittest.TestCase):
                 runner, "load_manifest", return_value=manifest
             ), mock.patch.object(
                 runner, "_code_revision", return_value=TEST_REVISION
+            ), mock.patch.object(
+                runner, "_git_status", return_value=TEST_GIT_STATUS
             ):
                 completed = runner.run_job(
                     job, runner.REPOSITORY_ROOT, threading.Event()
@@ -525,6 +613,8 @@ class GradientClipRunnerTest(unittest.TestCase):
                 side_effect=lambda path: manifest_box["value"],
             ), mock.patch.object(
                 runner, "_code_revision", return_value=TEST_REVISION
+            ), mock.patch.object(
+                runner, "_git_status", return_value=TEST_GIT_STATUS
             ):
                 completed = runner.run_job(
                     job, runner.REPOSITORY_ROOT, threading.Event()
@@ -553,7 +643,13 @@ class GradientClipRunnerTest(unittest.TestCase):
                     "manifest_path": str(Path(directory) / "outside.json")
                 },
                 "contract_hash": {"command_contract_sha256": "0" * 64},
+                "source_hash": {"source_contract_sha256": "0" * 64},
+                "metrics_hash": {"fold_metrics_sha256": "0" * 64},
+                "metrics_path": {"fold_metrics_path": "/wrong/metrics.json"},
+                "result_hash": {"result_archive_sha256": "0" * 64},
+                "result_path": {"result_archive_path": "/wrong/result.npz"},
                 "revision": {"code_revision": "b" * 40},
+                "git_status": {"git_status": "clean"},
                 "python": {"python_executable": "/wrong/python"},
             }
             for name, changes in cases.items():
@@ -570,6 +666,20 @@ class GradientClipRunnerTest(unittest.TestCase):
             Path(valid_status["manifest_path"]).write_text(
                 "{\"tampered\": true}\n", encoding="utf-8"
             )
+            self.assertFalse(_bound_is_complete(job, manifest))
+
+            _, manifest, valid_status = _write_completion_evidence(
+                job, epoch_records=_valid_epoch_records(job.epochs)
+            )
+            Path(valid_status["fold_metrics_path"]).write_text(
+                "[]\n", encoding="utf-8"
+            )
+            self.assertFalse(_bound_is_complete(job, manifest))
+
+            _, manifest, valid_status = _write_completion_evidence(
+                job, epoch_records=_valid_epoch_records(job.epochs)
+            )
+            Path(valid_status["result_archive_path"]).write_bytes(b"substitute")
             self.assertFalse(_bound_is_complete(job, manifest))
 
     def test_completion_rejects_manifest_epoch_and_provenance_mismatch(self) -> None:
@@ -590,6 +700,9 @@ class GradientClipRunnerTest(unittest.TestCase):
             wrong_revision = copy.deepcopy(manifest)
             wrong_revision["provenance"]["git_revision"] = "b" * 40
             cases["revision"] = wrong_revision
+            wrong_status = copy.deepcopy(manifest)
+            wrong_status["provenance"]["git_status"] = "clean"
+            cases["git_status"] = wrong_status
             wrong_command = copy.deepcopy(manifest)
             wrong_command["provenance"]["command"].append("--unexpected")
             cases["command"] = wrong_command
@@ -622,17 +735,13 @@ class GradientClipRunnerTest(unittest.TestCase):
 
             with self.assertRaisesRegex(RuntimeError, "GPU 3.*lease"):
                 runner.acquire_gpu_lease(3, lease_root=lease_root)
-
-            non_owner = runner.GPULease(
-                path=lease.path,
-                token="not-owner",
-                host=lease.host,
-                pid=lease.pid,
-            )
-            self.assertFalse(runner.release_gpu_lease(non_owner))
-            self.assertTrue(lease.path.exists())
             self.assertTrue(runner.release_gpu_lease(lease))
-            self.assertFalse(lease.path.exists())
+            self.assertTrue(lease.path.exists())
+
+            successor = runner.acquire_gpu_lease(3, lease_root=lease_root)
+            self.assertNotEqual(successor.token, lease.token)
+            self.assertTrue(runner.release_gpu_lease(successor))
+            self.assertTrue(successor.path.exists())
 
     def test_main_holds_lease_across_two_idle_checks_and_all_work(self) -> None:
         events: list[str] = []

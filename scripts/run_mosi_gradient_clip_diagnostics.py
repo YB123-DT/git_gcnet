@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import math
@@ -35,6 +36,13 @@ EXPECTED_JOB_COUNT = 6
 EXPECTED_PAIR_COUNT = 3
 CLAIM_FILE = ".gradient-clip-diagnostics.claim"
 GPU_LEASE_PREFIX = "gcnet-mosi-gradient-clip-gpu"
+SOURCE_CONTRACT_RELATIVE_PATHS = (
+    Path("gcnet_modality_jepa/loss.py"),
+    Path("gcnet_modality_jepa/model.py"),
+    Path("gcnet_modality_jepa/run_manifest.py"),
+    Path("gcnet_modality_jepa/train_gcnet.py"),
+    Path("scripts/run_mosi_gradient_clip_diagnostics.py"),
+)
 
 
 @dataclass(frozen=True)
@@ -49,6 +57,7 @@ class GPULease:
     token: str
     host: str
     pid: int
+    descriptor: int
 
 
 @dataclass(frozen=True)
@@ -215,11 +224,24 @@ def _command_contract_sha256(job: GradientClipJob) -> str:
         "command": list(job.command),
         "identity": job.identity,
         "repository_root": str(REPOSITORY_ROOT),
+        "source_contract_sha256": _source_contract_sha256(),
     }
     encoded = json.dumps(
         payload, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _source_contract_sha256() -> str:
+    digest = hashlib.sha256()
+    for relative in SOURCE_CONTRACT_RELATIVE_PATHS:
+        path_bytes = relative.as_posix().encode("utf-8")
+        content = (REPOSITORY_ROOT / relative).read_bytes()
+        digest.update(len(path_bytes).to_bytes(8, "big"))
+        digest.update(path_bytes)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
 
 
 def _code_revision() -> str:
@@ -232,6 +254,16 @@ def _code_revision() -> str:
     if not revision:
         raise RuntimeError("repository code revision is unavailable")
     return revision
+
+
+def _git_status() -> str:
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain"],
+        cwd=str(REPOSITORY_ROOT),
+        stderr=subprocess.DEVNULL,
+        text=True,
+    ).strip()
+    return "clean" if status == "" else status
 
 
 def _python_executable(job: GradientClipJob) -> str:
@@ -298,6 +330,7 @@ def _manifest_matches_job(
     manifest: dict,
     job: GradientClipJob,
     code_revision: str,
+    git_status: str,
 ) -> bool:
     expected_method = (
         {
@@ -322,6 +355,7 @@ def _manifest_matches_job(
             and manifest["lifecycle"]["epochs_completed"] == job.epochs
             and manifest["provenance"]["cwd"] == str(REPOSITORY_ROOT)
             and manifest["provenance"]["git_revision"] == code_revision
+            and manifest["provenance"]["git_status"] == git_status
             and manifest["provenance"]["command"]
             == _expected_manifest_command(job)
             and all(
@@ -454,6 +488,10 @@ def _epoch_diagnostics_match_job(
             abs_tol=1e-12,
         ):
             return False
+        if clipped_steps == 0 and float(pre_clip_norm_max) > float(configured_norm):
+            return False
+        if clipped_steps > 0 and float(pre_clip_norm_max) <= float(configured_norm):
+            return False
     return set(epochs) == set(range(1, job.epochs + 1))
 
 
@@ -514,12 +552,18 @@ def is_complete(job: GradientClipJob) -> bool:
         return False
     if status.get("command_contract_sha256") != _command_contract_sha256(job):
         return False
+    if status.get("source_contract_sha256") != _source_contract_sha256():
+        return False
     code_revision = status.get("code_revision")
     try:
         current_revision = _code_revision()
+        current_git_status = _git_status()
     except (OSError, subprocess.CalledProcessError, RuntimeError):
         return False
     if not isinstance(code_revision, str) or code_revision != current_revision:
+        return False
+    git_status = status.get("git_status")
+    if not isinstance(git_status, str) or git_status != current_git_status:
         return False
     if status.get("python_executable") != _python_executable(job):
         return False
@@ -536,11 +580,20 @@ def is_complete(job: GradientClipJob) -> bool:
     except ManifestValidationError:
         return False
     try:
+        metrics_path = Path(manifest["outputs"]["fold_metrics"]).resolve()
         result_path = Path(manifest["outputs"]["result_archive"]).resolve()
     except (KeyError, TypeError):
         return False
+    if status.get("fold_metrics_path") != str(metrics_path):
+        return False
+    if status.get("result_archive_path") != str(result_path):
+        return False
+    if not _hash_matches(metrics_path, status.get("fold_metrics_sha256")):
+        return False
+    if not _hash_matches(result_path, status.get("result_archive_sha256")):
+        return False
     return (
-        _manifest_matches_job(manifest, job, code_revision)
+        _manifest_matches_job(manifest, job, code_revision, git_status)
         and _fold_metrics_match_job(manifest, manifest_path)
         and _epoch_diagnostics_match_job(job, epoch_path)
         and _is_within(result_path, job.output_dir.resolve())
@@ -552,6 +605,7 @@ def _new_attempt_evidence(
     job: GradientClipJob,
     snapshot: AttemptSnapshot,
     code_revision: str,
+    git_status: str,
 ) -> Dict[str, object]:
     current_manifests = {
         path.resolve()
@@ -572,7 +626,7 @@ def _new_attempt_evidence(
         manifest = load_manifest(manifest_path)
     except ManifestValidationError as error:
         raise RuntimeError("new run-record manifest is invalid") from error
-    if not _manifest_matches_job(manifest, job, code_revision):
+    if not _manifest_matches_job(manifest, job, code_revision, git_status):
         raise RuntimeError("new run-record manifest does not match job contract")
 
     try:
@@ -606,6 +660,10 @@ def _new_attempt_evidence(
         "manifest_sha256": _sha256_file(manifest_path),
         "epoch_diagnostics_path": str(epoch_path),
         "epoch_diagnostics_sha256": _sha256_file(epoch_path),
+        "fold_metrics_path": str(metrics_path),
+        "fold_metrics_sha256": _sha256_file(metrics_path),
+        "result_archive_path": str(result_path),
+        "result_archive_sha256": _sha256_file(result_path),
     }
 
 
@@ -687,53 +745,39 @@ def acquire_gpu_lease(
     token = uuid.uuid4().hex
     host = socket.gethostname()
     pid = os.getpid()
+    descriptor = os.open(str(path), os.O_CREAT | os.O_RDWR, 0o600)
     try:
-        descriptor = os.open(
-            str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
-        )
-    except FileExistsError as error:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        os.close(descriptor)
         raise RuntimeError(
-            "GPU {} lease already exists at {}; refusing to remove it".format(
-                gpu, path
-            )
+            "GPU {} lease is held at {}".format(gpu, path)
         ) from error
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(
-                {"token": token, "host": host, "pid": pid},
-                handle,
-                sort_keys=True,
-            )
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+        payload = json.dumps(
+            {"token": token, "host": host, "pid": pid}, sort_keys=True
+        ).encode("utf-8") + b"\n"
+        os.ftruncate(descriptor, 0)
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        os.write(descriptor, payload)
+        os.fsync(descriptor)
     except Exception:
-        try:
-            path.unlink()
-        except FileNotFoundError:
-            pass
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
         raise
-    return GPULease(path=path, token=token, host=host, pid=pid)
+    return GPULease(
+        path=path,
+        token=token,
+        host=host,
+        pid=pid,
+        descriptor=descriptor,
+    )
 
 
 def release_gpu_lease(lease: GPULease) -> bool:
     try:
-        with lease.path.open("r", encoding="utf-8") as handle:
-            stat_result = os.fstat(handle.fileno())
-            payload = json.load(handle)
-        current_stat = lease.path.stat()
-    except (OSError, json.JSONDecodeError):
-        return False
-    if (
-        payload.get("token") != lease.token
-        or payload.get("host") != lease.host
-        or payload.get("pid") != lease.pid
-        or stat_result.st_ino != current_stat.st_ino
-        or stat_result.st_dev != current_stat.st_dev
-    ):
-        return False
-    try:
-        lease.path.unlink()
+        fcntl.flock(lease.descriptor, fcntl.LOCK_UN)
+        os.close(lease.descriptor)
     except OSError:
         return False
     return True
@@ -790,6 +834,7 @@ def run_job(
     returncode = None
     claim_path: Path | None = None
     code_revision = None
+    git_status = None
     python_executable = _python_executable(job)
     try:
         claim_path = _acquire_claim(job)
@@ -802,6 +847,7 @@ def run_job(
             return False
         started_at = time.time()
         code_revision = _code_revision()
+        git_status = _git_status()
         _write_json(
             job.output_dir / "command.json",
             {
@@ -828,7 +874,9 @@ def run_job(
             "attempt_started_at_unix": started_at,
             "finished_at_unix": time.time(),
             "command_contract_sha256": _command_contract_sha256(job),
+            "source_contract_sha256": _source_contract_sha256(),
             "code_revision": code_revision,
+            "git_status": git_status,
             "python_executable": python_executable,
         }
         if returncode != 0:
@@ -844,6 +892,7 @@ def run_job(
                 job,
                 snapshot,
                 code_revision,
+                git_status,
             )
         )
         _write_json(job.output_dir / "status.json", status)
@@ -867,7 +916,9 @@ def run_job(
                     "attempt_started_at_unix": started_at,
                     "finished_at_unix": time.time(),
                     "command_contract_sha256": _command_contract_sha256(job),
+                    "source_contract_sha256": _source_contract_sha256(),
                     "code_revision": code_revision,
+                    "git_status": git_status,
                     "python_executable": python_executable,
                     "error": "{}: {}".format(type(error).__name__, error),
                 },
