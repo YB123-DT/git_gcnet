@@ -4,14 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
+import socket
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -31,6 +34,21 @@ EPOCHS = 100
 EXPECTED_JOB_COUNT = 6
 EXPECTED_PAIR_COUNT = 3
 CLAIM_FILE = ".gradient-clip-diagnostics.claim"
+GPU_LEASE_PREFIX = "gcnet-mosi-gradient-clip-gpu"
+
+
+@dataclass(frozen=True)
+class AttemptSnapshot:
+    manifest_paths: frozenset[Path]
+    artifact_signatures: Dict[Path, Tuple[int, int, int]]
+
+
+@dataclass(frozen=True)
+class GPULease:
+    path: Path
+    token: str
+    host: str
+    pid: int
 
 
 @dataclass(frozen=True)
@@ -174,14 +192,113 @@ def build_jobs(
     return jobs
 
 
-def _latest_manifest(output_dir: Path) -> Path | None:
-    manifests = sorted(
-        output_dir.glob("run_records/*/run_manifest_fold_*.json")
+def _require_repository_root(root: Path | None = None) -> Path:
+    if root is not None and Path(root).resolve() != REPOSITORY_ROOT:
+        raise ValueError(
+            "repository root mismatch: {} != {}".format(
+                Path(root).resolve(), REPOSITORY_ROOT
+            )
+        )
+    return REPOSITORY_ROOT
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _command_contract_sha256(job: GradientClipJob) -> str:
+    payload = {
+        "command": list(job.command),
+        "identity": job.identity,
+        "repository_root": str(REPOSITORY_ROOT),
+    }
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _code_revision() -> str:
+    revision = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(REPOSITORY_ROOT),
+        stderr=subprocess.DEVNULL,
+        text=True,
+    ).strip()
+    if not revision:
+        raise RuntimeError("repository code revision is unavailable")
+    return revision
+
+
+def _python_executable(job: GradientClipJob) -> str:
+    return str(Path(job.command[0]).expanduser().resolve())
+
+
+def _expected_manifest_command(job: GradientClipJob) -> List[str]:
+    return [
+        str(REPOSITORY_ROOT / "gcnet_modality_jepa" / "train_gcnet.py"),
+        *job.command[4:],
+    ]
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _file_signature(path: Path) -> Tuple[int, int, int]:
+    stat_result = path.stat()
+    return (
+        int(stat_result.st_ino),
+        int(stat_result.st_size),
+        int(stat_result.st_mtime_ns),
     )
-    return manifests[-1] if manifests else None
 
 
-def _manifest_matches_job(manifest: dict, job: GradientClipJob) -> bool:
+def _attempt_artifact_paths(job: GradientClipJob) -> List[Path]:
+    paths = []
+    run_records = job.output_dir / "run_records"
+    if run_records.exists():
+        paths.extend(path for path in run_records.rglob("*") if path.is_file())
+    epoch_path = job.output_dir / "epoch_collapse_diagnostics.json"
+    if epoch_path.is_file():
+        paths.append(epoch_path)
+    paths.extend(path for path in job.output_dir.glob("*.npz") if path.is_file())
+    return paths
+
+
+def _snapshot_attempt_outputs(job: GradientClipJob) -> AttemptSnapshot:
+    artifacts = {
+        path.resolve(): _file_signature(path)
+        for path in _attempt_artifact_paths(job)
+    }
+    manifests = frozenset(
+        path
+        for path in artifacts
+        if path.name == "run_manifest_fold_1.json"
+    )
+    return AttemptSnapshot(manifests, artifacts)
+
+
+def _artifact_changed(path: Path, snapshot: AttemptSnapshot) -> bool:
+    resolved = path.resolve()
+    if not resolved.is_file():
+        return False
+    return snapshot.artifact_signatures.get(resolved) != _file_signature(resolved)
+
+
+def _manifest_matches_job(
+    manifest: dict,
+    job: GradientClipJob,
+    code_revision: str,
+) -> bool:
     expected_method = (
         {
             "model_variant": "addon",
@@ -195,22 +312,37 @@ def _manifest_matches_job(manifest: dict, job: GradientClipJob) -> bool:
             "loss_reconstruction": False,
         }
     )
-    return (
-        manifest["run"]["dataset"] == "CMUMOSI"
-        and manifest["run"]["fold"] == 1
-        and manifest["run"]["master_seed"] == job.seed
-        and manifest["masks"]["requested_missing_rate"] == job.missing_rate
-        and manifest["lifecycle"]["evaluation_protocol"] == "official"
-        and all(
-            manifest["method"][key] == value
-            for key, value in expected_method.items()
-        )
-    )
-
-
-def _fold_metrics_match_job(manifest: dict) -> bool:
     try:
-        metrics_path = Path(manifest["outputs"]["fold_metrics"])
+        return (
+            manifest["run"]["dataset"] == "CMUMOSI"
+            and manifest["run"]["fold"] == 1
+            and manifest["run"]["master_seed"] == job.seed
+            and manifest["masks"]["requested_missing_rate"] == job.missing_rate
+            and manifest["lifecycle"]["evaluation_protocol"] == "official"
+            and manifest["lifecycle"]["epochs_completed"] == job.epochs
+            and manifest["provenance"]["cwd"] == str(REPOSITORY_ROOT)
+            and manifest["provenance"]["git_revision"] == code_revision
+            and manifest["provenance"]["command"]
+            == _expected_manifest_command(job)
+            and all(
+                manifest["method"][key] == value
+                for key, value in expected_method.items()
+            )
+        )
+    except (KeyError, TypeError):
+        return False
+
+
+def _fold_metrics_match_job(
+    manifest: dict,
+    manifest_path: Path | None = None,
+) -> bool:
+    try:
+        metrics_path = Path(manifest["outputs"]["fold_metrics"]).resolve()
+        if manifest_path is not None and metrics_path != (
+            manifest_path.parent / "fold_metrics.json"
+        ).resolve():
+            return False
         records = json.loads(metrics_path.read_text(encoding="utf-8"))
     except (KeyError, OSError, TypeError, json.JSONDecodeError):
         return False
@@ -230,19 +362,50 @@ def _is_finite_number(value: object) -> bool:
     )
 
 
-def _epoch_diagnostics_match_job(job: GradientClipJob) -> bool:
-    diagnostics_path = job.output_dir / "epoch_collapse_diagnostics.json"
+def _numeric_diagnostics_valid(value: object, key: str = "") -> bool:
+    if isinstance(value, dict):
+        return all(
+            _numeric_diagnostics_valid(child, str(child_key))
+            for child_key, child in value.items()
+        )
+    if isinstance(value, list):
+        return all(_numeric_diagnostics_valid(child, key) for child in value)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return math.isfinite(float(value)) and (
+            "norm" not in key.lower() or float(value) >= 0.0
+        )
+    return True
+
+
+def _epoch_diagnostics_match_job(
+    job: GradientClipJob,
+    diagnostics_path: Path | None = None,
+) -> bool:
+    diagnostics_path = (
+        diagnostics_path
+        if diagnostics_path is not None
+        else job.output_dir / "epoch_collapse_diagnostics.json"
+    )
     try:
         records = json.loads(diagnostics_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
     if not isinstance(records, list) or len(records) != job.epochs:
         return False
-    for expected_epoch, record in enumerate(records, start=1):
+    epochs = []
+    for record in records:
         if not isinstance(record, dict):
             return False
-        if record.get("fold") != 1 or record.get("epoch") != expected_epoch:
+        if not _numeric_diagnostics_valid(record):
             return False
+        epoch = record.get("epoch")
+        if (
+            record.get("fold") != 1
+            or not isinstance(epoch, int)
+            or isinstance(epoch, bool)
+        ):
+            return False
+        epochs.append(epoch)
         gradient_clip = record.get("gradient_clip")
         if not isinstance(gradient_clip, dict):
             return False
@@ -278,34 +441,172 @@ def _epoch_diagnostics_match_job(job: GradientClipJob) -> bool:
             pre_clip_norm_max
         ):
             return False
-    return True
+        if (
+            float(pre_clip_norm_mean) < 0.0
+            or float(pre_clip_norm_max) < float(pre_clip_norm_mean)
+        ):
+            return False
+        expected_fraction = float(clipped_steps) / float(optimizer_steps)
+        if not math.isclose(
+            float(clipped_fraction),
+            expected_fraction,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        ):
+            return False
+    return set(epochs) == set(range(1, job.epochs + 1))
+
+
+def _load_status(job: GradientClipJob) -> dict | None:
+    try:
+        status = json.loads(
+            (job.output_dir / "status.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return None
+    return status if isinstance(status, dict) else None
+
+
+def _bound_manifest_path(job: GradientClipJob) -> Path | None:
+    status = _load_status(job)
+    if status is None or not isinstance(status.get("manifest_path"), str):
+        return None
+    path = Path(status["manifest_path"]).resolve()
+    expected_root = (job.output_dir / "run_records").resolve()
+    if (
+        str(path) != status["manifest_path"]
+        or not _is_within(path, expected_root)
+        or path.name != "run_manifest_fold_1.json"
+    ):
+        return None
+    return path
+
+
+def _bound_epoch_path(job: GradientClipJob, status: dict) -> Path | None:
+    value = status.get("epoch_diagnostics_path")
+    if not isinstance(value, str):
+        return None
+    path = Path(value).resolve()
+    expected = (job.output_dir / "epoch_collapse_diagnostics.json").resolve()
+    return path if str(path) == value and path == expected else None
+
+
+def _hash_matches(path: Path, expected: object) -> bool:
+    if not isinstance(expected, str) or len(expected) != 64 or not path.is_file():
+        return False
+    try:
+        return _sha256_file(path) == expected
+    except OSError:
+        return False
 
 
 def is_complete(job: GradientClipJob) -> bool:
-    status_path = job.output_dir / "status.json"
-    if not status_path.exists():
-        return False
-    try:
-        status = json.loads(status_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    status = _load_status(job)
+    if status is None:
         return False
     if status.get("identity") != job.identity:
         return False
     returncode = status.get("returncode")
     if type(returncode) is not int or returncode != 0:
         return False
-    manifest_path = _latest_manifest(job.output_dir)
-    if manifest_path is None:
+    attempt_started = status.get("attempt_started_at_unix")
+    if not _is_finite_number(attempt_started) or float(attempt_started) <= 0.0:
+        return False
+    if status.get("command_contract_sha256") != _command_contract_sha256(job):
+        return False
+    code_revision = status.get("code_revision")
+    try:
+        current_revision = _code_revision()
+    except (OSError, subprocess.CalledProcessError, RuntimeError):
+        return False
+    if not isinstance(code_revision, str) or code_revision != current_revision:
+        return False
+    if status.get("python_executable") != _python_executable(job):
+        return False
+    manifest_path = _bound_manifest_path(job)
+    epoch_path = _bound_epoch_path(job, status)
+    if manifest_path is None or epoch_path is None:
+        return False
+    if not _hash_matches(manifest_path, status.get("manifest_sha256")):
+        return False
+    if not _hash_matches(epoch_path, status.get("epoch_diagnostics_sha256")):
         return False
     try:
         manifest = load_manifest(manifest_path)
-    except (OSError, ManifestValidationError):
+    except ManifestValidationError:
+        return False
+    try:
+        result_path = Path(manifest["outputs"]["result_archive"]).resolve()
+    except (KeyError, TypeError):
         return False
     return (
-        _manifest_matches_job(manifest, job)
-        and _fold_metrics_match_job(manifest)
-        and _epoch_diagnostics_match_job(job)
+        _manifest_matches_job(manifest, job, code_revision)
+        and _fold_metrics_match_job(manifest, manifest_path)
+        and _epoch_diagnostics_match_job(job, epoch_path)
+        and _is_within(result_path, job.output_dir.resolve())
+        and result_path.is_file()
     )
+
+
+def _new_attempt_evidence(
+    job: GradientClipJob,
+    snapshot: AttemptSnapshot,
+    code_revision: str,
+) -> Dict[str, object]:
+    current_manifests = {
+        path.resolve()
+        for path in job.output_dir.glob(
+            "run_records/*/run_manifest_fold_1.json"
+        )
+        if path.is_file()
+    }
+    new_manifests = current_manifests - set(snapshot.manifest_paths)
+    if len(new_manifests) != 1:
+        raise RuntimeError(
+            "expected exactly one new run-record manifest, found {}".format(
+                len(new_manifests)
+            )
+        )
+    manifest_path = next(iter(new_manifests))
+    try:
+        manifest = load_manifest(manifest_path)
+    except ManifestValidationError as error:
+        raise RuntimeError("new run-record manifest is invalid") from error
+    if not _manifest_matches_job(manifest, job, code_revision):
+        raise RuntimeError("new run-record manifest does not match job contract")
+
+    try:
+        metrics_path = Path(manifest["outputs"]["fold_metrics"]).resolve()
+        result_path = Path(manifest["outputs"]["result_archive"]).resolve()
+    except (KeyError, TypeError) as error:
+        raise RuntimeError("new run-record manifest lacks output artifacts") from error
+    expected_metrics = (manifest_path.parent / "fold_metrics.json").resolve()
+    output_root = job.output_dir.resolve()
+    if metrics_path != expected_metrics or not _is_within(result_path, output_root):
+        raise RuntimeError("new run-record artifact paths escape their attempt")
+    if (
+        metrics_path in snapshot.artifact_signatures
+        or result_path in snapshot.artifact_signatures
+    ):
+        raise RuntimeError("new run-record reused an artifact from before this attempt")
+    epoch_path = (job.output_dir / "epoch_collapse_diagnostics.json").resolve()
+    for label, path in (
+        ("fold metrics", metrics_path),
+        ("result archive", result_path),
+        ("epoch diagnostics", epoch_path),
+    ):
+        if not _artifact_changed(path, snapshot):
+            raise RuntimeError("{} were not created by this attempt".format(label))
+    if not _fold_metrics_match_job(manifest, manifest_path):
+        raise RuntimeError("new fold metrics do not match job contract")
+    if not _epoch_diagnostics_match_job(job, epoch_path):
+        raise RuntimeError("new epoch diagnostics do not match job contract")
+    return {
+        "manifest_path": str(manifest_path),
+        "manifest_sha256": _sha256_file(manifest_path),
+        "epoch_diagnostics_path": str(epoch_path),
+        "epoch_diagnostics_sha256": _sha256_file(epoch_path),
+    }
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -376,6 +677,68 @@ def _release_claim(claim_path: Path | None) -> None:
         pass
 
 
+def acquire_gpu_lease(
+    gpu: int,
+    lease_root: Path | None = None,
+) -> GPULease:
+    root = Path(tempfile.gettempdir()) if lease_root is None else Path(lease_root)
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / "{}-{}.lease".format(GPU_LEASE_PREFIX, int(gpu))
+    token = uuid.uuid4().hex
+    host = socket.gethostname()
+    pid = os.getpid()
+    try:
+        descriptor = os.open(
+            str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+        )
+    except FileExistsError as error:
+        raise RuntimeError(
+            "GPU {} lease already exists at {}; refusing to remove it".format(
+                gpu, path
+            )
+        ) from error
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(
+                {"token": token, "host": host, "pid": pid},
+                handle,
+                sort_keys=True,
+            )
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    except Exception:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+    return GPULease(path=path, token=token, host=host, pid=pid)
+
+
+def release_gpu_lease(lease: GPULease) -> bool:
+    try:
+        with lease.path.open("r", encoding="utf-8") as handle:
+            stat_result = os.fstat(handle.fileno())
+            payload = json.load(handle)
+        current_stat = lease.path.stat()
+    except (OSError, json.JSONDecodeError):
+        return False
+    if (
+        payload.get("token") != lease.token
+        or payload.get("host") != lease.host
+        or payload.get("pid") != lease.pid
+        or stat_result.st_ino != current_stat.st_ino
+        or stat_result.st_dev != current_stat.st_dev
+    ):
+        return False
+    try:
+        lease.path.unlink()
+    except OSError:
+        return False
+    return True
+
+
 def _gpu_memory_mb(gpu: int) -> int:
     output = subprocess.check_output(
         [
@@ -400,6 +763,7 @@ def assert_gpu_available(gpu: int, maximum_idle_memory_mb: int = 768) -> None:
 
 
 def _environment(root: Path, gpu: int) -> Dict[str, str]:
+    root = _require_repository_root(root)
     environment = dict(os.environ)
     environment.update(
         {
@@ -417,13 +781,16 @@ def run_job(
     root: Path,
     stop_event: threading.Event,
 ) -> bool:
+    root = _require_repository_root(root)
     if is_complete(job):
         return True
     if stop_event.is_set():
         return False
-    started_at = time.time()
+    started_at = None
     returncode = None
     claim_path: Path | None = None
+    code_revision = None
+    python_executable = _python_executable(job)
     try:
         claim_path = _acquire_claim(job)
         if claim_path is None:
@@ -433,6 +800,8 @@ def run_job(
             return True
         if stop_event.is_set():
             return False
+        started_at = time.time()
+        code_revision = _code_revision()
         _write_json(
             job.output_dir / "command.json",
             {
@@ -441,6 +810,7 @@ def run_job(
                 "command": list(job.command),
             },
         )
+        snapshot = _snapshot_attempt_outputs(job)
         with (job.output_dir / "train.log").open("w", encoding="utf-8") as log:
             result = subprocess.run(
                 job.command,
@@ -455,8 +825,11 @@ def run_job(
             "gpu": job.gpu,
             "slot": job.slot,
             "returncode": returncode,
-            "started_at_unix": started_at,
+            "attempt_started_at_unix": started_at,
             "finished_at_unix": time.time(),
+            "command_contract_sha256": _command_contract_sha256(job),
+            "code_revision": code_revision,
+            "python_executable": python_executable,
         }
         if returncode != 0:
             status["error"] = (
@@ -466,6 +839,14 @@ def run_job(
         if returncode != 0:
             stop_event.set()
             return False
+        status.update(
+            _new_attempt_evidence(
+                job,
+                snapshot,
+                code_revision,
+            )
+        )
+        _write_json(job.output_dir / "status.json", status)
         if not is_complete(job):
             status["error"] = "return code 0 without matching diagnostic evidence"
             status["finished_at_unix"] = time.time()
@@ -483,8 +864,11 @@ def run_job(
                     "gpu": job.gpu,
                     "slot": job.slot,
                     "returncode": returncode,
-                    "started_at_unix": started_at,
+                    "attempt_started_at_unix": started_at,
                     "finished_at_unix": time.time(),
+                    "command_contract_sha256": _command_contract_sha256(job),
+                    "code_revision": code_revision,
+                    "python_executable": python_executable,
                     "error": "{}: {}".format(type(error).__name__, error),
                 },
             )
@@ -511,6 +895,7 @@ def audit_completed_pairs(
     root: Path,
     python: str,
 ) -> Tuple[int, int]:
+    root = _require_repository_root(root)
     pairs: Dict[Tuple[float, int], Dict[str, GradientClipJob]] = {}
     for job in jobs:
         pairs.setdefault((job.missing_rate, job.seed), {})[job.method] = job
@@ -526,8 +911,11 @@ def audit_completed_pairs(
         if not is_complete(baseline) or not is_complete(jepa):
             failures += 1
             continue
-        baseline_manifest = _latest_manifest(baseline.output_dir)
-        jepa_manifest = _latest_manifest(jepa.output_dir)
+        baseline_manifest = _bound_manifest_path(baseline)
+        jepa_manifest = _bound_manifest_path(jepa)
+        if baseline_manifest is None or jepa_manifest is None:
+            failures += 1
+            continue
         audit_path = baseline.output_dir.parent / "paired_audit.log"
         try:
             result = subprocess.run(
@@ -588,7 +976,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    root = Path.cwd().resolve()
+    root = REPOSITORY_ROOT
     output_root = args.output_root.resolve()
     jobs = build_jobs(
         output_root,
@@ -612,46 +1000,52 @@ def main() -> int:
         print("generated {} jobs".format(len(jobs)))
         return 0
 
-    assert_gpu_available(args.gpu)
-    lanes: Dict[int, List[GradientClipJob]] = {
-        slot: [] for slot in range(args.max_concurrent)
-    }
-    for job in jobs:
-        lanes[job.slot].append(job)
-    stop_event = threading.Event()
-    with ThreadPoolExecutor(max_workers=args.max_concurrent) as executor:
-        futures = [
-            executor.submit(_run_lane, lane_jobs, root, stop_event)
-            for lane_jobs in lanes.values()
-        ]
-        worker_success, worker_errors = _collect_worker_results(
-            futures, stop_event
-        )
+    lease = acquire_gpu_lease(args.gpu)
+    try:
+        assert_gpu_available(args.gpu)
+        lanes: Dict[int, List[GradientClipJob]] = {
+            slot: [] for slot in range(args.max_concurrent)
+        }
+        for job in jobs:
+            lanes[job.slot].append(job)
+        stop_event = threading.Event()
+        assert_gpu_available(args.gpu)
+        with ThreadPoolExecutor(max_workers=args.max_concurrent) as executor:
+            futures = [
+                executor.submit(_run_lane, lane_jobs, root, stop_event)
+                for lane_jobs in lanes.values()
+            ]
+            worker_success, worker_errors = _collect_worker_results(
+                futures, stop_event
+            )
 
-    audited_pairs, audit_failures = audit_completed_pairs(
-        jobs, root, args.python
-    )
-    complete_jobs = sum(is_complete(job) for job in jobs)
-    scheduler_success = (
-        worker_success
-        and len(jobs) == EXPECTED_JOB_COUNT
-        and complete_jobs == EXPECTED_JOB_COUNT
-        and audited_pairs == EXPECTED_PAIR_COUNT
-        and audit_failures == 0
-    )
-    _write_json(
-        output_root / "scheduler_status.json",
-        {
-            "complete_jobs": complete_jobs,
-            "total_jobs": len(jobs),
-            "worker_success": worker_success,
-            "worker_errors": worker_errors,
-            "paired_audits": audited_pairs,
-            "expected_pair_audits": EXPECTED_PAIR_COUNT,
-            "paired_audit_failures": audit_failures,
-        },
-    )
-    return 0 if scheduler_success else 1
+        audited_pairs, audit_failures = audit_completed_pairs(
+            jobs, root, args.python
+        )
+        complete_jobs = sum(is_complete(job) for job in jobs)
+        scheduler_success = (
+            worker_success
+            and len(jobs) == EXPECTED_JOB_COUNT
+            and complete_jobs == EXPECTED_JOB_COUNT
+            and audited_pairs == EXPECTED_PAIR_COUNT
+            and audit_failures == 0
+        )
+        _write_json(
+            output_root / "scheduler_status.json",
+            {
+                "complete_jobs": complete_jobs,
+                "total_jobs": len(jobs),
+                "worker_success": worker_success,
+                "worker_errors": worker_errors,
+                "paired_audits": audited_pairs,
+                "expected_pair_audits": EXPECTED_PAIR_COUNT,
+                "paired_audit_failures": audit_failures,
+            },
+        )
+        return 0 if scheduler_success else 1
+    finally:
+        if not release_gpu_lease(lease):
+            raise RuntimeError("failed to release owned GPU lease")
 
 
 if __name__ == "__main__":

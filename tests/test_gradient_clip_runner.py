@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 import subprocess
 import tempfile
@@ -11,42 +13,96 @@ from unittest import mock
 from scripts import run_mosi_gradient_clip_diagnostics as runner
 
 
+TEST_REVISION = "a" * 40
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _manifest_command(job: runner.GradientClipJob) -> list[str]:
+    return [
+        str(runner.REPOSITORY_ROOT / "gcnet_modality_jepa" / "train_gcnet.py"),
+        *job.command[4:],
+    ]
+
+
+def _contract_sha256(job: runner.GradientClipJob) -> str:
+    payload = {
+        "command": list(job.command),
+        "identity": job.identity,
+        "repository_root": str(runner.REPOSITORY_ROOT),
+    }
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _write_completion_evidence(
     job: runner.GradientClipJob,
     *,
     epoch_records: list[dict] | None = None,
-) -> tuple[Path, dict]:
+    revision: str = TEST_REVISION,
+) -> tuple[Path, dict, dict]:
     job.output_dir.mkdir(parents=True, exist_ok=True)
-    (job.output_dir / "status.json").write_text(
-        json.dumps({"identity": job.identity, "returncode": 0}) + "\n",
-        encoding="utf-8",
-    )
     manifest_path = (
         job.output_dir / "run_records" / "1" / "run_manifest_fold_1.json"
     )
-    manifest_path.parent.mkdir(parents=True)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text("{}\n", encoding="utf-8")
     metrics_path = job.output_dir / "run_records" / "1" / "fold_metrics.json"
     metrics_path.write_text(
         json.dumps([{"fold": 1, "gradient_clip_norm": 1.0}]) + "\n",
         encoding="utf-8",
     )
+    result_path = job.output_dir / "result.npz"
+    result_path.write_bytes(b"result")
     manifest = {
         "run": {"dataset": "CMUMOSI", "fold": 1, "master_seed": job.seed},
         "masks": {"requested_missing_rate": job.missing_rate},
-        "lifecycle": {"evaluation_protocol": "official"},
+        "lifecycle": {
+            "evaluation_protocol": "official",
+            "epochs_completed": job.epochs,
+        },
+        "provenance": {
+            "cwd": str(runner.REPOSITORY_ROOT),
+            "git_revision": revision,
+            "command": _manifest_command(job),
+        },
         "method": {
             "model_variant": "addon" if job.method == "baseline" else "replacement",
             "jepa_weight": 0.0 if job.method == "baseline" else 0.1,
             "loss_reconstruction": job.method == "baseline",
         },
-        "outputs": {"fold_metrics": str(metrics_path)},
+        "outputs": {
+            "fold_metrics": str(metrics_path),
+            "result_archive": str(result_path),
+        },
     }
+    epoch_path = job.output_dir / "epoch_collapse_diagnostics.json"
     if epoch_records is not None:
-        (job.output_dir / "epoch_collapse_diagnostics.json").write_text(
+        epoch_path.write_text(
             json.dumps(epoch_records) + "\n", encoding="utf-8"
         )
-    return manifest_path, manifest
+    status = {
+        "identity": job.identity,
+        "returncode": 0,
+        "attempt_started_at_unix": 123.0,
+        "manifest_path": str(manifest_path.resolve()),
+        "manifest_sha256": _sha256(manifest_path),
+        "epoch_diagnostics_path": str(epoch_path.resolve()),
+        "epoch_diagnostics_sha256": (
+            _sha256(epoch_path) if epoch_path.exists() else "0" * 64
+        ),
+        "command_contract_sha256": _contract_sha256(job),
+        "code_revision": revision,
+        "python_executable": str(Path(job.command[0]).resolve()),
+    }
+    (job.output_dir / "status.json").write_text(
+        json.dumps(status) + "\n", encoding="utf-8"
+    )
+    return manifest_path, manifest, status
 
 
 def _valid_epoch_records(epochs: int) -> list[dict]:
@@ -54,6 +110,10 @@ def _valid_epoch_records(epochs: int) -> list[dict]:
         {
             "fold": 1,
             "epoch": epoch,
+            "train_weighted_f1": 0.7,
+            "val_weighted_f1": 0.6,
+            "temporal_zero_ratio": 0.2,
+            "regression_head_weight_norm": 1.5,
             "gradient_clip": {
                 "configured_norm": 1.0,
                 "optimizer_steps": 3,
@@ -65,6 +125,17 @@ def _valid_epoch_records(epochs: int) -> list[dict]:
         }
         for epoch in range(1, epochs + 1)
     ]
+
+
+def _bound_is_complete(
+    job: runner.GradientClipJob,
+    manifest: dict,
+    revision: str = TEST_REVISION,
+) -> bool:
+    with mock.patch.object(
+        runner, "load_manifest", return_value=manifest
+    ), mock.patch.object(runner, "_code_revision", return_value=revision):
+        return runner.is_complete(job)
 
 
 class GradientClipRunnerTest(unittest.TestCase):
@@ -159,21 +230,18 @@ class GradientClipRunnerTest(unittest.TestCase):
             job = runner.build_jobs(
                 Path(directory), "/official/python", gpu=3, epochs=2
             )[0]
-            manifest_path, manifest = _write_completion_evidence(job)
-
-            with mock.patch.object(
-                runner, "_latest_manifest", return_value=manifest_path
-            ), mock.patch.object(runner, "load_manifest", return_value=manifest):
-                self.assertFalse(runner.is_complete(job))
-
             records = _valid_epoch_records(2)
-            (job.output_dir / "epoch_collapse_diagnostics.json").write_text(
-                json.dumps(records) + "\n", encoding="utf-8"
+            _, manifest, _ = _write_completion_evidence(
+                job, epoch_records=records
             )
-            with mock.patch.object(
-                runner, "_latest_manifest", return_value=manifest_path
-            ), mock.patch.object(runner, "load_manifest", return_value=manifest):
-                self.assertTrue(runner.is_complete(job))
+            (job.output_dir / "epoch_collapse_diagnostics.json").unlink()
+
+            self.assertFalse(_bound_is_complete(job, manifest))
+
+            _, manifest, _ = _write_completion_evidence(
+                job, epoch_records=records
+            )
+            self.assertTrue(_bound_is_complete(job, manifest))
 
         command = list(job.command)
         self.assertEqual(command[command.index("--epochs") + 1], "2")
@@ -186,7 +254,7 @@ class GradientClipRunnerTest(unittest.TestCase):
             root = Path(directory)
             job = runner.build_jobs(root, "/official/python", gpu=3, epochs=2)[0]
             valid_records = _valid_epoch_records(2)
-            manifest_path, manifest = _write_completion_evidence(
+            _, manifest, _ = _write_completion_evidence(
                 job, epoch_records=valid_records
             )
             cases = {
@@ -254,23 +322,70 @@ class GradientClipRunnerTest(unittest.TestCase):
                     }
                     for record in valid_records
                 ],
+                "nonfinite_collapse": [
+                    {**record, "prediction_std": float("nan")}
+                    for record in valid_records
+                ],
+                "nonfinite_nested": [
+                    {
+                        **record,
+                        "primary_mask": {
+                            "realized_missing_rate": float("inf")
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "negative_collapse_norm": [
+                    {**record, "regression_head_weight_norm": -0.1}
+                    for record in valid_records
+                ],
+                "negative_norm": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "pre_clip_norm_mean": -0.1,
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "max_below_mean": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "pre_clip_norm_mean": 2.0,
+                            "pre_clip_norm_max": 1.0,
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "fraction_mismatch": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "clipped_fraction": 0.5,
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "duplicate_epoch": [
+                    {**record, "epoch": 1} for record in valid_records
+                ],
             }
             for name, records in cases.items():
                 with self.subTest(case=name):
-                    (job.output_dir / "epoch_collapse_diagnostics.json").write_text(
-                        json.dumps(records) + "\n", encoding="utf-8"
+                    _, manifest, _ = _write_completion_evidence(
+                        job, epoch_records=records
                     )
-                    with mock.patch.object(
-                        runner, "_latest_manifest", return_value=manifest_path
-                    ), mock.patch.object(
-                        runner, "load_manifest", return_value=manifest
-                    ):
-                        self.assertFalse(runner.is_complete(job))
+                    self.assertFalse(_bound_is_complete(job, manifest))
 
     def test_completed_job_is_resumed_without_launching_or_rewriting_status(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            job = runner.build_jobs(root / "outputs", "/official/python", 3)[0]
+            job = runner.build_jobs(
+                Path(directory) / "outputs", "/official/python", 3
+            )[0]
             job.output_dir.mkdir(parents=True)
             status_path = job.output_dir / "status.json"
             status_path.write_text('{"sentinel": true}\n', encoding="utf-8")
@@ -278,7 +393,9 @@ class GradientClipRunnerTest(unittest.TestCase):
             with mock.patch.object(runner, "is_complete", return_value=True), mock.patch.object(
                 runner.subprocess, "run"
             ) as launch:
-                completed = runner.run_job(job, root, threading.Event())
+                completed = runner.run_job(
+                    job, runner.REPOSITORY_ROOT, threading.Event()
+                )
 
             self.assertTrue(completed)
             launch.assert_not_called()
@@ -287,21 +404,43 @@ class GradientClipRunnerTest(unittest.TestCase):
                 {"sentinel": True},
             )
 
-    def test_incomplete_job_writes_only_its_isolated_logs_and_status(self) -> None:
+    def test_successful_attempt_binds_new_artifacts_in_status(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            job = runner.build_jobs(root / "outputs", "/official/python", 3)[0]
+            job = runner.build_jobs(
+                Path(directory) / "outputs", "/official/python", 3, epochs=2
+            )[0]
             completed_process = subprocess.CompletedProcess(job.command, 0)
+            manifest_box: dict[str, dict] = {}
+
+            def launch(*args, **kwargs):
+                _, manifest, _ = _write_completion_evidence(
+                    job, epoch_records=_valid_epoch_records(job.epochs)
+                )
+                manifest_box["value"] = manifest
+                return completed_process
 
             with mock.patch.object(
-                runner, "is_complete", side_effect=[False, False, True]
+                runner.subprocess, "run", side_effect=launch
+            ) as process, mock.patch.object(
+                runner,
+                "load_manifest",
+                side_effect=lambda path: manifest_box["value"],
             ), mock.patch.object(
-                runner.subprocess, "run", return_value=completed_process
+                runner, "_code_revision", return_value=TEST_REVISION
             ) as launch:
-                completed = runner.run_job(job, root, threading.Event())
+                completed = runner.run_job(
+                    job, runner.REPOSITORY_ROOT, threading.Event()
+                )
 
             self.assertTrue(completed)
-            launch.assert_called_once()
+            process.assert_called_once()
+            self.assertEqual(
+                Path(process.call_args.kwargs["cwd"]), runner.REPOSITORY_ROOT
+            )
+            self.assertEqual(
+                process.call_args.kwargs["env"]["PYTHONPATH"],
+                str(runner.REPOSITORY_ROOT),
+            )
             self.assertTrue((job.output_dir / "command.json").is_file())
             self.assertTrue((job.output_dir / "train.log").is_file())
             status = json.loads(
@@ -309,11 +448,273 @@ class GradientClipRunnerTest(unittest.TestCase):
             )
             self.assertEqual(status["identity"], job.identity)
             self.assertEqual(status["returncode"], 0)
+            self.assertEqual(status["code_revision"], TEST_REVISION)
+            self.assertEqual(
+                status["command_contract_sha256"], _contract_sha256(job)
+            )
+            for key in (
+                "manifest_path",
+                "manifest_sha256",
+                "epoch_diagnostics_path",
+                "epoch_diagnostics_sha256",
+                "python_executable",
+                "attempt_started_at_unix",
+            ):
+                self.assertIn(key, status)
+
+    def test_rc0_rejects_stale_artifacts_from_before_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            job = runner.build_jobs(
+                Path(directory) / "outputs", "/official/python", 3, epochs=2
+            )[0]
+            _, manifest, status = _write_completion_evidence(
+                job, epoch_records=_valid_epoch_records(job.epochs)
+            )
+            status["returncode"] = 1
+            (job.output_dir / "status.json").write_text(
+                json.dumps(status) + "\n", encoding="utf-8"
+            )
+
+            with mock.patch.object(
+                runner.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess(job.command, 0),
+            ) as process, mock.patch.object(
+                runner, "load_manifest", return_value=manifest
+            ), mock.patch.object(
+                runner, "_code_revision", return_value=TEST_REVISION
+            ):
+                completed = runner.run_job(
+                    job, runner.REPOSITORY_ROOT, threading.Event()
+                )
+
+            self.assertFalse(completed)
+            process.assert_called_once()
+            failure = json.loads(
+                (job.output_dir / "status.json").read_text(encoding="utf-8")
+            )
+            self.assertIn("new", failure["error"])
+
+    def test_rc0_rejects_multiple_new_run_records(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            job = runner.build_jobs(
+                Path(directory) / "outputs", "/official/python", 3, epochs=2
+            )[0]
+            manifest_box: dict[str, dict] = {}
+
+            def launch(*args, **kwargs):
+                manifest_path, manifest, _ = _write_completion_evidence(
+                    job, epoch_records=_valid_epoch_records(job.epochs)
+                )
+                second = (
+                    job.output_dir
+                    / "run_records"
+                    / "2"
+                    / "run_manifest_fold_1.json"
+                )
+                second.parent.mkdir(parents=True)
+                second.write_bytes(manifest_path.read_bytes())
+                manifest_box["value"] = manifest
+                return subprocess.CompletedProcess(job.command, 0)
+
+            with mock.patch.object(
+                runner.subprocess, "run", side_effect=launch
+            ), mock.patch.object(
+                runner,
+                "load_manifest",
+                side_effect=lambda path: manifest_box["value"],
+            ), mock.patch.object(
+                runner, "_code_revision", return_value=TEST_REVISION
+            ):
+                completed = runner.run_job(
+                    job, runner.REPOSITORY_ROOT, threading.Event()
+                )
+
+            self.assertFalse(completed)
+            failure = json.loads(
+                (job.output_dir / "status.json").read_text(encoding="utf-8")
+            )
+            self.assertIn("exactly one new", failure["error"])
+
+    def test_bound_completion_rejects_hash_path_and_artifact_tampering(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            job = runner.build_jobs(
+                Path(directory), "/official/python", 3, epochs=2
+            )[0]
+            _, manifest, valid_status = _write_completion_evidence(
+                job, epoch_records=_valid_epoch_records(job.epochs)
+            )
+            self.assertTrue(_bound_is_complete(job, manifest))
+
+            cases = {
+                "manifest_hash": {"manifest_sha256": "0" * 64},
+                "epoch_hash": {"epoch_diagnostics_sha256": "0" * 64},
+                "manifest_path": {
+                    "manifest_path": str(Path(directory) / "outside.json")
+                },
+                "contract_hash": {"command_contract_sha256": "0" * 64},
+                "revision": {"code_revision": "b" * 40},
+                "python": {"python_executable": "/wrong/python"},
+            }
+            for name, changes in cases.items():
+                with self.subTest(case=name):
+                    status = {**valid_status, **changes}
+                    (job.output_dir / "status.json").write_text(
+                        json.dumps(status) + "\n", encoding="utf-8"
+                    )
+                    self.assertFalse(_bound_is_complete(job, manifest))
+
+            (job.output_dir / "status.json").write_text(
+                json.dumps(valid_status) + "\n", encoding="utf-8"
+            )
+            Path(valid_status["manifest_path"]).write_text(
+                "{\"tampered\": true}\n", encoding="utf-8"
+            )
+            self.assertFalse(_bound_is_complete(job, manifest))
+
+    def test_completion_rejects_manifest_epoch_and_provenance_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            job = runner.build_jobs(
+                Path(directory), "/official/python", 3, epochs=2
+            )[0]
+            _, manifest, valid_status = _write_completion_evidence(
+                job, epoch_records=_valid_epoch_records(job.epochs)
+            )
+            cases = {}
+            wrong_epochs = copy.deepcopy(manifest)
+            wrong_epochs["lifecycle"]["epochs_completed"] = 100
+            cases["epochs"] = wrong_epochs
+            wrong_cwd = copy.deepcopy(manifest)
+            wrong_cwd["provenance"]["cwd"] = "/wrong/root"
+            cases["cwd"] = wrong_cwd
+            wrong_revision = copy.deepcopy(manifest)
+            wrong_revision["provenance"]["git_revision"] = "b" * 40
+            cases["revision"] = wrong_revision
+            wrong_command = copy.deepcopy(manifest)
+            wrong_command["provenance"]["command"].append("--unexpected")
+            cases["command"] = wrong_command
+
+            for name, candidate in cases.items():
+                with self.subTest(case=name):
+                    (job.output_dir / "status.json").write_text(
+                        json.dumps(valid_status) + "\n", encoding="utf-8"
+                    )
+                    self.assertFalse(_bound_is_complete(job, candidate))
+
+            _, manifest, valid_status = _write_completion_evidence(
+                job, epoch_records=_valid_epoch_records(job.epochs)
+            )
+            epoch_path = Path(valid_status["epoch_diagnostics_path"])
+            epoch_path.write_text(
+                epoch_path.read_text(encoding="utf-8") + "\n",
+                encoding="utf-8",
+            )
+            self.assertFalse(_bound_is_complete(job, manifest))
+
+    def test_physical_gpu_lease_is_exclusive_and_owner_released(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            lease_root = Path(directory)
+            lease = runner.acquire_gpu_lease(3, lease_root=lease_root)
+            payload = json.loads(lease.path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["token"], lease.token)
+            self.assertEqual(payload["host"], lease.host)
+            self.assertEqual(payload["pid"], lease.pid)
+
+            with self.assertRaisesRegex(RuntimeError, "GPU 3.*lease"):
+                runner.acquire_gpu_lease(3, lease_root=lease_root)
+
+            non_owner = runner.GPULease(
+                path=lease.path,
+                token="not-owner",
+                host=lease.host,
+                pid=lease.pid,
+            )
+            self.assertFalse(runner.release_gpu_lease(non_owner))
+            self.assertTrue(lease.path.exists())
+            self.assertTrue(runner.release_gpu_lease(lease))
+            self.assertFalse(lease.path.exists())
+
+    def test_main_holds_lease_across_two_idle_checks_and_all_work(self) -> None:
+        events: list[str] = []
+        lease = object()
+        future = mock.Mock()
+        future.result.return_value = True
+
+        class ImmediateExecutor:
+            def __init__(self, max_workers):
+                self.max_workers = max_workers
+
+            def __enter__(self):
+                events.append("workers")
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+            def submit(self, *args, **kwargs):
+                return future
+
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+            runner.sys,
+            "argv",
+            [
+                "runner",
+                "--output-root",
+                str(Path(directory) / "outputs"),
+                "--gpu",
+                "3",
+            ],
+        ), mock.patch.object(
+            runner,
+            "acquire_gpu_lease",
+            side_effect=lambda gpu: events.append("lease") or lease,
+        ), mock.patch.object(
+            runner,
+            "release_gpu_lease",
+            side_effect=lambda value: events.append("release") or True,
+        ), mock.patch.object(
+            runner,
+            "assert_gpu_available",
+            side_effect=lambda gpu: events.append("idle"),
+        ), mock.patch.object(
+            runner, "ThreadPoolExecutor", ImmediateExecutor
+        ), mock.patch.object(
+            runner,
+            "audit_completed_pairs",
+            side_effect=lambda *args: events.append("audit") or (3, 0),
+        ), mock.patch.object(runner, "is_complete", return_value=True):
+            result = runner.main()
+
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            events,
+            ["lease", "idle", "idle", "workers", "audit", "release"],
+        )
+
+    def test_repository_root_is_anchored_and_mismatch_is_rejected(self) -> None:
+        environment = runner._environment(runner.REPOSITORY_ROOT, 3)
+        self.assertEqual(environment["PYTHONPATH"], str(runner.REPOSITORY_ROOT))
+        self.assertEqual(
+            environment["GCNET_DATASET_ROOT"],
+            str(runner.REPOSITORY_ROOT / "dataset"),
+        )
+
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+            runner.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 1),
+        ) as launch:
+            job = runner.build_jobs(
+                Path(directory) / "outputs", "/official/python", 3
+            )[0]
+            with self.assertRaisesRegex(ValueError, "repository root"):
+                runner.run_job(job, Path(directory), threading.Event())
+            launch.assert_not_called()
 
     def test_three_completed_pairs_are_audited(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            jobs = runner.build_jobs(root / "outputs", "/official/python", 3)
+            output_root = Path(directory) / "outputs"
+            jobs = runner.build_jobs(output_root, "/official/python", 3)
             manifests = {
                 job.identity: job.output_dir / "manifest.json" for job in jobs
             }
@@ -322,22 +723,20 @@ class GradientClipRunnerTest(unittest.TestCase):
                 manifest.write_text("{}\n", encoding="utf-8")
 
             with mock.patch.object(runner, "is_complete", return_value=True), mock.patch.object(
-                runner, "_latest_manifest", side_effect=lambda path: next(
-                    manifests[job.identity]
-                    for job in jobs
-                    if job.output_dir == path
-                )
+                runner,
+                "_bound_manifest_path",
+                side_effect=lambda current_job: manifests[current_job.identity],
             ), mock.patch.object(
                 runner.subprocess,
                 "run",
                 return_value=subprocess.CompletedProcess([], 0, stdout="ok\n"),
             ):
                 audited, failures = runner.audit_completed_pairs(
-                    jobs, root, "/official/python"
+                    jobs, runner.REPOSITORY_ROOT, "/official/python"
                 )
 
             self.assertEqual((audited, failures), (3, 0))
-            audit_logs = list((root / "outputs").glob("**/paired_audit.log"))
+            audit_logs = list(output_root.glob("**/paired_audit.log"))
             self.assertEqual(len(audit_logs), 3)
 
 
