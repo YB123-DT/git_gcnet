@@ -554,9 +554,78 @@ def validate_training_args(args):
         )
     if args.stability_recon_weight < 0.0:
         raise ValueError("--stability-recon-weight must be non-negative")
+    gradient_clip_norm = getattr(args, "gradient_clip_norm", 0.0)
+    if not math.isfinite(gradient_clip_norm) or gradient_clip_norm < 0.0:
+        raise ValueError(
+            "--gradient-clip-norm must be finite and non-negative"
+        )
     validation_fraction = getattr(args, "validation_fraction", 0.1)
     if not math.isfinite(validation_fraction) or not 0.0 < validation_fraction < 1.0:
         raise ValueError("--validation-fraction must be strictly between 0 and 1")
+
+
+def _total_gradient_norm(parameters):
+    gradient_norms = [
+        torch.norm(parameter.grad.detach(), p=2)
+        for parameter in parameters
+        if parameter.grad is not None
+    ]
+    if not gradient_norms:
+        return 0.0
+    device = gradient_norms[0].device
+    return float(
+        torch.norm(
+            torch.stack([norm.to(device) for norm in gradient_norms]), p=2
+        ).item()
+    )
+
+
+def _backward_and_optimizer_step(
+    loss,
+    model,
+    optimizer,
+    gradient_clip_norm,
+):
+    """Backpropagate, optionally clip, then step; return the pre-clip norm."""
+    loss.backward()
+    parameters = list(model.parameters())
+    if gradient_clip_norm > 0.0:
+        pre_clip_norm = float(
+            torch.nn.utils.clip_grad_norm_(parameters, gradient_clip_norm)
+        )
+    else:
+        pre_clip_norm = _total_gradient_norm(parameters)
+    if not math.isfinite(pre_clip_norm):
+        raise RuntimeError("pre-clip total gradient norm must be finite")
+    optimizer.step()
+    return pre_clip_norm
+
+
+def _summarize_gradient_clipping(configured_norm, pre_clip_norms):
+    optimizer_steps = len(pre_clip_norms)
+    clipped_steps = (
+        sum(norm > configured_norm for norm in pre_clip_norms)
+        if configured_norm > 0.0
+        else 0
+    )
+    return {
+        "configured_norm": float(configured_norm),
+        "optimizer_steps": optimizer_steps,
+        "clipped_steps": clipped_steps,
+        "clipped_fraction": (
+            float(clipped_steps) / float(optimizer_steps)
+            if optimizer_steps
+            else 0.0
+        ),
+        "mean_pre_clip_total_gradient_norm": (
+            math.fsum(pre_clip_norms) / float(optimizer_steps)
+            if optimizer_steps
+            else 0.0
+        ),
+        "max_pre_clip_total_gradient_norm": (
+            max(pre_clip_norms) if pre_clip_norms else 0.0
+        ),
+    }
 
 
 def compose_total_loss(
@@ -688,6 +757,7 @@ def _train_or_eval_model_impl(
     }
     mask_missing_elements = 0
     mask_total_elements = 0
+    pre_clip_gradient_norms = []
 
     dataset = args.dataset
     reccls_flag = args.reccls_flag
@@ -994,8 +1064,14 @@ def _train_or_eval_model_impl(
         losses5.append(loss5.item()*masks[-1].sum())
 
         if train:
-            loss.backward()
-            optimizer.step()
+            pre_clip_gradient_norms.append(
+                _backward_and_optimizer_step(
+                    loss,
+                    model,
+                    optimizer,
+                    getattr(args, "gradient_clip_norm", 0.0),
+                )
+            )
 
     assert preds!=[], f'Error: no dataset in dataloader'
     preds  = np.concatenate(preds)
@@ -1055,6 +1131,11 @@ def _train_or_eval_model_impl(
             else 0.0
         ),
     }
+    if train:
+        diagnostics["gradient_clip"] = _summarize_gradient_clipping(
+            configured_norm=getattr(args, "gradient_clip_norm", 0.0),
+            pre_clip_norms=pre_clip_gradient_norms,
+        )
     print (f'sample number: {np.sum(masks)}')
     loss_vector = build_loss_vector(
         total=avg_loss,
@@ -1501,6 +1582,7 @@ def build_argument_parser():
     parser.add_argument('--output-dir', type=str, default=None, help='isolated result directory')
     parser.add_argument('--allow-short-run', action='store_true', default=False, help='allow fewer than 60 epochs for smoke tests')
     parser.add_argument('--epoch-collapse-diagnostics', action='store_true', default=False, help='record per-epoch GCNet activation and regression-collapse metrics')
+    parser.add_argument('--gradient-clip-norm', type=float, default=0.0, help='maximum total gradient norm; 0 disables clipping')
     parser.add_argument('--strict-deterministic', action='store_true', default=False, help='error if CUDA/PyTorch selects a nondeterministic operation')
     parser.add_argument('--stability-aux-mask-rate', type=float, default=0.1, help='training-only missing rate for auxiliary reconstruction')
     parser.add_argument('--stability-recon-weight', type=float, default=0.0, help='weight for training-only masked reconstruction stability loss')
@@ -1725,6 +1807,7 @@ if __name__ == '__main__':
             "all_modal_reconstruction_loss": float(bestallrecon),
             "stability_aux_mask_rate": float(args.stability_aux_mask_rate),
             "stability_recon_weight": float(args.stability_recon_weight),
+            "gradient_clip_norm": float(args.gradient_clip_norm),
             "shared_init_hash": shared_init_hash,
             "mask_schedule_hashes": lifecycle["mask_schedule_hashes"],
             "test_call_count": lifecycle["test_call_count"],
