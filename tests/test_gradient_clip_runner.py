@@ -11,6 +11,62 @@ from unittest import mock
 from scripts import run_mosi_gradient_clip_diagnostics as runner
 
 
+def _write_completion_evidence(
+    job: runner.GradientClipJob,
+    *,
+    epoch_records: list[dict] | None = None,
+) -> tuple[Path, dict]:
+    job.output_dir.mkdir(parents=True, exist_ok=True)
+    (job.output_dir / "status.json").write_text(
+        json.dumps({"identity": job.identity, "returncode": 0}) + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = (
+        job.output_dir / "run_records" / "1" / "run_manifest_fold_1.json"
+    )
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text("{}\n", encoding="utf-8")
+    metrics_path = job.output_dir / "run_records" / "1" / "fold_metrics.json"
+    metrics_path.write_text(
+        json.dumps([{"fold": 1, "gradient_clip_norm": 1.0}]) + "\n",
+        encoding="utf-8",
+    )
+    manifest = {
+        "run": {"dataset": "CMUMOSI", "fold": 1, "master_seed": job.seed},
+        "masks": {"requested_missing_rate": job.missing_rate},
+        "lifecycle": {"evaluation_protocol": "official"},
+        "method": {
+            "model_variant": "addon" if job.method == "baseline" else "replacement",
+            "jepa_weight": 0.0 if job.method == "baseline" else 0.1,
+            "loss_reconstruction": job.method == "baseline",
+        },
+        "outputs": {"fold_metrics": str(metrics_path)},
+    }
+    if epoch_records is not None:
+        (job.output_dir / "epoch_collapse_diagnostics.json").write_text(
+            json.dumps(epoch_records) + "\n", encoding="utf-8"
+        )
+    return manifest_path, manifest
+
+
+def _valid_epoch_records(epochs: int) -> list[dict]:
+    return [
+        {
+            "fold": 1,
+            "epoch": epoch,
+            "gradient_clip": {
+                "configured_norm": 1.0,
+                "optimizer_steps": 3,
+                "clipped_steps": 1,
+                "clipped_fraction": 1.0 / 3.0,
+                "pre_clip_norm_mean": 1.25,
+                "pre_clip_norm_max": 2.0,
+            },
+        }
+        for epoch in range(1, epochs + 1)
+    ]
+
+
 class GradientClipRunnerTest(unittest.TestCase):
     def test_exact_six_job_matrix_matches_formal_mosi_protocol(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -90,6 +146,126 @@ class GradientClipRunnerTest(unittest.TestCase):
                 runner.build_jobs(
                     root, "/official/python", gpu=3, max_concurrent=4
                 )
+
+    def test_gpu_idle_gate_accepts_idle_and_rejects_non_idle_memory(self) -> None:
+        with mock.patch.object(runner, "_gpu_memory_mb", return_value=768):
+            runner.assert_gpu_available(3)
+        with mock.patch.object(runner, "_gpu_memory_mb", return_value=769):
+            with self.assertRaisesRegex(RuntimeError, "occupied GPU 3"):
+                runner.assert_gpu_available(3)
+
+    def test_completion_requires_valid_epoch_diagnostics_for_job_epochs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            job = runner.build_jobs(
+                Path(directory), "/official/python", gpu=3, epochs=2
+            )[0]
+            manifest_path, manifest = _write_completion_evidence(job)
+
+            with mock.patch.object(
+                runner, "_latest_manifest", return_value=manifest_path
+            ), mock.patch.object(runner, "load_manifest", return_value=manifest):
+                self.assertFalse(runner.is_complete(job))
+
+            records = _valid_epoch_records(2)
+            (job.output_dir / "epoch_collapse_diagnostics.json").write_text(
+                json.dumps(records) + "\n", encoding="utf-8"
+            )
+            with mock.patch.object(
+                runner, "_latest_manifest", return_value=manifest_path
+            ), mock.patch.object(runner, "load_manifest", return_value=manifest):
+                self.assertTrue(runner.is_complete(job))
+
+        command = list(job.command)
+        self.assertEqual(command[command.index("--epochs") + 1], "2")
+        self.assertIn("--allow-short-run", command)
+
+    def test_completion_rejects_each_invalid_epoch_gradient_clip_field(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            job = runner.build_jobs(root, "/official/python", gpu=3, epochs=2)[0]
+            valid_records = _valid_epoch_records(2)
+            manifest_path, manifest = _write_completion_evidence(
+                job, epoch_records=valid_records
+            )
+            cases = {
+                "record_count": _valid_epoch_records(1),
+                "owned_fold": [
+                    {**record, "fold": 2} for record in valid_records
+                ],
+                "configured_norm": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "configured_norm": 0.5,
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "optimizer_steps": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "optimizer_steps": 0,
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "nonfinite_mean": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "pre_clip_norm_mean": float("nan"),
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "nonfinite_max": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "pre_clip_norm_max": float("inf"),
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "clipped_steps": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "clipped_steps": 4,
+                        },
+                    }
+                    for record in valid_records
+                ],
+                "clipped_fraction": [
+                    {
+                        **record,
+                        "gradient_clip": {
+                            **record["gradient_clip"],
+                            "clipped_fraction": 1.1,
+                        },
+                    }
+                    for record in valid_records
+                ],
+            }
+            for name, records in cases.items():
+                with self.subTest(case=name):
+                    (job.output_dir / "epoch_collapse_diagnostics.json").write_text(
+                        json.dumps(records) + "\n", encoding="utf-8"
+                    )
+                    with mock.patch.object(
+                        runner, "_latest_manifest", return_value=manifest_path
+                    ), mock.patch.object(
+                        runner, "load_manifest", return_value=manifest
+                    ):
+                        self.assertFalse(runner.is_complete(job))
 
     def test_completed_job_is_resumed_without_launching_or_rewriting_status(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

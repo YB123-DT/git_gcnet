@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
@@ -39,16 +40,18 @@ class GradientClipJob:
     seed: int
     gpu: int
     slot: int
+    epochs: int
     output_dir: Path
     command: Tuple[str, ...]
 
     @property
     def identity(self) -> str:
-        return "CMUMOSI:{}:{:.1f}:{}:clip{:.1f}".format(
+        return "CMUMOSI:{}:{:.1f}:{}:clip{:.1f}:epochs{}".format(
             self.method,
             self.missing_rate,
             self.seed,
             GRADIENT_CLIP_NORM,
+            self.epochs,
         )
 
 
@@ -60,6 +63,7 @@ def _training_command(
     python: str,
     rate: float,
     seed: int,
+    epochs: int,
     output_dir: Path,
 ) -> List[str]:
     return [
@@ -92,7 +96,7 @@ def _training_command(
         "--num-threads",
         "4",
         "--epochs",
-        str(EPOCHS),
+        str(epochs),
         "--seed",
         str(seed),
         "--mask-type",
@@ -116,12 +120,15 @@ def build_jobs(
     python: str,
     gpu: int,
     max_concurrent: int = 3,
+    epochs: int = EPOCHS,
 ) -> List[GradientClipJob]:
     gpu = int(gpu)
     if gpu == 4:
         raise ValueError("broken GPU 4 must be excluded")
     if not 1 <= max_concurrent <= 3:
         raise ValueError("max_concurrent must be between 1 and 3")
+    if epochs < 1:
+        raise ValueError("epochs must be positive")
 
     jobs: List[GradientClipJob] = []
     for job_index, ((rate, seed), method) in enumerate(
@@ -135,7 +142,9 @@ def build_jobs(
             / "seed_{}".format(seed)
             / method
         )
-        command = _training_command(python, rate, seed, output_dir)
+        command = _training_command(python, rate, seed, epochs, output_dir)
+        if epochs < 60:
+            command.append("--allow-short-run")
         if method == "baseline":
             command.extend(
                 (
@@ -157,6 +166,7 @@ def build_jobs(
                 seed=seed,
                 gpu=gpu,
                 slot=job_index % max_concurrent,
+                epochs=epochs,
                 output_dir=output_dir,
                 command=tuple(command),
             )
@@ -212,6 +222,65 @@ def _fold_metrics_match_job(manifest: dict) -> bool:
     )
 
 
+def _is_finite_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
+
+
+def _epoch_diagnostics_match_job(job: GradientClipJob) -> bool:
+    diagnostics_path = job.output_dir / "epoch_collapse_diagnostics.json"
+    try:
+        records = json.loads(diagnostics_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(records, list) or len(records) != job.epochs:
+        return False
+    for expected_epoch, record in enumerate(records, start=1):
+        if not isinstance(record, dict):
+            return False
+        if record.get("fold") != 1 or record.get("epoch") != expected_epoch:
+            return False
+        gradient_clip = record.get("gradient_clip")
+        if not isinstance(gradient_clip, dict):
+            return False
+        configured_norm = gradient_clip.get("configured_norm")
+        optimizer_steps = gradient_clip.get("optimizer_steps")
+        clipped_steps = gradient_clip.get("clipped_steps")
+        clipped_fraction = gradient_clip.get("clipped_fraction")
+        pre_clip_norm_mean = gradient_clip.get("pre_clip_norm_mean")
+        pre_clip_norm_max = gradient_clip.get("pre_clip_norm_max")
+        if (
+            not _is_finite_number(configured_norm)
+            or configured_norm != GRADIENT_CLIP_NORM
+        ):
+            return False
+        if (
+            not isinstance(optimizer_steps, int)
+            or isinstance(optimizer_steps, bool)
+            or optimizer_steps <= 0
+        ):
+            return False
+        if (
+            not isinstance(clipped_steps, int)
+            or isinstance(clipped_steps, bool)
+            or not 0 <= clipped_steps <= optimizer_steps
+        ):
+            return False
+        if (
+            not _is_finite_number(clipped_fraction)
+            or not 0.0 <= float(clipped_fraction) <= 1.0
+        ):
+            return False
+        if not _is_finite_number(pre_clip_norm_mean) or not _is_finite_number(
+            pre_clip_norm_max
+        ):
+            return False
+    return True
+
+
 def is_complete(job: GradientClipJob) -> bool:
     status_path = job.output_dir / "status.json"
     if not status_path.exists():
@@ -232,8 +301,10 @@ def is_complete(job: GradientClipJob) -> bool:
         manifest = load_manifest(manifest_path)
     except (OSError, ManifestValidationError):
         return False
-    return _manifest_matches_job(manifest, job) and _fold_metrics_match_job(
-        manifest
+    return (
+        _manifest_matches_job(manifest, job)
+        and _fold_metrics_match_job(manifest)
+        and _epoch_diagnostics_match_job(job)
     )
 
 
@@ -509,6 +580,7 @@ def main() -> int:
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--gpu", type=int, required=True)
     parser.add_argument("--max-concurrent", type=int, default=3)
+    parser.add_argument("--epochs", type=int, default=EPOCHS)
     parser.add_argument(
         "--python",
         default="/data2/yb/reproduction_envs/gcnet-official/bin/python",
@@ -523,6 +595,7 @@ def main() -> int:
         args.python,
         args.gpu,
         max_concurrent=args.max_concurrent,
+        epochs=args.epochs,
     )
     _write_json(
         output_root / "task_manifest.json",

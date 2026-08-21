@@ -617,15 +617,30 @@ def _summarize_gradient_clipping(configured_norm, pre_clip_norms):
             if optimizer_steps
             else 0.0
         ),
-        "mean_pre_clip_total_gradient_norm": (
+        "pre_clip_norm_mean": (
             math.fsum(pre_clip_norms) / float(optimizer_steps)
             if optimizer_steps
             else 0.0
         ),
-        "max_pre_clip_total_gradient_norm": (
+        "pre_clip_norm_max": (
             max(pre_clip_norms) if pre_clip_norms else 0.0
         ),
     }
+
+
+def _attach_gradient_clip_diagnostics(
+    diagnostics,
+    *,
+    args,
+    train,
+    pre_clip_norms,
+):
+    if train:
+        diagnostics["gradient_clip"] = _summarize_gradient_clipping(
+            configured_norm=getattr(args, "gradient_clip_norm", 0.0),
+            pre_clip_norms=pre_clip_norms,
+        )
+    return diagnostics
 
 
 def compose_total_loss(
@@ -1131,11 +1146,12 @@ def _train_or_eval_model_impl(
             else 0.0
         ),
     }
-    if train:
-        diagnostics["gradient_clip"] = _summarize_gradient_clipping(
-            configured_norm=getattr(args, "gradient_clip_norm", 0.0),
-            pre_clip_norms=pre_clip_gradient_norms,
-        )
+    _attach_gradient_clip_diagnostics(
+        diagnostics,
+        args=args,
+        train=train,
+        pre_clip_norms=pre_clip_gradient_norms,
+    )
     print (f'sample number: {np.sum(masks)}')
     loss_vector = build_loss_vector(
         total=avg_loss,
@@ -1187,6 +1203,33 @@ def _compact_epoch_result(result):
         "loss": [float(value) for value in result[3]],
         "diagnostics": diagnostics,
     }
+
+
+def _build_epoch_collapse_record(fold, epoch_record):
+    train_result = epoch_record["train"]
+    validation_result = epoch_record["validation"]
+    train_loss = train_result["loss"]
+    return {
+        "fold": int(fold),
+        "epoch": int(epoch_record["epoch"]),
+        "train_weighted_f1": float(train_result["weighted_f1"]),
+        "val_weighted_f1": float(validation_result["weighted_f1"]),
+        "train_total_loss": float(train_loss[0]),
+        "train_regression_loss": float(train_loss[1]),
+        "train_stability_reconstruction_loss": float(train_loss[5]),
+        **train_result["diagnostics"],
+    }
+
+
+def _with_gradient_clip_fold_metric(fold_record, args):
+    return {
+        **fold_record,
+        "gradient_clip_norm": float(getattr(args, "gradient_clip_norm", 0.0)),
+    }
+
+
+def _write_fold_metrics(path, fold_records):
+    Path(path).write_text(json.dumps(fold_records, indent=2), encoding="utf-8")
 
 
 def build_fold_archive_entry(best_epoch, final_test_payload):
@@ -1753,16 +1796,9 @@ if __name__ == '__main__':
                 'val_loss': val_loss,
             })
             if args.epoch_collapse_diagnostics:
-                epoch_collapse_records.append({
-                    "fold": ii + 1,
-                    "epoch": epoch_record["epoch"],
-                    "train_weighted_f1": float(train_fscore),
-                    "val_weighted_f1": float(val_fscore),
-                    "train_total_loss": float(train_loss[0]),
-                    "train_regression_loss": float(train_loss[1]),
-                    "train_stability_reconstruction_loss": float(train_loss[5]),
-                    **train_diagnostics,
-                })
+                epoch_collapse_records.append(
+                    _build_epoch_collapse_record(ii + 1, epoch_record)
+                )
             print(f'epoch:{epoch_record["epoch"]}; train_fscore:{train_fscore:2.2%}; train_loss:{train_loss[0]}; train_loss1:{train_loss[1]}; train_loss2:{train_loss[2]}; train_loss3:{train_loss[3]}; train_loss4:{train_loss[4]}; train_loss5:{train_loss[5]}')
 
         print (f'Step3: saving and testing on the {ii+1} folder')
@@ -1792,7 +1828,7 @@ if __name__ == '__main__':
         peak_memory_mb = (
             torch.cuda.max_memory_allocated() / (1024 ** 2) if cuda else 0.0
         )
-        fold_record = {
+        fold_record = _with_gradient_clip_fold_metric({
             "fold": ii + 1,
             "seed": args.seed,
             "strict_deterministic": bool(args.strict_deterministic),
@@ -1807,13 +1843,12 @@ if __name__ == '__main__':
             "all_modal_reconstruction_loss": float(bestallrecon),
             "stability_aux_mask_rate": float(args.stability_aux_mask_rate),
             "stability_recon_weight": float(args.stability_recon_weight),
-            "gradient_clip_norm": float(args.gradient_clip_norm),
             "shared_init_hash": shared_init_hash,
             "mask_schedule_hashes": lifecycle["mask_schedule_hashes"],
             "test_call_count": lifecycle["test_call_count"],
             "peak_memory_mb": float(peak_memory_mb),
             "diagnostics": bestdiagnostics,
-        }
+        }, args)
         fold_records.append(fold_record)
         fold_manifest_contexts.append({
             "fold": ii + 1,
@@ -1856,15 +1891,13 @@ if __name__ == '__main__':
                         folder_savewhole=np.array(folder_savewhole, dtype=object)
                         )
     metrics_path = Path(save_root) / "fold_metrics.json"
-    metrics_path.write_text(json.dumps(fold_records, indent=2), encoding="utf-8")
+    _write_fold_metrics(metrics_path, fold_records)
     print(f'save fold metrics in {metrics_path}')
     run_id = str(int(time.time() * 1000000))
     run_record_root = Path(save_root) / "run_records" / run_id
     run_record_root.mkdir(parents=True, exist_ok=False)
     immutable_metrics_path = run_record_root / "fold_metrics.json"
-    immutable_metrics_path.write_text(
-        json.dumps(fold_records, indent=2), encoding="utf-8"
-    )
+    _write_fold_metrics(immutable_metrics_path, fold_records)
     for context in fold_manifest_contexts:
         manifest = build_fold_run_manifest(
             args=args,
