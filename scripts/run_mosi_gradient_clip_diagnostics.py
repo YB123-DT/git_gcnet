@@ -36,13 +36,6 @@ EXPECTED_JOB_COUNT = 6
 EXPECTED_PAIR_COUNT = 3
 CLAIM_FILE = ".gradient-clip-diagnostics.claim"
 GPU_LEASE_PREFIX = "gcnet-mosi-gradient-clip-gpu"
-SOURCE_CONTRACT_RELATIVE_PATHS = (
-    Path("gcnet_modality_jepa/loss.py"),
-    Path("gcnet_modality_jepa/model.py"),
-    Path("gcnet_modality_jepa/run_manifest.py"),
-    Path("gcnet_modality_jepa/train_gcnet.py"),
-    Path("scripts/run_mosi_gradient_clip_diagnostics.py"),
-)
 
 
 @dataclass(frozen=True)
@@ -68,6 +61,7 @@ class GradientClipJob:
     gpu: int
     slot: int
     epochs: int
+    source_contract_sha256: str
     output_dir: Path
     command: Tuple[str, ...]
 
@@ -148,6 +142,7 @@ def build_jobs(
     gpu: int,
     max_concurrent: int = 3,
     epochs: int = EPOCHS,
+    source_contract_sha256: str | None = None,
 ) -> List[GradientClipJob]:
     gpu = int(gpu)
     if gpu == 4:
@@ -156,6 +151,10 @@ def build_jobs(
         raise ValueError("max_concurrent must be between 1 and 3")
     if epochs < 1:
         raise ValueError("epochs must be positive")
+    if source_contract_sha256 is None:
+        source_contract_sha256 = _source_contract_sha256()
+    if len(source_contract_sha256) != 64:
+        raise ValueError("source contract must be a SHA-256 digest")
 
     jobs: List[GradientClipJob] = []
     for job_index, ((rate, seed), method) in enumerate(
@@ -194,6 +193,7 @@ def build_jobs(
                 gpu=gpu,
                 slot=job_index % max_concurrent,
                 epochs=epochs,
+                source_contract_sha256=source_contract_sha256,
                 output_dir=output_dir,
                 command=tuple(command),
             )
@@ -224,7 +224,7 @@ def _command_contract_sha256(job: GradientClipJob) -> str:
         "command": list(job.command),
         "identity": job.identity,
         "repository_root": str(REPOSITORY_ROOT),
-        "source_contract_sha256": _source_contract_sha256(),
+        "source_contract_sha256": job.source_contract_sha256,
     }
     encoded = json.dumps(
         payload, sort_keys=True, separators=(",", ":")
@@ -232,11 +232,20 @@ def _command_contract_sha256(job: GradientClipJob) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _source_contract_sha256() -> str:
+def _source_contract_sha256(root: Path = REPOSITORY_ROOT) -> str:
+    root = Path(root).resolve()
+    paths = [root / "config.py"]
+    for directory in (
+        root / "gcnet_modality_jepa",
+        root / "gcnet_jepa_replacement",
+    ):
+        paths.extend(directory.rglob("*.py"))
+    paths.append(root / "scripts" / "run_mosi_gradient_clip_diagnostics.py")
     digest = hashlib.sha256()
-    for relative in SOURCE_CONTRACT_RELATIVE_PATHS:
+    for path in sorted(set(paths), key=lambda item: item.relative_to(root).as_posix()):
+        relative = path.relative_to(root)
         path_bytes = relative.as_posix().encode("utf-8")
-        content = (REPOSITORY_ROOT / relative).read_bytes()
+        content = path.read_bytes()
         digest.update(len(path_bytes).to_bytes(8, "big"))
         digest.update(path_bytes)
         digest.update(len(content).to_bytes(8, "big"))
@@ -552,7 +561,9 @@ def is_complete(job: GradientClipJob) -> bool:
         return False
     if status.get("command_contract_sha256") != _command_contract_sha256(job):
         return False
-    if status.get("source_contract_sha256") != _source_contract_sha256():
+    if status.get("source_contract_sha256") != job.source_contract_sha256:
+        return False
+    if _source_contract_sha256() != job.source_contract_sha256:
         return False
     code_revision = status.get("code_revision")
     try:
@@ -858,6 +869,8 @@ def run_job(
         )
         snapshot = _snapshot_attempt_outputs(job)
         with (job.output_dir / "train.log").open("w", encoding="utf-8") as log:
+            if _source_contract_sha256() != job.source_contract_sha256:
+                raise RuntimeError("source contract changed before subprocess")
             result = subprocess.run(
                 job.command,
                 cwd=str(root),
@@ -865,6 +878,8 @@ def run_job(
                 stdout=log,
                 stderr=subprocess.STDOUT,
             )
+            if _source_contract_sha256() != job.source_contract_sha256:
+                raise RuntimeError("source contract changed during subprocess")
         returncode = result.returncode
         status = {
             "identity": job.identity,
@@ -874,7 +889,7 @@ def run_job(
             "attempt_started_at_unix": started_at,
             "finished_at_unix": time.time(),
             "command_contract_sha256": _command_contract_sha256(job),
-            "source_contract_sha256": _source_contract_sha256(),
+            "source_contract_sha256": job.source_contract_sha256,
             "code_revision": code_revision,
             "git_status": git_status,
             "python_executable": python_executable,
@@ -916,7 +931,7 @@ def run_job(
                     "attempt_started_at_unix": started_at,
                     "finished_at_unix": time.time(),
                     "command_contract_sha256": _command_contract_sha256(job),
-                    "source_contract_sha256": _source_contract_sha256(),
+                    "source_contract_sha256": job.source_contract_sha256,
                     "code_revision": code_revision,
                     "git_status": git_status,
                     "python_executable": python_executable,
@@ -1029,12 +1044,14 @@ def main() -> int:
 
     root = REPOSITORY_ROOT
     output_root = args.output_root.resolve()
+    source_contract_sha256 = _source_contract_sha256()
     jobs = build_jobs(
         output_root,
         args.python,
         args.gpu,
         max_concurrent=args.max_concurrent,
         epochs=args.epochs,
+        source_contract_sha256=source_contract_sha256,
     )
     _write_json(
         output_root / "task_manifest.json",

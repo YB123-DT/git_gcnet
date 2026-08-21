@@ -15,13 +15,6 @@ from scripts import run_mosi_gradient_clip_diagnostics as runner
 
 TEST_REVISION = "a" * 40
 TEST_GIT_STATUS = " M unrelated.txt"
-SOURCE_CONTRACT_RELATIVE_PATHS = (
-    Path("gcnet_modality_jepa/loss.py"),
-    Path("gcnet_modality_jepa/model.py"),
-    Path("gcnet_modality_jepa/run_manifest.py"),
-    Path("gcnet_modality_jepa/train_gcnet.py"),
-    Path("scripts/run_mosi_gradient_clip_diagnostics.py"),
-)
 
 
 def _sha256(path: Path) -> str:
@@ -40,24 +33,12 @@ def _contract_sha256(job: runner.GradientClipJob) -> str:
         "command": list(job.command),
         "identity": job.identity,
         "repository_root": str(runner.REPOSITORY_ROOT),
-        "source_contract_sha256": _source_contract_sha256(),
+        "source_contract_sha256": job.source_contract_sha256,
     }
     encoded = json.dumps(
         payload, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
-
-
-def _source_contract_sha256() -> str:
-    digest = hashlib.sha256()
-    for relative in SOURCE_CONTRACT_RELATIVE_PATHS:
-        path_bytes = relative.as_posix().encode("utf-8")
-        content = (runner.REPOSITORY_ROOT / relative).read_bytes()
-        digest.update(len(path_bytes).to_bytes(8, "big"))
-        digest.update(path_bytes)
-        digest.update(len(content).to_bytes(8, "big"))
-        digest.update(content)
-    return digest.hexdigest()
 
 
 def _write_completion_evidence(
@@ -118,7 +99,7 @@ def _write_completion_evidence(
             _sha256(epoch_path) if epoch_path.exists() else "0" * 64
         ),
         "command_contract_sha256": _contract_sha256(job),
-        "source_contract_sha256": _source_contract_sha256(),
+        "source_contract_sha256": job.source_contract_sha256,
         "code_revision": revision,
         "git_status": TEST_GIT_STATUS,
         "python_executable": str(Path(job.command[0]).resolve()),
@@ -171,14 +152,28 @@ def _bound_is_complete(
 
 
 class GradientClipRunnerTest(unittest.TestCase):
-    def test_source_contract_digest_covers_required_canonical_files(self) -> None:
-        self.assertEqual(
-            tuple(runner.SOURCE_CONTRACT_RELATIVE_PATHS),
-            SOURCE_CONTRACT_RELATIVE_PATHS,
-        )
-        self.assertEqual(
-            runner._source_contract_sha256(), _source_contract_sha256()
-        )
+    def test_recursive_source_digest_changes_for_previously_omitted_module(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "config.py").write_text("CONFIG = 1\n", encoding="utf-8")
+            modality = root / "gcnet_modality_jepa"
+            replacement = root / "gcnet_jepa_replacement"
+            scripts = root / "scripts"
+            for path in (modality, replacement, scripts):
+                path.mkdir(parents=True)
+            (modality / "train_gcnet.py").write_text("TRAIN = 1\n", encoding="utf-8")
+            omitted = modality / "previously_omitted.py"
+            omitted.write_text("VALUE = 1\n", encoding="utf-8")
+            (replacement / "model.py").write_text("MODEL = 1\n", encoding="utf-8")
+            (scripts / "run_mosi_gradient_clip_diagnostics.py").write_text(
+                "RUNNER = 1\n", encoding="utf-8"
+            )
+
+            before = runner._source_contract_sha256(root)
+            omitted.write_text("VALUE = 2\n", encoding="utf-8")
+            after = runner._source_contract_sha256(root)
+
+        self.assertNotEqual(before, after)
 
     def test_exact_six_job_matrix_matches_formal_mosi_protocol(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -529,7 +524,7 @@ class GradientClipRunnerTest(unittest.TestCase):
             self.assertEqual(status["code_revision"], TEST_REVISION)
             self.assertEqual(status["git_status"], TEST_GIT_STATUS)
             self.assertEqual(
-                status["source_contract_sha256"], _source_contract_sha256()
+                status["source_contract_sha256"], job.source_contract_sha256
             )
             self.assertEqual(
                 status["command_contract_sha256"], _contract_sha256(job)
@@ -547,6 +542,45 @@ class GradientClipRunnerTest(unittest.TestCase):
                 "result_archive_sha256",
             ):
                 self.assertIn(key, status)
+
+    def test_source_mutation_during_subprocess_rejects_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            job = runner.build_jobs(
+                Path(directory) / "outputs", "/official/python", 3, epochs=2
+            )[0]
+            manifest_box: dict[str, dict] = {}
+
+            def launch(*args, **kwargs):
+                _, manifest, _ = _write_completion_evidence(
+                    job, epoch_records=_valid_epoch_records(job.epochs)
+                )
+                manifest_box["value"] = manifest
+                return subprocess.CompletedProcess(job.command, 0)
+
+            with mock.patch.object(
+                runner.subprocess, "run", side_effect=launch
+            ), mock.patch.object(
+                runner,
+                "load_manifest",
+                side_effect=lambda path: manifest_box["value"],
+            ), mock.patch.object(
+                runner, "_code_revision", return_value=TEST_REVISION
+            ), mock.patch.object(
+                runner, "_git_status", return_value=TEST_GIT_STATUS
+            ), mock.patch.object(
+                runner,
+                "_source_contract_sha256",
+                side_effect=[job.source_contract_sha256, "b" * 64],
+            ):
+                completed = runner.run_job(
+                    job, runner.REPOSITORY_ROOT, threading.Event()
+                )
+
+            self.assertFalse(completed)
+            status = json.loads(
+                (job.output_dir / "status.json").read_text(encoding="utf-8")
+            )
+            self.assertIn("source contract changed", status["error"])
 
     def test_rc0_rejects_stale_artifacts_from_before_attempt(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
