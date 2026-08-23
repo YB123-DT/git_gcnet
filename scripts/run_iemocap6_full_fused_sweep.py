@@ -52,6 +52,15 @@ class OutputRootClaim:
 
 
 @dataclass(frozen=True)
+class JobClaim:
+    path: Path
+    token: str
+    host: str
+    pid: int
+    descriptor: int
+
+
+@dataclass(frozen=True)
 class FullFusedJob:
     condition: str
     rate: float
@@ -152,6 +161,25 @@ def _normalize_selection(
     if unsupported:
         raise ValueError("unsupported {}: {}".format(label, unsupported))
     return normalized
+
+
+def _path_is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _validate_disjoint_roots(output_root: Path, baseline_root: Path) -> None:
+    if _path_is_within(output_root, baseline_root) or _path_is_within(
+        baseline_root, output_root
+    ):
+        raise ValueError(
+            "output root and baseline root must not overlap: {} and {}".format(
+                output_root, baseline_root
+            )
+        )
 
 
 def build_jobs(
@@ -462,6 +490,27 @@ def _job_payload(job: FullFusedJob) -> Dict[str, object]:
     }
 
 
+def _write_locked_claim_metadata(
+    descriptor: int, payload: Mapping[str, object]
+) -> None:
+    encoded = json.dumps(payload, indent=2).encode("utf-8") + b"\n"
+    os.ftruncate(descriptor, 0)
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    remaining = memoryview(encoded)
+    while remaining:
+        written = os.write(descriptor, remaining)
+        if written <= 0:
+            raise OSError("failed to write claim metadata")
+        remaining = remaining[written:]
+    os.fsync(descriptor)
+
+
+def _clear_locked_claim_metadata(descriptor: int) -> None:
+    os.ftruncate(descriptor, 0)
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    os.fsync(descriptor)
+
+
 def _acquire_output_root_claim(output_root: Path) -> OutputRootClaim:
     output_root.mkdir(parents=True, exist_ok=True)
     path = output_root / ROOT_CLAIM_FILE
@@ -480,22 +529,16 @@ def _acquire_output_root_claim(output_root: Path) -> OutputRootClaim:
     token = uuid.uuid4().hex
     host = socket.gethostname()
     pid = os.getpid()
-    payload = json.dumps(
-        {
-            "host": host,
-            "pid": pid,
-            "token": token,
-            "claimed_at_unix": time.time(),
-        },
-        indent=2,
-    ).encode("utf-8") + b"\n"
     try:
-        os.ftruncate(descriptor, 0)
-        os.lseek(descriptor, 0, os.SEEK_SET)
-        remaining = memoryview(payload)
-        while remaining:
-            remaining = remaining[os.write(descriptor, remaining):]
-        os.fsync(descriptor)
+        _write_locked_claim_metadata(
+            descriptor,
+            {
+                "host": host,
+                "pid": pid,
+                "token": token,
+                "claimed_at_unix": time.time(),
+            },
+        )
     except Exception:
         fcntl.flock(descriptor, fcntl.LOCK_UN)
         os.close(descriptor)
@@ -507,15 +550,7 @@ def _release_output_root_claim(claim: OutputRootClaim | None) -> None:
     if claim is None:
         return
     try:
-        try:
-            payload = json.loads(claim.path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            payload = None
-        if isinstance(payload, dict) and payload.get("token") == claim.token:
-            try:
-                claim.path.unlink()
-            except FileNotFoundError:
-                pass
+        _clear_locked_claim_metadata(claim.descriptor)
     finally:
         try:
             fcntl.flock(claim.descriptor, fcntl.LOCK_UN)
@@ -523,72 +558,97 @@ def _release_output_root_claim(claim: OutputRootClaim | None) -> None:
             os.close(claim.descriptor)
 
 
-def _acquire_claim(job: FullFusedJob) -> Path | None:
+def _acquire_claim(job: FullFusedJob) -> JobClaim | None:
     job.output_dir.mkdir(parents=True, exist_ok=True)
-    claim_path = job.output_dir / CLAIM_FILE
+    path = job.output_dir / CLAIM_FILE
+    descriptor = os.open(str(path), os.O_CREAT | os.O_RDWR, 0o644)
     try:
-        descriptor = os.open(
-            str(claim_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644
-        )
-    except FileExistsError:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(descriptor)
         return None
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(
-                {
-                    "identity": job.identity,
-                    "pid": os.getpid(),
-                    "claimed_at_unix": time.time(),
-                },
-                handle,
-                indent=2,
-            )
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
     except Exception:
-        try:
-            claim_path.unlink()
-        except FileNotFoundError:
-            pass
+        os.close(descriptor)
         raise
-    return claim_path
+    token = uuid.uuid4().hex
+    host = socket.gethostname()
+    pid = os.getpid()
+    try:
+        _write_locked_claim_metadata(
+            descriptor,
+            {
+                "identity": job.identity,
+                "host": host,
+                "pid": pid,
+                "token": token,
+                "claimed_at_unix": time.time(),
+            },
+        )
+    except Exception:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+        raise
+    return JobClaim(path, token, host, pid, descriptor)
 
 
-def _release_claim(claim_path: Path | None) -> None:
-    if claim_path is None:
+def _release_claim(claim: JobClaim | None) -> None:
+    if claim is None:
         return
     try:
-        claim_path.unlink()
-    except FileNotFoundError:
-        pass
+        _clear_locked_claim_metadata(claim.descriptor)
+    finally:
+        try:
+            fcntl.flock(claim.descriptor, fcntl.LOCK_UN)
+        finally:
+            os.close(claim.descriptor)
 
 
-def _gpu_memory_snapshot() -> Dict[int, int]:
-    output = subprocess.check_output(
+def _gpu_process_snapshot() -> Dict[int, Tuple[int, ...]]:
+    gpu_output = subprocess.check_output(
         [
             "nvidia-smi",
-            "--query-gpu=index,memory.used",
-            "--format=csv,noheader,nounits",
+            "--query-gpu=index,uuid",
+            "--format=csv,noheader",
         ],
         text=True,
     )
-    snapshot: Dict[int, int] = {}
-    for line in output.splitlines():
+    uuid_to_index: Dict[str, int] = {}
+    processes: Dict[int, List[int]] = {}
+    for line in gpu_output.splitlines():
         if not line.strip():
             continue
         fields = [field.strip() for field in line.split(",")]
         if len(fields) != 2:
             raise RuntimeError("unexpected nvidia-smi GPU row: {!r}".format(line))
-        snapshot[int(fields[0])] = int(fields[1])
-    if not snapshot:
+        index = int(fields[0])
+        uuid_to_index[fields[1]] = index
+        processes[index] = []
+    if not processes:
         raise RuntimeError("nvidia-smi returned no GPUs")
-    return snapshot
+    process_output = subprocess.check_output(
+        [
+            "nvidia-smi",
+            "--query-compute-apps=gpu_uuid,pid",
+            "--format=csv,noheader,nounits",
+        ],
+        text=True,
+    )
+    for line in process_output.splitlines():
+        if not line.strip():
+            continue
+        fields = [field.strip() for field in line.split(",")]
+        if len(fields) != 2 or fields[0] not in uuid_to_index:
+            raise RuntimeError(
+                "unexpected nvidia-smi process row: {!r}".format(line)
+            )
+        processes[uuid_to_index[fields[0]]].append(int(fields[1]))
+    return {
+        index: tuple(sorted(pids))
+        for index, pids in sorted(processes.items())
+    }
 
 
-def select_available_gpus(
-    requested_gpus: Sequence[int], maximum_idle_memory_mb: int = 768
-) -> Tuple[int, ...]:
+def select_available_gpus(requested_gpus: Sequence[int]) -> Tuple[int, ...]:
     requested = tuple(int(gpu) for gpu in requested_gpus)
     if not requested:
         raise ValueError("at least one GPU is required")
@@ -599,23 +659,23 @@ def select_available_gpus(
     if len(set(requested)) != len(requested):
         raise ValueError("GPU list contains duplicates")
 
-    snapshot = _gpu_memory_snapshot()
+    snapshot = _gpu_process_snapshot()
     idle_fallbacks = [
         gpu
-        for gpu, memory in sorted(snapshot.items())
+        for gpu, pids in sorted(snapshot.items())
         if gpu != 4
         and gpu not in requested
-        and memory <= maximum_idle_memory_mb
+        and not pids
     ]
     selected: List[int] = []
     fallback_index = 0
     occupied = {}
     for gpu in requested:
-        memory = snapshot.get(gpu)
-        if memory is not None and memory <= maximum_idle_memory_mb:
+        pids = snapshot.get(gpu)
+        if pids is not None and not pids:
             selected.append(gpu)
             continue
-        occupied[gpu] = memory
+        occupied[gpu] = pids
         if fallback_index >= len(idle_fallbacks):
             raise RuntimeError(
                 "insufficient idle GPUs for requested {}: occupied or unavailable {}"
@@ -646,10 +706,10 @@ def run_job(job: FullFusedJob, root: Path, stop_event: threading.Event) -> bool:
         return False
     started_at = time.time()
     returncode = None
-    claim_path: Path | None = None
+    claim: JobClaim | None = None
     try:
-        claim_path = _acquire_claim(job)
-        if claim_path is None:
+        claim = _acquire_claim(job)
+        if claim is None:
             stop_event.set()
             return False
         if is_complete(job):
@@ -708,7 +768,7 @@ def run_job(job: FullFusedJob, root: Path, stop_event: threading.Event) -> bool:
             pass
         return False
     finally:
-        _release_claim(claim_path)
+        _release_claim(claim)
 
 
 def _run_lane(
@@ -792,6 +852,31 @@ def _scheduler_succeeded(
     )
 
 
+def _write_gpu_selection_failure(
+    output_root: Path,
+    jobs: Sequence[FullFusedJob],
+    error: Exception,
+    phase: str,
+) -> None:
+    message = "GPU {} failed: {}: {}".format(
+        phase, type(error).__name__, error
+    )
+    _write_json(
+        output_root / "scheduler_status.json",
+        {
+            "complete_jobs": sum(is_complete(job) for job in jobs),
+            "total_jobs": len(jobs),
+            "worker_success": False,
+            "worker_errors": [message],
+            "paired_audits": 0,
+            "expected_pair_audits": len(jobs),
+            "paired_audit_failures": 0,
+            "baseline_preflight_failures": [],
+            "gpu_selection_error": message,
+        },
+    )
+
+
 def _parse_gpus(value: str) -> Tuple[int, ...]:
     return tuple(int(item.strip()) for item in value.split(",") if item.strip())
 
@@ -824,10 +909,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     root = REPOSITORY_ROOT
     output_root = args.output_root.resolve()
+    baseline_root = args.baseline_root.resolve()
+    try:
+        _validate_disjoint_roots(output_root, baseline_root)
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 1
     requested_jobs = build_jobs(
         output_root=output_root,
         python=args.python,
-        baseline_root=args.baseline_root.resolve(),
+        baseline_root=baseline_root,
         gpus=args.gpus,
         jobs_per_gpu=args.jobs_per_gpu,
         rates=args.rates,
@@ -835,13 +926,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         epochs=args.epochs,
     )
     if args.dry_run:
-        _write_json(
-            output_root / "task_manifest.json",
-            [_job_payload(job) for job in requested_jobs],
-        )
         print(
-            "generated {} full_fused jobs for {} pairs".format(
-                len(requested_jobs), len(requested_jobs)
+            json.dumps(
+                {
+                    "job_count": len(requested_jobs),
+                    "pair_count": len(requested_jobs),
+                    "jobs": [_job_payload(job) for job in requested_jobs],
+                },
+                indent=2,
+                ensure_ascii=False,
+                default=str,
             )
         )
         return 0
@@ -883,28 +977,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             ValueError,
             subprocess.SubprocessError,
         ) as error:
-            _write_json(
-                output_root / "scheduler_status.json",
-                {
-                    "complete_jobs": sum(
-                        is_complete(job) for job in requested_jobs
-                    ),
-                    "total_jobs": len(requested_jobs),
-                    "worker_success": False,
-                    "worker_errors": ["{}: {}".format(type(error).__name__, error)],
-                    "paired_audits": 0,
-                    "expected_pair_audits": len(requested_jobs),
-                    "paired_audit_failures": 0,
-                    "baseline_preflight_failures": [],
-                    "gpu_selection_error": str(error),
-                },
+            _write_gpu_selection_failure(
+                output_root, requested_jobs, error, "selection"
             )
             return 1
 
         jobs = build_jobs(
             output_root=output_root,
             python=args.python,
-            baseline_root=args.baseline_root.resolve(),
+            baseline_root=baseline_root,
             gpus=selected_gpus,
             jobs_per_gpu=args.jobs_per_gpu,
             rates=args.rates,
@@ -915,6 +996,36 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_root / "task_manifest.json",
             [_job_payload(job) for job in jobs],
         )
+        try:
+            launch_gpus = select_available_gpus(selected_gpus)
+        except (
+            OSError,
+            RuntimeError,
+            ValueError,
+            subprocess.SubprocessError,
+        ) as error:
+            _write_gpu_selection_failure(
+                output_root, jobs, error, "revalidation"
+            )
+            return 1
+        if launch_gpus != selected_gpus:
+            selected_gpus = launch_gpus
+            jobs = build_jobs(
+                output_root=output_root,
+                python=args.python,
+                baseline_root=baseline_root,
+                gpus=selected_gpus,
+                jobs_per_gpu=args.jobs_per_gpu,
+                rates=args.rates,
+                seeds=args.seeds,
+                epochs=args.epochs,
+            )
+            _write_json(
+                output_root / "task_manifest.json",
+                [_job_payload(job) for job in jobs],
+            )
+        # nvidia-smi cannot reserve devices against an unrelated process that
+        # starts after this final snapshot; keep this check adjacent to launch.
         lanes: Dict[Tuple[int, int], List[FullFusedJob]] = {
             (gpu, slot): []
             for gpu in selected_gpus

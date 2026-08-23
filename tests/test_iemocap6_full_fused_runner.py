@@ -5,7 +5,9 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import threading
+import time
 from pathlib import Path
 from unittest import mock
 
@@ -226,6 +228,19 @@ def _tree_bytes(root: Path) -> dict[Path, bytes]:
         for path in root.rglob("*")
         if path.is_file()
     }
+
+
+def _tree_state(root: Path) -> list[tuple[Path, bool, bytes | None]]:
+    if not root.exists():
+        return []
+    return [
+        (
+            path.relative_to(root),
+            path.is_dir(),
+            None if path.is_dir() else path.read_bytes(),
+        )
+        for path in sorted(root.rglob("*"))
+    ]
 
 
 def test_default_matrix_has_80_full_fused_jobs_and_80_pair_identities(tmp_path):
@@ -476,8 +491,8 @@ def test_occupied_requested_gpu_falls_back_to_an_idle_non_gpu4(monkeypatch):
     sweep = _runner()
     monkeypatch.setattr(
         sweep,
-        "_gpu_memory_snapshot",
-        lambda: {0: 100, 1: 900, 2: 200, 3: 300, 4: 0, 5: 769},
+        "_gpu_process_snapshot",
+        lambda: {0: (), 1: (7001,), 2: (), 3: (), 4: (), 5: (7005,)},
     )
 
     assert sweep.select_available_gpus((0, 1, 2)) == (0, 3, 2)
@@ -487,12 +502,31 @@ def test_gpu_fallback_fails_when_too_few_idle_non_gpu4_devices(monkeypatch):
     sweep = _runner()
     monkeypatch.setattr(
         sweep,
-        "_gpu_memory_snapshot",
-        lambda: {0: 900, 1: 900, 2: 100, 3: 900, 4: 0},
+        "_gpu_process_snapshot",
+        lambda: {0: (7000,), 1: (7001,), 2: (), 3: (7003,), 4: ()},
     )
 
     with pytest.raises(RuntimeError, match="insufficient idle GPUs"):
         sweep.select_available_gpus((0, 1, 2))
+
+
+def test_gpu_process_snapshot_maps_compute_pids_to_indexes(monkeypatch):
+    sweep = _runner()
+    outputs = iter(
+        [
+            "0, GPU-a\n1, GPU-b\n4, GPU-four\n",
+            "GPU-b, 7001\nGPU-b, 7002\n",
+        ]
+    )
+    monkeypatch.setattr(
+        sweep.subprocess, "check_output", lambda *_args, **_kwargs: next(outputs)
+    )
+
+    assert sweep._gpu_process_snapshot() == {
+        0: (),
+        1: (7001, 7002),
+        4: (),
+    }
 
 
 def test_atomic_job_claim_is_exclusive_and_reusable(tmp_path):
@@ -506,6 +540,50 @@ def test_atomic_job_claim_is_exclusive_and_reusable(tmp_path):
     second = sweep._acquire_claim(job)
     assert second is not None
     sweep._release_claim(second)
+    assert first.path.exists()
+    assert first.path.read_text(encoding="utf-8") == ""
+
+
+def test_job_claim_recovers_after_claiming_process_dies(tmp_path):
+    sweep = _runner()
+    job = _job(tmp_path)
+    script = """
+import sys
+import time
+from pathlib import Path
+from scripts import run_iemocap6_full_fused_sweep as sweep
+job = sweep.build_jobs(
+    Path(sys.argv[1]), "python", baseline_root=Path(sys.argv[2]),
+    gpus=(0,), rates=(0.4,), seeds=(66,),
+)[0]
+assert sweep._acquire_claim(job) is not None
+print("claimed", flush=True)
+time.sleep(60)
+"""
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(tmp_path / "outputs"),
+            str(tmp_path / "baseline"),
+        ],
+        cwd=str(Path(__file__).resolve().parents[1]),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    assert process.stdout is not None
+    assert process.stdout.readline().strip() == "claimed"
+    process.terminate()
+    process.wait(timeout=10)
+
+    recovered = sweep._acquire_claim(job)
+
+    assert recovered is not None
+    sweep._release_claim(recovered)
+    assert recovered.path.exists()
+    assert recovered.path.read_text(encoding="utf-8") == ""
 
 
 def test_output_root_claim_is_process_locked_and_records_owner(tmp_path):
@@ -522,7 +600,8 @@ def test_output_root_claim_is_process_locked_and_records_owner(tmp_path):
         sweep._acquire_output_root_claim(output_root)
 
     sweep._release_output_root_claim(first)
-    assert not first.path.exists()
+    assert first.path.exists()
+    assert first.path.read_text(encoding="utf-8") == ""
 
 
 def test_unlocked_stale_output_root_claim_is_safely_recovered(tmp_path):
@@ -548,6 +627,54 @@ def test_unlocked_stale_output_root_claim_is_safely_recovered(tmp_path):
     assert payload["token"] == claim.token
     assert payload["token"] != "stale-token"
     sweep._release_output_root_claim(claim)
+    assert claim_path.exists()
+    assert claim_path.read_text(encoding="utf-8") == ""
+
+
+def test_cross_process_waiter_acquires_same_root_lock_inode_after_release(tmp_path):
+    sweep = _runner()
+    output_root = tmp_path / "outputs"
+    first = sweep._acquire_output_root_claim(output_root)
+    first_inode = first.path.stat().st_ino
+    ready_path = tmp_path / "waiter-ready"
+    acquired_path = tmp_path / "waiter-acquired"
+    script = """
+import fcntl
+import os
+import sys
+from pathlib import Path
+path, ready, acquired = map(Path, sys.argv[1:])
+descriptor = os.open(str(path), os.O_RDWR)
+ready.write_text(str(os.fstat(descriptor).st_ino), encoding="utf-8")
+fcntl.flock(descriptor, fcntl.LOCK_EX)
+acquired.write_text(str(os.fstat(descriptor).st_ino), encoding="utf-8")
+fcntl.flock(descriptor, fcntl.LOCK_UN)
+os.close(descriptor)
+"""
+    waiter = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(first.path),
+            str(ready_path),
+            str(acquired_path),
+        ]
+    )
+    for _ in range(100):
+        if ready_path.exists():
+            break
+        time.sleep(0.01)
+    assert ready_path.exists()
+    assert int(ready_path.read_text(encoding="utf-8")) == first_inode
+
+    sweep._release_output_root_claim(first)
+    waiter.wait(timeout=10)
+
+    assert waiter.returncode == 0
+    assert int(acquired_path.read_text(encoding="utf-8")) == first_inode
+    assert first.path.exists()
+    assert first.path.stat().st_ino == first_inode
 
 
 def test_scheduler_success_uses_selected_dynamic_counts():
@@ -568,9 +695,8 @@ def test_scheduler_writes_dynamic_selected_counts(tmp_path, monkeypatch):
     sweep = _runner()
     output_root = tmp_path / "outputs"
     monkeypatch.setattr(sweep, "validate_baselines", lambda _jobs: [])
-    monkeypatch.setattr(
-        sweep, "select_available_gpus", lambda _gpus: (0, 3)
-    )
+    selections = mock.Mock(side_effect=[(0, 1), (0, 3)])
+    monkeypatch.setattr(sweep, "select_available_gpus", selections)
     monkeypatch.setattr(sweep, "_run_lane", lambda *_args: True)
     monkeypatch.setattr(sweep, "is_complete", lambda _job: True)
     monkeypatch.setattr(sweep, "audit_completed_pairs", lambda *_args: (4, 0))
@@ -601,11 +727,16 @@ def test_scheduler_writes_dynamic_selected_counts(tmp_path, monkeypatch):
     assert status["complete_jobs"] == status["total_jobs"] == 4
     assert status["paired_audits"] == status["expected_pair_audits"] == 4
     assert status["baseline_preflight_failures"] == []
+    assert status["requested_gpus"] == [0, 1]
+    assert status["selected_gpus"] == [0, 3]
+    assert selections.call_count == 2
     tasks = json.loads(
         (output_root / "task_manifest.json").read_text(encoding="utf-8")
     )
     assert {task["gpu"] for task in tasks} == {0, 3}
-    assert not (output_root / sweep.ROOT_CLAIM_FILE).exists()
+    root_claim_path = output_root / sweep.ROOT_CLAIM_FILE
+    assert root_claim_path.exists()
+    assert root_claim_path.read_text(encoding="utf-8") == ""
 
 
 def test_scheduler_refuses_invalid_baseline_before_gpu_or_training(
@@ -641,7 +772,9 @@ def test_scheduler_refuses_invalid_baseline_before_gpu_or_training(
     assert returncode == 1
     assert len(status["baseline_preflight_failures"]) == 1
     assert not any(path.name == "full_fused" for path in output_root.rglob("*"))
-    assert not (output_root / sweep.ROOT_CLAIM_FILE).exists()
+    root_claim_path = output_root / sweep.ROOT_CLAIM_FILE
+    assert root_claim_path.exists()
+    assert root_claim_path.read_text(encoding="utf-8") == ""
 
 
 def test_concurrent_invocation_fails_without_mutating_root_evidence(
@@ -708,7 +841,51 @@ def test_output_root_claim_remains_held_through_pair_audit(tmp_path, monkeypatch
             "66",
         ]
     ) == 0
-    assert not (output_root / sweep.ROOT_CLAIM_FILE).exists()
+    root_claim_path = output_root / sweep.ROOT_CLAIM_FILE
+    assert root_claim_path.exists()
+    assert root_claim_path.read_text(encoding="utf-8") == ""
+
+
+def test_scheduler_aborts_if_gpu_becomes_occupied_before_workers(
+    tmp_path, monkeypatch
+):
+    sweep = _runner()
+    output_root = tmp_path / "outputs"
+    monkeypatch.setattr(sweep, "validate_baselines", lambda _jobs: [])
+    selections = mock.Mock(
+        side_effect=[(0,), RuntimeError("insufficient idle GPUs after revalidation")]
+    )
+    monkeypatch.setattr(sweep, "select_available_gpus", selections)
+    monkeypatch.setattr(
+        sweep,
+        "_run_lane",
+        lambda *_args: pytest.fail(
+            "workers must not start after GPU revalidation fails"
+        ),
+    )
+
+    returncode = sweep.main(
+        [
+            "--output-root",
+            str(output_root),
+            "--baseline-root",
+            str(tmp_path / "baseline"),
+            "--gpus",
+            "0",
+            "--rates",
+            "0.4",
+            "--seeds",
+            "66",
+        ]
+    )
+
+    status = json.loads(
+        (output_root / "scheduler_status.json").read_text(encoding="utf-8")
+    )
+    assert returncode == 1
+    assert selections.call_count == 2
+    assert "revalidation" in status["gpu_selection_error"]
+    assert (output_root / sweep.ROOT_CLAIM_FILE).exists()
 
 
 def test_resume_preserves_valid_completed_job_evidence(tmp_path):
@@ -756,12 +933,64 @@ def test_successful_job_writes_command_and_matching_status_json(tmp_path):
     assert captured["env"]["PYTHONPATH"] == str(tmp_path)
 
 
-def test_dry_run_writes_only_one_ffr_task_per_pair_under_output_root(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize("relationship", ["equal", "output_inside", "baseline_inside"])
+def test_overlapping_output_and_baseline_roots_are_rejected_before_writes(
+    tmp_path, monkeypatch, relationship
+):
+    sweep = _runner()
+    if relationship == "equal":
+        output_root = baseline_root = tmp_path / "shared"
+    elif relationship == "output_inside":
+        baseline_root = tmp_path / "baseline"
+        output_root = baseline_root / "new-output"
+    else:
+        output_root = tmp_path / "output"
+        baseline_root = output_root / "baseline"
+    baseline_root.mkdir(parents=True, exist_ok=True)
+    (baseline_root / "sentinel.txt").write_text("unchanged\n", encoding="utf-8")
+    before = _tree_state(tmp_path)
+    monkeypatch.setattr(
+        sweep,
+        "_acquire_output_root_claim",
+        lambda _root: pytest.fail("overlap must fail before root claim"),
+    )
+
+    returncode = sweep.main(
+        [
+            "--output-root",
+            str(output_root),
+            "--baseline-root",
+            str(baseline_root),
+            "--gpus",
+            "0",
+            "--rates",
+            "0.4",
+            "--seeds",
+            "66",
+        ]
+    )
+
+    assert returncode == 1
+    assert _tree_state(tmp_path) == before
+
+
+def test_dry_run_prints_plan_without_mutating_live_output_root(
+    tmp_path, monkeypatch, capsys
 ):
     sweep = _runner()
     output_root = tmp_path / "dry-run"
     baseline_root = tmp_path / "baseline"
+    output_root.mkdir()
+    (output_root / "task_manifest.json").write_text(
+        '{"live":"task"}\n', encoding="utf-8"
+    )
+    (output_root / "scheduler_status.json").write_text(
+        '{"live":"status"}\n', encoding="utf-8"
+    )
+    (output_root / sweep.ROOT_CLAIM_FILE).write_text(
+        "permanent-lock-inode\n", encoding="utf-8"
+    )
+    before = _tree_state(output_root)
     monkeypatch.setattr(
         sweep,
         "validate_baselines",
@@ -798,16 +1027,13 @@ def test_dry_run_writes_only_one_ffr_task_per_pair_under_output_root(
     )
 
     assert returncode == 0
-    assert [path.relative_to(output_root) for path in output_root.rglob("*")] == [
-        Path("task_manifest.json")
-    ]
+    assert _tree_state(output_root) == before
     assert not baseline_root.exists()
-    tasks = json.loads(
-        (output_root / "task_manifest.json").read_text(encoding="utf-8")
-    )
-    assert len(tasks) == 1
-    assert tasks[0]["condition"] == "full_fused"
-    assert tasks[0]["baseline_dir"].startswith(str(baseline_root))
-    assert tasks[0]["command"][0] == (
+    printed = capsys.readouterr().out
+    plan = json.loads(printed)
+    assert len(plan["jobs"]) == 1
+    assert plan["jobs"][0]["condition"] == "full_fused"
+    assert plan["jobs"][0]["baseline_dir"].startswith(str(baseline_root))
+    assert plan["jobs"][0]["command"][0] == (
         "/data2/yb/reproduction_envs/gcnet-official/bin/python"
     )
