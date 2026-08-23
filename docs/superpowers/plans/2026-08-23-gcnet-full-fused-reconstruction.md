@@ -328,11 +328,13 @@ python -u scripts/run_iemocap6_full_fused_sweep.py \
 ```bash
 python -u scripts/run_iemocap6_full_fused_sweep.py \
   --output-root /data2/yb/experiments/gcnet_iemocap6_full_fused_10seed_20260823 \
-  --gpus 0,1,2,3,5,6,7 --jobs-per-gpu 3 --epochs 100 \
+  --gpus 0,1,2 --jobs-per-gpu 3 --epochs 100 \
   --python /data2/yb/reproduction_envs/gcnet-official/bin/python
 ```
 
-启动前按实际占用移除非空闲 GPU。runner 运行期间持续检查完成数、错误数、显存和配对审计；不终止其他用户进程。
+正式实验只占三张 GPU。启动前从非 GPU4 的设备中选择三张空闲卡；若
+`0,1,2` 中有卡被占用，则用其他空闲卡替换，而不是扩大卡数。runner 运行
+期间持续检查完成数、错误数、显存和配对审计；不终止其他用户进程。
 
 - [ ] **步骤 5：验证 160/160 完整性**
 
