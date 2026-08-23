@@ -1096,6 +1096,16 @@ def test_successful_job_writes_command_and_matching_status_json(tmp_path):
     assert captured["env"]["PYTHONPATH"] == str(tmp_path)
 
 
+def test_environment_preserves_explicit_dataset_root(tmp_path, monkeypatch):
+    sweep = _runner()
+    explicit_root = tmp_path / "shared-dataset"
+    monkeypatch.setenv("GCNET_DATASET_ROOT", str(explicit_root))
+
+    environment = sweep._environment(tmp_path, gpu=0)
+
+    assert environment["GCNET_DATASET_ROOT"] == str(explicit_root)
+
+
 @pytest.mark.parametrize("relationship", ["equal", "output_inside", "baseline_inside"])
 def test_overlapping_output_and_baseline_roots_are_rejected_before_writes(
     tmp_path, monkeypatch, relationship

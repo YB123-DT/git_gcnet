@@ -828,7 +828,9 @@ def _environment(root: Path, gpu: int) -> Dict[str, str]:
     environment.update(
         {
             "CUDA_VISIBLE_DEVICES": str(gpu),
-            "GCNET_DATASET_ROOT": str(root / "dataset"),
+            "GCNET_DATASET_ROOT": os.environ.get(
+                "GCNET_DATASET_ROOT", str(root / "dataset")
+            ),
             "GCNET_CACHE_ROOT": "/data2/yb/gcnet_unified_cache",
             "PYTHONPATH": str(root),
         }
