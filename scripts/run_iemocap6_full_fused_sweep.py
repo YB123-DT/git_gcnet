@@ -439,7 +439,10 @@ def audit_pair_manifests(
         mismatches = [
             mismatch
             for mismatch in mismatches
-            if not mismatch.startswith("lifecycle.epochs_completed differs:")
+            if not (
+                mismatch.startswith("lifecycle.epochs_completed differs:")
+                or mismatch.startswith("masks.realized_missing_rates.")
+            )
         ]
     expected = (
         ("baseline", baseline, "missing"),

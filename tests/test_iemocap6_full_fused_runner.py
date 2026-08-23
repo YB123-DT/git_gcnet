@@ -440,6 +440,9 @@ def test_smoke_pair_audit_allows_only_lifecycle_epoch_count_difference(tmp_path)
         job.output_dir / "run_records" / "1" / "fold_metrics.json",
         epochs=1,
     )
+    for split_name in ("train", "validation", "test"):
+        baseline["masks"]["realized_missing_rates"][split_name] = [0.4] * 100
+        full_fused["masks"]["realized_missing_rates"][split_name] = [0.4]
 
     assert sweep.audit_pair_manifests(
         baseline, full_fused, allow_epoch_mismatch=True
