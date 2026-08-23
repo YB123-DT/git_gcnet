@@ -259,9 +259,11 @@ SEEDS = tuple(range(66, 76))
 CONDITIONS = ("baseline", "full_fused")
 ```
 
-每个 `(rate, seed)` pair 创建一次 shared initialization checkpoint，并在
-两条命令中传入相同的 `--shared-init-checkpoint` 和
-`--require-shared-init-hash`。两条命令复用相同 mask seed 和 official fold5。
+每个 `(rate, seed)` pair 使用相同的 model-init seed。由于两个条件实例化
+完全相同的模型参数，确定性构造会产生逐参数相同初始化；runner 必须在完成
+审计中要求两份 manifest 的 `initialization.shared_hash` 完全一致。两条命令
+同时复用相同 missing-mask seed 和 official fold5。runner 不额外创建 shared
+checkpoint，因为模型构造前尚未加载特征维度，且该文件不会增加公平性证据。
 
 - [ ] **步骤 4：实现隔离、恢复和完成验证**
 
