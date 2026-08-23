@@ -120,6 +120,30 @@ class MaskedReconLoss(nn.Module):
         return torch.stack(modality_losses).mean()
 
 
+class FullFusedReconLoss(nn.Module):
+    """Reconstruct every modality when an utterance has any missing modality."""
+
+    def forward(self, recon_input, target_input, input_mask, umask, adim, tdim, vdim):
+        assert len(recon_input) == 1
+        predicted = recon_input[0]
+        expected = target_input[0].detach()
+        availability = input_mask[0]
+        real = umask.transpose(0, 1).bool()
+        selected = real & (availability < 1).any(dim=-1)
+
+        if not selected.any():
+            return predicted.sum() * 0.0
+
+        dimensions = (adim, tdim, vdim)
+        predicted_parts = torch.split(predicted, dimensions, dim=-1)
+        expected_parts = torch.split(expected, dimensions, dim=-1)
+        modality_losses = [
+            (predicted_part[selected] - expected_part[selected]).square().mean()
+            for predicted_part, expected_part in zip(predicted_parts, expected_parts)
+        ]
+        return torch.stack(modality_losses).mean()
+
+
 ## iemocap loss function: same with CE loss
 class MaskedCELoss(nn.Module):
 

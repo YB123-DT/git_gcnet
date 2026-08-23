@@ -360,6 +360,13 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     require_number("method.jepa_weight", 0.0)
     if not isinstance(_get_path(manifest, "method.loss_reconstruction"), bool):
         raise ManifestValidationError("method.loss_reconstruction must be Boolean")
+    reconstruction_target = _get_path(manifest, "method").get(
+        "reconstruction_target", "missing"
+    )
+    if reconstruction_target not in ("missing", "full_fused"):
+        raise ManifestValidationError(
+            "method.reconstruction_target must be missing or full_fused"
+        )
     require_integer("lifecycle.best_epoch", minimum=1)
     require_number("lifecycle.best_validation_f1", 0.0, 1.0)
     require_integer("lifecycle.test_call_count", minimum=0)

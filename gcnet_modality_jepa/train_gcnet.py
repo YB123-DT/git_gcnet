@@ -28,6 +28,7 @@ from .dataloader_iemocap import load_iemocap_dataset
 from .dataloader_cmumosi import load_cmumosi_dataset
 from .loss import (
     AllModalReconLoss,
+    FullFusedReconLoss,
     MaskedCELoss,
     MaskedMSELoss,
     MaskedReconLoss,
@@ -698,6 +699,7 @@ def train_or_eval_model(
     compute_diagnostics=False,
     *,
     all_modal_rec_loss=None,
+    full_fused_rec_loss=None,
     stability_mask_rng=None,
     split=None,
     fold=1,
@@ -707,6 +709,13 @@ def train_or_eval_model(
 ):
     if all_modal_rec_loss is None:
         all_modal_rec_loss = AllModalReconLoss()
+    if full_fused_rec_loss is None:
+        full_fused_rec_loss = FullFusedReconLoss()
+    primary_rec_loss = (
+        full_fused_rec_loss
+        if getattr(args, "reconstruction_target", "missing") == "full_fused"
+        else rec_loss
+    )
     if stability_mask_rng is None:
         stability_mask_rng = create_stability_mask_rng(args.seed)
     if split is None:
@@ -726,6 +735,7 @@ def train_or_eval_model(
         train=train,
         compute_diagnostics=compute_diagnostics,
         all_modal_rec_loss=all_modal_rec_loss,
+        primary_rec_loss=primary_rec_loss,
         stability_mask_rng=stability_mask_rng,
         split=split,
         fold=fold,
@@ -749,6 +759,7 @@ def _train_or_eval_model_impl(
     compute_diagnostics=False,
     *,
     all_modal_rec_loss,
+    primary_rec_loss,
     stability_mask_rng,
     split,
     fold,
@@ -983,7 +994,15 @@ def _train_or_eval_model_impl(
         if dataset in ['IEMOCAPFour', 'IEMOCAPSix']: loss1 = cls_loss(lp_, labels_, umask)
         if dataset in ['CMUMOSI', 'CMUMOSEI']  : loss1 = reg_loss(lp_, labels_, umask)
         if recon_input_features:
-            loss2 = rec_loss(recon_input_features, input_features, input_features_mask, umask, adim, tdim, vdim)
+            loss2 = primary_rec_loss(
+                recon_input_features,
+                input_features,
+                input_features_mask,
+                umask,
+                adim,
+                tdim,
+                vdim,
+            )
         else:
             loss2 = log_prob.new_zeros(())
         if args.all_modal_recon_weight and recon_input_features:
@@ -1225,6 +1244,7 @@ def _with_gradient_clip_fold_metric(fold_record, args):
     return {
         **fold_record,
         "gradient_clip_norm": float(getattr(args, "gradient_clip_norm", 0.0)),
+        "reconstruction_target": getattr(args, "reconstruction_target", "missing"),
     }
 
 
@@ -1360,6 +1380,9 @@ def build_fold_run_manifest(
             "model_variant": getattr(args, "model_variant", "addon"),
             "jepa_weight": float(getattr(args, "jepa_weight", 0.0)),
             "loss_reconstruction": bool(getattr(args, "loss_recon", False)),
+            "reconstruction_target": getattr(
+                args, "reconstruction_target", "missing"
+            ),
             "all_modal_reconstruction_weight": float(
                 getattr(args, "all_modal_recon_weight", 0.0)
             ),
@@ -1397,6 +1420,7 @@ def run_training_fold(
     optimizer,
     fold,
     all_modal_rec_loss=None,
+    full_fused_rec_loss=None,
     stability_mask_rng=None,
     evaluation_fn=None,
 ):
@@ -1442,6 +1466,7 @@ def run_training_fold(
             train=True,
             compute_diagnostics=False,
             all_modal_rec_loss=all_modal_rec_loss,
+            full_fused_rec_loss=full_fused_rec_loss,
             stability_mask_rng=stability_mask_rng,
             split="train",
             fold=fold,
@@ -1463,6 +1488,7 @@ def run_training_fold(
             train=False,
             compute_diagnostics=False,
             all_modal_rec_loss=all_modal_rec_loss,
+            full_fused_rec_loss=full_fused_rec_loss,
             stability_mask_rng=stability_mask_rng,
             split="validation",
             fold=fold,
@@ -1497,6 +1523,7 @@ def run_training_fold(
                 train=False,
                 compute_diagnostics=is_best,
                 all_modal_rec_loss=all_modal_rec_loss,
+                full_fused_rec_loss=full_fused_rec_loss,
                 stability_mask_rng=stability_mask_rng,
                 split="test",
                 fold=fold,
@@ -1542,6 +1569,7 @@ def run_training_fold(
         train=False,
         compute_diagnostics=True,
         all_modal_rec_loss=all_modal_rec_loss,
+        full_fused_rec_loss=full_fused_rec_loss,
         stability_mask_rng=stability_mask_rng,
         split="test",
         fold=fold,
@@ -1614,6 +1642,7 @@ def build_argument_parser():
     parser.add_argument('--evaluation-protocol', choices=['official', 'strict'], default='official', help='official evaluates test every epoch; strict uses internal validation and tests once')
     parser.add_argument('--mask-type', type=str, default='constant-0.1', help='mask rate [0~1] for input argumentation: constant-float; linear; convex; concave')
     parser.add_argument('--loss-recon', action='store_true', default=False, help='whether to use reconstrctuion loss')
+    parser.add_argument('--reconstruction-target', choices=['missing', 'full_fused'], default='missing', help='utterance reconstruction target selection')
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
     parser.add_argument('--jepa-weight', type=float, default=0.1, help='centered modality prediction loss weight')
@@ -1740,11 +1769,13 @@ if __name__ == '__main__':
         reg_loss = MaskedMSELoss()
         cls_loss = MaskedCELoss()
         rec_loss = MaskedReconLoss()
+        full_fused_rec_loss = FullFusedReconLoss()
         all_modal_rec_loss = AllModalReconLoss()
         if cuda:
             model.cuda()
             cls_loss.cuda()
             rec_loss.cuda()
+            full_fused_rec_loss.cuda()
             all_modal_rec_loss.cuda()
             modality_means = modality_means.to("cuda")
             torch.cuda.reset_peak_memory_stats()
@@ -1780,6 +1811,7 @@ if __name__ == '__main__':
             optimizer=optimizer,
             fold=ii + 1,
             all_modal_rec_loss=all_modal_rec_loss,
+            full_fused_rec_loss=full_fused_rec_loss,
             stability_mask_rng=stability_mask_rng,
         )
         all_losses = []
