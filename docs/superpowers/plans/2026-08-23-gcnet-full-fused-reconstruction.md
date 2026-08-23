@@ -2,7 +2,7 @@
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法来跟踪进度。
 
-**目标：** 在参数、初始化、mask 和分类路径完全一致的条件下，对比 IEMOCAPSix GCNet 的 missing-only reconstruction 与 full-fused reconstruction，并完成 fold5、8 个 missing rate、10 seeds 的 160-job 正式实验。
+**目标：** 在参数、初始化、mask 和分类路径完全一致的条件下，继续在 IEMOCAPSix GCNet 上实现 full-fused reconstruction；复用已完成的 missing-only GCNet baseline，只新增完成 fold5、8 个 missing rate、10 seeds 的 80-job 正式实验。
 
 **架构：** 两个条件实例化完全相同的 `GraphModel` 和 `linear_rec`。Baseline 仅在每个 utterance 实际缺失的模态上计算 MSE；FFR 在至少缺一个模态的 utterance 上，对完整 Audio/Text/Visual concat 的三个模态分别按维度归一化 MSE 后等权平均。重构结果不进入分类器，实验只改变 loss selection。
 
@@ -16,8 +16,8 @@
 - 修改 `gcnet_modality_jepa/train_gcnet.py`：增加 loss mode CLI、验证、训练路由和结果字段。
 - 修改 `gcnet_modality_jepa/run_manifest.py`：若 schema 对 method 字段有限制，登记 reconstruction target，保持旧 manifest 可读。
 - 创建 `tests/test_full_fused_reconstruction.py`：loss、padding、零缺失、参数和梯度 parity。
-- 创建 `tests/test_iemocap6_full_fused_runner.py`：160-job 矩阵、GPU4 拒绝、配对命令与完成证据测试。
-- 创建 `scripts/run_iemocap6_full_fused_sweep.py`：隔离的多卡 paired runner。
+- 创建 `tests/test_iemocap6_full_fused_runner.py`：80-job 新实验矩阵、GPU4 拒绝、已有 baseline 只读审计与完成证据测试。
+- 创建 `scripts/run_iemocap6_full_fused_sweep.py`：隔离的多卡 FFR runner，并只读配对已有 baseline。
 - 创建 `docs/experiments/2026-08-23-iemocap6-full-fused-reconstruction.md`：smoke、正式命令、结果和统计结论。
 
 ### 任务 1：为 full-fused loss 建立失败测试
@@ -215,7 +215,7 @@ pytest -q
 
 提交仅包含 CLI、loss routing、manifest 和相应测试。
 
-### 任务 4：实现可审计的 160-job paired runner
+### 任务 4：实现可审计的 80-job FFR runner
 
 **文件：**
 - 创建：`scripts/run_iemocap6_full_fused_sweep.py`
@@ -224,18 +224,16 @@ pytest -q
 - [ ] **步骤 1：先写失败的矩阵与命令测试**
 
 ```python
-def test_formal_matrix_has_160_paired_jobs(tmp_path):
+def test_formal_matrix_has_80_new_ffr_jobs(tmp_path):
     jobs = build_jobs(tmp_path, python="python", gpus=(0, 1), jobs_per_gpu=3)
-    assert len(jobs) == 160
-    assert {job.condition for job in jobs} == {"baseline", "full_fused"}
+    assert len(jobs) == 80
+    assert {job.condition for job in jobs} == {"full_fused"}
     assert len({(job.rate, job.seed) for job in jobs}) == 80
 
-def test_pair_differs_only_in_reconstruction_target_and_output(tmp_path):
-    baseline, fused = paired_jobs(tmp_path, rate=0.4, seed=66)
-    assert normalized_command_diff(baseline.command, fused.command) == {
-        "--reconstruction-target": ("missing", "full_fused"),
-        "--output-dir": (str(baseline.output_dir), str(fused.output_dir)),
-    }
+def test_existing_baseline_is_read_only_and_paired_by_rate_seed(tmp_path):
+    audit = build_pair_audit(tmp_path, rate=0.4, seed=66)
+    assert audit.baseline_root == EXISTING_BASELINE_ROOT
+    assert audit.ffr_job.reconstruction_target == "full_fused"
 
 def test_runner_rejects_gpu4(tmp_path):
     with pytest.raises(ValueError, match="GPU 4"):
@@ -259,11 +257,10 @@ SEEDS = tuple(range(66, 76))
 CONDITIONS = ("baseline", "full_fused")
 ```
 
-每个 `(rate, seed)` pair 使用相同的 model-init seed。由于两个条件实例化
-完全相同的模型参数，确定性构造会产生逐参数相同初始化；runner 必须在完成
-审计中要求两份 manifest 的 `initialization.shared_hash` 完全一致。两条命令
-同时复用相同 missing-mask seed 和 official fold5。runner 不额外创建 shared
-checkpoint，因为模型构造前尚未加载特征维度，且该文件不会增加公平性证据。
+每个新 FFR job 使用与已有 baseline 相同的 `(rate, seed)` 和 model-init seed。
+runner 在完成审计中要求两份 manifest 的 `initialization.shared_hash`、missing
+mask seed/hash、特征、split、sampler 和稳定化设置一致。已有 baseline 根目录
+只读，runner 不创建、覆盖或重新训练 baseline。
 
 - [ ] **步骤 4：实现隔离、恢复和完成验证**
 
@@ -274,7 +271,8 @@ runner 必须提供：
 - GPU4 硬拒绝；
 - `--rates`、`--seeds`、`--epochs` 用于 smoke；
 - status 原子写入；
-- 完成条件同时要求 returncode 0、fold metrics、manifest、参数 parity、
+- `--baseline-root` 指向已完成 GCNet baseline，并做只读完整性验证；
+- 完成条件同时要求 FFR returncode 0、fold metrics、manifest、参数 parity、
   shared-init hash 和 mask hashes；
 - 已完成任务可安全 resume，不覆盖证据。
 
@@ -296,7 +294,8 @@ pytest -q
 ### 任务 5：远程 smoke 与正式多卡实验
 
 **远程目录：**
-- 代码：`/data2/yb/paper/GCNet_iemocap6_full_fused_20260823`
+- 代码：`/data2/yb/paper/GCNet_full_fused_20260823/modality-jepa`
+- 已有 Baseline：`/data2/yb/experiments/gcnet_official_4dataset_10seed_20260820/IEMOCAPSix`
 - Smoke：`/data2/yb/experiments/gcnet_iemocap6_full_fused_smoke_20260823`
 - Formal：`/data2/yb/experiments/gcnet_iemocap6_full_fused_10seed_20260823`
 
@@ -312,22 +311,24 @@ pytest -q
 
 仅使用空闲且没有其他用户进程的 GPU；永不使用 GPU4。每张卡最多并发三个 job。
 
-- [ ] **步骤 3：运行一轮 paired smoke**
+- [ ] **步骤 3：运行一轮 FFR smoke 并审计已有 baseline**
 
 ```bash
 python -u scripts/run_iemocap6_full_fused_sweep.py \
   --output-root /data2/yb/experiments/gcnet_iemocap6_full_fused_smoke_20260823 \
-  --gpus 5 --jobs-per-gpu 2 --rates 0.0,0.4 --seeds 66 \
+  --baseline-root /data2/yb/experiments/gcnet_official_4dataset_10seed_20260820/IEMOCAPSix \
+  --gpus 0 --jobs-per-gpu 2 --rates 0.0,0.4 --seeds 66 \
   --epochs 1 --python /data2/yb/reproduction_envs/gcnet-official/bin/python
 ```
 
-预期：4/4 jobs、2/2 pair audits 完成；missing=0 参数、logit、loss 和 mask parity 通过。
+预期：2/2 新 FFR jobs、2/2 baseline pair audits 完成；missing=0 参数、logit、loss 和 mask parity 通过。
 
-- [ ] **步骤 4：启动 160-job 正式实验**
+- [ ] **步骤 4：启动 80-job FFR 正式实验**
 
 ```bash
 python -u scripts/run_iemocap6_full_fused_sweep.py \
   --output-root /data2/yb/experiments/gcnet_iemocap6_full_fused_10seed_20260823 \
+  --baseline-root /data2/yb/experiments/gcnet_official_4dataset_10seed_20260820/IEMOCAPSix \
   --gpus 0,1,2 --jobs-per-gpu 3 --epochs 100 \
   --python /data2/yb/reproduction_envs/gcnet-official/bin/python
 ```
@@ -336,12 +337,12 @@ python -u scripts/run_iemocap6_full_fused_sweep.py \
 `0,1,2` 中有卡被占用，则用其他空闲卡替换，而不是扩大卡数。runner 运行
 期间持续检查完成数、错误数、显存和配对审计；不终止其他用户进程。
 
-- [ ] **步骤 5：验证 160/160 完整性**
+- [ ] **步骤 5：验证 80/80 新实验完整性**
 
 要求：
 
 ```text
-complete_jobs = 160
+complete_jobs = 80
 worker_errors = []
 paired_audits = 80
 paired_audit_failures = 0

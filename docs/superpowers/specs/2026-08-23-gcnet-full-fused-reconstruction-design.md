@@ -56,11 +56,16 @@ missing modality. Padding and fully observed utterances do not contribute.
 - Both conditions instantiate exactly the same modules and total/trainable
   parameter counts.
 
-The formal matrix contains 160 jobs:
+The existing 80-run GCNet missing-only baseline is reused read-only. The new
+formal matrix therefore contains 80 FFR training jobs:
 
 ```text
-8 missing rates x 10 seeds x 2 conditions
+8 missing rates x 10 seeds x 1 new FFR condition
 ```
+
+Each new result is paired with the already completed baseline result having the
+same missing rate and seed. The runner must validate the baseline evidence but
+must never overwrite or rerun it.
 
 ## Parity and failure gates
 
@@ -74,7 +79,8 @@ Before formal training:
    must match exactly.
 5. At missing rate 0.0, baseline and FFR logits and gradients must match within
    numerical tolerance because both primary reconstruction losses are zero.
-6. A one-epoch paired smoke run must complete before the 160-job sweep starts.
+6. A one-epoch FFR smoke run and read-only baseline audit must complete before
+   the 80-job sweep starts.
 
 ## Outputs and analysis
 
