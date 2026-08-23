@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import itertools
 import json
 import os
 import socket
@@ -40,6 +41,10 @@ DEFAULT_BASELINE_ROOT = Path(
 )
 CLAIM_FILE = ".iemocap6-full-fused-sweep.claim"
 ROOT_CLAIM_FILE = ".iemocap6-full-fused-sweep.root.claim"
+GPU_LOCK_ROOT = (
+    Path(tempfile.gettempdir())
+    / "gcnet-iemocap6-full-fused-gpu-locks-{}".format(os.getuid())
+)
 
 
 @dataclass(frozen=True)
@@ -58,6 +63,23 @@ class JobClaim:
     host: str
     pid: int
     descriptor: int
+
+
+@dataclass(frozen=True)
+class GPUClaim:
+    gpu: int
+    path: Path
+    token: str
+    host: str
+    pid: int
+    output_root: Path
+    descriptor: int
+
+
+@dataclass(frozen=True)
+class GPUReservation:
+    gpus: Tuple[int, ...]
+    claims: Tuple[GPUClaim, ...]
 
 
 @dataclass(frozen=True)
@@ -648,7 +670,7 @@ def _gpu_process_snapshot() -> Dict[int, Tuple[int, ...]]:
     }
 
 
-def select_available_gpus(requested_gpus: Sequence[int]) -> Tuple[int, ...]:
+def _validate_requested_gpus(requested_gpus: Sequence[int]) -> Tuple[int, ...]:
     requested = tuple(int(gpu) for gpu in requested_gpus)
     if not requested:
         raise ValueError("at least one GPU is required")
@@ -658,32 +680,147 @@ def select_available_gpus(requested_gpus: Sequence[int]) -> Tuple[int, ...]:
         raise ValueError("at most 3 GPUs may be selected")
     if len(set(requested)) != len(requested):
         raise ValueError("GPU list contains duplicates")
+    return requested
 
-    snapshot = _gpu_process_snapshot()
-    idle_fallbacks = [
-        gpu
-        for gpu, pids in sorted(snapshot.items())
-        if gpu != 4
-        and gpu not in requested
-        and not pids
-    ]
-    selected: List[int] = []
-    fallback_index = 0
-    occupied = {}
-    for gpu in requested:
-        pids = snapshot.get(gpu)
-        if pids is not None and not pids:
-            selected.append(gpu)
-            continue
-        occupied[gpu] = pids
-        if fallback_index >= len(idle_fallbacks):
-            raise RuntimeError(
-                "insufficient idle GPUs for requested {}: occupied or unavailable {}"
-                .format(requested, occupied)
+
+def _preferred_gpu_sets(
+    requested: Tuple[int, ...],
+    snapshot: Mapping[int, Tuple[int, ...]],
+) -> List[Tuple[int, ...]]:
+    idle = [gpu for gpu, pids in sorted(snapshot.items()) if gpu != 4 and not pids]
+    if len(idle) < len(requested):
+        raise RuntimeError(
+            "insufficient idle GPUs for requested {}: idle {}".format(
+                requested, idle
             )
-        selected.append(idle_fallbacks[fallback_index])
-        fallback_index += 1
-    return tuple(selected)
+        )
+    fallbacks = [gpu for gpu in idle if gpu not in requested]
+    preferred: List[int] = []
+    for gpu in requested:
+        if gpu in idle:
+            preferred.append(gpu)
+        else:
+            preferred.append(fallbacks.pop(0))
+    candidates = [tuple(preferred)]
+    idle_order = [
+        *[gpu for gpu in requested if gpu in idle],
+        *[gpu for gpu in idle if gpu not in requested],
+    ]
+    for combination in itertools.combinations(idle_order, len(requested)):
+        if set(combination) != set(preferred):
+            candidates.append(tuple(combination))
+    return candidates
+
+
+def _gpu_lock_path(gpu: int, lock_root: Path) -> Path:
+    return lock_root / "gpu-{}.lock".format(gpu)
+
+
+def _release_gpu_claims(claims: Sequence[GPUClaim]) -> None:
+    for claim in reversed(tuple(claims)):
+        try:
+            _clear_locked_claim_metadata(claim.descriptor)
+        finally:
+            try:
+                fcntl.flock(claim.descriptor, fcntl.LOCK_UN)
+            finally:
+                os.close(claim.descriptor)
+
+
+def _try_acquire_gpu_claims(
+    gpus: Sequence[int],
+    output_root: Path,
+    lock_root: Path | None = None,
+) -> Tuple[GPUClaim, ...] | None:
+    selected = _validate_requested_gpus(gpus)
+    root = Path(GPU_LOCK_ROOT if lock_root is None else lock_root)
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    owner_root = Path(output_root).resolve()
+    claims: List[GPUClaim] = []
+    for gpu in sorted(selected):
+        path = _gpu_lock_path(gpu, root)
+        descriptor = os.open(str(path), os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(descriptor)
+            _release_gpu_claims(claims)
+            return None
+        except Exception:
+            os.close(descriptor)
+            _release_gpu_claims(claims)
+            raise
+        token = uuid.uuid4().hex
+        host = socket.gethostname()
+        pid = os.getpid()
+        try:
+            _write_locked_claim_metadata(
+                descriptor,
+                {
+                    "gpu": gpu,
+                    "host": host,
+                    "pid": pid,
+                    "token": token,
+                    "output_root": str(owner_root),
+                    "claimed_at_unix": time.time(),
+                },
+            )
+        except Exception:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
+            _release_gpu_claims(claims)
+            raise
+        claims.append(
+            GPUClaim(gpu, path, token, host, pid, owner_root, descriptor)
+        )
+    return tuple(claims)
+
+
+def acquire_gpu_reservation(
+    requested_gpus: Sequence[int],
+    output_root: Path,
+    lock_root: Path | None = None,
+    max_revalidation_attempts: int = 3,
+) -> GPUReservation:
+    requested = _validate_requested_gpus(requested_gpus)
+    for _attempt in range(max_revalidation_attempts):
+        snapshot = _gpu_process_snapshot()
+        candidates = _preferred_gpu_sets(requested, snapshot)
+        occupancy_changed = False
+        for candidate in candidates:
+            claims = _try_acquire_gpu_claims(
+                candidate, output_root=output_root, lock_root=lock_root
+            )
+            if claims is None:
+                continue
+            confirmed = _gpu_process_snapshot()
+            if all(gpu in confirmed and not confirmed[gpu] for gpu in candidate):
+                return GPUReservation(tuple(candidate), claims)
+            _release_gpu_claims(claims)
+            occupancy_changed = True
+            break
+        if not occupancy_changed:
+            raise RuntimeError(
+                "insufficient unlocked idle GPUs for requested {}".format(requested)
+            )
+    raise RuntimeError(
+        "GPU occupancy changed during {} reservation attempts".format(
+            max_revalidation_attempts
+        )
+    )
+
+
+def release_gpu_reservation(reservation: GPUReservation | None) -> None:
+    if reservation is not None:
+        _release_gpu_claims(reservation.claims)
+
+
+def _gpu_reservation_is_idle(reservation: GPUReservation) -> bool:
+    snapshot = _gpu_process_snapshot()
+    return all(
+        gpu in snapshot and not snapshot[gpu]
+        for gpu in reservation.gpus
+    )
 
 
 def _environment(root: Path, gpu: int) -> Dict[str, str]:
@@ -945,6 +1082,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except RuntimeError as error:
         print(str(error), file=sys.stderr)
         return 1
+    gpu_reservation: GPUReservation | None = None
     try:
         _write_json(
             output_root / "task_manifest.json",
@@ -970,7 +1108,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
 
         try:
-            selected_gpus = select_available_gpus(args.gpus)
+            gpu_reservation = acquire_gpu_reservation(
+                args.gpus, output_root=output_root
+            )
         except (
             OSError,
             RuntimeError,
@@ -978,9 +1118,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             subprocess.SubprocessError,
         ) as error:
             _write_gpu_selection_failure(
-                output_root, requested_jobs, error, "selection"
+                output_root, requested_jobs, error, "reservation"
             )
             return 1
+        selected_gpus = gpu_reservation.gpus
 
         jobs = build_jobs(
             output_root=output_root,
@@ -996,20 +1137,43 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_root / "task_manifest.json",
             [_job_payload(job) for job in jobs],
         )
-        try:
-            launch_gpus = select_available_gpus(selected_gpus)
-        except (
-            OSError,
-            RuntimeError,
-            ValueError,
-            subprocess.SubprocessError,
-        ) as error:
-            _write_gpu_selection_failure(
-                output_root, jobs, error, "revalidation"
-            )
-            return 1
-        if launch_gpus != selected_gpus:
-            selected_gpus = launch_gpus
+        for _attempt in range(3):
+            try:
+                if _gpu_reservation_is_idle(gpu_reservation):
+                    break
+            except (
+                OSError,
+                RuntimeError,
+                ValueError,
+                subprocess.SubprocessError,
+            ) as error:
+                _write_gpu_selection_failure(
+                    output_root, jobs, error, "final revalidation"
+                )
+                return 1
+            if _attempt == 2:
+                error = RuntimeError("GPU occupancy kept changing before launch")
+                _write_gpu_selection_failure(
+                    output_root, jobs, error, "final revalidation"
+                )
+                return 1
+            release_gpu_reservation(gpu_reservation)
+            gpu_reservation = None
+            try:
+                gpu_reservation = acquire_gpu_reservation(
+                    args.gpus, output_root=output_root
+                )
+            except (
+                OSError,
+                RuntimeError,
+                ValueError,
+                subprocess.SubprocessError,
+            ) as error:
+                _write_gpu_selection_failure(
+                    output_root, jobs, error, "final reacquisition"
+                )
+                return 1
+            selected_gpus = gpu_reservation.gpus
             jobs = build_jobs(
                 output_root=output_root,
                 python=args.python,
@@ -1024,8 +1188,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output_root / "task_manifest.json",
                 [_job_payload(job) for job in jobs],
             )
-        # nvidia-smi cannot reserve devices against an unrelated process that
-        # starts after this final snapshot; keep this check adjacent to launch.
+        # These locks coordinate our runners. An unrelated user can still
+        # start after post-lock nvidia-smi revalidation and before subprocess.
         lanes: Dict[Tuple[int, int], List[FullFusedJob]] = {
             (gpu, slot): []
             for gpu in selected_gpus
@@ -1069,7 +1233,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             audit_failures,
         ) else 1
     finally:
-        _release_output_root_claim(root_claim)
+        try:
+            release_gpu_reservation(gpu_reservation)
+        finally:
+            _release_output_root_claim(root_claim)
 
 
 if __name__ == "__main__":

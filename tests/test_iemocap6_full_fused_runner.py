@@ -487,18 +487,41 @@ def test_gpu_and_lane_validation_rejects_unsafe_configurations(tmp_path):
             )
 
 
-def test_occupied_requested_gpu_falls_back_to_an_idle_non_gpu4(monkeypatch):
+def test_gpu_reservation_falls_back_and_holds_selected_lock_set(
+    tmp_path, monkeypatch
+):
     sweep = _runner()
+    snapshot = {0: (), 1: (7001,), 2: (), 3: (), 4: (), 5: (7005,)}
     monkeypatch.setattr(
         sweep,
         "_gpu_process_snapshot",
-        lambda: {0: (), 1: (7001,), 2: (), 3: (), 4: (), 5: (7005,)},
+        mock.Mock(side_effect=[snapshot, snapshot]),
     )
 
-    assert sweep.select_available_gpus((0, 1, 2)) == (0, 3, 2)
+    reservation = sweep.acquire_gpu_reservation(
+        (0, 1, 2),
+        output_root=tmp_path / "output-a",
+        lock_root=tmp_path / "gpu-locks",
+    )
+
+    assert reservation.gpus == (0, 3, 2)
+    assert {claim.gpu for claim in reservation.claims} == {0, 2, 3}
+    assert all(claim.path.exists() for claim in reservation.claims)
+    assert sweep._try_acquire_gpu_claims(
+        reservation.gpus,
+        output_root=tmp_path / "output-b",
+        lock_root=tmp_path / "gpu-locks",
+    ) is None
+    sweep.release_gpu_reservation(reservation)
+    assert all(
+        claim.path.read_text(encoding="utf-8") == ""
+        for claim in reservation.claims
+    )
 
 
-def test_gpu_fallback_fails_when_too_few_idle_non_gpu4_devices(monkeypatch):
+def test_gpu_fallback_fails_when_too_few_idle_non_gpu4_devices(
+    tmp_path, monkeypatch
+):
     sweep = _runner()
     monkeypatch.setattr(
         sweep,
@@ -507,7 +530,83 @@ def test_gpu_fallback_fails_when_too_few_idle_non_gpu4_devices(monkeypatch):
     )
 
     with pytest.raises(RuntimeError, match="insufficient idle GPUs"):
-        sweep.select_available_gpus((0, 1, 2))
+        sweep.acquire_gpu_reservation(
+            (0, 1, 2),
+            output_root=tmp_path / "output",
+            lock_root=tmp_path / "gpu-locks",
+        )
+
+
+def test_gpu_reservation_releases_and_retries_when_occupancy_changes(
+    tmp_path, monkeypatch
+):
+    sweep = _runner()
+    changed = {0: (9000,), 1: (), 4: ()}
+    snapshots = mock.Mock(
+        side_effect=[
+            {0: (), 1: (), 4: ()},
+            changed,
+            changed,
+            changed,
+        ]
+    )
+    monkeypatch.setattr(sweep, "_gpu_process_snapshot", snapshots)
+
+    reservation = sweep.acquire_gpu_reservation(
+        (0,),
+        output_root=tmp_path / "output",
+        lock_root=tmp_path / "gpu-locks",
+    )
+
+    assert reservation.gpus == (1,)
+    gpu0_lock = tmp_path / "gpu-locks" / "gpu-0.lock"
+    assert gpu0_lock.exists()
+    assert gpu0_lock.read_text(encoding="utf-8") == ""
+    sweep.release_gpu_reservation(reservation)
+
+
+def test_different_output_roots_contend_on_shared_gpu_lock(tmp_path, monkeypatch):
+    sweep = _runner()
+    lock_root = tmp_path / "gpu-locks"
+    output_a = tmp_path / "output-a"
+    output_b = tmp_path / "output-b"
+    script = """
+import sys
+import time
+from pathlib import Path
+from scripts import run_iemocap6_full_fused_sweep as sweep
+sweep._gpu_process_snapshot = lambda: {0: (), 1: (), 4: ()}
+reservation = sweep.acquire_gpu_reservation(
+    (0,), output_root=Path(sys.argv[1]), lock_root=Path(sys.argv[2])
+)
+print(reservation.gpus[0], flush=True)
+time.sleep(60)
+"""
+    first = subprocess.Popen(
+        [sys.executable, "-c", script, str(output_a), str(lock_root)],
+        cwd=str(Path(__file__).resolve().parents[1]),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    assert first.stdout is not None
+    assert first.stdout.readline().strip() == "0"
+    monkeypatch.setattr(
+        sweep, "_gpu_process_snapshot", lambda: {0: (), 1: (), 4: ()}
+    )
+
+    second = sweep.acquire_gpu_reservation(
+        (0,), output_root=output_b, lock_root=lock_root
+    )
+
+    assert second.gpus == (1,)
+    gpu0 = json.loads((lock_root / "gpu-0.lock").read_text(encoding="utf-8"))
+    gpu1 = json.loads((lock_root / "gpu-1.lock").read_text(encoding="utf-8"))
+    assert gpu0["output_root"] == str(output_a.resolve())
+    assert gpu1["output_root"] == str(output_b.resolve())
+    sweep.release_gpu_reservation(second)
+    first.terminate()
+    first.wait(timeout=10)
 
 
 def test_gpu_process_snapshot_maps_compute_pids_to_indexes(monkeypatch):
@@ -695,8 +794,15 @@ def test_scheduler_writes_dynamic_selected_counts(tmp_path, monkeypatch):
     sweep = _runner()
     output_root = tmp_path / "outputs"
     monkeypatch.setattr(sweep, "validate_baselines", lambda _jobs: [])
-    selections = mock.Mock(side_effect=[(0, 1), (0, 3)])
-    monkeypatch.setattr(sweep, "select_available_gpus", selections)
+    reservation = sweep.GPUReservation(gpus=(0, 3), claims=())
+    acquire = mock.Mock(return_value=reservation)
+    release = mock.Mock()
+    final_idle = mock.Mock(return_value=True)
+    monkeypatch.setattr(sweep, "acquire_gpu_reservation", acquire)
+    monkeypatch.setattr(sweep, "release_gpu_reservation", release)
+    monkeypatch.setattr(
+        sweep, "_gpu_reservation_is_idle", final_idle, raising=False
+    )
     monkeypatch.setattr(sweep, "_run_lane", lambda *_args: True)
     monkeypatch.setattr(sweep, "is_complete", lambda _job: True)
     monkeypatch.setattr(sweep, "audit_completed_pairs", lambda *_args: (4, 0))
@@ -729,7 +835,9 @@ def test_scheduler_writes_dynamic_selected_counts(tmp_path, monkeypatch):
     assert status["baseline_preflight_failures"] == []
     assert status["requested_gpus"] == [0, 1]
     assert status["selected_gpus"] == [0, 3]
-    assert selections.call_count == 2
+    assert acquire.call_count == 1
+    final_idle.assert_called_once_with(reservation)
+    release.assert_called_once_with(reservation)
     tasks = json.loads(
         (output_root / "task_manifest.json").read_text(encoding="utf-8")
     )
@@ -737,6 +845,51 @@ def test_scheduler_writes_dynamic_selected_counts(tmp_path, monkeypatch):
     root_claim_path = output_root / sweep.ROOT_CLAIM_FILE
     assert root_claim_path.exists()
     assert root_claim_path.read_text(encoding="utf-8") == ""
+
+
+def test_scheduler_reacquires_fallback_if_final_gpu_check_changes(
+    tmp_path, monkeypatch
+):
+    sweep = _runner()
+    output_root = tmp_path / "outputs"
+    first = sweep.GPUReservation(gpus=(0,), claims=())
+    fallback = sweep.GPUReservation(gpus=(1,), claims=())
+    acquire = mock.Mock(side_effect=[first, fallback])
+    release = mock.Mock()
+    final_idle = mock.Mock(side_effect=[False, True])
+    monkeypatch.setattr(sweep, "validate_baselines", lambda _jobs: [])
+    monkeypatch.setattr(sweep, "acquire_gpu_reservation", acquire)
+    monkeypatch.setattr(sweep, "release_gpu_reservation", release)
+    monkeypatch.setattr(
+        sweep, "_gpu_reservation_is_idle", final_idle, raising=False
+    )
+    monkeypatch.setattr(sweep, "_run_lane", lambda *_args: True)
+    monkeypatch.setattr(sweep, "is_complete", lambda _job: True)
+    monkeypatch.setattr(sweep, "audit_completed_pairs", lambda *_args: (1, 0))
+
+    returncode = sweep.main(
+        [
+            "--output-root",
+            str(output_root),
+            "--baseline-root",
+            str(tmp_path / "baseline"),
+            "--gpus",
+            "0",
+            "--rates",
+            "0.4",
+            "--seeds",
+            "66",
+        ]
+    )
+
+    status = json.loads(
+        (output_root / "scheduler_status.json").read_text(encoding="utf-8")
+    )
+    assert returncode == 0
+    assert status["selected_gpus"] == [1]
+    assert acquire.call_count == 2
+    assert final_idle.call_count == 2
+    assert release.call_args_list == [mock.call(first), mock.call(fallback)]
 
 
 def test_scheduler_refuses_invalid_baseline_before_gpu_or_training(
@@ -747,7 +900,7 @@ def test_scheduler_refuses_invalid_baseline_before_gpu_or_training(
     monkeypatch.setattr(sweep, "validate_baselines", lambda jobs: [jobs[0].identity])
     monkeypatch.setattr(
         sweep,
-        "select_available_gpus",
+        "acquire_gpu_reservation",
         lambda _gpus: pytest.fail("GPU checks must follow baseline preflight"),
     )
 
@@ -788,7 +941,7 @@ def test_concurrent_invocation_fails_without_mutating_root_evidence(
     before = _tree_bytes(output_root)
     monkeypatch.setattr(
         sweep,
-        "select_available_gpus",
+        "acquire_gpu_reservation",
         lambda _gpus: pytest.fail("second invocation must stop at root claim"),
     )
 
@@ -815,14 +968,21 @@ def test_concurrent_invocation_fails_without_mutating_root_evidence(
 def test_output_root_claim_remains_held_through_pair_audit(tmp_path, monkeypatch):
     sweep = _runner()
     output_root = tmp_path / "outputs"
+    gpu_lock_root = tmp_path / "gpu-locks"
+    monkeypatch.setattr(sweep, "GPU_LOCK_ROOT", gpu_lock_root)
     monkeypatch.setattr(sweep, "validate_baselines", lambda _jobs: [])
-    monkeypatch.setattr(sweep, "select_available_gpus", lambda _gpus: (0,))
+    monkeypatch.setattr(sweep, "_gpu_process_snapshot", lambda: {0: (), 4: ()})
     monkeypatch.setattr(sweep, "_run_lane", lambda *_args: True)
     monkeypatch.setattr(sweep, "is_complete", lambda _job: True)
 
     def audit_while_locked(jobs):
         with pytest.raises(RuntimeError, match="already claimed"):
             sweep._acquire_output_root_claim(output_root)
+        assert sweep._try_acquire_gpu_claims(
+            (0,),
+            output_root=tmp_path / "other-output",
+            lock_root=gpu_lock_root,
+        ) is None
         return len(jobs), 0
 
     monkeypatch.setattr(sweep, "audit_completed_pairs", audit_while_locked)
@@ -844,18 +1004,21 @@ def test_output_root_claim_remains_held_through_pair_audit(tmp_path, monkeypatch
     root_claim_path = output_root / sweep.ROOT_CLAIM_FILE
     assert root_claim_path.exists()
     assert root_claim_path.read_text(encoding="utf-8") == ""
+    gpu_claim_path = gpu_lock_root / "gpu-0.lock"
+    assert gpu_claim_path.exists()
+    assert gpu_claim_path.read_text(encoding="utf-8") == ""
 
 
-def test_scheduler_aborts_if_gpu_becomes_occupied_before_workers(
+def test_scheduler_aborts_if_gpu_reservation_fails_before_workers(
     tmp_path, monkeypatch
 ):
     sweep = _runner()
     output_root = tmp_path / "outputs"
     monkeypatch.setattr(sweep, "validate_baselines", lambda _jobs: [])
-    selections = mock.Mock(
-        side_effect=[(0,), RuntimeError("insufficient idle GPUs after revalidation")]
+    acquire = mock.Mock(
+        side_effect=RuntimeError("insufficient idle GPUs after lock revalidation")
     )
-    monkeypatch.setattr(sweep, "select_available_gpus", selections)
+    monkeypatch.setattr(sweep, "acquire_gpu_reservation", acquire)
     monkeypatch.setattr(
         sweep,
         "_run_lane",
@@ -883,8 +1046,8 @@ def test_scheduler_aborts_if_gpu_becomes_occupied_before_workers(
         (output_root / "scheduler_status.json").read_text(encoding="utf-8")
     )
     assert returncode == 1
-    assert selections.call_count == 2
-    assert "revalidation" in status["gpu_selection_error"]
+    assert acquire.call_count == 1
+    assert "lock revalidation" in status["gpu_selection_error"]
     assert (output_root / sweep.ROOT_CLAIM_FILE).exists()
 
 
@@ -998,8 +1161,9 @@ def test_dry_run_prints_plan_without_mutating_live_output_root(
     )
     monkeypatch.setattr(
         sweep,
-        "select_available_gpus",
+        "acquire_gpu_reservation",
         lambda _gpus: pytest.fail("dry-run must not inspect GPUs"),
+        raising=False,
     )
     monkeypatch.setattr(
         sweep,
