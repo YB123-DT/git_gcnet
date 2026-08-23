@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
+import socket
 import subprocess
 import threading
 from pathlib import Path
@@ -470,11 +472,27 @@ def test_gpu_and_lane_validation_rejects_unsafe_configurations(tmp_path):
             )
 
 
-def test_occupied_gpu_is_refused_without_process_termination():
+def test_occupied_requested_gpu_falls_back_to_an_idle_non_gpu4(monkeypatch):
     sweep = _runner()
-    with mock.patch.object(sweep, "_gpu_memory_mb", side_effect=[100, 769]):
-        with pytest.raises(RuntimeError, match=r"1.*769"):
-            sweep.assert_gpus_available((0, 1))
+    monkeypatch.setattr(
+        sweep,
+        "_gpu_memory_snapshot",
+        lambda: {0: 100, 1: 900, 2: 200, 3: 300, 4: 0, 5: 769},
+    )
+
+    assert sweep.select_available_gpus((0, 1, 2)) == (0, 3, 2)
+
+
+def test_gpu_fallback_fails_when_too_few_idle_non_gpu4_devices(monkeypatch):
+    sweep = _runner()
+    monkeypatch.setattr(
+        sweep,
+        "_gpu_memory_snapshot",
+        lambda: {0: 900, 1: 900, 2: 100, 3: 900, 4: 0},
+    )
+
+    with pytest.raises(RuntimeError, match="insufficient idle GPUs"):
+        sweep.select_available_gpus((0, 1, 2))
 
 
 def test_atomic_job_claim_is_exclusive_and_reusable(tmp_path):
@@ -488,6 +506,48 @@ def test_atomic_job_claim_is_exclusive_and_reusable(tmp_path):
     second = sweep._acquire_claim(job)
     assert second is not None
     sweep._release_claim(second)
+
+
+def test_output_root_claim_is_process_locked_and_records_owner(tmp_path):
+    sweep = _runner()
+    output_root = tmp_path / "outputs"
+
+    first = sweep._acquire_output_root_claim(output_root)
+    payload = json.loads(first.path.read_text(encoding="utf-8"))
+
+    assert payload["pid"] == os.getpid()
+    assert payload["host"] == socket.gethostname()
+    assert payload["token"] == first.token
+    with pytest.raises(RuntimeError, match="already claimed"):
+        sweep._acquire_output_root_claim(output_root)
+
+    sweep._release_output_root_claim(first)
+    assert not first.path.exists()
+
+
+def test_unlocked_stale_output_root_claim_is_safely_recovered(tmp_path):
+    sweep = _runner()
+    output_root = tmp_path / "outputs"
+    output_root.mkdir()
+    claim_path = output_root / sweep.ROOT_CLAIM_FILE
+    claim_path.write_text(
+        json.dumps(
+            {
+                "host": socket.gethostname(),
+                "pid": 999_999_999,
+                "token": "stale-token",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    claim = sweep._acquire_output_root_claim(output_root)
+    payload = json.loads(claim_path.read_text(encoding="utf-8"))
+
+    assert payload["token"] == claim.token
+    assert payload["token"] != "stale-token"
+    sweep._release_output_root_claim(claim)
 
 
 def test_scheduler_success_uses_selected_dynamic_counts():
@@ -508,7 +568,9 @@ def test_scheduler_writes_dynamic_selected_counts(tmp_path, monkeypatch):
     sweep = _runner()
     output_root = tmp_path / "outputs"
     monkeypatch.setattr(sweep, "validate_baselines", lambda _jobs: [])
-    monkeypatch.setattr(sweep, "assert_gpus_available", lambda _gpus: None)
+    monkeypatch.setattr(
+        sweep, "select_available_gpus", lambda _gpus: (0, 3)
+    )
     monkeypatch.setattr(sweep, "_run_lane", lambda *_args: True)
     monkeypatch.setattr(sweep, "is_complete", lambda _job: True)
     monkeypatch.setattr(sweep, "audit_completed_pairs", lambda *_args: (4, 0))
@@ -539,6 +601,11 @@ def test_scheduler_writes_dynamic_selected_counts(tmp_path, monkeypatch):
     assert status["complete_jobs"] == status["total_jobs"] == 4
     assert status["paired_audits"] == status["expected_pair_audits"] == 4
     assert status["baseline_preflight_failures"] == []
+    tasks = json.loads(
+        (output_root / "task_manifest.json").read_text(encoding="utf-8")
+    )
+    assert {task["gpu"] for task in tasks} == {0, 3}
+    assert not (output_root / sweep.ROOT_CLAIM_FILE).exists()
 
 
 def test_scheduler_refuses_invalid_baseline_before_gpu_or_training(
@@ -549,7 +616,7 @@ def test_scheduler_refuses_invalid_baseline_before_gpu_or_training(
     monkeypatch.setattr(sweep, "validate_baselines", lambda jobs: [jobs[0].identity])
     monkeypatch.setattr(
         sweep,
-        "assert_gpus_available",
+        "select_available_gpus",
         lambda _gpus: pytest.fail("GPU checks must follow baseline preflight"),
     )
 
@@ -574,6 +641,74 @@ def test_scheduler_refuses_invalid_baseline_before_gpu_or_training(
     assert returncode == 1
     assert len(status["baseline_preflight_failures"]) == 1
     assert not any(path.name == "full_fused" for path in output_root.rglob("*"))
+    assert not (output_root / sweep.ROOT_CLAIM_FILE).exists()
+
+
+def test_concurrent_invocation_fails_without_mutating_root_evidence(
+    tmp_path, monkeypatch
+):
+    sweep = _runner()
+    output_root = tmp_path / "outputs"
+    first = sweep._acquire_output_root_claim(output_root)
+    task_path = output_root / "task_manifest.json"
+    task_path.write_text('{"owner":"first"}\n', encoding="utf-8")
+    before = _tree_bytes(output_root)
+    monkeypatch.setattr(
+        sweep,
+        "select_available_gpus",
+        lambda _gpus: pytest.fail("second invocation must stop at root claim"),
+    )
+
+    returncode = sweep.main(
+        [
+            "--output-root",
+            str(output_root),
+            "--baseline-root",
+            str(tmp_path / "baseline"),
+            "--gpus",
+            "0",
+            "--rates",
+            "0.4",
+            "--seeds",
+            "66",
+        ]
+    )
+
+    assert returncode == 1
+    assert _tree_bytes(output_root) == before
+    sweep._release_output_root_claim(first)
+
+
+def test_output_root_claim_remains_held_through_pair_audit(tmp_path, monkeypatch):
+    sweep = _runner()
+    output_root = tmp_path / "outputs"
+    monkeypatch.setattr(sweep, "validate_baselines", lambda _jobs: [])
+    monkeypatch.setattr(sweep, "select_available_gpus", lambda _gpus: (0,))
+    monkeypatch.setattr(sweep, "_run_lane", lambda *_args: True)
+    monkeypatch.setattr(sweep, "is_complete", lambda _job: True)
+
+    def audit_while_locked(jobs):
+        with pytest.raises(RuntimeError, match="already claimed"):
+            sweep._acquire_output_root_claim(output_root)
+        return len(jobs), 0
+
+    monkeypatch.setattr(sweep, "audit_completed_pairs", audit_while_locked)
+
+    assert sweep.main(
+        [
+            "--output-root",
+            str(output_root),
+            "--baseline-root",
+            str(tmp_path / "baseline"),
+            "--gpus",
+            "0",
+            "--rates",
+            "0.4",
+            "--seeds",
+            "66",
+        ]
+    ) == 0
+    assert not (output_root / sweep.ROOT_CLAIM_FILE).exists()
 
 
 def test_resume_preserves_valid_completed_job_evidence(tmp_path):
@@ -634,8 +769,14 @@ def test_dry_run_writes_only_one_ffr_task_per_pair_under_output_root(
     )
     monkeypatch.setattr(
         sweep,
-        "assert_gpus_available",
+        "select_available_gpus",
         lambda _gpus: pytest.fail("dry-run must not inspect GPUs"),
+    )
+    monkeypatch.setattr(
+        sweep,
+        "_acquire_output_root_claim",
+        lambda _root: pytest.fail("dry-run must not claim output root"),
+        raising=False,
     )
 
     returncode = sweep.main(
