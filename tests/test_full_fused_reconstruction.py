@@ -9,6 +9,11 @@ import torch
 from gcnet_modality_jepa import train_gcnet
 from gcnet_modality_jepa.loss import FullFusedReconLoss, MaskedReconLoss
 from gcnet_modality_jepa.protocol import SeedBundle
+from gcnet_modality_jepa.run_manifest import (
+    load_manifest,
+    validate_manifest,
+    write_manifest_atomic,
+)
 
 
 def test_full_fused_loss_reconstructs_all_modalities_when_only_audio_is_missing():
@@ -27,6 +32,37 @@ def test_full_fused_loss_reconstructs_all_modalities_when_only_audio_is_missing(
     )
 
     expected = torch.tensor((1.0 + 4.0 + (9.0 + 16.0) / 2.0) / 3.0)
+    assert torch.allclose(loss, expected)
+
+
+def test_full_fused_loss_balances_modalities_and_selected_utterances():
+    predicted = torch.tensor(
+        [
+            [[1.0, 2.0, 4.0, 3.0]],
+            [[3.0, 4.0, 6.0, 5.0]],
+        ]
+    )
+    target = torch.zeros_like(predicted)
+    availability = torch.tensor(
+        [
+            [[0.0, 1.0, 1.0]],
+            [[1.0, 1.0, 0.0]],
+        ]
+    )
+
+    loss = FullFusedReconLoss()(
+        [predicted],
+        [target],
+        [availability],
+        torch.ones(1, 2),
+        adim=1,
+        tdim=2,
+        vdim=1,
+    )
+
+    first_utterance = (1.0 + (4.0 + 16.0) / 2.0 + 9.0) / 3.0
+    second_utterance = (9.0 + (16.0 + 36.0) / 2.0 + 25.0) / 3.0
+    expected = torch.tensor((first_utterance + second_utterance) / 2.0)
     assert torch.allclose(loss, expected)
 
 
@@ -213,7 +249,7 @@ def test_fold_metrics_record_reconstruction_target_with_legacy_default():
     assert full_fused["reconstruction_target"] == "full_fused"
 
 
-def test_manifest_method_evidence_defaults_to_missing_for_legacy_args():
+def _build_manifest(reconstruction_target=None):
     split_hash = "d" * 64
 
     def metadata(split, indices):
@@ -234,7 +270,9 @@ def test_manifest_method_evidence_defaults_to_missing_for_legacy_args():
         jepa_weight=0.1,
         loss_recon=True,
     )
-    manifest = train_gcnet.build_fold_run_manifest(
+    if reconstruction_target is not None:
+        args.reconstruction_target = reconstruction_target
+    return train_gcnet.build_fold_run_manifest(
         args=args,
         fold=1,
         loader_metadata={
@@ -287,4 +325,29 @@ def test_manifest_method_evidence_defaults_to_missing_for_legacy_args():
         output_paths={"result_archive": "/out/result.npz", "archive_fold_index": 0},
     )
 
+
+
+def test_manifest_method_evidence_defaults_to_missing_for_legacy_args():
+    manifest = _build_manifest()
+
     assert manifest["method"]["reconstruction_target"] == "missing"
+
+
+def test_manifest_method_evidence_records_full_fused_target():
+    manifest = _build_manifest(reconstruction_target="full_fused")
+
+    assert manifest["method"]["reconstruction_target"] == "full_fused"
+
+
+def test_legacy_manifest_without_reconstruction_target_round_trips_as_missing(
+    tmp_path,
+):
+    manifest = _build_manifest(reconstruction_target="full_fused")
+    manifest["method"].pop("reconstruction_target")
+
+    validate_manifest(manifest)
+    path = tmp_path / "legacy-manifest.json"
+    write_manifest_atomic(path, manifest)
+    loaded = load_manifest(path)
+
+    assert loaded["method"].get("reconstruction_target", "missing") == "missing"
