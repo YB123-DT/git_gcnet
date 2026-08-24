@@ -2,9 +2,9 @@
 
 import argparse
 from dataclasses import dataclass
+import hashlib
 import json
 import os
-import platform
 from pathlib import Path
 import subprocess
 import time
@@ -367,12 +367,44 @@ def run_jobs(
         raise RuntimeError(f"failed jobs: {failures}")
 
 
-def _package_version(name: str) -> str | None:
+def _python_provenance(python: Path, command_output=subprocess.check_output) -> dict:
+    script = """
+import json
+import platform
+import sys
+
+def version(name):
     try:
         module = __import__(name)
     except ImportError:
         return None
-    return str(getattr(module, "__version__", "unknown"))
+    return str(getattr(module, '__version__', 'unknown'))
+
+try:
+    import torch
+    cuda = torch.version.cuda
+    cudnn = torch.backends.cudnn.version()
+except ImportError:
+    cuda = None
+    cudnn = None
+
+print(json.dumps({
+    'python': {'executable': sys.executable, 'version': platform.python_version()},
+    'versions': {
+        'torch': version('torch'),
+        'torch_geometric': version('torch_geometric'),
+        'cuda': cuda,
+        'cudnn': cudnn,
+    },
+}, sort_keys=True))
+"""
+    try:
+        raw = command_output([str(python), "-c", script], text=True)
+        provenance = json.loads(raw)
+    except (FileNotFoundError, subprocess.CalledProcessError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"failed to query requested Python interpreter: {python}") from error
+    provenance["python"]["requested"] = str(python)
+    return provenance
 
 
 def _ensure_run_manifest(
@@ -402,22 +434,11 @@ def _ensure_run_manifest(
         gpu_names = [line for line in gpu_text.splitlines() if line]
     except (FileNotFoundError, subprocess.CalledProcessError):
         gpu_names = []
-    torch_version = _package_version("torch")
-    try:
-        import torch
-        cuda_version = torch.version.cuda
-        cudnn_version = torch.backends.cudnn.version()
-    except ImportError:
-        cuda_version = cudnn_version = None
+    interpreter = _python_provenance(python, command_output)
     manifest = {
         "git": {"head": output(["git", "rev-parse", "HEAD"]), "clean": True},
-        "python": {"executable": str(python), "version": platform.python_version()},
-        "versions": {
-            "torch": torch_version,
-            "torch_geometric": _package_version("torch_geometric"),
-            "cuda": cuda_version,
-            "cudnn": cudnn_version,
-        },
+        "python": interpreter["python"],
+        "versions": interpreter["versions"],
         "gpu_names": gpu_names,
         "roots": {
             "repository": str(Path(repository).resolve()),
@@ -425,13 +446,8 @@ def _ensure_run_manifest(
             "mask_bank": str(Path(mask_bank_root).resolve()),
         },
         "stage": stage,
-        "arms": list(arms),
-        "rates": list(rates),
-        "seeds": list(seeds),
         "fold": 5,
         "locked_training": LOCKED_TRAINING,
-        "gpus": list(gpus),
-        "workers_per_gpu": workers_per_gpu,
         "environment": {
             "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
             "PYTHONHASHSEED": "0",
@@ -450,6 +466,38 @@ def _ensure_run_manifest(
             raise RuntimeError(f"run manifest mismatch: {path}") from error
         if existing != manifest:
             raise RuntimeError(f"run manifest mismatch: {path}")
+    invocation = {
+        "stage": stage,
+        "arms": list(arms),
+        "rates": list(rates),
+        "seeds": list(seeds),
+        "fold": 5,
+        "gpus": list(gpus),
+        "workers_per_gpu": workers_per_gpu,
+        "job_count": len(arms) * len(rates) * len(seeds),
+    }
+    canonical = json.dumps(
+        invocation, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    invocation_path = (
+        path.parent / "invocations" / f"{hashlib.sha256(canonical).hexdigest()}.json"
+    )
+    invocation_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with invocation_path.open("x", encoding="utf-8") as handle:
+            json.dump(invocation, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+    except FileExistsError:
+        try:
+            existing_invocation = json.loads(
+                invocation_path.read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError) as error:
+            raise RuntimeError(
+                f"invocation manifest mismatch: {invocation_path}"
+            ) from error
+        if existing_invocation != invocation:
+            raise RuntimeError(f"invocation manifest mismatch: {invocation_path}")
     return manifest
 
 

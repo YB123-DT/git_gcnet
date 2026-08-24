@@ -292,22 +292,39 @@ def _assert_exact(candidate: Any, original: Any, field: str) -> None:
         raise AssertionError(f"{field} mismatch: {candidate!r} != {original!r}")
 
 
-def assert_complete_archive_equal(candidate: Path, original: Path) -> None:
-    """Assert locked complete-data fields are recursively and exactly equal."""
-    candidate_path = _archive_path(candidate)
-    original_path = _archive_path(original)
+def _validated_complete_job(
+    path: Path, expected_variant: str, expected_parameter_count: int
+) -> Path:
+    path = Path(path)
+    if path.is_file():
+        raise ValueError(
+            f"complete archive must be supplied as a completed job directory, not a bare NPZ: {path}"
+        )
+    fold_directory = path.parent if path.name == "saved" else path
+    saved = fold_directory / "saved"
+    if not fold_directory.is_dir() or not saved.is_dir():
+        raise ValueError(f"complete archive path is not a job directory: {path}")
+    archive = _archive_path(saved)
+    metrics = archive_metrics(archive)
     _validate_provenance(
-        archive_metrics(candidate_path),
-        "cp_lecc",
+        metrics,
+        expected_variant,
         0.0,
         66,
-        PARAMETER_COUNTS["cp_lecc"],
+        expected_parameter_count,
     )
-    _validate_provenance(
-        archive_metrics(original_path),
+    _validate_job_artifacts(fold_directory, expected_variant, 0.0, 66)
+    return archive
+
+
+def assert_complete_archive_equal(candidate: Path, original: Path) -> None:
+    """Validate completed jobs, then compare locked complete-data fields."""
+    candidate_path = _validated_complete_job(
+        candidate, "cp_lecc", PARAMETER_COUNTS["cp_lecc"]
+    )
+    original_path = _validated_complete_job(
+        original,
         "original",
-        0.0,
-        66,
         PARAMETER_COUNTS["original"],
     )
     with np.load(candidate_path, allow_pickle=True) as left, np.load(
@@ -498,9 +515,7 @@ def main() -> None:
     parser.add_argument("--complete-candidate", type=Path, required=True, help=trusted)
     parser.add_argument("--output-json", type=Path, required=True)
     args = parser.parse_args()
-    complete_original = (
-        args.original_root / "miss_0p0" / "seed_66" / "fold_5" / "saved"
-    )
+    complete_original = args.original_root / "miss_0p0" / "seed_66" / "fold_5"
     assert_complete_archive_equal(args.complete_candidate, complete_original)
     evidence = paired_gate(
         _collect(args.candidate_root, "cp_lecc", PARAMETER_COUNTS["cp_lecc"]),

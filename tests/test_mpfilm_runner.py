@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -254,7 +256,15 @@ class RunnerResumeTests(unittest.TestCase):
 
 
 class RunManifestTests(unittest.TestCase):
-    def _manifest(self, root, head="abc", dirty=False):
+    def _manifest(
+        self,
+        root,
+        head="abc",
+        dirty=False,
+        rates=(0.5, 0.7),
+        seeds=(66, 67),
+        python=Path(sys.executable),
+    ):
         git_status = " M dirty.py\n" if dirty else ""
 
         def command(args, **kwargs):
@@ -264,6 +274,10 @@ class RunManifestTests(unittest.TestCase):
                 return git_status
             if args[0] == "nvidia-smi":
                 return "GPU A\n"
+            if args[0] == str(python):
+                python_kwargs = dict(kwargs)
+                python_kwargs.pop("cwd", None)
+                return subprocess.check_output(args, **python_kwargs)
             raise AssertionError(args)
 
         return _ensure_run_manifest(
@@ -273,11 +287,11 @@ class RunManifestTests(unittest.TestCase):
             data_root=Path("/data"),
             mask_bank_root=Path("/masks"),
             arms=("cp_lecc",),
-            rates=(0.5, 0.7),
-            seeds=(66, 67),
+            rates=rates,
+            seeds=seeds,
             gpus=("0",),
             workers_per_gpu=1,
-            python=Path("/env/python"),
+            python=python,
             command_output=command,
         )
 
@@ -304,6 +318,44 @@ class RunManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(RuntimeError, "clean git worktree"):
                 self._manifest(Path(tmp), dirty=True)
+
+    def test_complete_then_missing_invocations_share_one_immutable_run_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            shared = self._manifest(root, rates=(0.0,), seeds=(66,))
+            repeated = self._manifest(
+                root, rates=(0.5, 0.7), seeds=(66, 67, 68, 69, 70)
+            )
+
+            self.assertEqual(shared, repeated)
+            invocations = sorted((root / "formal" / "invocations").glob("*.json"))
+            self.assertEqual(len(invocations), 2)
+            grids = [json.loads(path.read_text()) for path in invocations]
+            self.assertEqual(
+                {tuple(grid["rates"]) for grid in grids},
+                {(0.0,), (0.5, 0.7)},
+            )
+
+    def test_python_provenance_comes_from_requested_existing_interpreter(self):
+        alternate = Path("/usr/bin/python3")
+        if not alternate.exists():
+            self.skipTest("/usr/bin/python3 is unavailable")
+        expected = json.loads(
+            subprocess.check_output(
+                [
+                    str(alternate),
+                    "-c",
+                    "import json,platform,sys; print(json.dumps({'executable':sys.executable,'version':platform.python_version()}))",
+                ],
+                text=True,
+            )
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._manifest(Path(tmp), python=alternate)
+
+        self.assertEqual(manifest["python"]["executable"], expected["executable"])
+        self.assertEqual(manifest["python"]["version"], expected["version"])
+        self.assertEqual(manifest["python"]["requested"], str(alternate))
 
 
 if __name__ == "__main__":

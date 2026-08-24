@@ -111,53 +111,56 @@ def _write_archive(
     )
 
 
+def _write_job(fold, variant, rate, seed, parameter_count=None, **archive_options):
+    options = {
+        "mask_sha": f"mask-{rate}-{seed}",
+        "parameter_count": parameter_count,
+    }
+    options.update(archive_options)
+    _write_archive(
+        fold / "saved" / "run.npz",
+        variant=variant,
+        seed=seed,
+        rate=rate,
+        **options,
+    )
+    job = Job("formal", variant, rate, seed, fold)
+    command = build_command(
+        job,
+        Path("/env/python"),
+        Path("/repo"),
+        Path("/data"),
+        Path("/masks"),
+    )
+    (fold / "command.json").write_text(
+        json.dumps(
+            {
+                "stage": "formal",
+                "arm": variant,
+                "missing_rate": rate,
+                "seed": seed,
+                "fold": 5,
+                "gpu": "0",
+                "command": command,
+            }
+        )
+    )
+    (fold / "status.json").write_text(
+        json.dumps({"status": "success", "return_code": 0})
+    )
+    (fold / "train.log").write_text(
+        "\n".join(
+            [f"epoch:{index}; train_fscore:0.0" for index in range(1, 101)]
+            + ["SMOKE_ONLY=False", "Finish fold 5", "save results in archive.npz"]
+        )
+    )
+
+
 def _write_grid(root, variant, parameter_count):
     for rate in (0.5, 0.7):
         for seed in range(66, 71):
-            fold = (
-                root
-                / f"miss_{str(rate).replace('.', 'p')}"
-                / f"seed_{seed}"
-                / "fold_5"
-            )
-            _write_archive(
-                fold / "saved" / "run.npz",
-                variant=variant,
-                seed=seed,
-                rate=rate,
-                mask_sha=f"mask-{rate}-{seed}",
-                parameter_count=parameter_count,
-            )
-            job = Job("formal", variant, rate, seed, fold)
-            command = build_command(
-                job,
-                Path("/env/python"),
-                Path("/repo"),
-                Path("/data"),
-                Path("/masks"),
-            )
-            (fold / "command.json").write_text(
-                json.dumps(
-                    {
-                        "stage": "formal",
-                        "arm": variant,
-                        "missing_rate": rate,
-                        "seed": seed,
-                        "fold": 5,
-                        "gpu": "0",
-                        "command": command,
-                    }
-                )
-            )
-            (fold / "status.json").write_text(
-                json.dumps({"status": "success", "return_code": 0})
-            )
-            (fold / "train.log").write_text(
-                "\n".join(
-                    [f"epoch:{index}; train_fscore:0.0" for index in range(1, 101)]
-                    + ["SMOKE_ONLY=False", "Finish fold 5", "save results in archive.npz"]
-                )
-            )
+            fold = root / f"miss_{str(rate).replace('.', 'p')}" / f"seed_{seed}" / "fold_5"
+            _write_job(fold, variant, rate, seed, parameter_count)
 
 
 def _rows(kind):
@@ -228,18 +231,27 @@ class ArchiveMetricsTests(unittest.TestCase):
 
     def test_complete_archive_equality_checks_all_locked_fields(self):
         with tempfile.TemporaryDirectory() as tmp:
-            first = Path(tmp) / "first.npz"
-            second = Path(tmp) / "second.npz"
-            _write_archive(first)
-            _write_archive(second, variant="original")
+            first = Path(tmp) / "candidate" / "fold_5"
+            second = Path(tmp) / "original" / "fold_5"
+            _write_job(first, "cp_lecc", 0.0, 66)
+            _write_job(second, "original", 0.0, 66)
             assert_complete_archive_equal(first, second)
+
+    def test_complete_archive_rejects_bare_npz_without_job_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            candidate = Path(tmp) / "candidate.npz"
+            original = Path(tmp) / "original" / "fold_5"
+            _write_archive(candidate)
+            _write_job(original, "original", 0.0, 66)
+            with self.assertRaisesRegex(ValueError, "job directory"):
+                assert_complete_archive_equal(candidate, original)
 
     def test_complete_archive_rejects_original_used_as_candidate(self):
         with tempfile.TemporaryDirectory() as tmp:
-            candidate = Path(tmp) / "candidate.npz"
-            original = Path(tmp) / "original.npz"
-            _write_archive(candidate, variant="original")
-            _write_archive(original, variant="original")
+            candidate = Path(tmp) / "candidate" / "fold_5"
+            original = Path(tmp) / "original" / "fold_5"
+            _write_job(candidate, "original", 0.0, 66)
+            _write_job(original, "original", 0.0, 66)
             with self.assertRaisesRegex(ValueError, "graph_conv_variant"):
                 assert_complete_archive_equal(candidate, original)
 
@@ -254,18 +266,19 @@ class ArchiveMetricsTests(unittest.TestCase):
             "mask sha": lambda kw: kw.update(mask_sha="different"),
         }
         with tempfile.TemporaryDirectory() as tmp:
-            baseline = Path(tmp) / "baseline.npz"
-            _write_archive(baseline, variant="original")
+            baseline = Path(tmp) / "baseline" / "fold_5"
+            _write_job(baseline, "original", 0.0, 66)
             for index, (message, mutate) in enumerate(mutations.items()):
                 kwargs = {}
                 mutate(kwargs)
-                changed = Path(tmp) / f"changed-{index}.npz"
-                _write_archive(changed, **kwargs)
+                changed = Path(tmp) / f"changed-{index}" / "fold_5"
+                _write_job(changed, "cp_lecc", 0.0, 66, **kwargs)
+                changed_archive = changed / "saved" / "run.npz"
                 if message == "best epoch":
-                    with np.load(changed, allow_pickle=True) as data:
+                    with np.load(changed_archive, allow_pickle=True) as data:
                         values = {key: data[key] for key in data.files}
                     values["folder_savewhole"][0][0] = 4
-                    np.savez_compressed(changed, **values)
+                    np.savez_compressed(changed_archive, **values)
                 with self.subTest(message=message):
                     with self.assertRaisesRegex(AssertionError, message):
                         assert_complete_archive_equal(changed, baseline)
@@ -387,16 +400,13 @@ class SummaryCliTests(unittest.TestCase):
             _write_grid(candidate_root, "cp_lecc", PARAMETER_COUNTS["cp_lecc"])
             _write_grid(original_root, "original", PARAMETER_COUNTS["original"])
             _write_grid(full_root, "full", PARAMETER_COUNTS["full"])
-            complete_candidate = root / "candidate-complete.npz"
-            _write_archive(complete_candidate, variant="cp_lecc")
-            _write_archive(
-                original_root
-                / "miss_0p0"
-                / "seed_66"
-                / "fold_5"
-                / "saved"
-                / "run.npz",
-                variant="original",
+            complete_candidate = root / "candidate-complete" / "fold_5"
+            _write_job(complete_candidate, "cp_lecc", 0.0, 66)
+            _write_job(
+                original_root / "miss_0p0" / "seed_66" / "fold_5",
+                "original",
+                0.0,
+                66,
             )
             output = root / "summary" / "gate.json"
 
