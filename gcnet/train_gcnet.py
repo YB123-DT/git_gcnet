@@ -24,6 +24,7 @@ from model import GraphModel
 from dataloader_iemocap import IEMOCAPDataset
 from dataloader_cmumosi import CMUMOSIDataset
 from loss import MaskedCELoss, MaskedMSELoss, MaskedReconLoss
+from mask_bank import batch_mask_from_bank, load_or_create_mask_bank
 
 def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_size, num_workers, seed):
 
@@ -200,7 +201,7 @@ def random_mask(view_num, input_len, missing_rate):
 
 
 def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader, 
-                        mask_rate=None, optimizer=None, train=False):
+                        mask_rate=None, mask_bank=None, optimizer=None, train=False):
     preds, masks, labels, vidnames = [], [], [], []
     savepreds, savelabels, savespeakers, savehiddens, savefmask = [], [], [], [], []
     losses, losses1, losses2 = [], [], []
@@ -230,7 +231,8 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         audio_host, text_host, visual_host = data[0], data[1], data[2]
         audio_guest, text_guest, visual_guest = data[3], data[4], data[5]
         qmask, umask, label = data[6], data[7], data[8]
-        vidnames += data[-1]
+        batch_vidnames = data[-1]
+        vidnames += batch_vidnames
         adim = audio_host.size(2)
         tdim = text_host.size(2)
         vdim = visual_host.size(2)
@@ -247,25 +249,18 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         """
         seqlen = audio_host.size(0)
         batch = audio_host.size(1)
-        ## host mask [!!use original audio_feature!!]
+        if mask_bank is None:
+            raise ValueError('fixed mask_bank is required')
+        selected_mask = batch_mask_from_bank(
+            mask_bank, batch_vidnames, max_length=seqlen
+        ).long()
+        audio_host_mask = selected_mask[:, :, 0:1]
+        text_host_mask = selected_mask[:, :, 1:2]
+        visual_host_mask = selected_mask[:, :, 2:3]
+        audio_guest_mask = audio_host_mask.clone()
+        text_guest_mask = text_host_mask.clone()
+        visual_guest_mask = visual_host_mask.clone()
         view_num = 3
-        matrix = random_mask(view_num, seqlen*batch, mask_rate) # [seqlen*batch, view_num]
-        audio_host_mask = np.reshape(matrix[:, 0], (seqlen, batch, 1)) 
-        text_host_mask = np.reshape(matrix[:, 1], (seqlen, batch, 1))
-        visual_host_mask = np.reshape(matrix[:, 2], (seqlen, batch, 1))
-        audio_host_mask = torch.LongTensor(audio_host_mask)
-        text_host_mask = torch.LongTensor(text_host_mask)
-        visual_host_mask = torch.LongTensor(visual_host_mask)
-
-        # guest mask
-        view_num = 3
-        matrix = random_mask(view_num, seqlen*batch, mask_rate) # [seqlen*batch, view_num]
-        audio_guest_mask = np.reshape(matrix[:, 0], (seqlen, batch, 1)) 
-        text_guest_mask = np.reshape(matrix[:, 1], (seqlen, batch, 1))
-        visual_guest_mask = np.reshape(matrix[:, 2], (seqlen, batch, 1))
-        audio_guest_mask = torch.LongTensor(audio_guest_mask)
-        text_guest_mask = torch.LongTensor(text_guest_mask)
-        visual_guest_mask = torch.LongTensor(visual_guest_mask)
         if view_num == 2: assert mask_rate <= 0.500001, f'Warning: at least one view exists'
         if view_num == 3: assert mask_rate <= 0.700001, f'Warning: at least one view exists'
 
@@ -449,6 +444,9 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=100, metavar='E', help='number of epochs')
     parser.add_argument('--num-folder', type=int, default=5, help='folders for cross-validation [defined by args.dataset]')
     parser.add_argument('--seed', type=int, default=100, help='make split manner is same with same seed')
+    parser.add_argument('--mask-seed', type=int, default=None, help='fixed mask-bank seed; defaults to --seed')
+    parser.add_argument('--mask-bank-root', type=str, default=None, help='directory for immutable mask banks')
+    parser.add_argument('--fold-index', type=int, choices=range(1, 6), default=None, help='run one IEMOCAP fold (1..5)')
     parser.add_argument('--mask-type', type=str, default='constant-0.1', help='mask rate [0~1] for input argumentation: constant-float; linear; convex; concave')
     parser.add_argument('--loss-recon', action='store_true', default=False, help='whether to use reconstrctuion loss')
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
@@ -488,6 +486,27 @@ if __name__ == '__main__':
                                                                               num_workers = 0,
                                                                               seed = args.seed)
     assert len(train_loaders) == args.num_folder, f'Error: folder number'
+    fold_numbers = list(range(1, len(train_loaders) + 1))
+    if args.fold_index is not None:
+        selected = args.fold_index - 1
+        train_loaders = [train_loaders[selected]]
+        val_loaders = [val_loaders[selected]]
+        test_loaders = [test_loaders[selected]]
+        fold_numbers = [args.fold_index]
+
+    mask_rate = float(args.mask_type.split('-')[-1])
+    mask_seed = args.seed if args.mask_seed is None else args.mask_seed
+    mask_bank_root = args.mask_bank_root
+    if mask_bank_root is None:
+        mask_bank_root = os.path.join(config.SAVED_ROOT, 'mask_banks')
+    dataset_object = train_loaders[0].dataset
+    mask_bank, mask_bank_manifest = load_or_create_mask_bank(
+        mask_bank_root,
+        dataset_object.videoIDs,
+        mask_rate,
+        mask_seed,
+    )
+    print(f'fixed mask bank: {mask_bank_manifest}')
 
     
     print (f'====== Training and Evaluation =======')
@@ -497,8 +516,8 @@ if __name__ == '__main__':
     folder_save = []      # save best epoch
     folder_losswhole = [] # save whole epoch
     folder_savewhole = [] # save whole epoch
-    for ii in range(args.num_folder):
-        print (f'>>>>> Cross-validation: training on the {ii+1} folder >>>>>')
+    for ii, fold_number in enumerate(fold_numbers):
+        print (f'>>>>> Cross-validation: training on the {fold_number} folder >>>>>')
         train_loader = train_loaders[ii]
         val_loader = val_loaders[ii]
         test_loader = test_loaders[ii]
@@ -526,11 +545,11 @@ if __name__ == '__main__':
            
             ## training, validation and testing
             train_acc, train_fscore, train_names, train_loss, trainsave = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, train_loader, \
-                                                                            mask_rate=mask_rate, optimizer=optimizer, train=True)
+                                                                            mask_rate=mask_rate, mask_bank=mask_bank, optimizer=optimizer, train=True)
             val_acc, val_fscore, val_names, val_loss, valsave = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, val_loader, \
-                                                                            mask_rate=mask_rate, optimizer=None, train=False)
+                                                                            mask_rate=mask_rate, mask_bank=mask_bank, optimizer=None, train=False)
             test_acc, test_fscore, test_names, test_loss, testsave = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, test_loader, \
-                                                                            mask_rate=mask_rate, optimizer=None, train=False)
+                                                                            mask_rate=mask_rate, mask_bank=mask_bank, optimizer=None, train=False)
 
             ## save
             val_fscores.append(val_fscore)
@@ -555,7 +574,7 @@ if __name__ == '__main__':
         assert args.epochs >= 60, f'epoch number should large then 60'
         folder_savewhole.append([best_index, all_labels[10], all_labels[20], all_labels[50], all_labels[best_index]])
         end_time = time.time()
-        print (f'>>>>> Finish: training on the {ii+1} folder, duration: {end_time - start_time} >>>>>')
+        print (f'>>>>> Finish: training on the {fold_number} folder, duration: {end_time - start_time} >>>>>')
 
 
     print (f'====== Saving =======')
