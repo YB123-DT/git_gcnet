@@ -18,6 +18,7 @@ ARM_TO_GRAPH_VARIANT = {
     "linearized_film": "full",
     "faithful_edgewise_film": "faithful_edgewise",
     "parameter_matched": "content_film_control",
+    "cp_lecc": "cp_lecc",
 }
 GATE_RATES = (0.0, 0.7)
 FORMAL_RATES = tuple(index / 10 for index in range(8))

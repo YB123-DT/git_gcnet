@@ -54,6 +54,50 @@ class LockedRunnerTests(unittest.TestCase):
         variant_index = command.index("--graph-conv-variant") + 1
         self.assertEqual(command[variant_index], "content_film_control")
 
+    def test_cp_lecc_label_maps_to_cp_lecc_graph_variant(self):
+        job = build_jobs(
+            "formal",
+            Path("/tmp/results"),
+            arms=("cp_lecc",),
+            rates=(0.5,),
+            seeds=(66,),
+        )[0]
+        command = build_command(
+            job,
+            python=Path("/env/bin/python"),
+            repository=Path("/repo"),
+            data_root=Path("/data/IEMOCAP"),
+            mask_bank_root=Path("/tmp/banks"),
+        )
+
+        self.assertEqual(
+            command[command.index("--graph-conv-variant") + 1], "cp_lecc"
+        )
+
+    def test_cp_lecc_gate_grid_has_complete_and_ten_paired_jobs(self):
+        complete = build_jobs(
+            "formal",
+            Path("/tmp/results"),
+            arms=("cp_lecc",),
+            rates=(0.0,),
+            seeds=(66,),
+        )
+        paired = build_jobs(
+            "formal",
+            Path("/tmp/results"),
+            arms=("cp_lecc",),
+            rates=(0.5, 0.7),
+            seeds=(66, 67, 68, 69, 70),
+        )
+
+        jobs = complete + paired
+        self.assertEqual(len(jobs), 11)
+        self.assertEqual(
+            [(job.missing_rate, job.seed) for job in jobs],
+            [(0.0, 66)]
+            + [(rate, seed) for rate in (0.5, 0.7) for seed in range(66, 71)],
+        )
+
     def test_film_ab_labels_map_to_the_only_changed_operation(self):
         jobs = build_jobs(
             "formal",

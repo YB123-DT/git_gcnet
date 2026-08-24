@@ -1,0 +1,217 @@
+import copy
+import tempfile
+import unittest
+from pathlib import Path
+
+import numpy as np
+
+from experiments.cp_lecc_iemocap6.summarize_gate import (
+    archive_metrics,
+    assert_complete_archive_equal,
+    paired_gate,
+)
+
+
+def _snapshot(labels=None, predicted=None, hidden_shift=0):
+    labels = np.asarray(labels if labels is not None else [0, 1, 2, 3, 4, 5])
+    predicted = np.asarray(predicted if predicted is not None else labels)
+    logits = np.full((len(labels), 6), -2.0)
+    logits[np.arange(len(labels)), predicted] = 2.0
+    return {
+        "test_labels": [labels[:3], labels[3:]],
+        "test_preds": [logits[:3], logits[3:]],
+        "test_hiddens": [np.arange(6) + hidden_shift],
+        "test_fmask": [np.ones((2, 3), dtype=np.int64)],
+        "test_names": ["ignored"],
+    }
+
+
+def _write_archive(path, snapshot=None, mask_sha="same-mask", loss_value=1.0):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot = _snapshot() if snapshot is None else snapshot
+    np.savez_compressed(
+        path,
+        folder_savewhole=np.array([[3, _snapshot(), snapshot]], dtype=object),
+        folder_losswhole=np.array([[{"train_loss": np.array([loss_value])}]], dtype=object),
+        mask_bank_manifest=np.array({"sha256": mask_sha}, dtype=object),
+        parameter_count=np.array(1234),
+    )
+
+
+def _rows(kind):
+    rows = []
+    for rate in (0.5, 0.7):
+        for seed in range(66, 71):
+            if kind == "candidate":
+                f1 = 0.706 if rate == 0.5 else 0.716
+            elif kind == "original":
+                f1 = 0.700 if rate == 0.5 else 0.710
+            else:
+                f1 = 0.705 if rate == 0.5 else 0.715
+            rows.append(
+                {
+                    "rate": rate,
+                    "seed": seed,
+                    "weighted_f1": f1,
+                    "accuracy": f1 - 0.01,
+                    "class_coverage": 6,
+                    "dominant_ratio": 0.25,
+                    "manifest_hash": f"mask-{rate}-{seed}",
+                }
+            )
+    return rows
+
+
+class ArchiveMetricsTests(unittest.TestCase):
+    def test_loads_single_archive_from_path_or_saved_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            saved = Path(tmp) / "saved"
+            archive = saved / "run.npz"
+            _write_archive(archive)
+
+            by_file = archive_metrics(archive)
+            by_directory = archive_metrics(saved)
+
+        self.assertEqual(by_file, by_directory)
+        self.assertEqual(by_file["weighted_f1"], 1.0)
+        self.assertEqual(by_file["accuracy"], 1.0)
+        self.assertEqual(by_file["class_coverage"], 6)
+        self.assertAlmostEqual(by_file["dominant_ratio"], 1 / 6)
+        self.assertEqual(by_file["manifest_hash"], "same-mask")
+        self.assertEqual(by_file["parameter_count"], 1234)
+        self.assertEqual(by_file["epoch"], 3)
+
+    def test_rejects_directory_without_exactly_one_archive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            saved = Path(tmp)
+            with self.assertRaisesRegex(ValueError, "exactly one"):
+                archive_metrics(saved)
+            _write_archive(saved / "one.npz")
+            _write_archive(saved / "two.npz")
+            with self.assertRaisesRegex(ValueError, "exactly one"):
+                archive_metrics(saved)
+
+    def test_complete_archive_equality_checks_all_locked_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            first = Path(tmp) / "first.npz"
+            second = Path(tmp) / "second.npz"
+            _write_archive(first)
+            _write_archive(second)
+            assert_complete_archive_equal(first, second)
+
+    def test_complete_archive_reports_each_mismatch_family(self):
+        mutations = {
+            "best epoch": lambda kw: kw.update(snapshot=_snapshot()),
+            "folder_losswhole": lambda kw: kw.update(loss_value=2.0),
+            "test_labels": lambda kw: kw.update(snapshot=_snapshot(labels=[1, 1, 2, 3, 4, 5])),
+            "test_preds": lambda kw: kw.update(snapshot=_snapshot(predicted=[1, 1, 2, 3, 4, 5])),
+            "test_hiddens": lambda kw: kw.update(snapshot=_snapshot(hidden_shift=1)),
+            "test_fmask": lambda kw: kw.update(snapshot={**_snapshot(), "test_fmask": [np.zeros((2, 3), dtype=np.int64)]}),
+            "mask sha": lambda kw: kw.update(mask_sha="different"),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            baseline = Path(tmp) / "baseline.npz"
+            _write_archive(baseline)
+            for index, (message, mutate) in enumerate(mutations.items()):
+                kwargs = {}
+                mutate(kwargs)
+                changed = Path(tmp) / f"changed-{index}.npz"
+                _write_archive(changed, **kwargs)
+                if message == "best epoch":
+                    with np.load(changed, allow_pickle=True) as data:
+                        values = {key: data[key] for key in data.files}
+                    values["folder_savewhole"][0][0] = 4
+                    np.savez_compressed(changed, **values)
+                with self.subTest(message=message):
+                    with self.assertRaisesRegex(AssertionError, message):
+                        assert_complete_archive_equal(changed, baseline)
+
+
+class PairedGateTests(unittest.TestCase):
+    def setUp(self):
+        self.candidate = _rows("candidate")
+        self.original = _rows("original")
+        self.full = _rows("full")
+
+    def test_passing_fixture_returns_complete_evidence(self):
+        evidence = paired_gate(self.candidate, self.original, self.full)
+
+        self.assertTrue(evidence["promote"])
+        self.assertEqual(len(evidence["task_rows"]), 10)
+        self.assertEqual(set(evidence["rate_means"]), {"0.5", "0.7"})
+        self.assertEqual(set(evidence["seed_deltas"]), {str(seed) for seed in range(66, 71)})
+        self.assertEqual(evidence["wins"], 5)
+        self.assertEqual(len(evidence["coverage_dominant"]), 10)
+        self.assertTrue(all(evidence["conditions"].values()))
+
+    def _assert_rejects_condition(self, condition, candidate=None, original=None, full=None):
+        evidence = paired_gate(
+            self.candidate if candidate is None else candidate,
+            self.original if original is None else original,
+            self.full if full is None else full,
+        )
+        self.assertFalse(evidence["promote"])
+        self.assertFalse(evidence["conditions"][condition])
+
+    def test_each_numeric_condition_can_fail_independently(self):
+        cases = {}
+        candidate = copy.deepcopy(self.candidate)
+        for row in candidate:
+            if row["rate"] == 0.5:
+                row["weighted_f1"] = self.original[self.candidate.index(row)]["weighted_f1"] - 0.001
+        cases["rate_0.5_nonnegative_vs_original"] = candidate
+
+        candidate = copy.deepcopy(self.candidate)
+        for row in candidate:
+            if row["rate"] == 0.7:
+                row["weighted_f1"] = 0.709
+        cases["rate_0.7_nonnegative_vs_original"] = candidate
+
+        candidate = copy.deepcopy(self.candidate)
+        for row in candidate:
+            row["weighted_f1"] = next(x["weighted_f1"] for x in self.original if x["rate"] == row["rate"] and x["seed"] == row["seed"]) + 0.0049
+        cases["seed_mean_delta_original_at_least_0.005"] = candidate
+
+        candidate = copy.deepcopy(self.candidate)
+        for row in candidate:
+            if row["seed"] in (66, 67):
+                baseline = next(x for x in self.original if x["rate"] == row["rate"] and x["seed"] == row["seed"])
+                row["weighted_f1"] = baseline["weighted_f1"] - 0.001
+        cases["at_least_four_positive_seed_deltas"] = candidate
+
+        candidate = copy.deepcopy(self.candidate)
+        for row in candidate:
+            row["weighted_f1"] = next(x["weighted_f1"] for x in self.full if x["rate"] == row["rate"] and x["seed"] == row["seed"])
+        cases["candidate_seed_mean_strictly_greater_full"] = candidate
+
+        candidate = copy.deepcopy(self.candidate)
+        candidate[0]["class_coverage"] = 5
+        cases["all_candidate_coverage_six"] = candidate
+
+        for condition, candidate in cases.items():
+            with self.subTest(condition=condition):
+                self._assert_rejects_condition(condition, candidate=candidate)
+
+    def test_mask_mismatch_is_a_failed_condition(self):
+        candidate = copy.deepcopy(self.candidate)
+        candidate[0]["manifest_hash"] = "wrong"
+        self._assert_rejects_condition("all_pair_mask_hashes_match", candidate=candidate)
+
+    def test_missing_or_duplicate_keys_raise(self):
+        with self.assertRaisesRegex(ValueError, "missing"):
+            paired_gate(self.candidate[:-1], self.original, self.full)
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            paired_gate(self.candidate + [self.candidate[0]], self.original, self.full)
+
+    def test_raw_precision_controls_threshold_not_rounded_display(self):
+        candidate = copy.deepcopy(self.candidate)
+        for row in candidate:
+            original = next(x for x in self.original if x["rate"] == row["rate"] and x["seed"] == row["seed"])
+            row["weighted_f1"] = original["weighted_f1"] + 0.0049999
+        self._assert_rejects_condition(
+            "seed_mean_delta_original_at_least_0.005", candidate=candidate
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
