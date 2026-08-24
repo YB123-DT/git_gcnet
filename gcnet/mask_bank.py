@@ -10,6 +10,7 @@ import torch
 
 
 GENERATOR_VERSION = "gcnet-random-mask-v1-fixed-bank"
+STAGE_GENERATOR_VERSION = "gcnet-random-mask-v2-stage-aware"
 
 
 def _legacy_random_mask(
@@ -90,10 +91,176 @@ def mask_bank_sha256(bank: Mapping[str, np.ndarray]) -> str:
     return digest.hexdigest()
 
 
+def _derived_stage_seed(seed: int, stage: str, epoch: int = -1) -> int:
+    payload = f"{int(seed)}\0{stage}\0{int(epoch)}".encode("utf-8")
+    return int.from_bytes(hashlib.sha256(payload).digest()[:4], "little")
+
+
+def build_stage_mask_bundle(
+    video_ids: Mapping[str, Sequence[str]],
+    missing_rate: float,
+    seed: int,
+    epochs: int,
+) -> dict:
+    """Build epoch-varying train masks and fixed evaluation masks."""
+
+    if epochs < 1:
+        raise ValueError("epochs must be positive")
+    train = tuple(
+        build_mask_bank(
+            video_ids,
+            missing_rate,
+            _derived_stage_seed(seed, "train", epoch),
+        )
+        for epoch in range(epochs)
+    )
+    return {
+        "train": train,
+        "validation": build_mask_bank(
+            video_ids,
+            missing_rate,
+            _derived_stage_seed(seed, "validation"),
+        ),
+        "test": build_mask_bank(
+            video_ids,
+            missing_rate,
+            _derived_stage_seed(seed, "test"),
+        ),
+    }
+
+
+def select_stage_mask(bundle: Mapping[str, object], stage: str, epoch=None):
+    """Select one bank without relying on mutable call order."""
+
+    if stage == "train":
+        if epoch is None:
+            raise ValueError("train stage requires an epoch")
+        train = bundle["train"]
+        if not 0 <= int(epoch) < len(train):
+            raise ValueError("train epoch is outside the mask bundle")
+        return train[int(epoch)]
+    if stage not in ("validation", "test"):
+        raise ValueError(f"unknown mask stage: {stage}")
+    if epoch is not None:
+        raise ValueError(f"{stage} stage does not accept an epoch")
+    return bundle[stage]
+
+
+def stage_mask_bundle_sha256(bundle: Mapping[str, object]) -> str:
+    digest = hashlib.sha256()
+    for epoch, bank in enumerate(bundle["train"]):
+        digest.update(f"train\0{epoch}\0".encode("utf-8"))
+        digest.update(mask_bank_sha256(bank).encode("ascii"))
+    for stage in ("validation", "test"):
+        digest.update(f"{stage}\0".encode("utf-8"))
+        digest.update(mask_bank_sha256(bundle[stage]).encode("ascii"))
+    return digest.hexdigest()
+
+
 def _bank_paths(root: Path, missing_rate: float, seed: int) -> Tuple[Path, Path]:
     rate_tag = f"{missing_rate:.1f}".replace(".", "p")
     stem = f"mask_rate_{rate_tag}_seed_{int(seed)}"
     return root / f"{stem}.npz", root / f"{stem}.json"
+
+
+def _stage_bundle_paths(
+    root: Path, missing_rate: float, seed: int, epochs: int
+) -> Tuple[Path, Path]:
+    rate_tag = f"{missing_rate:.1f}".replace(".", "p")
+    stem = f"mask_stage_v2_rate_{rate_tag}_seed_{int(seed)}_epochs_{int(epochs)}"
+    return root / f"{stem}.npz", root / f"{stem}.json"
+
+
+def _flatten_stage_bundle(bundle: Mapping[str, object]) -> Dict[str, np.ndarray]:
+    arrays = {}
+    for epoch, bank in enumerate(bundle["train"]):
+        for vid, array in bank.items():
+            arrays[f"train_{epoch:03d}__{vid}"] = np.asarray(array, dtype=np.uint8)
+    for stage in ("validation", "test"):
+        for vid, array in bundle[stage].items():
+            arrays[f"{stage}__{vid}"] = np.asarray(array, dtype=np.uint8)
+    return arrays
+
+
+def _unflatten_stage_bundle(arrays: Mapping[str, np.ndarray], epochs: int) -> dict:
+    train = [dict() for _ in range(epochs)]
+    validation, test = {}, {}
+    for name, array in arrays.items():
+        if name.startswith("train_"):
+            prefix, vid = name.split("__", 1)
+            epoch = int(prefix[len("train_") :])
+            if not 0 <= epoch < epochs:
+                raise ValueError("saved train mask epoch is outside the manifest")
+            train[epoch][vid] = np.asarray(array, dtype=np.uint8)
+        elif name.startswith("validation__"):
+            validation[name.split("__", 1)[1]] = np.asarray(array, dtype=np.uint8)
+        elif name.startswith("test__"):
+            test[name.split("__", 1)[1]] = np.asarray(array, dtype=np.uint8)
+        else:
+            raise ValueError(f"unknown saved stage mask key: {name}")
+    return {"train": tuple(train), "validation": validation, "test": test}
+
+
+def load_or_create_stage_mask_bundle(
+    root: Path,
+    video_ids: Mapping[str, Sequence[str]],
+    missing_rate: float,
+    seed: int,
+    epochs: int,
+) -> Tuple[dict, dict]:
+    """Persist and verify a stage-aware bundle shared by model arms."""
+
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=True)
+    bank_path, manifest_path = _stage_bundle_paths(
+        root, missing_rate, seed, epochs
+    )
+    expected_lengths = {
+        str(vid): len(video_ids[vid]) for vid in sorted(video_ids)
+    }
+    if bank_path.exists() != manifest_path.exists():
+        raise RuntimeError(
+            "stage mask bundle and manifest must either both exist or both be absent"
+        )
+    if bank_path.exists():
+        with np.load(bank_path, allow_pickle=False) as archive:
+            arrays = {name: archive[name].astype(np.uint8) for name in archive.files}
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("generator") != STAGE_GENERATOR_VERSION:
+            raise ValueError("saved stage mask bundle uses another generator")
+        if manifest.get("epochs") != int(epochs):
+            raise ValueError("saved stage mask bundle has another epoch count")
+        if manifest.get("video_lengths") != expected_lengths:
+            raise ValueError("saved stage mask bundle does not match the dataset")
+        bundle = _unflatten_stage_bundle(arrays, epochs)
+        if manifest.get("sha256") != stage_mask_bundle_sha256(bundle):
+            raise ValueError("saved stage mask bundle hash mismatch")
+        return bundle, manifest
+
+    bundle = build_stage_mask_bundle(video_ids, missing_rate, seed, epochs)
+    all_banks = list(bundle["train"]) + [bundle["validation"], bundle["test"]]
+    rows = np.concatenate(
+        [np.concatenate(list(bank.values()), axis=0) for bank in all_banks],
+        axis=0,
+    )
+    manifest = {
+        "generator": STAGE_GENERATOR_VERSION,
+        "requested_missing_rate": float(missing_rate),
+        "realized_missing_rate": 1.0 - float(rows.mean()) if rows.size else 0.0,
+        "seed": int(seed),
+        "epochs": int(epochs),
+        "video_lengths": expected_lengths,
+        "train_sha256": [mask_bank_sha256(bank) for bank in bundle["train"]],
+        "validation_sha256": mask_bank_sha256(bundle["validation"]),
+        "test_sha256": mask_bank_sha256(bundle["test"]),
+        "sha256": stage_mask_bundle_sha256(bundle),
+    }
+    with bank_path.open("wb") as handle:
+        np.savez_compressed(handle, **_flatten_stage_bundle(bundle))
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return bundle, manifest
 
 
 def load_or_create_mask_bank(
