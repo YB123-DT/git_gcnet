@@ -44,7 +44,7 @@ def edge_perms(l, window_past, window_future):
         for item in eff_array:
             perms.add((j, item))
         all_perms = all_perms.union(perms)
-    return list(all_perms)
+    return sorted(all_perms)
 
 
 
@@ -71,13 +71,10 @@ def batch_graphify(features, qmask, lengths, n_speakers, window_past, window_fut
     
     ## only for single relation graph
     assert graph_type in ['temporal', 'speaker'] 
-    merge_types = set()
     if graph_type == 'temporal':
-        for ii in range(len(order_types)):
-            merge_types.add(f'{order_types[ii]}')
+        merge_types = order_types
     elif graph_type == 'speaker':
-        for ii in range(len(speaker_types)):
-            merge_types.add(f'{speaker_types[ii]}')
+        merge_types = speaker_types
     
     edge_type_mapping = {}
     for ii, item in enumerate(merge_types):

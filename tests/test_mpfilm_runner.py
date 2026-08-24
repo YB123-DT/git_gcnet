@@ -26,6 +26,7 @@ class LockedRunnerTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn('CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"', source)
+        self.assertIn('PYTHONHASHSEED"] = "0"', source)
 
     def test_command_locks_fold_and_omits_smoke_flag(self):
         job = build_jobs("gate", Path("/tmp/results"))[0]
