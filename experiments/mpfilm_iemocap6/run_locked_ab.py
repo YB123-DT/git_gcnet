@@ -88,6 +88,8 @@ def build_command(
         "0.5",
         "--batch-size",
         "32",
+        "--num-threads",
+        "6",
         "--epochs",
         "100",
         "--seed",

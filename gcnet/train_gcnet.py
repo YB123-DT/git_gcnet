@@ -457,6 +457,7 @@ if __name__ == '__main__':
     parser.add_argument('--l2', type=float, default=0.00001, metavar='L2', help='L2 regularization weight')
     parser.add_argument('--dropout', type=float, default=0.5, metavar='dropout', help='dropout rate')
     parser.add_argument('--batch-size', type=int, default=32, metavar='BS', help='batch size')
+    parser.add_argument('--num-threads', type=int, default=6, help='intra-op CPU threads per training process')
     parser.add_argument('--epochs', type=int, default=100, metavar='E', help='number of epochs')
     parser.add_argument('--num-folder', type=int, default=5, help='folders for cross-validation [defined by args.dataset]')
     parser.add_argument('--seed', type=int, default=100, help='make split manner is same with same seed')
@@ -470,6 +471,9 @@ if __name__ == '__main__':
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
     args = parser.parse_args()
+    if args.num_threads < 1:
+        raise ValueError('num_threads must be positive')
+    torch.set_num_threads(args.num_threads)
     seed_everything(args.seed)
 
     if args.dataset in ['CMUMOSI', 'CMUMOSEI']:

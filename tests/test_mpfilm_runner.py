@@ -34,6 +34,7 @@ class LockedRunnerTests(unittest.TestCase):
         self.assertIn("--fold-index 5", joined)
         self.assertIn("--epochs 100", joined)
         self.assertIn("--hidden 200", joined)
+        self.assertIn("--num-threads 6", joined)
         self.assertNotIn("--allow-short-run", command)
 
 
