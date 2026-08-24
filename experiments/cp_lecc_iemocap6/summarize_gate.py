@@ -1,4 +1,9 @@
-"""Summarize and gate the locked CP-LECC IEMOCAP-6 experiment."""
+"""Summarize and gate locked CP-LECC IEMOCAP-6 experiments.
+
+Security note: these helpers use ``numpy.load(..., allow_pickle=True)`` because
+the training archives contain Python objects. Load only locally generated,
+trusted experiment archives; arbitrary NPZ files are not a safe input format.
+"""
 
 import argparse
 import json
@@ -14,6 +19,11 @@ from sklearn.metrics import accuracy_score, f1_score
 RATES = (0.5, 0.7)
 SEEDS = (66, 67, 68, 69, 70)
 EXPECTED_KEYS = {(rate, seed) for rate in RATES for seed in SEEDS}
+PARAMETER_COUNTS = {
+    "cp_lecc": 34200838,
+    "original": 34140166,
+    "full": 34712766,
+}
 
 
 def _archive_path(path: Path) -> Path:
@@ -65,7 +75,7 @@ def _concatenate(value: Any) -> np.ndarray:
 
 
 def archive_metrics(path: Path) -> Dict[str, Any]:
-    """Load the selected snapshot metrics from one saved experiment archive."""
+    """Load one trusted, locally generated experiment archive."""
     archive = _archive_path(path)
     with np.load(archive, allow_pickle=True) as data:
         epoch, snapshot = _selected_snapshot(data)
@@ -77,8 +87,21 @@ def archive_metrics(path: Path) -> Dict[str, Any]:
                 f"label/prediction shape mismatch: {labels.shape} != {predictions.shape}"
             )
         counts = np.unique(predictions, return_counts=True)[1]
-        manifest_hash = str(_manifest(data)["sha256"])
+        manifest = _manifest(data)
+        manifest_hash = str(manifest["sha256"])
         parameter_count = int(_scalar(data["parameter_count"]))
+        args = _scalar(data["args"])
+        fold_numbers = [int(value) for value in np.asarray(data["fold_numbers"]).flat]
+        graph_conv_variant = str(getattr(args, "graph_conv_variant"))
+        seed = int(getattr(args, "seed"))
+        stored_mask_seed = getattr(args, "mask_seed", None)
+        mask_seed = seed if stored_mask_seed is None else int(stored_mask_seed)
+        mask_type = str(getattr(args, "mask_type"))
+        stored_fold_index = getattr(args, "fold_index", None)
+        fold_index = None if stored_fold_index is None else int(stored_fold_index)
+        requested_missing_rate = float(manifest["requested_missing_rate"])
+        manifest_seed = int(manifest["seed"])
+        smoke_only = bool(_scalar(data["smoke_only"]))
     return {
         "weighted_f1": float(f1_score(labels, predictions, average="weighted")),
         "accuracy": float(accuracy_score(labels, predictions)),
@@ -88,7 +111,53 @@ def archive_metrics(path: Path) -> Dict[str, Any]:
         "mask_sha256": manifest_hash,
         "parameter_count": parameter_count,
         "epoch": epoch,
+        "graph_conv_variant": graph_conv_variant,
+        "seed": seed,
+        "mask_seed": mask_seed,
+        "mask_type": mask_type,
+        "fold_index": fold_index,
+        "fold_numbers": fold_numbers,
+        "requested_missing_rate": requested_missing_rate,
+        "manifest_seed": manifest_seed,
+        "smoke_only": smoke_only,
     }
+
+
+def _validate_provenance(
+    metrics: Mapping[str, Any],
+    expected_variant: str,
+    expected_rate: float,
+    expected_seed: int,
+    expected_parameter_count: int,
+) -> None:
+    expected = {
+        "graph_conv_variant": expected_variant,
+        "seed": expected_seed,
+        "mask_seed": expected_seed,
+        "fold_index": 5,
+        "fold_numbers": [5],
+        "smoke_only": False,
+        "parameter_count": expected_parameter_count,
+        "manifest_seed": expected_seed,
+    }
+    for field, value in expected.items():
+        if metrics[field] != value:
+            label = "manifest seed" if field == "manifest_seed" else field
+            raise ValueError(
+                f"archive provenance {label} mismatch: "
+                f"{metrics[field]!r} != {value!r}"
+            )
+    expected_mask_type = f"constant-{expected_rate:.1f}"
+    if metrics["mask_type"] != expected_mask_type:
+        raise ValueError(
+            "archive provenance mask_type mismatch: "
+            f"{metrics['mask_type']!r} != {expected_mask_type!r}"
+        )
+    if metrics["requested_missing_rate"] != expected_rate:
+        raise ValueError(
+            "archive provenance requested_missing_rate mismatch: "
+            f"{metrics['requested_missing_rate']!r} != {expected_rate!r}"
+        )
 
 
 def _assert_exact(candidate: Any, original: Any, field: str) -> None:
@@ -133,6 +202,20 @@ def assert_complete_archive_equal(candidate: Path, original: Path) -> None:
     """Assert locked complete-data fields are recursively and exactly equal."""
     candidate_path = _archive_path(candidate)
     original_path = _archive_path(original)
+    _validate_provenance(
+        archive_metrics(candidate_path),
+        "cp_lecc",
+        0.0,
+        66,
+        PARAMETER_COUNTS["cp_lecc"],
+    )
+    _validate_provenance(
+        archive_metrics(original_path),
+        "original",
+        0.0,
+        66,
+        PARAMETER_COUNTS["original"],
+    )
     with np.load(candidate_path, allow_pickle=True) as left, np.load(
         original_path, allow_pickle=True
     ) as right:
@@ -272,11 +355,14 @@ def _rate_tag(rate: float) -> str:
     return f"{rate:.1f}".replace(".", "p")
 
 
-def _collect(root: Path) -> list:
+def _collect(root: Path, expected_variant: str, expected_parameter_count: int) -> list:
     rows = []
     for rate, seed in sorted(EXPECTED_KEYS):
         saved = root / f"miss_{_rate_tag(rate)}" / f"seed_{seed}" / "fold_5" / "saved"
         row = archive_metrics(saved)
+        _validate_provenance(
+            row, expected_variant, rate, seed, expected_parameter_count
+        )
         row.update(rate=rate, seed=seed)
         rows.append(row)
     return rows
@@ -301,11 +387,18 @@ def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--candidate-root", type=Path, required=True)
-    parser.add_argument("--original-root", type=Path, required=True)
-    parser.add_argument("--full-root", type=Path, required=True)
-    parser.add_argument("--complete-candidate", type=Path, required=True)
+    parser = argparse.ArgumentParser(
+        description="Gate trusted, locally generated CP-LECC experiment archives.",
+        epilog=(
+            "Security: archives are loaded with allow_pickle=True. Never pass "
+            "downloaded or otherwise untrusted NPZ files."
+        ),
+    )
+    trusted = "path containing only trusted, locally generated NPZ archives"
+    parser.add_argument("--candidate-root", type=Path, required=True, help=trusted)
+    parser.add_argument("--original-root", type=Path, required=True, help=trusted)
+    parser.add_argument("--full-root", type=Path, required=True, help=trusted)
+    parser.add_argument("--complete-candidate", type=Path, required=True, help=trusted)
     parser.add_argument("--output-json", type=Path, required=True)
     args = parser.parse_args()
     complete_original = (
@@ -313,9 +406,9 @@ def main() -> None:
     )
     assert_complete_archive_equal(args.complete_candidate, complete_original)
     evidence = paired_gate(
-        _collect(args.candidate_root),
-        _collect(args.original_root),
-        _collect(args.full_root),
+        _collect(args.candidate_root, "cp_lecc", PARAMETER_COUNTS["cp_lecc"]),
+        _collect(args.original_root, "original", PARAMETER_COUNTS["original"]),
+        _collect(args.full_root, "full", PARAMETER_COUNTS["full"]),
     )
     _write_json_atomic(args.output_json, evidence)
     print("PROMOTE" if evidence["promote"] else "REJECT")

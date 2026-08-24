@@ -1,4 +1,9 @@
+from argparse import Namespace
 import copy
+import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,6 +13,7 @@ import numpy as np
 from experiments.cp_lecc_iemocap6.summarize_gate import (
     archive_metrics,
     assert_complete_archive_equal,
+    _collect,
     paired_gate,
 )
 
@@ -26,16 +32,79 @@ def _snapshot(labels=None, predicted=None, hidden_shift=0):
     }
 
 
-def _write_archive(path, snapshot=None, mask_sha="same-mask", loss_value=1.0):
+PARAMETER_COUNTS = {
+    "cp_lecc": 34200838,
+    "original": 34140166,
+    "full": 34712766,
+}
+
+
+def _write_archive(
+    path,
+    snapshot=None,
+    mask_sha="same-mask",
+    loss_value=1.0,
+    variant="cp_lecc",
+    seed=66,
+    mask_seed=None,
+    rate=0.0,
+    manifest_rate=None,
+    manifest_seed=None,
+    fold_index=5,
+    fold_numbers=(5,),
+    smoke_only=False,
+    parameter_count=None,
+):
     path.parent.mkdir(parents=True, exist_ok=True)
     snapshot = _snapshot() if snapshot is None else snapshot
+    mask_seed = seed if mask_seed is None else mask_seed
+    manifest_rate = rate if manifest_rate is None else manifest_rate
+    manifest_seed = mask_seed if manifest_seed is None else manifest_seed
+    parameter_count = (
+        PARAMETER_COUNTS[variant] if parameter_count is None else parameter_count
+    )
+    args = Namespace(
+        graph_conv_variant=variant,
+        seed=seed,
+        mask_seed=mask_seed,
+        mask_type=f"constant-{rate:.1f}",
+        fold_index=fold_index,
+    )
     np.savez_compressed(
         path,
+        args=np.array(args, dtype=object),
+        fold_numbers=np.asarray(fold_numbers),
         folder_savewhole=np.array([[3, _snapshot(), snapshot]], dtype=object),
         folder_losswhole=np.array([[{"train_loss": np.array([loss_value])}]], dtype=object),
-        mask_bank_manifest=np.array({"sha256": mask_sha}, dtype=object),
-        parameter_count=np.array(1234),
+        mask_bank_manifest=np.array(
+            {
+                "sha256": mask_sha,
+                "requested_missing_rate": manifest_rate,
+                "seed": manifest_seed,
+            },
+            dtype=object,
+        ),
+        smoke_only=np.array(smoke_only),
+        parameter_count=np.array(parameter_count),
     )
+
+
+def _write_grid(root, variant, parameter_count):
+    for rate in (0.5, 0.7):
+        for seed in range(66, 71):
+            _write_archive(
+                root
+                / f"miss_{str(rate).replace('.', 'p')}"
+                / f"seed_{seed}"
+                / "fold_5"
+                / "saved"
+                / "run.npz",
+                variant=variant,
+                seed=seed,
+                rate=rate,
+                mask_sha=f"mask-{rate}-{seed}",
+                parameter_count=parameter_count,
+            )
 
 
 def _rows(kind):
@@ -80,8 +149,19 @@ class ArchiveMetricsTests(unittest.TestCase):
         self.assertEqual(by_file["class_coverage"], 6)
         self.assertAlmostEqual(by_file["dominant_ratio"], 1 / 6)
         self.assertEqual(by_file["manifest_hash"], "same-mask")
-        self.assertEqual(by_file["parameter_count"], 1234)
+        self.assertEqual(by_file["parameter_count"], PARAMETER_COUNTS["cp_lecc"])
         self.assertEqual(by_file["epoch"], 3)
+        self.assertEqual(by_file["graph_conv_variant"], "cp_lecc")
+        self.assertEqual(by_file["seed"], 66)
+        self.assertEqual(by_file["mask_seed"], 66)
+        self.assertEqual(by_file["mask_type"], "constant-0.0")
+        self.assertEqual(by_file["fold_index"], 5)
+        self.assertEqual(by_file["fold_numbers"], [5])
+        self.assertEqual(by_file["requested_missing_rate"], 0.0)
+        self.assertEqual(by_file["manifest_seed"], 66)
+        self.assertIs(by_file["smoke_only"], False)
+        for value in by_file.values():
+            self.assertNotIsInstance(value, np.generic)
 
     def test_rejects_directory_without_exactly_one_archive(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -98,8 +178,17 @@ class ArchiveMetricsTests(unittest.TestCase):
             first = Path(tmp) / "first.npz"
             second = Path(tmp) / "second.npz"
             _write_archive(first)
-            _write_archive(second)
+            _write_archive(second, variant="original")
             assert_complete_archive_equal(first, second)
+
+    def test_complete_archive_rejects_original_used_as_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            candidate = Path(tmp) / "candidate.npz"
+            original = Path(tmp) / "original.npz"
+            _write_archive(candidate, variant="original")
+            _write_archive(original, variant="original")
+            with self.assertRaisesRegex(ValueError, "graph_conv_variant"):
+                assert_complete_archive_equal(candidate, original)
 
     def test_complete_archive_reports_each_mismatch_family(self):
         mutations = {
@@ -113,7 +202,7 @@ class ArchiveMetricsTests(unittest.TestCase):
         }
         with tempfile.TemporaryDirectory() as tmp:
             baseline = Path(tmp) / "baseline.npz"
-            _write_archive(baseline)
+            _write_archive(baseline, variant="original")
             for index, (message, mutate) in enumerate(mutations.items()):
                 kwargs = {}
                 mutate(kwargs)
@@ -127,6 +216,115 @@ class ArchiveMetricsTests(unittest.TestCase):
                 with self.subTest(message=message):
                     with self.assertRaisesRegex(AssertionError, message):
                         assert_complete_archive_equal(changed, baseline)
+
+    def test_real_original_archive_uses_supported_schema_when_available(self):
+        configured = os.environ.get("CP_LECC_REAL_ORIGINAL_ARCHIVE")
+        if not configured or not Path(configured).exists():
+            self.skipTest("CP_LECC_REAL_ORIGINAL_ARCHIVE is absent")
+        metrics = archive_metrics(Path(configured))
+        self.assertEqual(metrics["graph_conv_variant"], "original")
+        self.assertIn("requested_missing_rate", metrics)
+        self.assertIn("fold_numbers", metrics)
+
+
+class ArchiveProvenanceTests(unittest.TestCase):
+    def _assert_mutation_rejected(self, message, **mutation):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_grid(root, "cp_lecc", PARAMETER_COUNTS["cp_lecc"])
+            target = root / "miss_0p5" / "seed_66" / "fold_5" / "saved" / "run.npz"
+            arguments = {
+                "variant": "cp_lecc",
+                "seed": 66,
+                "rate": 0.5,
+                "parameter_count": PARAMETER_COUNTS["cp_lecc"],
+            }
+            arguments.update(mutation)
+            _write_archive(target, **arguments)
+            with self.assertRaisesRegex(ValueError, message):
+                _collect(root, "cp_lecc", PARAMETER_COUNTS["cp_lecc"])
+
+    def test_rejects_wrong_arm(self):
+        self._assert_mutation_rejected(
+            "graph_conv_variant", variant="original", parameter_count=PARAMETER_COUNTS["cp_lecc"]
+        )
+
+    def test_rejects_wrong_stored_seed(self):
+        self._assert_mutation_rejected("seed", seed=67)
+
+    def test_rejects_wrong_mask_type_rate(self):
+        self._assert_mutation_rejected("mask_type", rate=0.7, manifest_rate=0.5)
+
+    def test_rejects_wrong_manifest_rate(self):
+        self._assert_mutation_rejected("requested_missing_rate", manifest_rate=0.7)
+
+    def test_rejects_wrong_fold_index(self):
+        self._assert_mutation_rejected("fold_index", fold_index=4)
+
+    def test_rejects_wrong_fold_numbers(self):
+        self._assert_mutation_rejected("fold_numbers", fold_numbers=(4,))
+
+    def test_rejects_smoke_archive(self):
+        self._assert_mutation_rejected("smoke_only", smoke_only=True)
+
+    def test_rejects_wrong_parameter_count(self):
+        self._assert_mutation_rejected("parameter_count", parameter_count=1)
+
+    def test_rejects_wrong_mask_seed(self):
+        self._assert_mutation_rejected("mask_seed", mask_seed=67, manifest_seed=66)
+
+    def test_rejects_wrong_manifest_seed(self):
+        self._assert_mutation_rejected("manifest seed", manifest_seed=67)
+
+
+class SummaryCliTests(unittest.TestCase):
+    def test_reject_decision_writes_atomic_json_and_exits_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            candidate_root = root / "candidate"
+            original_root = root / "original"
+            full_root = root / "full"
+            _write_grid(candidate_root, "cp_lecc", PARAMETER_COUNTS["cp_lecc"])
+            _write_grid(original_root, "original", PARAMETER_COUNTS["original"])
+            _write_grid(full_root, "full", PARAMETER_COUNTS["full"])
+            complete_candidate = root / "candidate-complete.npz"
+            _write_archive(complete_candidate, variant="cp_lecc")
+            _write_archive(
+                original_root
+                / "miss_0p0"
+                / "seed_66"
+                / "fold_5"
+                / "saved"
+                / "run.npz",
+                variant="original",
+            )
+            output = root / "summary" / "gate.json"
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "experiments.cp_lecc_iemocap6.summarize_gate",
+                    "--candidate-root",
+                    str(candidate_root),
+                    "--original-root",
+                    str(original_root),
+                    "--full-root",
+                    str(full_root),
+                    "--complete-candidate",
+                    str(complete_candidate),
+                    "--output-json",
+                    str(output),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "REJECT")
+            self.assertFalse(json.loads(output.read_text())["promote"])
+            self.assertEqual(list(output.parent.iterdir()), [output])
 
 
 class PairedGateTests(unittest.TestCase):
