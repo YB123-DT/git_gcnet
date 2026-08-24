@@ -11,6 +11,12 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 
 
 ARMS = ("original", "full")
+ARM_TO_GRAPH_VARIANT = {
+    "original": "original",
+    "pattern_only": "pattern_only",
+    "full": "full",
+    "parameter_matched": "content_film_control",
+}
 GATE_RATES = (0.0, 0.7)
 FORMAL_RATES = tuple(index / 10 for index in range(8))
 GATE_SEEDS = (66, 67)
@@ -30,15 +36,27 @@ def _rate_tag(rate: float) -> str:
     return f"{rate:.1f}".replace(".", "p")
 
 
-def build_jobs(stage: str, output_root: Path) -> List[Job]:
+def build_jobs(
+    stage: str,
+    output_root: Path,
+    arms: Sequence[str] = ARMS,
+    rates: Sequence[float] | None = None,
+    seeds: Sequence[int] | None = None,
+) -> List[Job]:
     if stage == "gate":
-        rates, seeds = GATE_RATES, GATE_SEEDS
+        default_rates, default_seeds = GATE_RATES, GATE_SEEDS
     elif stage == "formal":
-        rates, seeds = FORMAL_RATES, FORMAL_SEEDS
+        default_rates, default_seeds = FORMAL_RATES, FORMAL_SEEDS
     else:
         raise ValueError(f"unknown stage: {stage!r}")
+    rates = tuple(default_rates if rates is None else rates)
+    seeds = tuple(default_seeds if seeds is None else seeds)
+    arms = tuple(arms)
+    unknown_arms = set(arms) - set(ARM_TO_GRAPH_VARIANT)
+    if unknown_arms:
+        raise ValueError(f"unknown arms: {sorted(unknown_arms)!r}")
     jobs = []
-    for arm in ARMS:
+    for arm in arms:
         for rate in rates:
             for seed in seeds:
                 output = (
@@ -101,7 +119,7 @@ def build_command(
         "--fold-index",
         "5",
         "--graph-conv-variant",
-        job.arm,
+        ARM_TO_GRAPH_VARIANT[job.arm],
         "--mask-bank-root",
         str(mask_bank_root),
         "--output-dir",
@@ -230,14 +248,28 @@ def main() -> None:
     )
     parser.add_argument("--gpus", nargs="+", default=("0", "1", "2", "3"))
     parser.add_argument("--workers-per-gpu", type=int, default=3)
+    parser.add_argument(
+        "--arms",
+        nargs="+",
+        choices=tuple(ARM_TO_GRAPH_VARIANT),
+        default=ARMS,
+    )
+    parser.add_argument("--rates", nargs="+", type=float)
+    parser.add_argument("--seeds", nargs="+", type=int)
     args = parser.parse_args()
     if args.workers_per_gpu < 1:
         raise ValueError("workers-per-gpu must be positive")
     repository = Path(__file__).resolve().parents[2]
-    jobs = build_jobs(args.stage, args.output_root)
-    # Create every bank with Original before Full reads it; this also prevents
-    # concurrent first-writer races without changing the model comparison.
-    for arm in ARMS:
+    jobs = build_jobs(
+        args.stage,
+        args.output_root,
+        arms=args.arms,
+        rates=args.rates,
+        seeds=args.seeds,
+    )
+    # Run arms sequentially so every comparison uses the same immutable banks
+    # without oversubscribing the requested per-GPU worker limit.
+    for arm in args.arms:
         run_jobs(
             (job for job in jobs if job.arm == arm),
             tuple(args.gpus),

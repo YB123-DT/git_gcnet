@@ -20,6 +20,40 @@ class LockedRunnerTests(unittest.TestCase):
         self.assertEqual(len(jobs), 80)
         self.assertEqual(len(keys), 80)
 
+    def test_custom_ablation_grid_preserves_requested_labels(self):
+        jobs = build_jobs(
+            "formal",
+            Path("/tmp/results"),
+            arms=("pattern_only", "parameter_matched"),
+            rates=(0.3, 0.5, 0.7),
+            seeds=(66, 67, 68, 69, 70),
+        )
+
+        self.assertEqual(len(jobs), 30)
+        self.assertEqual(
+            {job.arm for job in jobs},
+            {"pattern_only", "parameter_matched"},
+        )
+
+    def test_parameter_matched_label_maps_to_content_control(self):
+        job = build_jobs(
+            "formal",
+            Path("/tmp/results"),
+            arms=("parameter_matched",),
+            rates=(0.5,),
+            seeds=(66,),
+        )[0]
+        command = build_command(
+            job,
+            python=Path("/env/bin/python"),
+            repository=Path("/repo"),
+            data_root=Path("/data/IEMOCAP"),
+            mask_bank_root=Path("/tmp/banks"),
+        )
+
+        variant_index = command.index("--graph-conv-variant") + 1
+        self.assertEqual(command[variant_index], "content_film_control")
+
     def test_child_environment_requires_deterministic_cublas(self):
         source = Path(
             "experiments/mpfilm_iemocap6/run_locked_ab.py"
