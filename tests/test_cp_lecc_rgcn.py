@@ -110,10 +110,10 @@ class CompletePreservingLowRankECCTests(unittest.TestCase):
         )
 
     def test_locked_extra_parameter_counts(self):
-        temporal = CompletePreservingLowRankECCConv(300, 300, 3)
-        speaker = CompletePreservingLowRankECCConv(300, 300, 4)
-        temporal_base = RGCNConv(300, 300, 3)
-        speaker_base = RGCNConv(300, 300, 4)
+        temporal = CompletePreservingLowRankECCConv(400, 100, 3)
+        speaker = CompletePreservingLowRankECCConv(400, 100, 4)
+        temporal_base = RGCNConv(400, 100, 3)
+        speaker_base = RGCNConv(400, 100, 4)
 
         temporal_extra = sum(p.numel() for p in temporal.parameters()) - sum(
             p.numel() for p in temporal_base.parameters()
@@ -139,8 +139,15 @@ class CompletePreservingLowRankECCTests(unittest.TestCase):
             basis_rank=2,
         )
         _copy_base(reference, candidate)
-        with torch.no_grad():
-            candidate.generator_hidden_bias.fill_(1.0)
+        self.assertEqual(
+            torch.count_nonzero(candidate.generator_hidden_bias).item(), 0
+        )
+        self.assertEqual(
+            torch.count_nonzero(candidate.generator_output_weight).item(), 0
+        )
+        self.assertEqual(
+            torch.count_nonzero(candidate.generator_output_bias).item(), 0
+        )
         x = torch.tensor([[1.0, 2.0], [3.0, -1.0], [2.0, 1.0]])
         edge_index = torch.tensor([[0, 1], [2, 2]])
         edge_type = torch.zeros(2, dtype=torch.long)
@@ -269,6 +276,37 @@ class CompletePreservingLowRankECCTests(unittest.TestCase):
 
         self.assertNotEqual(low[2, 0].item(), high[2, 0].item())
 
+    def test_fixed_edge_uses_target_content(self):
+        layer = CompletePreservingLowRankECCConv(
+            2,
+            1,
+            1,
+            content_dim=1,
+            relation_dim=1,
+            generator_hidden=1,
+            num_bases=1,
+            basis_rank=1,
+        )
+        _zero_layer(layer)
+        with torch.no_grad():
+            layer.target_content.copy_(torch.tensor([[0.0], [1.0]]))
+            layer.source_content.copy_(torch.tensor([[1.0], [0.0]]))
+            layer.generator_hidden_weight[19, 0] = 1.0
+            layer.generator_output_weight.fill_(1.0)
+            layer.basis_left[0, 0, 0] = 1.0
+            layer.basis_right.fill_(1.0)
+        masks = torch.tensor([[1, 0, 0], [1, 0, 0]])
+        edge_index = torch.tensor([[0], [1]])
+        edge_type = torch.zeros(1, dtype=torch.long)
+        x_low = torch.tensor([[1.0, 0.0], [1.0, 1.0]])
+        x_high = x_low.clone()
+        x_high[1, 1] = 4.0
+
+        low = layer(x_low, edge_index, edge_type, masks)
+        high = layer(x_high, edge_index, edge_type, masks)
+
+        self.assertNotEqual(low[1, 0].item(), high[1, 0].item())
+
     def test_rejects_invalid_inputs(self):
         layer = CompletePreservingLowRankECCConv(2, 2, 2)
         x = torch.ones(3, 2)
@@ -295,6 +333,33 @@ class CompletePreservingLowRankECCTests(unittest.TestCase):
             ):
                 with self.assertRaises(ValueError):
                     layer(bad_x, bad_edges, bad_relations, bad_mask)
+
+    def test_rejects_non_long_graph_indices(self):
+        layer = CompletePreservingLowRankECCConv(2, 2, 2)
+        x = torch.ones(3, 2)
+        edges = torch.tensor([[0, 1], [1, 2]])
+        relations = torch.tensor([0, 1])
+        mask = torch.ones(3, 3)
+
+        with self.assertRaises(ValueError):
+            layer(x, edges.to(torch.float32), relations, mask)
+        with self.assertRaises(ValueError):
+            layer(x, edges, relations.to(torch.float32), mask)
+
+    def test_rejects_invalid_masks_through_convolution_forward(self):
+        layer = CompletePreservingLowRankECCConv(2, 2, 2)
+        x = torch.ones(3, 2)
+        edges = torch.tensor([[0, 1], [1, 2]])
+        relations = torch.tensor([0, 1])
+        invalid_masks = (
+            torch.tensor([[0, 0, 0], [1, 1, 1], [1, 1, 1]]),
+            torch.tensor([[0.5, 1, 0], [1, 1, 1], [1, 1, 1]]),
+        )
+
+        for mask in invalid_masks:
+            with self.subTest(mask=mask.tolist()):
+                with self.assertRaises(ValueError):
+                    layer(x, edges, relations, mask)
 
     def _assert_finite_forward_backward(self, device):
         torch.manual_seed(37)
