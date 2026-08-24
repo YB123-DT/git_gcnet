@@ -3,6 +3,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import torch
@@ -11,6 +12,27 @@ from train_gcnet import seed_everything
 
 
 class TrainingProtocolTests(unittest.TestCase):
+    def test_seed_supports_torch_without_warn_only_keyword(self):
+        calls = []
+
+        def old_torch_api(enabled, *args, **kwargs):
+            calls.append((enabled, args, kwargs))
+            if kwargs:
+                raise TypeError("unexpected keyword argument 'warn_only'")
+
+        with mock.patch.object(
+            torch, "use_deterministic_algorithms", side_effect=old_torch_api
+        ):
+            seed_everything(66)
+
+        self.assertEqual(
+            calls,
+            [
+                (True, (), {"warn_only": False}),
+                (True, (), {}),
+            ],
+        )
+
     def test_cli_accepts_cp_lecc_graph_convolution_variant(self):
         project_root = Path(__file__).resolve().parents[1]
         completed = subprocess.run(
