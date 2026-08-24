@@ -20,6 +20,13 @@ class LockedRunnerTests(unittest.TestCase):
         self.assertEqual(len(jobs), 80)
         self.assertEqual(len(keys), 80)
 
+    def test_child_environment_requires_deterministic_cublas(self):
+        source = Path(
+            "experiments/mpfilm_iemocap6/run_locked_ab.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"', source)
+
     def test_command_locks_fold_and_omits_smoke_flag(self):
         job = build_jobs("gate", Path("/tmp/results"))[0]
         command = build_command(

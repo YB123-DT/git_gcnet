@@ -18,6 +18,23 @@ class TrainingProtocolTests(unittest.TestCase):
         self.assertEqual(first[1], second[1])
         torch.testing.assert_close(first[2], second[2], rtol=0, atol=0)
 
+    def test_seed_enables_strict_torch_determinism(self):
+        enabled = torch.are_deterministic_algorithms_enabled()
+        warn_only = torch.is_deterministic_algorithms_warn_only_enabled()
+        cudnn_deterministic = torch.backends.cudnn.deterministic
+        cudnn_benchmark = torch.backends.cudnn.benchmark
+        try:
+            seed_everything(66)
+
+            self.assertTrue(torch.are_deterministic_algorithms_enabled())
+            self.assertFalse(torch.is_deterministic_algorithms_warn_only_enabled())
+            self.assertTrue(torch.backends.cudnn.deterministic)
+            self.assertFalse(torch.backends.cudnn.benchmark)
+        finally:
+            torch.use_deterministic_algorithms(enabled, warn_only=warn_only)
+            torch.backends.cudnn.deterministic = cudnn_deterministic
+            torch.backends.cudnn.benchmark = cudnn_benchmark
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -156,6 +156,7 @@ def _launch(
         (str(repository), str(Path(repository) / "gcnet"))
     )
     environment["GCNET_CACHE_ROOT"] = str(mask_bank_root.parent / "dataset_cache")
+    environment["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     process = subprocess.Popen(
         command,
         cwd=repository,
