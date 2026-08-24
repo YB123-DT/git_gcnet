@@ -54,6 +54,27 @@ class LockedRunnerTests(unittest.TestCase):
         variant_index = command.index("--graph-conv-variant") + 1
         self.assertEqual(command[variant_index], "content_film_control")
 
+    def test_film_ab_labels_map_to_the_only_changed_operation(self):
+        jobs = build_jobs(
+            "formal",
+            Path("/tmp/results"),
+            arms=("linearized_film", "faithful_edgewise_film"),
+            rates=(0.5,),
+            seeds=(66,),
+        )
+        variants = []
+        for job in jobs:
+            command = build_command(
+                job,
+                python=Path("/env/bin/python"),
+                repository=Path("/repo"),
+                data_root=Path("/data/IEMOCAP"),
+                mask_bank_root=Path("/tmp/banks"),
+            )
+            variants.append(command[command.index("--graph-conv-variant") + 1])
+
+        self.assertEqual(variants, ["full", "faithful_edgewise"])
+
     def test_child_environment_requires_deterministic_cublas(self):
         source = Path(
             "experiments/mpfilm_iemocap6/run_locked_ab.py"

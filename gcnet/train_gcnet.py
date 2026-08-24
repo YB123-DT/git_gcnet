@@ -447,7 +447,13 @@ if __name__ == '__main__':
     parser.add_argument('--n_speakers', type=int, default=2, help='number of speakers [defined by args.dataset]')
     parser.add_argument(
         '--graph-conv-variant',
-        choices=['original', 'pattern_only', 'full', 'content_film_control'],
+        choices=[
+            'original',
+            'pattern_only',
+            'full',
+            'faithful_edgewise',
+            'content_film_control',
+        ],
         default='original',
         help='first relation-aware graph propagation variant',
     )

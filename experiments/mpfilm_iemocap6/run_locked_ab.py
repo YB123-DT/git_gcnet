@@ -15,6 +15,8 @@ ARM_TO_GRAPH_VARIANT = {
     "original": "original",
     "pattern_only": "pattern_only",
     "full": "full",
+    "linearized_film": "full",
+    "faithful_edgewise_film": "faithful_edgewise",
     "parameter_matched": "content_film_control",
 }
 GATE_RATES = (0.0, 0.7)

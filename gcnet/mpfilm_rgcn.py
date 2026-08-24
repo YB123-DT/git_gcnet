@@ -73,7 +73,12 @@ def flatten_valid_node_masks(
 class MissingPatternFiLMRGCNConv(RGCNConv):
     """RGCN mean propagation with residual missing-pattern FiLM messages."""
 
-    VARIANTS = ("full", "pattern_only", "content_film_control")
+    VARIANTS = (
+        "full",
+        "faithful_edgewise",
+        "pattern_only",
+        "content_film_control",
+    )
 
     def __init__(
         self,
@@ -162,6 +167,10 @@ class MissingPatternFiLMRGCNConv(RGCNConv):
                 (1.0 + active * delta_gamma[target]) * source_message
                 + active * delta_beta[target]
             )
+            if self.variant == "faithful_edgewise":
+                message = torch.where(
+                    active.bool(), torch.relu(message), message
+                )
             output = output + scatter(
                 message,
                 target,

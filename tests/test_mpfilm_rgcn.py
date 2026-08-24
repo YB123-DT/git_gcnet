@@ -79,14 +79,14 @@ class PatternEncodingTests(unittest.TestCase):
 
 
 class MPFiLMConvolutionTests(unittest.TestCase):
-    def _assert_complete_parity(self, device):
+    def _assert_complete_parity(self, device, variant="full"):
         torch.manual_seed(17)
         x_ref = torch.randn(4, 5, device=device, requires_grad=True)
         x_new = x_ref.detach().clone().requires_grad_(True)
         edge_index, edge_type = _graph(device)
         node_mask = torch.ones(4, 3, device=device)
         reference = RGCNConv(5, 3, 3).to(device)
-        candidate = MissingPatternFiLMRGCNConv(5, 3, 3, variant="full").to(
+        candidate = MissingPatternFiLMRGCNConv(5, 3, 3, variant=variant).to(
             device
         )
         _copy_rgcn_parameters(reference, candidate)
@@ -121,6 +121,11 @@ class MPFiLMConvolutionTests(unittest.TestCase):
 
     def test_complete_forward_and_backward_match_pyg_rgcn_on_cpu(self):
         self._assert_complete_parity(torch.device("cpu"))
+
+    def test_faithful_edgewise_complete_forward_matches_pyg_rgcn(self):
+        self._assert_complete_parity(
+            torch.device("cpu"), variant="faithful_edgewise"
+        )
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA unavailable")
     def test_complete_forward_and_backward_match_pyg_rgcn_on_gpu(self):
@@ -187,6 +192,41 @@ class MPFiLMConvolutionTests(unittest.TestCase):
             (x[0] + layer.bias, x[0] @ layer.weight[1] + x[1] + layer.bias)
         )
         torch.testing.assert_close(output, expected)
+
+    def test_faithful_activation_is_applied_per_edge_before_mean(self):
+        linearized = MissingPatternFiLMRGCNConv(1, 1, 1, variant="full")
+        faithful = MissingPatternFiLMRGCNConv(
+            1, 1, 1, variant="faithful_edgewise"
+        )
+        faithful.load_state_dict(linearized.state_dict())
+        with torch.no_grad():
+            for layer in (linearized, faithful):
+                layer.weight.fill_(1.0)
+                layer.root.zero_()
+                layer.bias.zero_()
+                layer.pattern_weight.zero_()
+                layer.film_weight.zero_()
+        x = torch.tensor([[-2.0], [1.0], [0.0]])
+        edge_index = torch.tensor([[0, 1], [2, 2]])
+        edge_type = torch.zeros(2, dtype=torch.long)
+        node_mask = torch.tensor([[1, 0, 0]] * 3)
+
+        linearized_output = linearized(x, edge_index, edge_type, node_mask)
+        faithful_output = faithful(x, edge_index, edge_type, node_mask)
+
+        torch.testing.assert_close(linearized_output[2], torch.tensor([-0.5]))
+        torch.testing.assert_close(faithful_output[2], torch.tensor([0.5]))
+
+    def test_faithful_and_linearized_have_identical_parameter_count(self):
+        linearized = MissingPatternFiLMRGCNConv(5, 3, 3, variant="full")
+        faithful = MissingPatternFiLMRGCNConv(
+            5, 3, 3, variant="faithful_edgewise"
+        )
+
+        self.assertEqual(
+            sum(parameter.numel() for parameter in linearized.parameters()),
+            sum(parameter.numel() for parameter in faithful.parameters()),
+        )
 
     def test_variant_parameter_counts_are_reportable(self):
         full = MissingPatternFiLMRGCNConv(5, 3, 3, variant="full")

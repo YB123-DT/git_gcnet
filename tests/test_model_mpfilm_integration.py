@@ -44,6 +44,16 @@ class GraphModelMPFiLMIntegrationTests(unittest.TestCase):
         self.assertEqual(model.graph_net_temporal.conv1.num_relations, 3)
         self.assertEqual(model.graph_net_speaker.conv1.num_relations, 4)
 
+    def test_faithful_edgewise_replaces_both_first_layers(self):
+        model = self._model("faithful_edgewise")
+
+        self.assertEqual(
+            model.graph_net_temporal.conv1.variant, "faithful_edgewise"
+        )
+        self.assertEqual(
+            model.graph_net_speaker.conv1.variant, "faithful_edgewise"
+        )
+
     def test_forward_accepts_selected_modality_mask(self):
         torch.manual_seed(3)
         model = self._model("full")
