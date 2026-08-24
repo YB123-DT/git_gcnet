@@ -165,6 +165,20 @@ def _indexed(rows: Iterable[Mapping[str, Any]], name: str) -> Dict[Tuple[float, 
     return result
 
 
+def _audit_row(row: Mapping[str, Any]) -> Dict[str, Any]:
+    return {
+        "rate": float(row["rate"]),
+        "seed": int(row["seed"]),
+        "weighted_f1": float(row["weighted_f1"]),
+        "accuracy": float(row["accuracy"]),
+        "class_coverage": int(row["class_coverage"]),
+        "dominant_ratio": float(row["dominant_ratio"]),
+        "epoch": int(row["epoch"]),
+        "manifest_hash": str(row["manifest_hash"]),
+        "parameter_count": int(row["parameter_count"]),
+    }
+
+
 def paired_gate(
     candidate_rows: Sequence[Mapping[str, Any]],
     original_rows: Sequence[Mapping[str, Any]],
@@ -183,9 +197,9 @@ def paired_gate(
             {
                 "rate": rate,
                 "seed": seed,
-                "candidate_weighted_f1": float(candidate_row["weighted_f1"]),
-                "original_weighted_f1": float(original_row["weighted_f1"]),
-                "full_weighted_f1": float(full_row["weighted_f1"]),
+                "candidate": _audit_row(candidate_row),
+                "original": _audit_row(original_row),
+                "full": _audit_row(full_row),
                 "delta_original": float(candidate_row["weighted_f1"])
                 - float(original_row["weighted_f1"]),
                 "delta_full": float(candidate_row["weighted_f1"])
@@ -210,6 +224,9 @@ def paired_gate(
         for seed in SEEDS
     }
     wins = sum(delta["original"] > 0 for delta in seed_deltas.values())
+    mean_delta_full = float(
+        np.mean([value["full"] for value in seed_deltas.values()])
+    )
     coverage_dominant = [
         {
             "rate": rate,
@@ -233,9 +250,7 @@ def paired_gate(
         )
         >= 0.005,
         "at_least_four_positive_seed_deltas": wins >= 4,
-        "candidate_seed_mean_strictly_greater_full": all(
-            value["full"] > 0 for value in seed_deltas.values()
-        ),
+        "candidate_seed_mean_strictly_greater_full": mean_delta_full > 0,
         "all_candidate_coverage_six": all(
             row["class_coverage"] == 6 for row in coverage_dominant
         ),
@@ -246,6 +261,7 @@ def paired_gate(
         "task_rows": task_rows,
         "rate_means": rate_means,
         "seed_deltas": seed_deltas,
+        "mean_delta_full": mean_delta_full,
         "wins": wins,
         "coverage_dominant": coverage_dominant,
         "conditions": conditions,

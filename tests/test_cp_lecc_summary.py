@@ -57,6 +57,8 @@ def _rows(kind):
                     "class_coverage": 6,
                     "dominant_ratio": 0.25,
                     "manifest_hash": f"mask-{rate}-{seed}",
+                    "parameter_count": 1000 + seed,
+                    "epoch": seed - 60,
                 }
             )
     return rows
@@ -143,6 +145,71 @@ class PairedGateTests(unittest.TestCase):
         self.assertEqual(evidence["wins"], 5)
         self.assertEqual(len(evidence["coverage_dominant"]), 10)
         self.assertTrue(all(evidence["conditions"].values()))
+
+    def test_task_rows_retain_every_arm_audit_metric(self):
+        evidence = paired_gate(self.candidate, self.original, self.full)
+        task = evidence["task_rows"][0]
+        required = {
+            "rate",
+            "seed",
+            "weighted_f1",
+            "accuracy",
+            "class_coverage",
+            "dominant_ratio",
+            "epoch",
+            "manifest_hash",
+            "parameter_count",
+        }
+
+        self.assertEqual(
+            set(task), {"rate", "seed", "candidate", "original", "full", "delta_original", "delta_full"}
+        )
+        for arm, source in (
+            ("candidate", self.candidate[0]),
+            ("original", self.original[0]),
+            ("full", self.full[0]),
+        ):
+            self.assertEqual(set(task[arm]), required)
+            self.assertEqual(task[arm], source)
+
+    def test_positive_aggregate_full_delta_allows_one_losing_seed(self):
+        candidate = copy.deepcopy(self.candidate)
+        for row in candidate:
+            full = next(
+                item
+                for item in self.full
+                if item["rate"] == row["rate"] and item["seed"] == row["seed"]
+            )
+            row["weighted_f1"] = full["weighted_f1"] + (
+                -0.001 if row["seed"] == 66 else 0.005
+            )
+
+        evidence = paired_gate(candidate, self.original, self.full)
+
+        self.assertTrue(evidence["promote"])
+        self.assertAlmostEqual(evidence["mean_delta_full"], 0.0038)
+        self.assertTrue(
+            evidence["conditions"]["candidate_seed_mean_strictly_greater_full"]
+        )
+        self.assertLess(evidence["seed_deltas"]["66"]["full"], 0)
+
+    def test_nonpositive_aggregate_full_delta_fails_named_condition(self):
+        candidate = copy.deepcopy(self.candidate)
+        for row in candidate:
+            full = next(
+                item
+                for item in self.full
+                if item["rate"] == row["rate"] and item["seed"] == row["seed"]
+            )
+            row["weighted_f1"] = full["weighted_f1"]
+
+        evidence = paired_gate(candidate, self.original, self.full)
+
+        self.assertEqual(evidence["mean_delta_full"], 0.0)
+        self.assertFalse(
+            evidence["conditions"]["candidate_seed_mean_strictly_greater_full"]
+        )
+        self.assertFalse(evidence["promote"])
 
     def _assert_rejects_condition(self, condition, candidate=None, original=None, full=None):
         evidence = paired_gate(
