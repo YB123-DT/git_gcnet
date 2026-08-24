@@ -4,7 +4,8 @@ from typing import Sequence, Tuple
 
 import torch
 from torch import Tensor, nn
-from torch_geometric.nn.inits import glorot, zeros
+from torch_geometric.nn import RGCNConv
+from torch_geometric.nn.inits import zeros
 from torch_geometric.utils import scatter
 
 
@@ -69,7 +70,7 @@ def flatten_valid_node_masks(
     return flattened
 
 
-class MissingPatternFiLMRGCNConv(nn.Module):
+class MissingPatternFiLMRGCNConv(RGCNConv):
     """RGCN mean propagation with residual missing-pattern FiLM messages."""
 
     VARIANTS = ("full", "pattern_only", "content_film_control")
@@ -81,19 +82,10 @@ class MissingPatternFiLMRGCNConv(nn.Module):
         num_relations: int,
         variant: str = "full",
     ) -> None:
-        super().__init__()
         if variant not in self.VARIANTS:
             raise ValueError(f"unknown MPFiLM variant: {variant!r}")
-        self.in_channels = int(in_channels)
-        self.out_channels = int(out_channels)
-        self.num_relations = int(num_relations)
+        super().__init__(in_channels, out_channels, num_relations)
         self.variant = variant
-
-        self.weight = nn.Parameter(
-            torch.empty(num_relations, in_channels, out_channels)
-        )
-        self.root = nn.Parameter(torch.empty(in_channels, out_channels))
-        self.bias = nn.Parameter(torch.empty(out_channels))
         self.pattern_weight = nn.Parameter(
             torch.empty(num_relations, 6, out_channels)
         )
@@ -101,14 +93,15 @@ class MissingPatternFiLMRGCNConv(nn.Module):
         self.film_weight = nn.Parameter(
             torch.empty(num_relations, film_input_dim, 2 * out_channels)
         )
-        self.reset_parameters()
-
-    def reset_parameters(self) -> None:
-        glorot(self.weight)
-        glorot(self.root)
-        zeros(self.bias)
         zeros(self.pattern_weight)
         zeros(self.film_weight)
+
+    def reset_parameters(self) -> None:
+        super().reset_parameters()
+        if hasattr(self, "pattern_weight"):
+            zeros(self.pattern_weight)
+        if hasattr(self, "film_weight"):
+            zeros(self.film_weight)
 
     def _film_input(self, x: Tensor, pattern: Tensor) -> Tensor:
         if self.variant == "pattern_only":
@@ -138,6 +131,8 @@ class MissingPatternFiLMRGCNConv(nn.Module):
         pattern, complete = encode_missing_patterns(node_mask)
         if pattern.size(0) != x.size(0):
             raise ValueError("node_mask and x must contain the same nodes")
+        if self.variant != "content_film_control" and bool(complete.all()):
+            return super().forward(x, edge_index, edge_type)
 
         output = x.new_zeros((x.size(0), self.out_channels))
         film_input = self._film_input(x, pattern)

@@ -94,7 +94,10 @@ class MPFiLMConvolutionTests(unittest.TestCase):
         expected = reference(x_ref, edge_index, edge_type)
         actual = candidate(x_new, edge_index, edge_type, node_mask)
 
-        self.assertLess((actual - expected).abs().max().item(), 1e-6)
+        self.assertTrue(
+            torch.equal(actual, expected),
+            msg=f"complete forward differs by {(actual - expected).abs().max().item()}",
+        )
         gradient = torch.randn_like(expected)
         expected.backward(gradient)
         actual.backward(gradient)
@@ -105,9 +108,12 @@ class MPFiLMConvolutionTests(unittest.TestCase):
             (reference.bias.grad, candidate.bias.grad),
         )
         for reference_gradient, candidate_gradient in pairs:
-            self.assertLess(
-                (reference_gradient - candidate_gradient).abs().max().item(),
-                1e-5,
+            self.assertTrue(
+                torch.equal(reference_gradient, candidate_gradient),
+                msg=(
+                    "complete backward differs by "
+                    f"{(reference_gradient - candidate_gradient).abs().max().item()}"
+                ),
             )
         for parameter in (candidate.pattern_weight, candidate.film_weight):
             if parameter.grad is not None:
