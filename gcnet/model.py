@@ -15,7 +15,8 @@ from torch_geometric.nn import RGCNConv, GraphConv
 
 from module import *
 from graph import batch_graphify
-from mpfilm_rgcn import MissingPatternFiLMRGCNConv, flatten_valid_node_masks
+from missing_patterns import flatten_valid_node_masks
+from mpfilm_rgcn import MissingPatternFiLMRGCNConv
 
 
 class GraphNetwork(torch.nn.Module):
