@@ -7,6 +7,7 @@ trusted experiment archives; arbitrary NPZ files are not a safe input format.
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import tempfile
@@ -14,6 +15,13 @@ from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
 
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score
+
+from experiments.mpfilm_iemocap6.run_locked_ab import (
+    Job,
+    LOCKED_TRAINING,
+    _completed_log,
+    _job_payload,
+)
 
 
 RATES = (0.5, 0.7)
@@ -102,6 +110,11 @@ def archive_metrics(path: Path) -> Dict[str, Any]:
         requested_missing_rate = float(manifest["requested_missing_rate"])
         manifest_seed = int(manifest["seed"])
         smoke_only = bool(_scalar(data["smoke_only"]))
+        locked_arguments = {
+            field: getattr(args, field)
+            for field in LOCKED_TRAINING
+            if field != "fold"
+        }
     return {
         "weighted_f1": float(f1_score(labels, predictions, average="weighted")),
         "accuracy": float(accuracy_score(labels, predictions)),
@@ -120,6 +133,16 @@ def archive_metrics(path: Path) -> Dict[str, Any]:
         "requested_missing_rate": requested_missing_rate,
         "manifest_seed": manifest_seed,
         "smoke_only": smoke_only,
+        **{
+            field: (
+                bool(value)
+                if isinstance(value, (bool, np.bool_))
+                else value.item()
+                if isinstance(value, np.generic)
+                else value
+            )
+            for field, value in locked_arguments.items()
+        },
     }
 
 
@@ -158,6 +181,77 @@ def _validate_provenance(
             "archive provenance requested_missing_rate mismatch: "
             f"{metrics['requested_missing_rate']!r} != {expected_rate!r}"
         )
+    for field, expected_value in LOCKED_TRAINING.items():
+        if field == "fold":
+            continue
+        actual = metrics[field]
+        if isinstance(expected_value, float):
+            matches = math.isclose(
+                float(actual), expected_value, rel_tol=0.0, abs_tol=1e-12
+            )
+        else:
+            matches = actual == expected_value
+        if not matches:
+            raise ValueError(
+                f"archive provenance {field} mismatch: {actual!r} != {expected_value!r}"
+            )
+
+
+def _validate_job_artifacts(
+    fold_directory: Path,
+    expected_variant: str,
+    expected_rate: float,
+    expected_seed: int,
+) -> Dict[str, Any]:
+    lock = fold_directory / ".active.lock"
+    if lock.exists():
+        raise ValueError(f"active or stale lock present: {lock}")
+    required = ("command.json", "status.json", "train.log", "saved")
+    missing = [name for name in required if not (fold_directory / name).exists()]
+    if missing:
+        raise ValueError(f"missing job artifacts in {fold_directory}: {missing}")
+    archives = list((fold_directory / "saved").glob("*.npz"))
+    if len(archives) != 1:
+        raise ValueError(
+            f"expected exactly one NPZ archive in {fold_directory / 'saved'}, found {len(archives)}"
+        )
+    payload = json.loads(
+        (fold_directory / "command.json").read_text(encoding="utf-8")
+    )
+    command = payload.get("command")
+    if not isinstance(command, list) or len(command) < 3:
+        raise ValueError("command payload is not a complete command list")
+    try:
+        train_script = Path(command[2])
+        repository = train_script.parents[1]
+        data_root = Path(command[command.index("--data-root") + 1])
+        mask_root = Path(command[command.index("--mask-bank-root") + 1])
+    except (ValueError, IndexError):
+        raise ValueError("command list is missing locked paths") from None
+    if train_script != repository / "gcnet" / "train_gcnet.py":
+        raise ValueError(f"command training script mismatch: {train_script}")
+    job = Job(
+        "formal", expected_variant, expected_rate, expected_seed, fold_directory
+    )
+    expected_payload = _job_payload(
+        job, str(payload.get("gpu")), Path(command[0]), repository, data_root, mask_root
+    )
+    if payload != expected_payload:
+        raise ValueError(f"command.json mismatch for {fold_directory}")
+    status = json.loads(
+        (fold_directory / "status.json").read_text(encoding="utf-8")
+    )
+    if status.get("status") != "success" or status.get("return_code") != 0:
+        raise ValueError(f"status return_code is not successful for {fold_directory}")
+    if not _completed_log(fold_directory / "train.log"):
+        raise ValueError("train.log does not contain exactly 100 epoch records and completion markers")
+    return {
+        "command": True,
+        "status": True,
+        "archive_count": 1,
+        "epoch_records": 100,
+        "completion_markers": True,
+    }
 
 
 def _assert_exact(candidate: Any, original: Any, field: str) -> None:
@@ -363,6 +457,9 @@ def _collect(root: Path, expected_variant: str, expected_parameter_count: int) -
         _validate_provenance(
             row, expected_variant, rate, seed, expected_parameter_count
         )
+        row["artifact_validation"] = _validate_job_artifacts(
+            saved.parent, expected_variant, rate, seed
+        )
         row.update(rate=rate, seed=seed)
         rows.append(row)
     return rows
@@ -410,6 +507,11 @@ def main() -> None:
         _collect(args.original_root, "original", PARAMETER_COUNTS["original"]),
         _collect(args.full_root, "full", PARAMETER_COUNTS["full"]),
     )
+    evidence["artifact_validation"] = {
+        "candidate": "strict",
+        "original": "strict",
+        "full": "strict",
+    }
     _write_json_atomic(args.output_json, evidence)
     print("PROMOTE" if evidence["promote"] else "REJECT")
 

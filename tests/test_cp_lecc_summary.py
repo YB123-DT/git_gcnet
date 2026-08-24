@@ -16,6 +16,7 @@ from experiments.cp_lecc_iemocap6.summarize_gate import (
     _collect,
     paired_gate,
 )
+from experiments.mpfilm_iemocap6.run_locked_ab import Job, build_command
 
 
 def _snapshot(labels=None, predicted=None, hidden_shift=0):
@@ -54,6 +55,7 @@ def _write_archive(
     fold_numbers=(5,),
     smoke_only=False,
     parameter_count=None,
+    arg_overrides=None,
 ):
     path.parent.mkdir(parents=True, exist_ok=True)
     snapshot = _snapshot() if snapshot is None else snapshot
@@ -64,12 +66,32 @@ def _write_archive(
         PARAMETER_COUNTS[variant] if parameter_count is None else parameter_count
     )
     args = Namespace(
+        dataset="IEMOCAPSix",
+        audio_feature="wav2vec-large-c-UTT",
+        text_feature="deberta-large-4-UTT",
+        video_feature="manet_UTT",
+        base_model="LSTM",
+        windowp=2,
+        windowf=2,
+        hidden=200,
+        lr=0.001,
+        l2=0.00001,
+        dropout=0.5,
+        batch_size=32,
+        num_threads=6,
+        epochs=100,
+        loss_recon=True,
+        reccls_flag=False,
+        lower_bound=False,
+        time_attn=False,
         graph_conv_variant=variant,
         seed=seed,
         mask_seed=mask_seed,
         mask_type=f"constant-{rate:.1f}",
         fold_index=fold_index,
     )
+    for key, value in (arg_overrides or {}).items():
+        setattr(args, key, value)
     np.savez_compressed(
         path,
         args=np.array(args, dtype=object),
@@ -92,18 +114,49 @@ def _write_archive(
 def _write_grid(root, variant, parameter_count):
     for rate in (0.5, 0.7):
         for seed in range(66, 71):
-            _write_archive(
+            fold = (
                 root
                 / f"miss_{str(rate).replace('.', 'p')}"
                 / f"seed_{seed}"
                 / "fold_5"
-                / "saved"
-                / "run.npz",
+            )
+            _write_archive(
+                fold / "saved" / "run.npz",
                 variant=variant,
                 seed=seed,
                 rate=rate,
                 mask_sha=f"mask-{rate}-{seed}",
                 parameter_count=parameter_count,
+            )
+            job = Job("formal", variant, rate, seed, fold)
+            command = build_command(
+                job,
+                Path("/env/python"),
+                Path("/repo"),
+                Path("/data"),
+                Path("/masks"),
+            )
+            (fold / "command.json").write_text(
+                json.dumps(
+                    {
+                        "stage": "formal",
+                        "arm": variant,
+                        "missing_rate": rate,
+                        "seed": seed,
+                        "fold": 5,
+                        "gpu": "0",
+                        "command": command,
+                    }
+                )
+            )
+            (fold / "status.json").write_text(
+                json.dumps({"status": "success", "return_code": 0})
+            )
+            (fold / "train.log").write_text(
+                "\n".join(
+                    [f"epoch:{index}; train_fscore:0.0" for index in range(1, 101)]
+                    + ["SMOKE_ONLY=False", "Finish fold 5", "save results in archive.npz"]
+                )
             )
 
 
@@ -275,6 +328,53 @@ class ArchiveProvenanceTests(unittest.TestCase):
 
     def test_rejects_wrong_manifest_seed(self):
         self._assert_mutation_rejected("manifest seed", manifest_seed=67)
+
+    def test_rejects_wrong_locked_feature(self):
+        self._assert_mutation_rejected(
+            "audio_feature", arg_overrides={"audio_feature": "wrong"}
+        )
+
+    def test_rejects_wrong_hidden_and_learning_rate(self):
+        for field, value in (("hidden", 100), ("lr", 0.01)):
+            with self.subTest(field=field):
+                self._assert_mutation_rejected(
+                    field, arg_overrides={field: value}
+                )
+
+    def test_rejects_disabled_reconstruction_loss(self):
+        self._assert_mutation_rejected(
+            "loss_recon", arg_overrides={"loss_recon": False}
+        )
+
+    def test_rejects_mutated_command_and_status_return_code(self):
+        mutations = {
+            "command": lambda fold: (fold / "command.json").write_text("{}"),
+            "return_code": lambda fold: (fold / "status.json").write_text(
+                json.dumps({"status": "success", "return_code": 1})
+            ),
+        }
+        for message, mutate in mutations.items():
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                _write_grid(root, "cp_lecc", PARAMETER_COUNTS["cp_lecc"])
+                fold = root / "miss_0p5" / "seed_66" / "fold_5"
+                mutate(fold)
+                with self.assertRaisesRegex(ValueError, message):
+                    _collect(root, "cp_lecc", PARAMETER_COUNTS["cp_lecc"])
+
+    def test_rejects_extra_archive_and_incomplete_log(self):
+        mutations = {
+            "exactly one": lambda fold: (fold / "saved" / "extra.npz").write_bytes(b"x"),
+            "100 epoch": lambda fold: (fold / "train.log").write_text("epoch:1\n"),
+        }
+        for message, mutate in mutations.items():
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                _write_grid(root, "cp_lecc", PARAMETER_COUNTS["cp_lecc"])
+                fold = root / "miss_0p5" / "seed_66" / "fold_5"
+                mutate(fold)
+                with self.assertRaisesRegex((ValueError, RuntimeError), message):
+                    _collect(root, "cp_lecc", PARAMETER_COUNTS["cp_lecc"])
 
 
 class SummaryCliTests(unittest.TestCase):

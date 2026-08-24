@@ -1,7 +1,47 @@
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
-from experiments.mpfilm_iemocap6.run_locked_ab import build_command, build_jobs
+from experiments.mpfilm_iemocap6.run_locked_ab import (
+    _claim_job,
+    _completed,
+    _ensure_run_manifest,
+    _job_payload,
+    _launch,
+    _release_job,
+    build_command,
+    build_jobs,
+)
+
+
+def _complete_log():
+    return "\n".join(
+        [f"epoch:{index}; train_fscore:0.0" for index in range(1, 101)]
+        + ["SMOKE_ONLY=False", "Finish fold 5", "save results in archive.npz"]
+    )
+
+
+def _runner_inputs(job, gpu="0"):
+    values = {
+        "python": Path("/env/bin/python"),
+        "repository": Path("/repo"),
+        "data_root": Path("/data/IEMOCAP"),
+        "mask_bank_root": Path("/tmp/banks"),
+    }
+    return values, _job_payload(job, gpu=gpu, **values)
+
+
+def _write_complete_job(job, payload):
+    job.output_directory.mkdir(parents=True)
+    (job.output_directory / "command.json").write_text(json.dumps(payload))
+    (job.output_directory / "status.json").write_text(
+        json.dumps({"status": "success", "return_code": 0})
+    )
+    (job.output_directory / "train.log").write_text(_complete_log())
+    saved = job.output_directory / "saved"
+    saved.mkdir()
+    (saved / "run.npz").write_bytes(b"npz")
 
 
 class LockedRunnerTests(unittest.TestCase):
@@ -143,6 +183,127 @@ class LockedRunnerTests(unittest.TestCase):
         self.assertIn("--hidden 200", joined)
         self.assertIn("--num-threads 6", joined)
         self.assertNotIn("--allow-short-run", command)
+
+
+class RunnerResumeTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.job = build_jobs(
+            "formal",
+            Path(self.temporary.name),
+            arms=("cp_lecc",),
+            rates=(0.5,),
+            seeds=(66,),
+        )[0]
+        self.inputs, self.payload = _runner_inputs(self.job)
+
+    def test_valid_complete_job_is_skipped(self):
+        _write_complete_job(self.job, self.payload)
+        self.assertTrue(_completed(self.job, ("0",), **self.inputs))
+
+    def test_invalid_complete_artifacts_fail_loudly(self):
+        mutations = {
+            "return_code": lambda: (self.job.output_directory / "status.json").write_text(
+                json.dumps({"status": "success", "return_code": 1})
+            ),
+            "exactly one": lambda: (self.job.output_directory / "saved" / "extra.npz").write_bytes(b"x"),
+            "command.json": lambda: (self.job.output_directory / "command.json").write_text("{}"),
+            "100 epoch": lambda: (self.job.output_directory / "train.log").write_text("epoch:1\n"),
+        }
+        for message, mutate in mutations.items():
+            with self.subTest(message=message):
+                if self.job.output_directory.exists():
+                    import shutil
+                    shutil.rmtree(self.job.output_directory)
+                _write_complete_job(self.job, self.payload)
+                mutate()
+                with self.assertRaisesRegex(RuntimeError, message):
+                    _completed(self.job, ("0",), **self.inputs)
+
+    def test_zero_archive_and_partial_directory_fail_loudly(self):
+        _write_complete_job(self.job, self.payload)
+        (self.job.output_directory / "saved" / "run.npz").unlink()
+        with self.assertRaisesRegex(RuntimeError, "exactly one"):
+            _completed(self.job, ("0",), **self.inputs)
+
+        import shutil
+        shutil.rmtree(self.job.output_directory)
+        self.job.output_directory.mkdir(parents=True)
+        (self.job.output_directory / "partial.txt").write_text("partial")
+        with self.assertRaisesRegex(RuntimeError, "partial"):
+            _completed(self.job, ("0",), **self.inputs)
+
+    def test_existing_lock_is_rejected_and_claim_release_is_atomic(self):
+        self.job.output_directory.mkdir(parents=True)
+        lock = _claim_job(self.job)
+        self.assertTrue(lock.exists())
+        with self.assertRaisesRegex(RuntimeError, "lock"):
+            _claim_job(self.job)
+        _release_job(self.job)
+        self.assertFalse(lock.exists())
+
+    def test_launch_never_truncates_an_existing_log(self):
+        self.job.output_directory.mkdir(parents=True)
+        log = self.job.output_directory / "train.log"
+        log.write_text("keep-me")
+        with self.assertRaises(FileExistsError):
+            _launch(self.job, "0", **self.inputs)
+        self.assertEqual(log.read_text(), "keep-me")
+        self.assertFalse((self.job.output_directory / ".active.lock").exists())
+
+
+class RunManifestTests(unittest.TestCase):
+    def _manifest(self, root, head="abc", dirty=False):
+        git_status = " M dirty.py\n" if dirty else ""
+
+        def command(args, **kwargs):
+            if args[:2] == ["git", "rev-parse"]:
+                return head + "\n"
+            if args[:2] == ["git", "status"]:
+                return git_status
+            if args[0] == "nvidia-smi":
+                return "GPU A\n"
+            raise AssertionError(args)
+
+        return _ensure_run_manifest(
+            output_root=root,
+            stage="formal",
+            repository=Path("/repo"),
+            data_root=Path("/data"),
+            mask_bank_root=Path("/masks"),
+            arms=("cp_lecc",),
+            rates=(0.5, 0.7),
+            seeds=(66, 67),
+            gpus=("0",),
+            workers_per_gpu=1,
+            python=Path("/env/python"),
+            command_output=command,
+        )
+
+    def test_manifest_schema_and_identical_rerun(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = self._manifest(root)
+            manifest_path = root / "formal" / "run_manifest.json"
+            manifest_path.write_text(json.dumps(first))
+            second = self._manifest(root)
+            self.assertEqual(first, second)
+            self.assertEqual(first["git"], {"head": "abc", "clean": True})
+            self.assertEqual(first["environment"]["CUBLAS_WORKSPACE_CONFIG"], ":4096:8")
+            self.assertEqual(first["environment"]["PYTHONHASHSEED"], "0")
+            self.assertEqual(first["locked_training"]["hidden"], 200)
+            self.assertEqual(first["gpu_names"], ["GPU A"])
+
+    def test_manifest_mismatch_and_dirty_worktree_are_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._manifest(root)
+            with self.assertRaisesRegex(RuntimeError, "manifest mismatch"):
+                self._manifest(root, head="different")
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "clean git worktree"):
+                self._manifest(Path(tmp), dirty=True)
 
 
 if __name__ == "__main__":
