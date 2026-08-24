@@ -1,5 +1,8 @@
 import math
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 
 import torch
 from torch import nn
@@ -48,6 +51,31 @@ def _constant_correction_layer(num_relations=1):
 
 
 class CompletePreservingLowRankECCTests(unittest.TestCase):
+    def test_graph_convs_do_not_require_pyg_utils_scatter_export(self):
+        gcnet_dir = Path(__file__).resolve().parents[1] / "gcnet"
+        script = f"""
+import builtins
+import sys
+from torch_geometric.nn import RGCNConv
+
+real_import = builtins.__import__
+def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+    if name == 'torch_geometric.utils' and 'scatter' in fromlist:
+        raise ImportError('simulated PyG 2.0 without utils.scatter')
+    return real_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = guarded_import
+sys.path.insert(0, {str(gcnet_dir)!r})
+import cp_lecc_rgcn
+import mpfilm_rgcn
+"""
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def test_complete_forward_backward_is_bitwise_pyg(self):
         torch.manual_seed(17)
         reference = RGCNConv(5, 3, 3)

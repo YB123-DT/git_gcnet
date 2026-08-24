@@ -4,7 +4,7 @@ import torch
 from torch import Tensor, nn
 from torch_geometric.nn import RGCNConv
 from torch_geometric.nn.inits import zeros
-from torch_geometric.utils import scatter
+from torch_scatter import scatter
 
 from missing_patterns import encode_missing_patterns
 
