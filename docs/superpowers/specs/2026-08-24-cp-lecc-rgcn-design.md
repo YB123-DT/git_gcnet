@@ -158,7 +158,8 @@ h_i'=h_i^{base}+
 
 锁定初始化为：
 
-- `U_i`、`U_j`、relation embedding、MLP 隐藏层、`L_k`、`R_k`：Glorot；
+- `U_i`、`U_j`、relation embedding、MLP 隐藏层 weight、`L_k`、`R_k`：Glorot；
+- MLP 隐藏层 bias：严格为零；
 - MLP 最后输出层 weight 与 bias：严格为零；
 - RGCN `weight/root/bias`：沿用 PyG 初始化。
 
