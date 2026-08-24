@@ -259,6 +259,78 @@ def test_default_matrix_has_80_full_fused_jobs_and_80_pair_identities(tmp_path):
     }
 
 
+def test_default_dataset_remains_iemocap_six(tmp_path):
+    sweep = _runner()
+    jobs = sweep.build_jobs(tmp_path, python="/official/python")
+
+    assert {job.dataset for job in jobs} == {"IEMOCAPSix"}
+    assert all(
+        job.command[job.command.index("--fold") + 1] == "5" for job in jobs
+    )
+
+
+def test_mosi_matrix_has_80_full_fused_fold1_jobs(tmp_path):
+    sweep = _runner()
+    jobs = sweep.build_jobs(
+        output_root=tmp_path / "out",
+        baseline_root=tmp_path / "baseline",
+        python="/official/python",
+        dataset="CMUMOSI",
+        gpus=(0, 1, 2),
+    )
+
+    assert len(jobs) == 80
+    assert {job.dataset for job in jobs} == {"CMUMOSI"}
+    assert {job.condition for job in jobs} == {"full_fused"}
+    assert all("--fold" not in job.command for job in jobs)
+    assert all(
+        job.command[job.command.index("--dataset") + 1] == "CMUMOSI"
+        for job in jobs
+    )
+
+
+def test_mosi_completion_requires_fold1_evidence(tmp_path):
+    sweep = _runner()
+    job = sweep.build_jobs(
+        output_root=tmp_path / "out",
+        baseline_root=tmp_path / "baseline",
+        python="/official/python",
+        dataset="CMUMOSI",
+        gpus=(0,),
+        rates=(0.4,),
+        seeds=(66,),
+    )[0]
+    record_root = job.output_dir / "run_records" / "123"
+    record_root.mkdir(parents=True)
+    metrics_path = record_root / "fold_metrics.json"
+    metrics_path.write_text(
+        json.dumps([{"fold": 1, "reconstruction_target": "full_fused"}])
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest = _manifest_for(job, metrics_path)
+    manifest["run"].update({"dataset": "CMUMOSI", "fold": 1})
+    manifest_path = record_root / "run_manifest_fold_1.json"
+    manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+
+    assert sweep._latest_manifest(job.output_dir) == manifest_path
+    assert sweep._manifest_matches_job(manifest, job)
+    assert sweep._fold_metrics_match_job(manifest, manifest_path, job)
+
+    manifest["run"]["fold"] = 5
+    assert not sweep._manifest_matches_job(manifest, job)
+
+
+def test_runner_rejects_unsupported_dataset(tmp_path):
+    sweep = _runner()
+    with pytest.raises(ValueError, match="unsupported dataset"):
+        sweep.build_jobs(
+            tmp_path,
+            python="/official/python",
+            dataset="CMUMOSEI",
+        )
+
+
 def test_subset_filters_produce_one_new_job_per_selected_pair(tmp_path):
     sweep = _runner()
     jobs = sweep.build_jobs(

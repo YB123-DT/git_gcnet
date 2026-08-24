@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the isolated IEMOCAPSix missing-vs-full-fused paired sweep."""
+"""Run an isolated GCNet missing-vs-full-fused paired sweep."""
 
 from __future__ import annotations
 
@@ -31,7 +31,8 @@ from gcnet_modality_jepa.run_manifest import (
 )
 
 
-DATASET = "IEMOCAPSix"
+DEFAULT_DATASET = "IEMOCAPSix"
+SUPPORTED_DATASETS = {"IEMOCAPSix": 5, "CMUMOSI": 1}
 CONDITION = "full_fused"
 RATES = tuple(round(index / 10.0, 1) for index in range(8))
 SEEDS = tuple(range(66, 76))
@@ -84,6 +85,7 @@ class GPUReservation:
 
 @dataclass(frozen=True)
 class FullFusedJob:
+    dataset: str
     condition: str
     rate: float
     seed: int
@@ -97,7 +99,7 @@ class FullFusedJob:
     @property
     def identity(self) -> str:
         return "{}:{}:{:.1f}:{}:epochs{}".format(
-            DATASET, self.condition, self.rate, self.seed, self.epochs
+            self.dataset, self.condition, self.rate, self.seed, self.epochs
         )
 
 
@@ -105,8 +107,16 @@ def _rate_directory(rate: float) -> str:
     return "miss_{:.1f}".format(rate).replace(".", "p")
 
 
+def _expected_fold(dataset: str) -> int:
+    try:
+        return SUPPORTED_DATASETS[dataset]
+    except KeyError as error:
+        raise ValueError("unsupported dataset: {}".format(dataset)) from error
+
+
 def _training_command(
     python: str,
+    dataset: str,
     rate: float,
     seed: int,
     epochs: int,
@@ -125,7 +135,7 @@ def _training_command(
         "--video-feature",
         "manet_UTT",
         "--dataset",
-        DATASET,
+        dataset,
         "--base-model",
         "LSTM",
         "--windowp",
@@ -150,8 +160,6 @@ def _training_command(
         "constant-{:.1f}".format(rate),
         "--evaluation-protocol",
         "official",
-        "--fold",
-        "5",
         "--stability-aux-mask-rate",
         "0.1",
         "--stability-recon-weight",
@@ -166,6 +174,8 @@ def _training_command(
         "--output-dir",
         str(output_dir),
     ]
+    if _expected_fold(dataset) == 5:
+        command.extend(("--fold", "5"))
     if epochs < 60:
         command.append("--allow-short-run")
     return command
@@ -208,12 +218,14 @@ def build_jobs(
     output_root: Path,
     python: str,
     baseline_root: Path = DEFAULT_BASELINE_ROOT,
+    dataset: str = DEFAULT_DATASET,
     gpus: Sequence[int] = DEFAULT_GPUS,
     jobs_per_gpu: int = 3,
     rates: Sequence[float] = RATES,
     seeds: Sequence[int] = SEEDS,
     epochs: int = 100,
 ) -> List[FullFusedJob]:
+    _expected_fold(dataset)
     normalized_gpus = tuple(int(gpu) for gpu in gpus)
     if not normalized_gpus:
         raise ValueError("at least one GPU is required")
@@ -255,6 +267,7 @@ def build_jobs(
             baseline_dir = Path(baseline_root) / relative_pair / "baseline"
             jobs.append(
                 FullFusedJob(
+                    dataset=dataset,
                     condition=CONDITION,
                     rate=rate,
                     seed=seed,
@@ -266,6 +279,7 @@ def build_jobs(
                     command=tuple(
                         _training_command(
                             python,
+                            dataset,
                             rate,
                             seed,
                             epochs,
@@ -281,7 +295,7 @@ def build_jobs(
 
 def _latest_manifest(output_dir: Path) -> Path | None:
     manifests = sorted(
-        output_dir.glob("run_records/*/run_manifest_fold_5.json")
+        output_dir.glob("run_records/*/run_manifest_fold_*.json")
     )
     return manifests[-1] if manifests else None
 
@@ -295,8 +309,8 @@ def _manifest_matches_job(manifest: Mapping[str, object], job: FullFusedJob) -> 
     }
     try:
         return (
-            manifest["run"]["dataset"] == DATASET
-            and manifest["run"]["fold"] == 5
+            manifest["run"]["dataset"] == job.dataset
+            and manifest["run"]["fold"] == _expected_fold(job.dataset)
             and manifest["run"]["master_seed"] == job.seed
             and manifest["masks"]["requested_missing_rate"] == job.rate
             and manifest["lifecycle"]["evaluation_protocol"] == "official"
@@ -324,7 +338,7 @@ def _fold_metrics_match_job(
         and isinstance(records, list)
         and len(records) == 1
         and isinstance(records[0], dict)
-        and records[0].get("fold") == 5
+        and records[0].get("fold") == _expected_fold(job.dataset)
         and records[0].get("reconstruction_target") == "full_fused"
     )
 
@@ -353,7 +367,7 @@ def is_complete(job: FullFusedJob) -> bool:
 
 
 def _baseline_identity(job: FullFusedJob) -> str:
-    return "{}:baseline:{:.1f}:{}".format(DATASET, job.rate, job.seed)
+    return "{}:baseline:{:.1f}:{}".format(job.dataset, job.rate, job.seed)
 
 
 def _baseline_manifest_matches_job(
@@ -362,8 +376,8 @@ def _baseline_manifest_matches_job(
     try:
         method = manifest["method"]
         return (
-            manifest["run"]["dataset"] == DATASET
-            and manifest["run"]["fold"] == 5
+            manifest["run"]["dataset"] == job.dataset
+            and manifest["run"]["fold"] == _expected_fold(job.dataset)
             and manifest["run"]["master_seed"] == job.seed
             and manifest["masks"]["requested_missing_rate"] == job.rate
             and manifest["lifecycle"]["evaluation_protocol"] == "official"
@@ -377,7 +391,7 @@ def _baseline_manifest_matches_job(
 
 
 def _baseline_fold_metrics_match(
-    manifest: Mapping[str, object], manifest_path: Path
+    manifest: Mapping[str, object], manifest_path: Path, job: FullFusedJob
 ) -> bool:
     try:
         metrics_path = Path(manifest["outputs"]["fold_metrics"]).resolve()
@@ -390,7 +404,7 @@ def _baseline_fold_metrics_match(
         and isinstance(records, list)
         and len(records) == 1
         and isinstance(records[0], dict)
-        and records[0].get("fold") == 5
+        and records[0].get("fold") == _expected_fold(job.dataset)
         and records[0].get("reconstruction_target", "missing") == "missing"
     )
 
@@ -419,7 +433,7 @@ def baseline_is_complete(job: FullFusedJob) -> bool:
         return False
     return _baseline_manifest_matches_job(
         manifest, job
-    ) and _baseline_fold_metrics_match(manifest, manifest_path)
+    ) and _baseline_fold_metrics_match(manifest, manifest_path, job)
 
 
 def validate_baselines(jobs: Sequence[FullFusedJob]) -> List[str]:
@@ -885,7 +899,7 @@ def run_job(job: FullFusedJob, root: Path, stop_event: threading.Event) -> bool:
             stop_event.set()
             return False
         if not is_complete(job):
-            status["error"] = "return code 0 without matching fold5 evidence"
+            status["error"] = "return code 0 without matching fold evidence"
             status["finished_at_unix"] = time.time()
             _write_json(job.output_dir / "status.json", status)
             stop_event.set()
@@ -1033,6 +1047,11 @@ def _parse_seeds(value: str) -> Tuple[int, ...]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dataset",
+        choices=tuple(SUPPORTED_DATASETS),
+        default=DEFAULT_DATASET,
+    )
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument(
         "--baseline-root", type=Path, default=DEFAULT_BASELINE_ROOT
@@ -1061,6 +1080,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         output_root=output_root,
         python=args.python,
         baseline_root=baseline_root,
+        dataset=args.dataset,
         gpus=args.gpus,
         jobs_per_gpu=args.jobs_per_gpu,
         rates=args.rates,
@@ -1132,6 +1152,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_root=output_root,
             python=args.python,
             baseline_root=baseline_root,
+            dataset=args.dataset,
             gpus=selected_gpus,
             jobs_per_gpu=args.jobs_per_gpu,
             rates=args.rates,
@@ -1183,6 +1204,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 output_root=output_root,
                 python=args.python,
                 baseline_root=baseline_root,
+                dataset=args.dataset,
                 gpus=selected_gpus,
                 jobs_per_gpu=args.jobs_per_gpu,
                 rates=args.rates,
