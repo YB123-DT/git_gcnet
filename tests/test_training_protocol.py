@@ -7,10 +7,26 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from train_gcnet import seed_everything
+from train_gcnet import seed_everything, select_epoch_mask_banks
 
 
 class TrainingProtocolTests(unittest.TestCase):
+    def test_epoch_mask_selection_uses_distinct_explicit_stages(self):
+        bundle = {
+            "train": ("train-zero", "train-one"),
+            "validation": "fixed-validation",
+            "test": "fixed-test",
+        }
+
+        self.assertEqual(
+            select_epoch_mask_banks(bundle, 0),
+            ("train-zero", "fixed-validation", "fixed-test"),
+        )
+        self.assertEqual(
+            select_epoch_mask_banks(bundle, 1),
+            ("train-one", "fixed-validation", "fixed-test"),
+        )
+
     def test_cli_accepts_cp_lecc_graph_convolution_variant(self):
         project_root = Path(__file__).resolve().parents[1]
         completed = subprocess.run(

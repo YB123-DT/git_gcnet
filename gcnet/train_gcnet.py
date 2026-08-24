@@ -24,7 +24,21 @@ from model import GraphModel
 from dataloader_iemocap import IEMOCAPDataset, load_iemocap_dataset
 from dataloader_cmumosi import CMUMOSIDataset
 from loss import MaskedCELoss, MaskedMSELoss, MaskedReconLoss
-from mask_bank import batch_mask_from_bank, load_or_create_mask_bank
+from mask_bank import (
+    batch_mask_from_bank,
+    load_or_create_stage_mask_bundle,
+    select_stage_mask,
+)
+
+
+def select_epoch_mask_banks(mask_bundle, epoch):
+    """Return the explicit train/validation/test banks for one epoch."""
+
+    return (
+        select_stage_mask(mask_bundle, "train", epoch=epoch),
+        select_stage_mask(mask_bundle, "validation"),
+        select_stage_mask(mask_bundle, "test"),
+    )
 
 def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_size, num_workers, seed, label_path=None):
 
@@ -543,14 +557,15 @@ if __name__ == '__main__':
     if mask_bank_root is None:
         mask_bank_root = os.path.join(config.SAVED_ROOT, 'mask_banks')
     dataset_object = train_loaders[0].dataset
-    mask_bank, mask_bank_manifest = load_or_create_mask_bank(
+    mask_bundle, mask_bank_manifest = load_or_create_stage_mask_bundle(
         mask_bank_root,
         dataset_object.videoIDs,
         mask_rate,
         mask_seed,
+        epochs=args.epochs,
     )
     print(
-        'fixed mask bank: '
+        'stage-aware mask bundle: '
         f"sha256={mask_bank_manifest['sha256']} "
         f"requested={mask_bank_manifest['requested_missing_rate']:.4f} "
         f"realized={mask_bank_manifest['realized_missing_rate']:.4f}"
@@ -590,14 +605,17 @@ if __name__ == '__main__':
         for epoch in range(args.epochs):
             assert args.mask_type.startswith('constant'), f'mask_type should be constant-x.x'
             mask_rate = float(args.mask_type.split('-')[-1])
+            train_mask_bank, validation_mask_bank, test_mask_bank = (
+                select_epoch_mask_banks(mask_bundle, epoch)
+            )
            
             ## training, validation and testing
             train_acc, train_fscore, train_names, train_loss, trainsave = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, train_loader, \
-                                                                            mask_rate=mask_rate, mask_bank=mask_bank, optimizer=optimizer, train=True)
+                                                                            mask_rate=mask_rate, mask_bank=train_mask_bank, optimizer=optimizer, train=True)
             val_acc, val_fscore, val_names, val_loss, valsave = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, val_loader, \
-                                                                            mask_rate=mask_rate, mask_bank=mask_bank, optimizer=None, train=False)
+                                                                            mask_rate=mask_rate, mask_bank=validation_mask_bank, optimizer=None, train=False)
             test_acc, test_fscore, test_names, test_loss, testsave = train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, test_loader, \
-                                                                            mask_rate=mask_rate, mask_bank=mask_bank, optimizer=None, train=False)
+                                                                            mask_rate=mask_rate, mask_bank=test_mask_bank, optimizer=None, train=False)
 
             ## save
             val_fscores.append(val_fscore)
