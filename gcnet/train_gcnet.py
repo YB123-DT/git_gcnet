@@ -26,13 +26,16 @@ from dataloader_cmumosi import CMUMOSIDataset
 from loss import MaskedCELoss, MaskedMSELoss, MaskedReconLoss
 from mask_bank import batch_mask_from_bank, load_or_create_mask_bank
 
-def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_size, num_workers, seed):
+def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_size, num_workers, seed, label_path=None):
+
+    if label_path is None:
+        label_path = config.PATH_TO_LABEL[dataset]
 
     ###########################################################################
     ###########################################################################
     if dataset in ['CMUMOSI', 'CMUMOSEI']:
 
-        dataset = CMUMOSIDataset(label_path=config.PATH_TO_LABEL[dataset],
+        dataset = CMUMOSIDataset(label_path=label_path,
                                  audio_root=audio_root,
                                  text_root=text_root,
                                  video_root=video_root)
@@ -75,7 +78,7 @@ def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_si
     ###########################################################################
     if dataset in ['IEMOCAPFour', 'IEMOCAPSix']: ## five folder cross-validation, each fold contains (train, test)
 
-        dataset = IEMOCAPDataset(label_path=config.PATH_TO_LABEL[dataset],
+        dataset = IEMOCAPDataset(label_path=label_path,
                                  audio_root=audio_root,
                                  text_root=text_root,
                                  video_root=video_root)
@@ -140,6 +143,18 @@ def build_model(args, adim, tdim, vdim):
     return model
 
 
+def seed_everything(seed):
+    """Seed every RNG consumed by the released training path."""
+    seed = int(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 ## gain input features: ?*[seqlen, batch, dim]
 def generate_inputs(audio_host, text_host, visual_host, audio_guest, text_guest, visual_guest, qmask):
     input_features = [] 
@@ -187,12 +202,12 @@ def random_mask(view_num, input_len, missing_rate):
         ## further generate one_num samples
         one_num = view_num * alldata_len * one_rate - alldata_len  # left one_num after previous step
         ratio = one_num / (view_num * alldata_len)                 # now processed ratio
-        matrix_iter = (randint(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(np.int) # based on ratio => matrix_iter
-        a = np.sum(((matrix_iter + view_preserve) > 1).astype(np.int)) # a: overlap number
+        matrix_iter = (randint(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(int) # based on ratio => matrix_iter
+        a = np.sum(((matrix_iter + view_preserve) > 1).astype(int)) # a: overlap number
         one_num_iter = one_num / (1 - a / one_num)
         ratio = one_num_iter / (view_num * alldata_len)
-        matrix_iter = (randint(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(np.int)
-        matrix = ((matrix_iter + view_preserve) > 0).astype(np.int)
+        matrix_iter = (randint(0, 100, size=(alldata_len, view_num)) < int(ratio * 100)).astype(int)
+        matrix = ((matrix_iter + view_preserve) > 0).astype(int)
         ratio = np.sum(matrix) / (view_num * alldata_len)
         error = abs(one_rate - ratio)
     
@@ -419,6 +434,7 @@ if __name__ == '__main__':
     parser.add_argument('--text-feature', type=str, default=None, help='text feature name')
     parser.add_argument('--video-feature', type=str, default=None, help='video feature name')
     parser.add_argument('--dataset', type=str, default='IEMOCAPFour', help='dataset type')
+    parser.add_argument('--data-root', type=str, default=None, help='override the configured dataset directory')
 
     ## Params for model
     parser.add_argument('--base-model', type=str, choices=['LSTM', 'GRU'], help='base recurrent model, must be one of LSTM/GRU')
@@ -447,11 +463,14 @@ if __name__ == '__main__':
     parser.add_argument('--mask-seed', type=int, default=None, help='fixed mask-bank seed; defaults to --seed')
     parser.add_argument('--mask-bank-root', type=str, default=None, help='directory for immutable mask banks')
     parser.add_argument('--fold-index', type=int, choices=range(1, 6), default=None, help='run one IEMOCAP fold (1..5)')
+    parser.add_argument('--output-dir', type=str, default=None, help='directory for result archives')
+    parser.add_argument('--allow-short-run', action='store_true', default=False, help='mark and save a smoke run shorter than 60 epochs')
     parser.add_argument('--mask-type', type=str, default='constant-0.1', help='mask rate [0~1] for input argumentation: constant-float; linear; convex; concave')
     parser.add_argument('--loss-recon', action='store_true', default=False, help='whether to use reconstrctuion loss')
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
     args = parser.parse_args()
+    seed_everything(args.seed)
 
     if args.dataset in ['CMUMOSI', 'CMUMOSEI']:
         args.num_folder = 1
@@ -473,9 +492,21 @@ if __name__ == '__main__':
     audio_feature = args.audio_feature
     text_feature = args.text_feature
     video_feature = args.video_feature
-    audio_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], audio_feature)
-    text_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], text_feature)
-    video_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], video_feature)
+    if args.data_root is None:
+        feature_root = config.PATH_TO_FEATURES[args.dataset]
+        label_path = config.PATH_TO_LABEL[args.dataset]
+    else:
+        feature_root = os.path.join(os.path.abspath(args.data_root), 'features')
+        label_filename = {
+            'IEMOCAPFour': 'IEMOCAP_features_raw_4way.pkl',
+            'IEMOCAPSix': 'IEMOCAP_features_raw_6way.pkl',
+            'CMUMOSI': 'CMUMOSI_features_raw_2way.pkl',
+            'CMUMOSEI': 'CMUMOSEI_features_raw_2way.pkl',
+        }[args.dataset]
+        label_path = os.path.join(os.path.abspath(args.data_root), label_filename)
+    audio_root = os.path.join(feature_root, audio_feature)
+    text_root = os.path.join(feature_root, text_feature)
+    video_root = os.path.join(feature_root, video_feature)
     assert os.path.exists(audio_root) and os.path.exists(text_root) and os.path.exists(video_root), f'features not exist!'
     train_loaders, val_loaders, test_loaders, adim, tdim, vdim = get_loaders( audio_root = audio_root,
                                                                               text_root  = text_root,
@@ -484,7 +515,8 @@ if __name__ == '__main__':
                                                                               batch_size = args.batch_size,
                                                                               dataset = args.dataset,
                                                                               num_workers = 0,
-                                                                              seed = args.seed)
+                                                                              seed = args.seed,
+                                                                              label_path = label_path)
     assert len(train_loaders) == args.num_folder, f'Error: folder number'
     fold_numbers = list(range(1, len(train_loaders) + 1))
     if args.fold_index is not None:
@@ -506,7 +538,12 @@ if __name__ == '__main__':
         mask_rate,
         mask_seed,
     )
-    print(f'fixed mask bank: {mask_bank_manifest}')
+    print(
+        'fixed mask bank: '
+        f"sha256={mask_bank_manifest['sha256']} "
+        f"requested={mask_bank_manifest['requested_missing_rate']:.4f} "
+        f"realized={mask_bank_manifest['realized_missing_rate']:.4f}"
+    )
 
     
     print (f'====== Training and Evaluation =======')
@@ -560,7 +597,7 @@ if __name__ == '__main__':
             all_labels.append({'test_labels':testsave[1], 'test_preds':testsave[0], 'test_hiddens':testsave[3], 'test_names':test_names, 'test_fmask':testsave[4]})
             print(f'epoch:{epoch+1}; train_fscore:{train_fscore:2.2%}; train_loss:{train_loss[0]}; train_loss1:{train_loss[1]}; train_loss2:{train_loss[2]}')
 
-        print (f'Step3: saving and testing on the {ii+1} folder')
+        print (f'Step3: saving and testing on the {fold_number} folder')
         best_index = np.argmax(np.array(val_fscores))
         bestf1 = test_fscores[best_index]
         bestacc = test_accs[best_index]
@@ -571,18 +608,26 @@ if __name__ == '__main__':
         folder_recon.append(bestrecon)
         folder_save.append(bestsave)
         folder_losswhole.append(all_losses)
-        assert args.epochs >= 60, f'epoch number should large then 60'
-        folder_savewhole.append([best_index, all_labels[10], all_labels[20], all_labels[50], all_labels[best_index]])
+        if args.epochs < 60:
+            if not args.allow_short_run:
+                raise AssertionError('epoch number should be at least 60')
+            folder_savewhole.append([best_index, all_labels[best_index]])
+        else:
+            folder_savewhole.append([best_index, all_labels[10], all_labels[20], all_labels[50], all_labels[best_index]])
         end_time = time.time()
         print (f'>>>>> Finish: training on the {fold_number} folder, duration: {end_time - start_time} >>>>>')
 
 
     print (f'====== Saving =======')
-    save_root = config.MODEL_DIR
+    save_root = config.MODEL_DIR if args.output_dir is None else args.output_dir
     if not os.path.exists(save_root): os.makedirs(save_root)
     ## gain suffix_name
     mask_rate = args.mask_type.split('-')[-1]
-    suffix_name = f'{args.dataset.lower()}_Graph{args.base_model}_mask:{mask_rate}'
+    suffix_name = (
+        f'{args.dataset.lower()}_Graph{args.base_model}'
+        f'_variant:{args.graph_conv_variant}_fold:{args.fold_index}'
+        f'_seed:{args.seed}_mask:{mask_rate}'
+    )
     ## gain feature_name and cls_name
     feature_name = f'{audio_feature};{text_feature};{video_feature}'
     cls_name = f'lossrecon:{args.loss_recon}+lower:{args.lower_bound}+reccls:{args.reccls_flag}'
@@ -593,9 +638,14 @@ if __name__ == '__main__':
     res_name = f'f1:{mean_f1:2.2%}_acc:{mean_acc:2.2%}_reconloss:{mean_recon:.4f}'
 
     save_path = f'{save_root}/{suffix_name}_features:{feature_name}_classifier:{cls_name}_{res_name}_{time.time()}.npz'
+    print(f'SMOKE_ONLY={bool(args.allow_short_run)}')
     print (f'save results in {save_path}')
     np.savez_compressed(save_path,
                         args=np.array(args, dtype=object),
+                        fold_numbers=np.array(fold_numbers),
+                        mask_bank_manifest=np.array(mask_bank_manifest, dtype=object),
+                        parameter_count=np.array(sum(x.numel() for x in model.parameters())),
+                        smoke_only=np.array(bool(args.allow_short_run)),
                         folder_losswhole=np.array(folder_losswhole, dtype=object),
                         folder_savewhole=np.array(folder_savewhole, dtype=object)
                         )
