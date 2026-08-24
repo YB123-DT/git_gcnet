@@ -21,7 +21,7 @@ sys.path.append('../')
 import config
 
 from model import GraphModel
-from dataloader_iemocap import IEMOCAPDataset
+from dataloader_iemocap import IEMOCAPDataset, load_iemocap_dataset
 from dataloader_cmumosi import CMUMOSIDataset
 from loss import MaskedCELoss, MaskedMSELoss, MaskedReconLoss
 from mask_bank import batch_mask_from_bank, load_or_create_mask_bank
@@ -78,10 +78,10 @@ def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_si
     ###########################################################################
     if dataset in ['IEMOCAPFour', 'IEMOCAPSix']: ## five folder cross-validation, each fold contains (train, test)
 
-        dataset = IEMOCAPDataset(label_path=label_path,
-                                 audio_root=audio_root,
-                                 text_root=text_root,
-                                 video_root=video_root)
+        dataset = load_iemocap_dataset(label_path=label_path,
+                                       audio_root=audio_root,
+                                       text_root=text_root,
+                                       video_root=video_root)
 
         ## gain index for cross-validation
         session_to_idx = {}
