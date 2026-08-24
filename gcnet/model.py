@@ -15,10 +15,12 @@ from torch_geometric.nn import RGCNConv, GraphConv
 
 from module import *
 from graph import batch_graphify
+from mpfilm_rgcn import MissingPatternFiLMRGCNConv, flatten_valid_node_masks
 
 
 class GraphNetwork(torch.nn.Module):
-    def __init__(self, num_features, num_relations, time_attn, hidden_size=64, dropout=0.5, no_cuda=False):
+    def __init__(self, num_features, num_relations, time_attn, hidden_size=64,
+                 dropout=0.5, no_cuda=False, graph_conv_variant='original'):
         """
         The Speaker-level context encoder in the form of a 2 layer GCN.
         """
@@ -28,7 +30,16 @@ class GraphNetwork(torch.nn.Module):
         self.hidden_size = hidden_size
 
         ## graph modeling
-        self.conv1 = RGCNConv(num_features, hidden_size, num_relations)
+        self.graph_conv_variant = graph_conv_variant
+        if graph_conv_variant == 'original':
+            self.conv1 = RGCNConv(num_features, hidden_size, num_relations)
+        else:
+            self.conv1 = MissingPatternFiLMRGCNConv(
+                num_features,
+                hidden_size,
+                num_relations,
+                variant=graph_conv_variant,
+            )
         self.conv2 = GraphConv(hidden_size, hidden_size)
 
         ## nodal attention
@@ -40,7 +51,7 @@ class GraphNetwork(torch.nn.Module):
         self.linear = nn.Linear(2*D_h, D_h)
 
 
-    def forward(self, features, edge_index, edge_type, seq_lengths, umask):
+    def forward(self, features, edge_index, edge_type, node_mask, seq_lengths, umask):
         '''
         features: input node features: [num_nodes, in_channels]
         edge_index: [2, edge_num]
@@ -48,7 +59,10 @@ class GraphNetwork(torch.nn.Module):
         '''
 
         ## graph model: graph => outputs
-        out = self.conv1(features, edge_index, edge_type) # [num_features -> hidden_size]
+        if self.graph_conv_variant == 'original':
+            out = self.conv1(features, edge_index, edge_type)
+        else:
+            out = self.conv1(features, edge_index, edge_type, node_mask)
         out = self.conv2(out, edge_index) # [hidden_size -> hidden_size]
         outputs = torch.cat([features, out], dim=-1) # [num_nodes, num_features(16)+hidden_size(8)]
 
@@ -91,7 +105,8 @@ D_g, D_p, D_h, D_a, graph_hidden_size
 class GraphModel(nn.Module):
 
     def __init__(self, base_model, adim, tdim, vdim, D_e, graph_hidden_size, n_speakers, window_past, window_future,
-                 n_classes ,dropout=0.5, time_attn=True, no_cuda=False):
+                 n_classes, dropout=0.5, time_attn=True, no_cuda=False,
+                 graph_conv_variant='original'):
         
         super(GraphModel, self).__init__()
 
@@ -112,16 +127,22 @@ class GraphModel(nn.Module):
 
         ## gain graph models for 'temporal' and 'speaker'
         n_relations = 3
-        self.graph_net_temporal = GraphNetwork(2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout, self.no_cuda)
+        self.graph_net_temporal = GraphNetwork(
+            2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
+            self.no_cuda, graph_conv_variant
+        )
         n_relations = n_speakers ** 2
-        self.graph_net_speaker = GraphNetwork(2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout, self.no_cuda)
+        self.graph_net_speaker = GraphNetwork(
+            2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
+            self.no_cuda, graph_conv_variant
+        )
 
         ## classification and reconstruction
         D_h = 2*D_e + graph_hidden_size
         self.smax_fc  = nn.Linear(D_h, n_classes)
         self.linear_rec = nn.Linear(D_h, adim+tdim+vdim)
 
-    def forward(self, inputfeats, qmask, umask, seq_lengths):
+    def forward(self, inputfeats, input_features_mask, qmask, umask, seq_lengths):
         """
         inputfeats -> ?*[seqlen, batch, dim]
         qmask -> [batch, seqlen]
@@ -138,15 +159,21 @@ class GraphModel(nn.Module):
             outputs, _ = self.gru(U[0])
             outputs = outputs.unsqueeze(2)
 
+        node_mask = flatten_valid_node_masks(input_features_mask, seq_lengths)
+
         ## add graph model
         features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers, 
                                                              self.window_past, self.window_future, 'temporal', self.no_cuda)
         assert len(edge_type_mapping) == 3
-        hidden1 = self.graph_net_temporal(features, edge_index, edge_type, seq_lengths, umask)
+        hidden1 = self.graph_net_temporal(
+            features, edge_index, edge_type, node_mask, seq_lengths, umask
+        )
         features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers, 
                                                              self.window_past, self.window_future, 'speaker', self.no_cuda)
         assert len(edge_type_mapping) == self.n_speakers ** 2
-        hidden2 = self.graph_net_speaker(features, edge_index, edge_type, seq_lengths, umask)
+        hidden2 = self.graph_net_speaker(
+            features, edge_index, edge_type, node_mask, seq_lengths, umask
+        )
         hidden = hidden1 + hidden2
 
         ## for classification
@@ -156,4 +183,3 @@ class GraphModel(nn.Module):
         rec_outputs = [self.linear_rec(hidden)]
 
         return log_prob, rec_outputs, hidden
-

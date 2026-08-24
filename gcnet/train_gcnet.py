@@ -132,7 +132,8 @@ def build_model(args, adim, tdim, vdim):
                        n_classes=args.n_classes,
                        dropout=args.dropout,
                        time_attn=args.time_attn,
-                       no_cuda=args.no_cuda)
+                       no_cuda=args.no_cuda,
+                       graph_conv_variant=args.graph_conv_variant)
     print("Model have {} paramerters in total".format(sum(x.numel() for x in model.parameters())))
     print ('Graph NN with', args.base_model, 'as base model.')
     return model
@@ -335,10 +336,19 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         # input_features_recon # padded, ?*[seqlen, batch, dim]
         '''
         if reccls_flag: # whether use reconstruction features for classification
-            _, recon_input_features, _ = model(masked_input_features, qmask, umask, lengths)
-            log_prob, _, hidden = model(recon_input_features, qmask, umask, lengths)
+            _, recon_input_features, _ = model(
+                masked_input_features, input_features_mask[0], qmask, umask,
+                lengths
+            )
+            log_prob, _, hidden = model(
+                recon_input_features, input_features_mask[0], qmask, umask,
+                lengths
+            )
         else:
-            log_prob, recon_input_features, hidden = model(masked_input_features, qmask, umask, lengths)
+            log_prob, recon_input_features, hidden = model(
+                masked_input_features, input_features_mask[0], qmask, umask,
+                lengths
+            )
 
         ## gain saved results [utterance-level]
         tempseqlen = np.sum(umask.cpu().data.numpy(), 1) # [batch]
@@ -423,6 +433,12 @@ if __name__ == '__main__':
     parser.add_argument('--hidden', type=int, default=100, help='hidden size in model training')
     parser.add_argument('--n_classes', type=int, default=2, help='number of classes [defined by args.dataset]')
     parser.add_argument('--n_speakers', type=int, default=2, help='number of speakers [defined by args.dataset]')
+    parser.add_argument(
+        '--graph-conv-variant',
+        choices=['original', 'pattern_only', 'full', 'content_film_control'],
+        default='original',
+        help='first relation-aware graph propagation variant',
+    )
 
     ## Params for training
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
