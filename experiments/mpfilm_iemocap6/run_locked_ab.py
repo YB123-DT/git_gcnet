@@ -153,6 +153,7 @@ def _launch(
     environment["PYTHONPATH"] = os.pathsep.join(
         (str(repository), str(Path(repository) / "gcnet"))
     )
+    environment["GCNET_CACHE_ROOT"] = str(mask_bank_root.parent / "dataset_cache")
     process = subprocess.Popen(
         command,
         cwd=repository,
