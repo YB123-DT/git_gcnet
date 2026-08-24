@@ -1,8 +1,9 @@
 import unittest
 
 import torch
-from torch_geometric.nn import RGCNConv
+from torch_geometric.nn import GraphConv, RGCNConv
 
+from cp_lecc_rgcn import CompletePreservingLowRankECCConv
 from model import GraphModel
 from mpfilm_rgcn import MissingPatternFiLMRGCNConv
 
@@ -53,6 +54,113 @@ class GraphModelMPFiLMIntegrationTests(unittest.TestCase):
         self.assertEqual(
             model.graph_net_speaker.conv1.variant, "faithful_edgewise"
         )
+
+    def test_cp_lecc_replaces_both_first_layers_only(self):
+        model = self._model("cp_lecc")
+
+        self.assertIsInstance(
+            model.graph_net_temporal.conv1, CompletePreservingLowRankECCConv
+        )
+        self.assertIsInstance(
+            model.graph_net_speaker.conv1, CompletePreservingLowRankECCConv
+        )
+        self.assertEqual(model.graph_net_temporal.conv1.num_relations, 3)
+        self.assertEqual(model.graph_net_speaker.conv1.num_relations, 4)
+        self.assertIsInstance(model.graph_net_temporal.conv2, GraphConv)
+        self.assertIsInstance(model.graph_net_speaker.conv2, GraphConv)
+
+    def test_cp_lecc_locked_model_parameter_count(self):
+        dimensions = dict(
+            base_model="LSTM",
+            adim=1024,
+            tdim=1024,
+            vdim=512,
+            D_e=200,
+            graph_hidden_size=100,
+            n_speakers=2,
+            window_past=2,
+            window_future=2,
+            n_classes=6,
+            dropout=0.0,
+            time_attn=False,
+            no_cuda=True,
+        )
+        original = GraphModel(**dimensions, graph_conv_variant="original")
+        candidate = GraphModel(**dimensions, graph_conv_variant="cp_lecc")
+
+        original_count = sum(parameter.numel() for parameter in original.parameters())
+        candidate_count = sum(parameter.numel() for parameter in candidate.parameters())
+        self.assertEqual(original_count, 34_140_166)
+        self.assertEqual(candidate_count, 34_200_838)
+        self.assertEqual(candidate_count - original_count, 60_672)
+
+    def test_cp_lecc_construction_preserves_every_common_parameter(self):
+        seed = 83
+        torch.manual_seed(seed)
+        original = self._model("original")
+        torch.manual_seed(seed)
+        candidate = self._model("cp_lecc")
+        original_parameters = dict(original.named_parameters())
+        candidate_parameters = dict(candidate.named_parameters())
+
+        for name, expected in original_parameters.items():
+            self.assertIn(name, candidate_parameters)
+            actual = candidate_parameters[name]
+            self.assertEqual(expected.shape, actual.shape, name)
+            self.assertTrue(torch.equal(expected, actual), name)
+
+        dynamic_names = {
+            "target_content",
+            "source_content",
+            "relation_embedding",
+            "generator_hidden_weight",
+            "generator_hidden_bias",
+            "generator_output_weight",
+            "generator_output_bias",
+            "basis_left",
+            "basis_right",
+        }
+        extra_names = set(candidate_parameters) - set(original_parameters)
+        self.assertEqual(
+            extra_names,
+            {
+                f"graph_net_{graph}.conv1.{name}"
+                for graph in ("temporal", "speaker")
+                for name in dynamic_names
+            },
+        )
+
+    def test_cp_lecc_all_atv_forward_is_bitwise_original_fast_path(self):
+        seed = 97
+        torch.manual_seed(seed)
+        original = self._model("original")
+        torch.manual_seed(seed)
+        candidate = self._model("cp_lecc")
+        with torch.no_grad():
+            for graph_network in (
+                candidate.graph_net_temporal,
+                candidate.graph_net_speaker,
+            ):
+                for name, parameter in graph_network.conv1.named_parameters():
+                    if name not in {"weight", "root", "bias"}:
+                        parameter.fill_(0.25)
+                        self.assertGreater(torch.count_nonzero(parameter).item(), 0)
+
+        original.eval()
+        candidate.eval()
+        sequence_length, batch_size = 3, 2
+        inputs = [torch.randn(sequence_length, batch_size, 6)]
+        modality_mask = torch.ones(sequence_length, batch_size, 3)
+        qmask = torch.tensor([[0, 1, 0], [1, 0, 0]], dtype=torch.float32)
+        umask = torch.tensor([[1, 1, 1], [1, 1, 0]], dtype=torch.float32)
+        arguments = (inputs, modality_mask, qmask, umask, [3, 2])
+
+        expected = original(*arguments)
+        actual = candidate(*arguments)
+
+        self.assertTrue(torch.equal(actual[0], expected[0]))
+        self.assertTrue(torch.equal(actual[1][0], expected[1][0]))
+        self.assertTrue(torch.equal(actual[2], expected[2]))
 
     def test_forward_accepts_selected_modality_mask(self):
         torch.manual_seed(3)

@@ -453,6 +453,7 @@ if __name__ == '__main__':
             'full',
             'faithful_edgewise',
             'content_film_control',
+            'cp_lecc',
         ],
         default='original',
         help='first relation-aware graph propagation variant',

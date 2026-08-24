@@ -15,6 +15,7 @@ from torch_geometric.nn import RGCNConv, GraphConv
 
 from module import *
 from graph import batch_graphify
+from cp_lecc_rgcn import CompletePreservingLowRankECCConv
 from missing_patterns import flatten_valid_node_masks
 from mpfilm_rgcn import MissingPatternFiLMRGCNConv
 
@@ -34,6 +35,10 @@ class GraphNetwork(torch.nn.Module):
         self.graph_conv_variant = graph_conv_variant
         if graph_conv_variant == 'original':
             self.conv1 = RGCNConv(num_features, hidden_size, num_relations)
+        elif graph_conv_variant == 'cp_lecc':
+            self.conv1 = CompletePreservingLowRankECCConv(
+                num_features, hidden_size, num_relations
+            )
         else:
             self.conv1 = MissingPatternFiLMRGCNConv(
                 num_features,
