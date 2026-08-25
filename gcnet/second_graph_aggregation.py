@@ -218,6 +218,102 @@ class SoftMedoidGraphConv(_LegacyNamedGraphConv):
         return degree.to(weighted.dtype).unsqueeze(1) * weighted
 
 
+class SSMAGraphConv(_LegacyNamedGraphConv):
+    """GraphConv with fixed-signal sequential signal-mixing aggregation."""
+
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kappa=5,
+        epsilon=1e-6,
+        bias=True,
+        **kwargs
+    ):
+        if int(kappa) < 1:
+            raise ValueError("kappa must be positive")
+        if not math.isfinite(float(epsilon)) or float(epsilon) <= 0.0:
+            raise ValueError("epsilon must be finite and positive")
+        if not isinstance(in_channels, int):
+            raise TypeError("SSMA requires an integer input dimension")
+
+        super().__init__(in_channels, out_channels, bias=bias, **kwargs)
+        self._use_legacy_linear_names()
+        self.kappa = int(kappa)
+        self.epsilon = float(epsilon)
+        self.signal_height = self.kappa + 1
+        self.signal_width = self.kappa * (in_channels - 1) + 1
+        self.signal_size = self.signal_height * self.signal_width
+
+        rng_state = torch.get_rng_state()
+        try:
+            self.compressor = nn.Linear(self.signal_size, in_channels)
+        finally:
+            torch.set_rng_state(rng_state)
+
+    def reset_parameters(self):
+        if not hasattr(self, "lin_l") or not hasattr(self, "lin_r"):
+            GraphConv.reset_parameters(self)
+            return
+        self.lin_l.reset_parameters()
+        self.lin_r.reset_parameters()
+        if hasattr(self, "compressor"):
+            self.compressor.reset_parameters()
+
+    def forward(self, x, edge_index, edge_weight=None, size=None):
+        x = self._as_pair(x)
+        out = self.propagate(
+            edge_index, x=x, edge_weight=edge_weight, size=size
+        )
+        out = self.lin_l(out)
+        if x[1] is not None:
+            out = out + self.lin_r(x[1])
+        return out
+
+    def aggregate(self, inputs, index, ptr=None, dim_size=None):
+        if dim_size is None:
+            dim_size = int(index.max().item()) + 1 if index.numel() else 0
+        if inputs.size(0) == 0:
+            return inputs.new_zeros((dim_size, inputs.size(-1)))
+        degree = scatter_add(
+            inputs.new_ones((inputs.size(0),)),
+            index,
+            dim=0,
+            dim_size=dim_size,
+        )
+        if degree.numel() and int(degree.max().item()) > self.kappa:
+            raise ValueError(
+                "neighborhood degree exceeds kappa={}".format(self.kappa)
+            )
+
+        signal = inputs.new_zeros(
+            (inputs.size(0), self.signal_height, self.signal_width)
+        )
+        signal[:, 0, : inputs.size(-1)] = -inputs
+        signal[:, 1, 0] = 1.0
+        spectrum = torch.fft.fft2(signal)
+        log_magnitude = scatter_mean(
+            torch.log(spectrum.abs() + self.epsilon),
+            index,
+            dim=0,
+            dim_size=dim_size,
+        )
+        phase = scatter_add(
+            torch.angle(spectrum),
+            index,
+            dim=0,
+            dim_size=dim_size,
+        )
+        magnitude = torch.exp(log_magnitude)
+        mixed = torch.complex(
+            magnitude * torch.cos(phase),
+            magnitude * torch.sin(phase),
+        )
+        decoded = torch.fft.ifft2(mixed).real.reshape(dim_size, -1)
+        compressed = self.compressor(decoded)
+        return compressed * degree.gt(0).to(compressed.dtype).unsqueeze(1)
+
+
 def build_second_graph_conv(selector, in_channels, out_channels):
     """Construct a second graph convolution by experiment selector."""
     if selector == "add":
@@ -226,4 +322,6 @@ def build_second_graph_conv(selector, in_channels, out_channels):
         return GenAggGraphConv(in_channels, out_channels)
     if selector == "soft_medoid":
         return SoftMedoidGraphConv(in_channels, out_channels)
+    if selector == "ssma":
+        return SSMAGraphConv(in_channels, out_channels)
     raise ValueError("unknown second graph aggregation: {}".format(selector))
