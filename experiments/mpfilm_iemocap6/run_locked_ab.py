@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import time
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 ARMS = ("original", "full")
@@ -20,6 +20,11 @@ ARM_TO_GRAPH_VARIANT = {
     "faithful_edgewise_film": "faithful_edgewise",
     "parameter_matched": "content_film_control",
     "cp_lecc": "cp_lecc",
+    "sequence_aff": "original",
+}
+ARM_TO_BRANCH_FUSION = {
+    arm: "mask_sequence_aff" if arm == "sequence_aff" else "addition"
+    for arm in ARM_TO_GRAPH_VARIANT
 }
 GATE_RATES = (0.0, 0.7)
 FORMAL_RATES = tuple(index / 10 for index in range(8))
@@ -65,8 +70,8 @@ def build_jobs(
     stage: str,
     output_root: Path,
     arms: Sequence[str] = ARMS,
-    rates: Sequence[float] | None = None,
-    seeds: Sequence[int] | None = None,
+    rates: Optional[Sequence[float]] = None,
+    seeds: Optional[Sequence[int]] = None,
 ) -> List[Job]:
     if stage == "gate":
         default_rates, default_seeds = GATE_RATES, GATE_SEEDS
@@ -145,6 +150,8 @@ def build_command(
         "5",
         "--graph-conv-variant",
         ARM_TO_GRAPH_VARIANT[job.arm],
+        "--branch-fusion",
+        ARM_TO_BRANCH_FUSION[job.arm],
         "--mask-bank-root",
         str(mask_bank_root),
         "--output-dir",
