@@ -24,6 +24,19 @@ class TrainingProtocolTests(unittest.TestCase):
 
         self.assertEqual(args.pre_graph_context, "bilstm")
         self.assertEqual(args.post_graph_context, "bilstm")
+        self.assertEqual(args.branch_fusion, "addition")
+
+    def test_branch_fusion_cli_accepts_only_registered_modes(self):
+        parser = train_gcnet.create_argument_parser()
+        for mode in ("addition", "mask_sequence_aff"):
+            with self.subTest(mode=mode):
+                self.assertEqual(
+                    parser.parse_args(["--branch-fusion", mode]).branch_fusion,
+                    mode,
+                )
+        with redirect_stderr(StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args(["--branch-fusion", "attention"])
 
     def test_context_cli_accepts_each_linear_ablation_independently(self):
         args = train_gcnet.create_argument_parser().parse_args(
@@ -63,11 +76,13 @@ class TrainingProtocolTests(unittest.TestCase):
                         graph_conv_variant="original",
                         pre_graph_context=pre_context,
                         post_graph_context=post_context,
+                        branch_fusion="mask_sequence_aff",
                     )
 
                     model = train_gcnet.build_model(args, adim=2, tdim=2, vdim=2)
 
                     self.assertEqual(model.pre_graph_context, pre_context)
+                    self.assertEqual(model.branch_fusion, "mask_sequence_aff")
                     self.assertIsInstance(model.pre_graph_projection, nn.Linear)
                     for branch in (
                         model.graph_net_temporal,
@@ -76,14 +91,14 @@ class TrainingProtocolTests(unittest.TestCase):
                         self.assertEqual(branch.post_graph_context, post_context)
                         self.assertIsInstance(branch.grufusion, nn.LSTM)
 
-    def test_short_linear_linear_run_records_context_and_parameter_provenance(self):
+    def test_short_mask_sequence_aff_run_records_full_provenance(self):
         project_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             data_root = root / "data"
             output_root = root / "results"
             feature_root = data_root / "features"
-            feature_names = ("audio", "text", "video")
+            feature_names = ("a", "t", "v")
             for feature_name in feature_names:
                 (feature_root / feature_name).mkdir(parents=True)
 
@@ -136,11 +151,11 @@ class TrainingProtocolTests(unittest.TestCase):
                     "--data-root",
                     str(data_root),
                     "--audio-feature",
-                    "audio",
+                    "a",
                     "--text-feature",
-                    "text",
+                    "t",
                     "--video-feature",
-                    "video",
+                    "v",
                     "--base-model",
                     "LSTM",
                     "--graph-conv-variant",
@@ -149,6 +164,8 @@ class TrainingProtocolTests(unittest.TestCase):
                     "linear",
                     "--post-graph-context",
                     "linear",
+                    "--branch-fusion",
+                    "mask_sequence_aff",
                     "--hidden",
                     "2",
                     "--windowp",
@@ -186,7 +203,7 @@ class TrainingProtocolTests(unittest.TestCase):
             self.assertEqual(len(archives), 1)
             archive_path = archives[0]
             self.assertIn(
-                "_prectx:linear_postctx:linear_",
+                "_prectx:linear_postctx:linear_branchfusion:mask_sequence_aff_",
                 archive_path.name,
             )
             model = train_gcnet.GraphModel(
@@ -206,12 +223,14 @@ class TrainingProtocolTests(unittest.TestCase):
                 graph_conv_variant="original",
                 pre_graph_context="linear",
                 post_graph_context="linear",
+                branch_fusion="mask_sequence_aff",
             )
             with np.load(archive_path, allow_pickle=True) as archive:
                 stored_args = archive["args"].item()
                 self.assertTrue(bool(archive["smoke_only"]))
                 self.assertEqual(stored_args.pre_graph_context, "linear")
                 self.assertEqual(stored_args.post_graph_context, "linear")
+                self.assertEqual(stored_args.branch_fusion, "mask_sequence_aff")
                 self.assertEqual(
                     int(archive["parameter_count"]),
                     sum(parameter.numel() for parameter in model.parameters()),

@@ -18,12 +18,21 @@ from graph import batch_graphify
 from cp_lecc_rgcn import CompletePreservingLowRankECCConv
 from missing_patterns import flatten_valid_node_masks
 from mpfilm_rgcn import MissingPatternFiLMRGCNConv
+from sequence_aff import MaskConditionedSequenceAFF
 
 
 def _linear_from_forked_cpu_rng(in_features, out_features):
     cpu_rng_state = torch.get_rng_state()
     try:
         return nn.Linear(in_features, out_features)
+    finally:
+        torch.set_rng_state(cpu_rng_state)
+
+
+def _sequence_aff_from_forked_cpu_rng(channels):
+    cpu_rng_state = torch.get_rng_state()
+    try:
+        return MaskConditionedSequenceAFF(channels, reduction=4)
     finally:
         torch.set_rng_state(cpu_rng_state)
 
@@ -133,7 +142,7 @@ class GraphModel(nn.Module):
     def __init__(self, base_model, adim, tdim, vdim, D_e, graph_hidden_size, n_speakers, window_past, window_future,
                  n_classes, dropout=0.5, time_attn=True, no_cuda=False,
                  graph_conv_variant='original', pre_graph_context='bilstm',
-                 post_graph_context='bilstm'):
+                 post_graph_context='bilstm', branch_fusion='addition'):
         
         super(GraphModel, self).__init__()
 
@@ -151,8 +160,14 @@ class GraphModel(nn.Module):
                     post_graph_context
                 )
             )
+        if branch_fusion not in ('addition', 'mask_sequence_aff'):
+            raise ValueError(
+                "branch_fusion must be 'addition' or 'mask_sequence_aff', "
+                "got {!r}".format(branch_fusion)
+            )
         self.pre_graph_context = pre_graph_context
         self.post_graph_context = post_graph_context
+        self.branch_fusion = branch_fusion
 
         # The base model is the sequential context encoder.
         # Change input features => 2*D_e
@@ -183,6 +198,7 @@ class GraphModel(nn.Module):
 
         ## classification and reconstruction
         D_h = 2*D_e + graph_hidden_size
+        self.branch_fusion_module = _sequence_aff_from_forked_cpu_rng(D_h)
         self.smax_fc  = nn.Linear(D_h, n_classes)
         self.linear_rec = nn.Linear(D_h, adim+tdim+vdim)
 
@@ -201,6 +217,8 @@ class GraphModel(nn.Module):
                 if graph_network.post_graph_context == 'bilstm'
                 else graph_network.grufusion
             )
+        if self.branch_fusion == 'addition':
+            excluded_modules.append(self.branch_fusion_module)
 
         total = sum(parameter.numel() for parameter in self.parameters())
         excluded = sum(
@@ -245,7 +263,12 @@ class GraphModel(nn.Module):
         hidden2 = self.graph_net_speaker(
             features, edge_index, edge_type, node_mask, seq_lengths, umask
         )
-        hidden = hidden1 + hidden2
+        if self.branch_fusion == 'addition':
+            hidden = hidden1 + hidden2
+        else:
+            hidden = self.branch_fusion_module(
+                hidden1, hidden2, input_features_mask, umask
+            )
 
         ## for classification
         log_prob = self.smax_fc(hidden) # [seqlen, batch, n_classes]

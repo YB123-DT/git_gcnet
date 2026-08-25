@@ -153,7 +153,8 @@ def build_model(args, adim, tdim, vdim):
                        no_cuda=args.no_cuda,
                        graph_conv_variant=args.graph_conv_variant,
                        pre_graph_context=args.pre_graph_context,
-                       post_graph_context=args.post_graph_context)
+                       post_graph_context=args.post_graph_context,
+                       branch_fusion=args.branch_fusion)
     print("Model have {} paramerters in total".format(sum(x.numel() for x in model.parameters())))
     print ('Graph NN with', args.base_model, 'as base model.')
     return model
@@ -484,6 +485,12 @@ def create_argument_parser():
         default='bilstm',
         help='context encoder after graph propagation',
     )
+    parser.add_argument(
+        '--branch-fusion',
+        choices=['addition', 'mask_sequence_aff'],
+        default='addition',
+        help='temporal/speaker graph branch fusion',
+    )
 
     ## Params for training
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
@@ -514,6 +521,7 @@ def build_result_suffix(args):
         f'_variant:{args.graph_conv_variant}_fold:{args.fold_index}'
         f'_seed:{args.seed}_mask:{mask_rate}'
         f'_prectx:{args.pre_graph_context}_postctx:{args.post_graph_context}'
+        f'_branchfusion:{args.branch_fusion}'
     )
 
 
