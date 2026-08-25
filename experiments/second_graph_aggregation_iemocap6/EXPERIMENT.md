@@ -134,7 +134,7 @@ SSMA additionally requires a parameter-matched sum-plus-MLP control before any c
 
 ## Automatic result publication to GitHub
 
-The publication target is the configured remote `github`, whose URL is [https://github.com/YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet). Training and result validation are complete for the 40 Original controls and 58 unique candidate archives. Publication has not yet been claimed as pushed; after final repository verification it will be completed in this same work turn without another user prompt.
+The publication target is the configured remote `github`, whose URL is [https://github.com/YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet). Training and result validation are complete for the 40 Original controls and 58 unique candidate archives. Evidence commit `97370fd49cb130bc10c620f1293ebff00985b729` was pushed to `exp/second-graph-aggregators`; `git ls-remote` returned the same SHA. Before publication, 260 tests passed with one expected skip and all 246 checksum-ledger entries verified.
 
 The automation performs the following ordered gate:
 
@@ -150,4 +150,4 @@ git push github HEAD:refs/heads/exp/second-graph-aggregators
 
 6. Confirm publication by comparing the local commit with `git ls-remote github refs/heads/exp/second-graph-aggregators`. A transport failure is retried from the same local commit; training is not rerun. Promotion into the GitHub `main` completed-version layout occurs only from that verified commit, without force-pushing or rewriting unrelated completed versions.
 
-This upload step will publish the code and the staged evidence: the initial four-arm negative gate, the bounded RTDR extension, and the negative full-audit `stable_positive` result. The document does not claim that the push has already happened; remote-SHA confirmation is the final publication evidence.
+The verified evidence commit publishes the code and all three evidence stages: the initial four-arm negative gate, the bounded RTDR extension, and the negative full-audit `stable_positive` result. This later documentation-only attestation does not alter the archived evidence or its checksums.

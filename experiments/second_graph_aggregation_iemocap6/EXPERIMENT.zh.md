@@ -52,7 +52,7 @@ Original 的 40 个 NPZ 从以下只读目录继承，不重新训练：
 
 ## 跑完后自动上传 GitHub
 
-正式训练、结果回传与 provenance 校验已经完成。GitHub push 尚未被写成“已完成”；在最终结果和仓库验证通过后，上传将在本轮继续完成，不再等待用户发命令。自动流程会：
+正式训练、结果回传与 provenance 校验已经完成。证据 commit `97370fd49cb130bc10c620f1293ebff00985b729` 已推送到 GitHub 分支 `exp/second-graph-aggregators`，且 `git ls-remote` 返回相同 SHA。发布前 260 项测试通过（1 项预期跳过），哈希清单 246/246 项验证一致。自动流程为：
 
 1. 固定已经验证的唯一candidate 58/58 与 Original 40/40 证据集，复用的 RTDR 任务只计一次，Original训练数为0，GPU 4 的失败 attempt 只留在 diagnostics；
 2. 保留代码、任务级 NPZ、必要日志、run/invocation manifest、源文件与 mask hash，以及初始 `RESULTS.md/.zh.md/.en.md`、`ANALYSIS.md/.zh.md/.en.md`和RTDR extension/full汇总；
@@ -60,4 +60,4 @@ Original 的 40 个 NPZ 从以下只读目录继承，不重新训练：
 4. 推送到 [YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet) 的 `exp/second-graph-aggregators` 分支，并用 `git ls-remote` 核对远端 SHA；
 5. 推送失败只从同一个本地 commit 重试，绝不因此重跑训练；合入 GitHub `main` 的完成版本目录时不 force-push，也不改写其他已完成版本。
 
-数据集、巨大特征文件、登录凭据、缓存和 diagnostics-only 失败 attempt 不会作为 canonical 结果上传。发布将同时保留初始四臂负gate、RTDR限定extension PASS和full-audit `stable_positive=false`，不把后两者写成初始晋级成功。本文不声称 push 已发生；远端 SHA 核对才是最终发布证据。
+数据集、巨大特征文件、登录凭据、缓存和 diagnostics-only 失败 attempt 没有作为 canonical 结果上传。已发布证据同时保留初始四臂负 gate、RTDR 限定 extension PASS 和 full-audit `stable_positive=false`，没有把后两者写成初始晋级成功。本次后续仅增加发布证明文字，不改变已归档证据及其哈希。
