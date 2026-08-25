@@ -151,6 +151,21 @@ class TrainingProtocolTests(unittest.TestCase):
             train_gcnet.build_result_suffix(legacy_args),
         )
 
+    def test_archive_path_is_bounded_without_losing_npz_provenance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            requested = Path(directory) / (("experiment-provenance-" * 20) + ".npz")
+
+            bounded = train_gcnet.bounded_archive_path(requested)
+
+            self.assertEqual(bounded.parent, requested.parent)
+            self.assertEqual(bounded.suffix, ".npz")
+            self.assertLessEqual(len(bounded.name.encode("utf-8")), 255)
+            self.assertNotEqual(bounded.name, requested.name)
+            self.assertEqual(
+                bounded,
+                train_gcnet.bounded_archive_path(requested),
+            )
+
     def test_short_mask_sequence_aff_run_records_full_provenance(self):
         project_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory:

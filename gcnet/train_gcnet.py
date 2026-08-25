@@ -5,6 +5,8 @@ import math
 import pickle
 import random
 import argparse
+import hashlib
+from pathlib import Path
 import numpy as np
 from numpy.random import randint
 
@@ -527,6 +529,21 @@ def build_result_suffix(args):
     )
 
 
+def bounded_archive_path(save_path, max_name_bytes=240):
+    path = Path(save_path)
+    encoded_name = path.name.encode('utf-8')
+    if len(encoded_name) <= max_name_bytes:
+        return path
+    suffix = path.suffix
+    digest = hashlib.sha256(encoded_name).hexdigest()[:16]
+    tail = f'_{digest}{suffix}'
+    budget = max_name_bytes - len(tail.encode('utf-8'))
+    stem = path.name[:-len(suffix)] if suffix else path.name
+    while len(stem.encode('utf-8')) > budget:
+        stem = stem[:-1]
+    return path.with_name(stem + tail)
+
+
 def save_result_archive(save_path, args, fold_numbers, mask_bank_manifest, model,
                         smoke_only, folder_losswhole, folder_savewhole):
     np.savez_compressed(
@@ -716,7 +733,9 @@ if __name__ == '__main__':
     mean_recon = np.mean(np.array(folder_recon))
     res_name = f'f1:{mean_f1:2.2%}_acc:{mean_acc:2.2%}_reconloss:{mean_recon:.4f}'
 
-    save_path = f'{save_root}/{suffix_name}_features:{feature_name}_classifier:{cls_name}_{res_name}_{time.time()}.npz'
+    save_path = bounded_archive_path(
+        f'{save_root}/{suffix_name}_features:{feature_name}_classifier:{cls_name}_{res_name}_{time.time()}.npz'
+    )
     print(f'SMOKE_ONLY={bool(args.allow_short_run)}')
     print (f'save results in {save_path}')
     save_result_archive(
