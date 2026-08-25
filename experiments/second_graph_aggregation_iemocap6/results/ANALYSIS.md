@@ -8,6 +8,8 @@ All numeric entries below were recomputed from [summary.json](summary.json); no 
 
 The comparison uses IEMOCAPSix, fold 5, missing rates `0.0` and `0.7`, and formal seeds `66`, `67`, and `68`. Each candidate task is paired with a read-only inherited Original archive by rate, seed, fold, and mask SHA256. Thus, each rate-level summary contains three paired runs, and each candidate has six paired differences. Values are weighted F1 mean ± **sample SD** unless stated otherwise. Original was not retrained.
 
+The four-arm `n=6` analysis through the preregistered decision below is the **historical initial gate**. RTDR alone was subsequently selected for a post-gate audit; those 15-pair and 40-pair results are reported in separate sections after the historical decision and must not be read as a symmetric extension of the other three arms.
+
 ## Weighted F1 by missing rate
 
 | Arm | Missing 0.0 | Missing 0.7 |
@@ -88,4 +90,45 @@ These tests are **exploratory and low-powered** (`n=6`). More importantly, the s
 
 The locked gate required, for each candidate, positive paired means at both rates, a positive across-rate macro delta, at least two of three positive seed macros, finite outputs, and no collapsed run. GenAgg failed the rate, seed, and collapse conditions; Soft Medoid and SSMA failed the rate and seed conditions; RTDR failed the two-positive-seed condition. Therefore all four candidates stop at this first wave.
 
-The remaining missing rates are not run. Extending the grid after seeing that the preregistered gate failed would weaken the stopping rule, increase post-hoc selection freedom, and spend computation on mechanisms that did not meet the minimum stability requirement. This is a protocol decision, not a claim that the untested rates must be negative.
+At that decision point, the remaining missing rates were not run for any arm. RTDR was later chosen alone for a **selective post-gate audit**. That later choice does not retroactively change the four-arm gate, and it increases rather than removes the need to separate exploratory follow-up from the preregistered comparison.
+
+## RTDR post-gate 15-pair audit
+
+The first RTDR-only follow-up added seeds `69` and `70` and missing rate `0.5`, producing 15 pairs over rates `{0.0,0.5,0.7}` and seeds `{66,67,68,69,70}`. Its validated artifacts are summarized in [rtdr_extension/summary.json](rtdr_extension/summary.json) and the corresponding [trilingual result](rtdr_extension/RESULTS.md). All 15 RTDR runs were finite and retained all six predicted classes.
+
+| Missing rate | Original F1 | RTDR F1 | Paired mean delta |
+|---:|---:|---:|---:|
+| 0.0 | 0.630557 | 0.633225 | +0.002668 |
+| 0.5 | 0.613622 | 0.631619 | +0.017996 |
+| 0.7 | 0.603929 | 0.608797 | +0.004868 |
+
+The 15-pair macro delta was `+0.008510981`. Seed macros were `+0.028398252`, `-0.000814593`, `-0.011880751`, `+0.011559326`, and `+0.015292671` for seeds 66–70, respectively: 3/5 were positive. This audit therefore met its descriptive three-rate rule. It was nevertheless a selective post-gate result, not an independent replication: six cells were reused from the historical gate, the same inherited Original controls were reused, and only RTDR was extended.
+
+## RTDR full 40-pair audit
+
+The final RTDR audit covered all eight missing rates and five seeds, for 40 paired cells. The source-validated machine-readable result is [rtdr_full/summary.json](rtdr_full/summary.json), with [trilingual task evidence](rtdr_full/RESULTS.md). Values below are mean ± sample SD across five paired runs per rate.
+
+| Missing rate | Original F1 | RTDR F1 | Paired delta |
+|---:|---:|---:|---:|
+| 0.0 | 0.630557 ± 0.010829 | 0.633225 ± 0.008727 | +0.002668 ± 0.010963 |
+| 0.1 | 0.636806 ± 0.012262 | 0.636567 ± 0.004561 | -0.000240 ± 0.013880 |
+| 0.2 | 0.642733 ± 0.007890 | 0.620873 ± 0.019253 | -0.021861 ± 0.018526 |
+| 0.3 | 0.636027 ± 0.026504 | 0.622399 ± 0.015480 | -0.013628 ± 0.018776 |
+| 0.4 | 0.635084 ± 0.017462 | 0.623822 ± 0.016386 | -0.011262 ± 0.011932 |
+| 0.5 | 0.613622 ± 0.015644 | 0.631619 ± 0.014413 | +0.017996 ± 0.014364 |
+| 0.6 | 0.617032 ± 0.029693 | 0.616008 ± 0.029307 | -0.001024 ± 0.016175 |
+| 0.7 | 0.603929 ± 0.025612 | 0.608797 ± 0.026903 | +0.004868 ± 0.036921 |
+
+The overall macro delta was `-0.002810103`. Only 3/8 rate means were positive. Seed macros were:
+
+| Seed | Macro delta |
+|---:|---:|
+| 66 | +0.001498969 |
+| 67 | +0.001575323 |
+| 68 | -0.013704424 |
+| 69 | -0.006488743 |
+| 70 | +0.003068360 |
+
+Thus 3/5 seed macros were positive, and all runs were finite and non-collapsed, but the declared descriptive `stable_positive` audit was `false` because the overall macro was negative and only three rate means were positive. The local improvement at missing `0.5` (`+0.017996`) cannot characterize the full grid: losses at `0.2`, `0.3`, and `0.4` were larger in aggregate, while `0.1` and `0.6` were also slightly negative.
+
+This full grid is useful for locating RTDR's boundary, not for declaring superiority. It contains the earlier RTDR cells and is therefore not an independent replication. Moreover, GenAgg, Soft Medoid, and SSMA were not given the same post-gate 40-pair treatment, so the RTDR full-grid result cannot be used for an asymmetric cross-arm ranking. The defensible conclusion is that RTDR showed a positive local signal at selected rates, especially `0.5`, but did not provide a stable positive effect across the complete missing-rate protocol.

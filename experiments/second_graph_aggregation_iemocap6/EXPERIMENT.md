@@ -4,14 +4,14 @@ Chinese version: [EXPERIMENT.zh.md](EXPERIMENT.zh.md). English mirror: [EXPERIME
 
 ## Status boundary (2026-08-25)
 
-This document now records the completed preregistered discrimination experiment. All four mechanisms were implemented and all 24 candidate tasks finished successfully, but all four failed the advancement gate. Detailed evidence is available in [RESULTS](results/RESULTS.md), [Chinese RESULTS](results/RESULTS.zh.md), [English RESULTS](results/RESULTS.en.md), [ANALYSIS](results/ANALYSIS.md), [Chinese ANALYSIS](results/ANALYSIS.zh.md), and [English ANALYSIS](results/ANALYSIS.en.md).
+This document records three evidence stages without rewriting their chronology. First, all four mechanisms completed the preregistered six-task discrimination subset and all four failed its advancement gate. Second, a user-directed post-gate RTDR extension satisfied its separate 15-pair extension criterion. Third, the completed 40-pair RTDR full-rate audit did **not** satisfy its separately predefined `stable_positive` criterion. Original was never retrained. Initial evidence remains in [RESULTS](results/RESULTS.md) and [ANALYSIS](results/ANALYSIS.md); the follow-ups are recorded in [RTDR extension RESULTS](results/rtdr_extension/RESULTS.md) and [RTDR full RESULTS](results/rtdr_full/RESULTS.md), each with Chinese and English mirrors and a machine-readable `summary.json`.
 
 | Candidate | Current state | Evidence boundary |
 |---|---|---|
 | GenAgg | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Core implementation commit `f34405993b96dcfcc64c7867dd82af5a54415073`; GCNet integration `183369c655c200c7a96d5fed84bd0b16519728be`; training identity `dae2903a99744ec9a95a7294373a2c4713c12fd9`; runner `bad59fd25130ebc83726d44f3832e682e46cc795`. |
 | Scaled Soft Medoid | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Same four Phase-A implementation commits; all six canonical archives passed provenance validation. |
 | SSMA Conv2 | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Core commit `08aa55fb255d5e32aa9f6171246e6e2821c97c71`; two-branch/CLI/runner integration `24ea3e7bfb65621d48d935291cb233db69f54dcc`. |
-| Custom RTDR | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Core commit `8f375b2509016daf5395863b0220591bc8bcd3ee`; CLI/runner commit `a107f7448978f4c22f87a6b61ec45b53da312aa0`; zero added trainable parameters. |
+| Custom RTDR | `IMPLEMENTED; INITIAL GATE FAIL; EXTENSION CRITERION PASS; FULL stable_positive=false` | Initial 6/6 gate delta `+0.002541466` with only 1/3 positive seed macros; 15/15 extension criterion passed; 40/40 full audit had overall delta `-0.002810103`, 3/8 positive rate means, and 3/5 positive seed macros. Core commit `8f375b2509016daf5395863b0220591bc8bcd3ee`; CLI/runner commit `a107f7448978f4c22f87a6b61ec45b53da312aa0`; zero added trainable parameters. |
 | Ego–Neighbor Separation | `REJECTED BEFORE TRAINING` | Algebraically redundant with GCNet's existing neighbor and root transforms. |
 | Centered Clipping | `PARKED BEFORE TRAINING` | A source-faithful persistent center, iteration count, and threshold are not grounded for shuffled conversation nodes. |
 
@@ -81,6 +81,21 @@ All candidate tasks use `stage=formal`, because stage is part of the immutable a
 
 Phase A initially assigned three jobs to each of GPUs 4–7. Formal-training processes on GPU 4 repeatedly exited with code `-9`; those failed attempts are retained only as diagnostics and never enter the canonical comparison. The affected three task keys were rerun on GPUs 5, 6, and 7 and succeeded. Phase B used GPUs 5–7, three concurrent jobs per GPU, with the remaining queue starting automatically as slots became free; it completed 12/12. Original was never scheduled in either wave.
 
+### Post-gate RTDR stability audit
+
+The original gate above remains unchanged. After seeing its result, the user explicitly requested additional RTDR stability evidence. The 15-pair extension covered missing rates `{0.0,0.5,0.7}` and seeds `{66,67,68,69,70}`; it reused the six existing RTDR tasks and required nine new trainings. Its separately locked extension rule passed with overall delta `+0.008510981`, positive means at all three rates, and 3/5 positive seed macros. The subsequent full audit covered all eight rates `{0.0,...,0.7}` and five seeds. It reused those 15 tasks and required 25 additional trainings, yielding 40/40 provenance-valid RTDR archives.
+
+The predefined full-audit flag was
+
+```text
+stable_positive = overall macro delta > 0
+                  and at least 6/8 rate means > 0
+                  and at least 3/5 seed macros > 0
+                  and all runs finite and non-collapsed
+```
+
+Its observed value was `false`: the overall paired F1 delta was `-0.002810103`, only 3/8 rate means were positive, and 3/5 seed macros were positive. This is a post-gate stability audit, not a retroactive advancement PASS. Across all arms, the final evidence set contains 58 unique candidate archives: 18 from GenAgg, Soft Medoid, and SSMA, plus 40 RTDR archives. No reused task is counted twice.
+
 ## Original inheritance
 
 The 40 existing Original archives are read-only controls:
@@ -90,7 +105,7 @@ The 40 existing Original archives are read-only controls:
   protocol_recovery_v1_biggpu/formal/original
 ```
 
-They were joined to candidates by `(missing_rate, seed, fold)` and mask SHA256; they were not retrained. Commit `d515386f3207105c8207c34eca3f9743d2b80e4f` implemented the fail-closed legacy-aware validator. It allows only historically absent fields to map to the locked defaults `branch_fusion=addition`, `pre_graph_context=bilstm`, `post_graph_context=bilstm`, `second_graph_aggregation=add`, and `relation_track_routing=early`, while strictly checking source/run manifest, command, dataset, fold, features, seed, rate, parameter count, and mask hash. Validation passed for Original 40/40 and candidates 24/24 before the summary was accepted.
+They were joined to candidates by `(missing_rate, seed, fold)` and mask SHA256; they were not retrained. Commit `d515386f3207105c8207c34eca3f9743d2b80e4f` implemented the fail-closed legacy-aware validator. It allows only historically absent fields to map to the locked defaults `branch_fusion=addition`, `pre_graph_context=bilstm`, `post_graph_context=bilstm`, `second_graph_aggregation=add`, and `relation_track_routing=early`, while strictly checking source/run manifest, command, dataset, fold, features, seed, rate, parameter count, and mask hash. Validation passed for Original 40/40 and the initial candidates 24/24; the final unique candidate set is 58/58 provenance-valid. Original training count remained zero throughout.
 
 ## Efficiency and failure protocol
 
@@ -113,18 +128,18 @@ For each candidate, every valid task was paired with inherited Original. Advance
 | SSMA | -0.007173215 | FAIL | Macro effect negative |
 | RTDR | +0.002541466 | FAIL | Only 1/3 seed macros positive; required at least 2/3 |
 
-Thus all four candidates stop after their six-task discrimination subset; none is expanded to eight missing rates × five seeds. The 24 provenance-valid completed runs remain scientific negative evidence rather than infrastructure failures. See [RESULTS](results/RESULTS.md) and the detailed [ANALYSIS](results/ANALYSIS.md).
+Under the original preregistered decision, all four candidates stopped after their six-task discrimination subset and none qualified for expansion. That historical gate result remains scientific negative evidence rather than an infrastructure failure. The later user-directed RTDR extension and full audit are reported separately and do not change the initial FAIL. The full audit also failed its own `stable_positive` description because its overall delta was negative and only 3/8 rate means were positive.
 
 SSMA additionally requires a parameter-matched sum-plus-MLP control before any claim that gains arise from neighbor interaction rather than parameter count. RTDR must first show that its `early` path is bit-exact Original and its `full-transition` decomposition agrees with Original within forward tolerance `1e-6` and backward tolerance `1e-5`.
 
 ## Automatic result publication to GitHub
 
-The publication target is the configured remote `github`, whose URL is [https://github.com/YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet). Training and result validation are complete. Publication has not yet been claimed as pushed; after final repository verification it will be completed in this same work turn without another user prompt.
+The publication target is the configured remote `github`, whose URL is [https://github.com/YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet). Training and result validation are complete for the 40 Original controls and 58 unique candidate archives. Publication has not yet been claimed as pushed; after final repository verification it will be completed in this same work turn without another user prompt.
 
 The automation performs the following ordered gate:
 
-1. Treat the completed 24/24 candidate archives and validated 40/40 Original controls as the immutable evidence set; failed GPU-4 attempts stay in diagnostics only.
-2. Keep code, task-level NPZ results, logs needed for audit, run/invocation manifests, source/hash manifests, `RESULTS.md/.zh.md/.en.md`, and `ANALYSIS.md/.zh.md/.en.md` in the authoritative local workspace under `/data2/yb/paper`.
+1. Treat the completed 58/58 unique candidate archives and validated 40/40 Original controls as the immutable evidence set; failed GPU-4 attempts stay in diagnostics only, reused RTDR tasks are counted once, and Original training count is zero.
+2. Keep code, task-level NPZ results, logs needed for audit, run/invocation manifests, source/hash manifests, the initial `RESULTS.md/.zh.md/.en.md` and `ANALYSIS.md/.zh.md/.en.md`, and the RTDR extension/full summaries in the authoritative local workspace under `/data2/yb/paper`.
 3. Do not upload datasets, extracted feature tensors, mask-bank payloads, environment credentials, device-login tokens, caches, checkpoints without a declared need, or absolute-path-only symlinks. Publish the mask hashes and provenance needed to reproduce pairing.
 4. Re-run repository tests and result/provenance validation on the exact tree to be published. Record candidate status as `PASS`, scientific `FAIL`, or infrastructure `INCOMPLETE` without converting one category into another.
 5. Place only verified completed versions in the organized repository layout, create a Lore-format commit whose `Tested:` trailer names the validation commands and whose `Not-tested:` trailer states any remaining gap, then push the current experiment branch with:
@@ -135,4 +150,4 @@ git push github HEAD:refs/heads/exp/second-graph-aggregators
 
 6. Confirm publication by comparing the local commit with `git ls-remote github refs/heads/exp/second-graph-aggregators`. A transport failure is retried from the same local commit; training is not rerun. Promotion into the GitHub `main` completed-version layout occurs only from that verified commit, without force-pushing or rewriting unrelated completed versions.
 
-This upload step will publish the code and real completed negative results. The document does not claim that the push has already happened; remote-SHA confirmation is the final publication evidence.
+This upload step will publish the code and the staged evidence: the initial four-arm negative gate, the bounded RTDR extension, and the negative full-audit `stable_positive` result. The document does not claim that the push has already happened; remote-SHA confirmation is the final publication evidence.
