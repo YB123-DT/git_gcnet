@@ -178,12 +178,12 @@ run_jobs(jobs, gpus, workers_per_gpu, python, repository, data_root, mask_bank_r
 正式命令固定：
 
 ```text
---stage gate --arms genagg soft_medoid
+--stage formal --arms genagg soft_medoid
 --rates 0.0 0.7 --seeds 66 67 68
 --gpus 0 1 2 3 --workers-per-gpu 3 --parallel-arms
 ```
 
-runner 不包含 `original` arm，因此不会产生 Original 进程。
+runner 不包含 `original` arm，因此不会产生 Original 进程。禁止使用 `stage=gate`，因为它会创建不同路径和不同不可变command identity，不能被后续formal继承。
 
 - [ ] **步骤4：运行 runner 回归**
 
@@ -205,7 +205,7 @@ runner 不包含 `original` arm，因此不会产生 Original 进程。
 
 - [ ] **步骤3：实现 `summarize_gate.py`**
 
-复用 CP-LECC archive validation 逻辑，按 `(rate, seed, fold)` 连接已有 Original 与候选；输出 task rows、rate means、seed macros及命名判定条件。
+复用 CP-LECC archive metrics 与原子写入逻辑，按 `(rate, seed, fold)` 连接已有 Original 与候选。Original 使用专用历史验证器：允许当前新增字段缺失并映射为 legacy 默认值，但严格检查历史run manifest、命令、fold、特征、seed、rate、参数数和mask SHA；候选继续使用当前严格payload验证。输出 task rows、rate means、seed macros及命名判定条件。
 
 - [ ] **步骤4：运行 summary 测试**
 
@@ -281,4 +281,3 @@ PYTHONPATH=gcnet:. /home/yangbin/miniconda3/envs/multimodalerc310/bin/python \
 - [ ] **步骤4：提交结果和代码**
 
 使用 Lore commits，包含 Tested、Not-tested、Directive 与真实结果边界；未完成候选不进入完成版本目录。
-

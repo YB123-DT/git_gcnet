@@ -32,7 +32,6 @@ with fixed `T=1.0`, preserving Original sum in the high-temperature limit and ad
 
 ## First-wave experiment
 
-Run exactly 12 candidate jobs: `{genagg, soft_medoid}` × missing `{0.0, 0.7}` × seeds `{66,67,68}`. Schedule three jobs on each of four GPUs. Reuse these exact artifacts in the full eight-rate, five-seed protocol if the candidate advances.
+Run exactly 12 candidate jobs: `{genagg, soft_medoid}` × missing `{0.0, 0.7}` × seeds `{66,67,68}`. Schedule three jobs on each of four GPUs. Launch the reduced grid under `stage=formal`, because `stage=gate` has different immutable paths and provenance. Reuse these exact formal artifacts if the candidate advances.
 
 The full acceptance and provenance rules are defined in the canonical document.
-

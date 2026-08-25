@@ -4,7 +4,7 @@
 
 ## 锁定结论
 
-本轮只替换 GCNet temporal 与 speaker 两个分支的第二层 `GraphConv` 邻域聚合器：GenAgg 为主候选，带尺度修正的 Soft Medoid 为备选。第一层 RGCN、图拓扑、relation、BiLSTM、分支加法、重建、分类器、优化器和自然缺失协议全部不变。已有 Original 40 个 NPZ 直接继承，不重新训练。
+本轮只替换 GCNet temporal 与 speaker 两个分支的第二层 `GraphConv` 邻域聚合器：GenAgg 为主候选，带尺度修正的 Soft Medoid 为备选。第一层 RGCN、图拓扑、relation、BiLSTM、分支加法、重建、分类器、优化器和自然缺失协议全部不变。显式self edge继续作为邻居参与聚合，同时保留独立root路径；不新增、删除或去重self edge。已有 Original 40 个 NPZ 直接继承，不重新训练。
 
 ## 文献与撞车检查
 
@@ -30,9 +30,9 @@ y_i=W_n\sum_jx_j+W_rx_i+b.
 f^{-1}\left(n_i^{\alpha-1}\sum_jf(x_j-\beta\mu_i)\right).
 \]
 
-严格采用论文时期的 `1-2-2-4` 正向 MLP、`4-2-2-1` 逆向 MLP、Mish、BatchNorm、Kaiming 初始化、可学习 \(\alpha,\beta\) 及绝对值 inverse-consistency loss。inverse loss 显式并入总损失，权重固定为 1.0，不在 forward hook 内直接调用 `.backward()`。
+严格采用论文实验的 `1-2-2-4` 正向 MLP、`4-2-2-1` 逆向 MLP、Mish、BatchNorm、仅对Linear weight执行Kaiming初始化、保留Linear bias默认初始化及可学习 \(\alpha,\beta\)。令 \(x_c=x_j-\beta\mu_i\)，精确inverse目标为 \(\operatorname{mean}[(|f^{-1}(f(x_c))|-|x_c|)^2]\)。兼容实现复用聚合时已计算的 \(f(x_c)\)，不在hook里二次运行encoder，因此BatchNorm统计只更新一次；这是相对发布hook的明确工程偏差，但保持论文损失与梯度。temporal与speaker两项loss求和后仅一次以权重1.0并入训练总损失，任何forward内都不调用 `.backward()`。
 
-官方训练环境 Torch 1.8/PyG 2.0.1 没有新版 Aggregation API 和 `nn.Mish`，因此使用 `torch_scatter` 和 `x*tanh(softplus(x))` 做数学等价兼容实现，不新增依赖。每个分支新增59个参数，两个分支共118个。新增参数初始化必须使用独立 RNG 分叉，保证所有 GCNet 共享参数与 Original 完全同初始化。
+官方训练环境 Torch 1.8/PyG 2.0.1 没有新版 Aggregation API 和 `nn.Mish`，因此使用 `torch_scatter` 和 `x*tanh(softplus(x))` 做数学等价兼容实现，不新增依赖。论文实验的BatchNorm配置每分支新增59个参数（正向Linear 22、逆向Linear 19、BN affine 16、两个标量），两个分支共118个；当前包默认关闭BN，不是本实验选择。新增参数初始化必须使用独立 RNG 分叉，保证所有 GCNet 共享参数与 Original 完全同初始化。
 
 理由：缺失会改变第一层关系消息的邻域分布。GenAgg 可以学习基数依赖、中心化与非线性统计，不要求完整邻居占多数，因此比 Soft Medoid 更适合作为主候选。
 
@@ -44,7 +44,7 @@ d_j=\sum_k\lVert m_j-m_k\rVert_2,
 \quad \operatorname{Agg}=n_i\sum_js_jm_j.
 \]
 
-初次实验固定来源默认 `T=1.0`。乘以邻居数 \(n_i\) 后，高温极限才恢复 Original sum；单邻居和同质邻域也严格等于 add。neighbor linear 在距离计算前无 bias 地执行，bias 聚合后只加一次，root 路径不变。实现只构造 `[N,max_degree,D]`，不建立 `[N,N,D]`，不使用 top-k，不新增参数。
+初次实验固定来源默认 `T=1.0`。乘以真实入边数 \(n_i\) 后，高温极限才恢复 Original sum；单邻居和同质邻域也严格等于 add。neighbor linear 在距离计算前无 bias 地执行，bias 聚合后只加一次，root 路径不变。打包padding既不进入距离和，也不进入候选softmax；零度节点跳过softmax，邻居项为零，输出严格为 `lin_r(x_i)+lin_l.bias`。实现只构造 `[N,max_degree,D]`，不建立 `[N,N,D]`，不使用 top-k，相对GraphConv新增参数为零。
 
 理由：缺失消息可能成为几何离群点。风险是 GCNet 邻域只有3至5个点，且缺失率0.7时不完整消息通常不是少数，因此它只作为备选。
 
@@ -56,7 +56,7 @@ d_j=\sum_k\lVert m_j-m_k\rVert_2,
 
 ## 最小验证
 
-不跑任何 1-epoch smoke，只做：Original add 的参数/RNG/前后向等价；GenAgg 手算、sum 特例、inverse 梯度及参数数；Soft Medoid 手算、单邻居/同质邻域等价及零新增参数；双分支插入检查；Python 3.8 检查；同步到 biggpu 后一次 FP32 GPU 前后向。
+不跑任何 1-epoch smoke，只做：Original add 的参数/RNG/前后向等价；GenAgg 在eval/fixed-map下手算、`alpha=1,beta=0` sum特例、精确inverse-MSE梯度及参数数；Soft Medoid 手算、packed/ragged与排列等价、零度、单邻居/同质邻域等价及相对GraphConv零参数增量；双分支插入检查；Python 3.8 检查；同步到 biggpu 后一次 FP32 GPU 前后向。
 
 唯一完整测试入口已经确认：
 
@@ -71,7 +71,9 @@ biggpu 正式训练使用 `/data2/yb/reproduction_envs/gcnet-official/bin/python
 
 锁定 IEMOCAPSix fold 5、三种既有特征、hidden 200、graph hidden 100、窗口2/2、100 epochs、seeds 66–70及固定 stage-aware mask bank。
 
-第一波只新增12个任务：两个候选 × missing `{0.0,0.7}` × seeds `{66,67,68}`，四张卡每卡三个。Original 使用已有40个 NPZ。判别任务若晋级会直接继承到正式实验，不重复训练。
+第一波只新增12个任务：两个候选 × missing `{0.0,0.7}` × seeds `{66,67,68}`，四张卡每卡三个。必须使用 `stage=formal` 加显式缩小网格启动，因为现有runner会把stage写入路径和不可变command provenance；若使用 `stage=gate`，后续formal无法原位继承。Original 使用已有40个 NPZ，候选晋级后直接跳过这12个已完成formal路径，不重复训练。
+
+历史 Original 早于当前 branch fusion、pre/post context、selected-path-count 与 second aggregation 字段。专用继承验证器把缺失历史字段解释为锁定默认值 `addition/bilstm/bilstm/add`，但仍严格验证原始run manifest、命令、fold、特征、seed、rate、参数数与mask SHA；候选继续使用当前严格payload验证。Original根目录必须与候选目录分离。
 
 晋级必须同时满足：所有 provenance 与 mask SHA 正确；0.0和0.7两个 rate 的配对平均 F1 均为正；seed-macro 配对均值为正；三个seed至少两个为正；没有非有限值或坍塌。晋级者再补齐8 rates ×5 seeds，失败者立即停止并记录。
 
@@ -90,4 +92,3 @@ biggpu 执行副本：
 ```
 
 两边 `/data2` 并不共享。训练前本地同步到 biggpu；结束后结果和 manifest 同步回本地；启动前与回传后比较源代码 SHA256 manifest。
-

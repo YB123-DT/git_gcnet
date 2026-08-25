@@ -48,11 +48,18 @@ f(x_j-\beta\mu_i)\right).
 
 The result then passes through the existing GraphConv neighbor linear transform. This ordering matches the GenAgg authors' use of `GraphConv(aggr=GenAgg())`. The root transform and bias remain unchanged.
 
-The implementation uses the paper-era MLP dimensions `1-2-2-4` and inverse `4-2-2-1`, Mish, BatchNorm, Kaiming-normal initialization, learnable scalar \(\alpha\) and \(\beta\), and the absolute inverse-consistency loss. The auxiliary loss is returned explicitly and added to the normal training loss with weight 1.0; it is not implemented as an internal `.backward()` call during forward.
+The implementation uses the paper-experiment MLP dimensions `1-2-2-4` and inverse `4-2-2-1`, Mish, BatchNorm, Kaiming-normal initialization of Linear weights only, default Linear bias initialization, and learnable scalars \(\alpha\) and \(\beta\). For \(x_c=x_j-\beta\mu_i\), the exact inverse objective is
+
+\[
+\mathcal L_{\mathrm{inv}}=\operatorname{mean}
+\left[\left(\left|f^{-1}(f(x_c))\right|-|x_c|\right)^2\right].
+\]
+
+The compatibility port reuses the already computed \(f(x_c)\), rather than re-running the encoder inside a hook, so BatchNorm running statistics update once instead of twice. This is an explicit engineering deviation from the released hook while preserving the paper objective and gradient. Temporal and speaker losses are summed and added once to the normal training loss with weight 1.0; no module calls `.backward()` during forward.
 
 The paper-era code requires a newer PyG aggregation API and `nn.Mish`, neither of which exists in the locked Torch 1.8/PyG 2.0.1 environment. The compatibility port therefore implements Mish as `x * tanh(softplus(x))` and aggregation with `torch_scatter`; it adds no dependency.
 
-With BatchNorm, the released architecture contributes 59 trainable parameters per branch and 118 across both branches. Construction must fork and restore the CPU RNG around only the new parameters so all shared GCNet tensors retain the Original initialization.
+With the paper-experiment BatchNorm architecture, the implementation contributes 59 trainable parameters per branch and 118 across both branches: 22 forward-map Linear parameters, 19 inverse-map Linear parameters, 16 BatchNorm affine parameters, and two scalars. The current package default disables BatchNorm and is not the selected experiment configuration. Construction must fork and restore the CPU RNG around only the new parameters so all shared GCNet tensors retain the Original initialization.
 
 Rationale: natural missingness changes the distribution of first-layer relational messages. A fixed sum can only accumulate them, while GenAgg can learn cardinality dependence, centralization, and a nonlinear scalar transform without assuming that most neighbors are complete or clean.
 
@@ -68,7 +75,7 @@ s_j=\operatorname{softmax}(-d_j/T),
 \operatorname{Agg}(M_i)=n_i\sum_js_jm_j.
 \]
 
-The neighbor transform is applied without bias before distances; the original neighbor bias is added once after aggregation. The root transform remains unchanged. This makes the operation identical to Original add aggregation for a single neighbor or a homogeneous neighborhood, and convergent to add as \(T\to\infty\). Temperature is fixed at the source default `T=1.0` for the first experiment and is not learned.
+The neighbor transform is applied without bias before distances; the original neighbor bias is added once after aggregation. The root transform remains unchanged. Packed padding is excluded from both distance sums and the candidate softmax, and \(n_i\) is the true incoming-edge count. A zero-degree target bypasses softmax and receives a zero neighbor aggregate, giving exactly `lin_r(x_i) + lin_l.bias`. This makes the operation identical to Original add aggregation for a single neighbor or a homogeneous neighborhood, and convergent to add as \(T\to\infty\). Temperature is fixed at the source default `T=1.0` for the first experiment and is not learned.
 
 The implementation packs incoming edges into `[N, max_degree, D]` and computes pairwise distances only inside each neighborhood. It introduces zero trainable parameters. No dense `[N,N,D]` tensor, adjacency learning, attention layer, or top-k truncation is allowed.
 
@@ -88,15 +95,15 @@ Add one CLI/model selector:
 --second-graph-aggregation add|genagg|soft_medoid
 ```
 
-`add` is the default and must construct the exact existing PyG `GraphConv`, with identical state-dict keys, parameter count, RNG progression, outputs, and gradients. GenAgg and Soft Medoid replace both `conv2` instances only. Existing `--graph-conv-variant` continues to control `conv1` and remains `original` in this experiment.
+`add` is the default and must construct the exact existing PyG `GraphConv`, with identical state-dict keys, parameter count, RNG progression, outputs, and gradients. GenAgg and Soft Medoid replace both `conv2` instances only. They consume the existing explicit self edge as a normal neighbor and retain the separate GraphConv root transform; no self edge is added, removed, or deduplicated. Existing `--graph-conv-variant` continues to control `conv1` and remains `original` in this experiment.
 
 ## Minimal verification
 
 No epoch-level smoke run is permitted. Verification is limited to deterministic unit and one-batch checks:
 
 1. Original `add` parameter/RNG/forward/backward equivalence.
-2. GenAgg hand-computed reduction, fixed identity \(f\) sum special case, inverse-loss gradients, finite CPU backward, and exact added parameter count.
-3. Soft Medoid hand-computed weights, homogeneous and single-neighbor add equivalence, finite backward, and zero added parameters.
+2. GenAgg hand-computed reduction in evaluation mode, fixed identity \(f\) with `alpha=1,beta=0` sum special case, exact inverse-MSE gradients, finite CPU backward, and exact added parameter count.
+3. Soft Medoid hand-computed weights, packed-versus-ragged and permutation equivalence, zero-degree behavior, homogeneous and single-neighbor add equivalence, finite backward, and zero parameter delta versus GraphConv.
 4. Both GCNet branches use the selected second layer while every first layer stays Original RGCN.
 5. Python 3.8 source compatibility and CLI provenance.
 6. One FP32 GPU forward/backward in the locked biggpu training environment after synchronization.
@@ -123,7 +130,9 @@ The 40-task Original control already exists at:
 
 It contains 40 NPZ archives and is inherited by exact task key and mask SHA256.
 
-The first wave has exactly 12 new tasks: two candidates × missing rates `{0.0, 0.7}` × seeds `{66,67,68}`. Four GPUs run three jobs each. These tasks are formal-compatible and are reused if a candidate advances.
+The first wave has exactly 12 new tasks: two candidates × missing rates `{0.0, 0.7}` × seeds `{66,67,68}`. Four GPUs run three jobs each. It is launched with `stage=formal` and an explicit reduced grid, not `stage=gate`, because the existing runner binds stage into both artifact paths and immutable command provenance. The same formal paths are therefore reused if a candidate advances.
+
+The inherited Original archives predate the current branch-fusion, pre/post-context, selected-path-count, and second-aggregation fields. Their dedicated validator treats absent historical fields as the locked legacy defaults (`addition`, `bilstm`, `bilstm`, `add`) while still requiring the original run manifest, command, fold, feature, seed, rate, parameter count, and mask SHA. Candidate jobs use the current strict payload validator. Original and candidate roots must be distinct.
 
 A candidate advances only if all archives pass provenance validation, both rate-level paired mean F1 deltas are positive, the seed-macro paired delta is positive, at least two of three seed-macro deltas are positive, and no run is non-finite or collapsed. An advancing candidate is completed to eight rates × five seeds without rerunning its first-wave tasks. A rejected candidate is recorded and stopped.
 
@@ -142,4 +151,3 @@ The biggpu execution copy is:
 ```
 
 The two `/data2` trees are not shared. Code is synchronized local-to-biggpu before testing/training; results and manifests are synchronized back to the local worktree after completion. A source-tree SHA256 manifest is compared before launch and after return.
-
