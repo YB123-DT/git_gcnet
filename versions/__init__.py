@@ -1,0 +1,1 @@
+"""Completed GCNet method variants."""

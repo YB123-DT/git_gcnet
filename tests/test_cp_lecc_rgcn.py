@@ -8,7 +8,7 @@ import torch
 from torch import nn
 from torch_geometric.nn import RGCNConv
 
-from cp_lecc_rgcn import CompletePreservingLowRankECCConv
+from versions.cp_lecc.variant import CompletePreservingLowRankECCConv
 
 
 def _graph(device=torch.device("cpu")):
@@ -66,8 +66,8 @@ def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
 
 builtins.__import__ = guarded_import
 sys.path.insert(0, {str(gcnet_dir)!r})
-import cp_lecc_rgcn
-import mpfilm_rgcn
+from versions.cp_lecc import variant as cp_lecc_rgcn
+from versions.mpfilm import variant as mpfilm_rgcn
 """
         completed = subprocess.run(
             [sys.executable, "-c", script],

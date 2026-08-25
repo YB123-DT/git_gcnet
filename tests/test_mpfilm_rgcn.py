@@ -3,7 +3,10 @@ import unittest
 import torch
 from torch_geometric.nn import RGCNConv
 
-from mpfilm_rgcn import MissingPatternFiLMRGCNConv
+from versions.mpfilm.variant import MissingPatternFiLMRGCNConv
+
+
+assert_close = getattr(torch.testing, "assert_close", torch.testing.assert_allclose)
 
 
 def _graph(device):
@@ -136,7 +139,7 @@ class MPFiLMConvolutionTests(unittest.TestCase):
         expected = torch.stack(
             (x[0] + layer.bias, x[0] @ layer.weight[1] + x[1] + layer.bias)
         )
-        torch.testing.assert_close(output, expected)
+        assert_close(output, expected)
 
     def test_faithful_activation_is_applied_per_edge_before_mean(self):
         linearized = MissingPatternFiLMRGCNConv(1, 1, 1, variant="full")
@@ -159,8 +162,8 @@ class MPFiLMConvolutionTests(unittest.TestCase):
         linearized_output = linearized(x, edge_index, edge_type, node_mask)
         faithful_output = faithful(x, edge_index, edge_type, node_mask)
 
-        torch.testing.assert_close(linearized_output[2], torch.tensor([-0.5]))
-        torch.testing.assert_close(faithful_output[2], torch.tensor([0.5]))
+        assert_close(linearized_output[2], torch.tensor([-0.5]))
+        assert_close(faithful_output[2], torch.tensor([0.5]))
 
     def test_faithful_and_linearized_have_identical_parameter_count(self):
         linearized = MissingPatternFiLMRGCNConv(5, 3, 3, variant="full")

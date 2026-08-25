@@ -15,10 +15,10 @@ from torch_geometric.nn import RGCNConv, GraphConv
 
 from module import *
 from graph import batch_graphify
-from cp_lecc_rgcn import CompletePreservingLowRankECCConv
 from missing_patterns import flatten_valid_node_masks
-from mpfilm_rgcn import MissingPatternFiLMRGCNConv
-from sequence_aff import MaskConditionedSequenceAFF
+from versions.cp_lecc.variant import CompletePreservingLowRankECCConv
+from versions.mpfilm.variant import MissingPatternFiLMRGCNConv
+from versions.sequence_aff.variant import MaskConditionedSequenceAFF
 
 
 def _linear_from_forked_cpu_rng(in_features, out_features):

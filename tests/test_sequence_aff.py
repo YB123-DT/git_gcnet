@@ -3,9 +3,12 @@ import unittest
 
 import torch
 
-import sequence_aff
+from versions.sequence_aff import variant as sequence_aff
 from missing_patterns import encode_missing_patterns
-from sequence_aff import MaskConditionedSequenceAFF
+from versions.sequence_aff.variant import MaskConditionedSequenceAFF
+
+
+assert_close = getattr(torch.testing, "assert_close", torch.testing.assert_allclose)
 
 
 PATTERNS = torch.tensor(
@@ -30,8 +33,8 @@ class SequenceAFFTests(unittest.TestCase):
         actual, incomplete = module._encode_patterns(PATTERNS[:, None, :], valid)
         expected, complete = encode_missing_patterns(PATTERNS)
 
-        torch.testing.assert_close(actual[:, 0], expected)
-        torch.testing.assert_close(incomplete[:, 0], ~complete)
+        assert_close(actual[:, 0], expected)
+        assert_close(incomplete[:, 0], ~complete)
 
     def test_forward_source_has_no_host_pattern_conversion(self):
         source = inspect.getsource(sequence_aff)
@@ -61,8 +64,8 @@ class SequenceAFFTests(unittest.TestCase):
         expected[1, 1, 3] = 1
         expected[2, 0, 4] = 1
         expected[2, 1, 5] = 1
-        torch.testing.assert_close(encoded, expected)
-        torch.testing.assert_close(
+        assert_close(encoded, expected)
+        assert_close(
             incomplete,
             torch.tensor(
                 [[True, True], [True, True], [True, True], [False, False]]
@@ -114,10 +117,10 @@ class SequenceAFFTests(unittest.TestCase):
 
         output = module(x, y, mask, umask)
 
-        torch.testing.assert_close(output, x + y, rtol=0, atol=0)
+        assert_close(output, x + y, rtol=0, atol=0)
         output.sum().backward()
-        torch.testing.assert_close(x.grad, torch.ones_like(x), rtol=0, atol=0)
-        torch.testing.assert_close(y.grad, torch.ones_like(y), rtol=0, atol=0)
+        assert_close(x.grad, torch.ones_like(x), rtol=0, atol=0)
+        assert_close(y.grad, torch.ones_like(y), rtol=0, atol=0)
 
     def test_zero_initialized_outputs_reproduce_addition_for_all_patterns(self):
         module = MaskConditionedSequenceAFF(8)
@@ -127,7 +130,7 @@ class SequenceAFFTests(unittest.TestCase):
 
         output = module(x, y, PATTERNS[:, None, :], umask)
 
-        torch.testing.assert_close(output, x + y, rtol=0, atol=0)
+        assert_close(output, x + y, rtol=0, atol=0)
         self.assertEqual(torch.count_nonzero(module.local_context[-1].weight), 0)
         self.assertEqual(torch.count_nonzero(module.local_context[-1].bias), 0)
         self.assertEqual(torch.count_nonzero(module.global_context[-1].weight), 0)
@@ -188,7 +191,7 @@ class SequenceAFFTests(unittest.TestCase):
         original = module(x, y, mask, umask)
         changed = module(changed_x, changed_y, mask, umask)
 
-        torch.testing.assert_close(original[:2, 1], changed[:2, 1], rtol=0, atol=0)
+        assert_close(original[:2, 1], changed[:2, 1], rtol=0, atol=0)
 
     def test_cpu_float32_backward_is_finite(self):
         module = MaskConditionedSequenceAFF(7, reduction=4)
@@ -237,7 +240,7 @@ class SequenceAFFTests(unittest.TestCase):
 
         output = module(x, y, mask, torch.ones(1, 2))
 
-        torch.testing.assert_close(output[0], (x + y)[0], rtol=0, atol=0)
+        assert_close(output[0], (x + y)[0], rtol=0, atol=0)
         self.assertTrue(torch.isfinite(output[0]).all())
 
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")

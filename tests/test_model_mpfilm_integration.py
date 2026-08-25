@@ -3,10 +3,10 @@ import unittest
 import torch
 from torch_geometric.nn import GraphConv, RGCNConv
 
-from cp_lecc_rgcn import CompletePreservingLowRankECCConv
+from versions.cp_lecc.variant import CompletePreservingLowRankECCConv
 from model import GraphModel
-from mpfilm_rgcn import MissingPatternFiLMRGCNConv
-from sequence_aff import MaskConditionedSequenceAFF
+from versions.mpfilm.variant import MissingPatternFiLMRGCNConv
+from versions.sequence_aff.variant import MaskConditionedSequenceAFF
 
 
 class GraphModelMPFiLMIntegrationTests(unittest.TestCase):

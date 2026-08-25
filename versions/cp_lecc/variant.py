@@ -6,7 +6,7 @@ from torch_geometric.nn import RGCNConv
 from torch_geometric.nn.inits import glorot, zeros
 from torch_scatter import scatter
 
-from missing_patterns import encode_missing_patterns
+from common.gcnet.missing_patterns import encode_missing_patterns
 
 
 class CompletePreservingLowRankECCConv(RGCNConv):
