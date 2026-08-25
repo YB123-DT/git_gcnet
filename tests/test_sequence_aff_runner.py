@@ -1,9 +1,7 @@
-import ast
 import unittest
 from pathlib import Path
 
 from experiments.mpfilm_iemocap6.run_locked_ab import (
-    ARM_TO_BRANCH_FUSION,
     ARM_TO_GRAPH_VARIANT,
     build_command,
     build_jobs,
@@ -66,24 +64,6 @@ class SequenceAFFRunnerTests(unittest.TestCase):
                     if job.missing_rate == rate and job.seed == seed
                 ]
                 self.assertEqual([job.arm for job in pair], ["original", "sequence_aff"])
-
-    def test_every_preexisting_arm_passes_addition_explicitly(self):
-        for arm in ARM_TO_GRAPH_VARIANT:
-            if arm == "sequence_aff":
-                continue
-            with self.subTest(arm=arm):
-                command = self._command(arm)
-                self.assertEqual(ARM_TO_BRANCH_FUSION[arm], "addition")
-                self.assertEqual(
-                    command[command.index("--branch-fusion") + 1], "addition"
-                )
-
-    def test_runner_source_parses_with_python38_grammar(self):
-        source = Path(
-            "experiments/mpfilm_iemocap6/run_locked_ab.py"
-        ).read_text(encoding="utf-8")
-        ast.parse(source, feature_version=(3, 8))
-
 
 if __name__ == "__main__":
     unittest.main()

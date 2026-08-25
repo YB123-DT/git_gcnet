@@ -142,6 +142,15 @@ class SequenceAFFArchiveTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "parameter_count"):
                 collect_job(fold, "sequence_aff", 0.2, 66)
 
+        for field in ("pre_graph_context", "post_graph_context"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                fold = _write_job(
+                    Path(tmp), "sequence_aff", 0.4, 69,
+                    arg_overrides={field: "linear"},
+                )
+                with self.assertRaisesRegex(ValueError, field):
+                    collect_job(fold, "sequence_aff", 0.4, 69)
+
     def test_pair_hash_drift_is_rejected(self):
         from experiments.sequence_aff_iemocap6.summarize import collect_grid
 
@@ -152,25 +161,12 @@ class SequenceAFFArchiveTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "mask.*hash"):
                 collect_grid(root, rates=(0.0,), seeds=(66,))
 
-    def test_rejects_linear_pre_or_post_graph_context(self):
-        from experiments.sequence_aff_iemocap6.summarize import collect_job
-
-        for field in ("pre_graph_context", "post_graph_context"):
-            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
-                fold = _write_job(
-                    Path(tmp),
-                    "sequence_aff",
-                    0.4,
-                    69,
-                    arg_overrides={field: "linear"},
-                )
-                with self.assertRaisesRegex(ValueError, field):
-                    collect_job(fold, "sequence_aff", 0.4, 69)
-
-
 class SequenceAFFStatisticsTests(unittest.TestCase):
     def test_paired_summary_uses_sample_sd_and_seed_macro(self):
-        from experiments.sequence_aff_iemocap6.summarize import paired_summary
+        from experiments.sequence_aff_iemocap6.summarize import (
+            paired_summary,
+            render_markdown,
+        )
 
         original = []
         candidate = []
@@ -195,19 +191,8 @@ class SequenceAFFStatisticsTests(unittest.TestCase):
         self.assertAlmostEqual(result["macro"]["sd_delta"], 0.01)
         self.assertIn("paired_t_test", result["macro"])
         self.assertIn("wilcoxon", result["macro"])
-
-    def test_markdown_is_chinese_and_json_serializable(self):
-        from experiments.sequence_aff_iemocap6.summarize import paired_summary, render_markdown
-
-        rows = [{
-            "arm": "original", "rate": 0.0, "seed": 66, "weighted_f1": 0.5,
-            "accuracy": 0.5, "class_coverage": 6, "dominant_ratio": 0.2,
-            "epoch": 1, "manifest_hash": "m",
-        }]
-        candidate = [{**rows[0], "arm": "sequence_aff", "weighted_f1": 0.6}]
-        summary = paired_summary(rows, candidate, rates=(0.0,), seeds=(66,))
-        json.dumps(summary)
-        markdown = render_markdown(summary)
+        json.dumps(result)
+        markdown = render_markdown(result)
         self.assertIn("Sequence AFF 配对实验汇总", markdown)
         self.assertIn("八档宏平均", markdown)
 
