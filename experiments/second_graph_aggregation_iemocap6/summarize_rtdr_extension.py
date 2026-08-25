@@ -67,7 +67,7 @@ def _render(summary: Mapping[str, Any], language: str) -> str:
         lines = [
             "# RTDR 补充配对实验结果",
             "",
-            "状态：**{}**。PASS 要求三个 missing rate 的均值差均为正、总体 seed 宏平均为正、至少 3/5 个 seed 宏平均为正，并且全部运行有限且六类不坍塌。".format(status),
+            "Post-gate extension criterion：**{}**。该限定判据要求三个 missing rate 的均值差均为正、总体 seed 宏平均为正、至少 3/5 个 seed 宏平均为正，并且全部运行有限且六类不坍塌；它不是 initial advancement gate，也不改写初始 FAIL。".format(status),
             "",
             "## Missing-rate 汇总",
             "",
@@ -78,7 +78,7 @@ def _render(summary: Mapping[str, Any], language: str) -> str:
         lines = [
             "# RTDR Extension Paired Results",
             "",
-            "Status: **{}**. PASS requires a positive mean delta at all three missing rates, a positive overall seed macro, at least 3/5 positive seed macros, finite runs, and six-class non-collapse throughout.".format(status),
+            "Post-gate extension criterion: **{}**. This criterion requires a positive mean delta at all three missing rates, a positive overall seed macro, at least 3/5 positive seed macros, finite runs, and six-class non-collapse throughout. It is not the initial advancement gate and does not revise its FAIL decision.".format(status),
             "",
             "## Missing-rate summary",
             "",

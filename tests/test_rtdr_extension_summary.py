@@ -225,6 +225,8 @@ class ExtensionGateTests(unittest.TestCase):
                 self.assertIn("0.5", text)
                 self.assertIn("66", text)
                 self.assertIn("PASS", text)
+                self.assertIn("post-gate extension criterion", text.lower())
+                self.assertIn("initial advancement gate", text.lower())
             self.assertEqual(list(output.glob("*.tmp")), [])
 
 
