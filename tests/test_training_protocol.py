@@ -151,20 +151,24 @@ class TrainingProtocolTests(unittest.TestCase):
             train_gcnet.build_result_suffix(legacy_args),
         )
 
-    def test_archive_path_is_bounded_without_losing_npz_provenance(self):
-        with tempfile.TemporaryDirectory() as directory:
-            requested = Path(directory) / (("experiment-provenance-" * 20) + ".npz")
+    def test_archive_filename_keeps_only_compact_run_identity(self):
+        args = Namespace(
+            dataset="IEMOCAPSix",
+            graph_conv_variant="original",
+            branch_fusion="mask_sequence_aff",
+            fold_index=5,
+            seed=66,
+            mask_type="constant-0.7",
+        )
 
-            bounded = train_gcnet.bounded_archive_path(requested)
+        name = train_gcnet.build_archive_filename(args, timestamp=123.5)
 
-            self.assertEqual(bounded.parent, requested.parent)
-            self.assertEqual(bounded.suffix, ".npz")
-            self.assertLessEqual(len(bounded.name.encode("utf-8")), 255)
-            self.assertNotEqual(bounded.name, requested.name)
-            self.assertEqual(
-                bounded,
-                train_gcnet.bounded_archive_path(requested),
-            )
+        self.assertEqual(
+            name,
+            "iemocapsix_original_mask_sequence_aff_f5_s66_m0p7_123.5.npz",
+        )
+        self.assertNotIn("prectx", name)
+        self.assertNotIn("features", name)
 
     def test_short_mask_sequence_aff_run_records_full_provenance(self):
         project_root = Path(__file__).resolve().parents[1]
@@ -277,8 +281,10 @@ class TrainingProtocolTests(unittest.TestCase):
             archives = list(output_root.glob("*.npz"))
             self.assertEqual(len(archives), 1)
             archive_path = archives[0]
-            self.assertIn(
-                "_prectx:linear_postctx:linear_branchfusion:mask_sequence_aff_",
+            self.assertTrue(
+                archive_path.name.startswith(
+                    "iemocapsix_original_mask_sequence_aff_f1_s100_m0p1_"
+                ),
                 archive_path.name,
             )
             model = train_gcnet.GraphModel(
