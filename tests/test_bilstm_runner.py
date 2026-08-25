@@ -1,4 +1,5 @@
 import ast
+import argparse
 import json
 import shutil
 import subprocess
@@ -6,7 +7,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
+
+import numpy as np
 
 
 class BiLSTMRunnerContractTests(unittest.TestCase):
@@ -66,6 +68,41 @@ class BiLSTMRunnerContractTests(unittest.TestCase):
                 }
                 self.assertEqual(len(jobs), count)
                 self.assertEqual(len(identities), count)
+
+    def test_pilot_cells_are_the_same_artifacts_reused_by_formal(self):
+        pilot = self.runner.build_jobs("pilot", Path("/results"))
+        formal = self.runner.build_jobs("formal", Path("/results"))
+        formal_by_identity = {
+            (job.dataset, job.arm, job.missing_rate, job.seed): job
+            for job in formal
+        }
+        for pilot_job in pilot:
+            identity = (
+                pilot_job.dataset,
+                pilot_job.arm,
+                pilot_job.missing_rate,
+                pilot_job.seed,
+            )
+            formal_job = formal_by_identity[identity]
+            self.assertEqual(pilot_job.output_directory, formal_job.output_directory)
+            self.assertEqual(
+                self.runner._job_payload(
+                    pilot_job,
+                    "0",
+                    Path("/python"),
+                    Path("/repo"),
+                    Path("/data"),
+                    Path("/masks"),
+                ),
+                self.runner._job_payload(
+                    formal_job,
+                    "0",
+                    Path("/python"),
+                    Path("/repo"),
+                    Path("/data"),
+                    Path("/masks"),
+                ),
+            )
 
     def test_custom_grid_keeps_requested_identity(self):
         jobs = self.runner.build_jobs(
@@ -201,16 +238,86 @@ class BiLSTMRunnerResumeTests(unittest.TestCase):
         )
         self.payload = self.runner._job_payload(self.job, "0", **self.inputs)
 
-    def _write_complete(self):
+    def _mask_manifest(self):
+        return {
+            "generator": "gcnet-random-mask-v2-stage-aware",
+            "requested_missing_rate": self.job.missing_rate,
+            "realized_missing_rate": self.job.missing_rate,
+            "seed": self.job.seed,
+            "epochs": 100,
+            "video_lengths": {"video": 2},
+            "train_sha256": ["a" * 64] * 100,
+            "validation_sha256": "b" * 64,
+            "test_sha256": "c" * 64,
+            "sha256": "d" * 64,
+        }
+
+    def _write_complete(self, archive_overrides=None):
         directory = self.job.output_directory
         directory.mkdir(parents=True)
+        self.inputs["mask_root"] = Path(self.temporary.name) / "masks"
+        self.payload = self.runner._job_payload(self.job, "0", **self.inputs)
         (directory / "command.json").write_text(json.dumps(self.payload))
-        (directory / "status.json").write_text(
-            json.dumps({"status": "success", "return_code": 0})
-        )
         (directory / "train.log").write_text(_complete_log())
         (directory / "saved").mkdir()
-        (directory / "saved/result.npz").write_bytes(b"npz")
+        archive_path = directory / "saved/result.npz"
+        args = argparse.Namespace(
+            dataset="CMUMOSI",
+            data_root="/data/CMUMOSI",
+            audio_feature="wav2vec-large-c-UTT",
+            text_feature="deberta-large-4-UTT",
+            video_feature="manet_UTT",
+            base_model="LSTM",
+            graph_conv_variant="original",
+            pre_graph_context="bilstm",
+            post_graph_context="bilstm",
+            windowp=2,
+            windowf=2,
+            hidden=200,
+            lr=0.001,
+            l2=0.00001,
+            dropout=0.5,
+            batch_size=32,
+            num_threads=6,
+            epochs=100,
+            seed=66,
+            mask_seed=66,
+            mask_type="constant-0.7",
+            mask_bank_root=str(
+                self.inputs["mask_root"] / "CMUMOSI/official_split"
+            ),
+            fold_index=None,
+            output_dir=str(directory / "saved"),
+            loss_recon=True,
+            reccls_flag=False,
+            lower_bound=False,
+            time_attn=False,
+            allow_short_run=False,
+        )
+        values = {
+            "args": np.array(args, dtype=object),
+            "fold_numbers": np.array([1]),
+            "mask_bank_manifest": np.array(self._mask_manifest(), dtype=object),
+            "parameter_count": np.array(36_044_061),
+            "selected_path_parameter_count": np.array(34_017_661),
+            "smoke_only": np.array(False),
+        }
+        values.update(archive_overrides or {})
+        np.savez_compressed(archive_path, **values)
+        mask_directory = self.inputs["mask_root"] / "CMUMOSI/official_split"
+        mask_directory.mkdir(parents=True, exist_ok=True)
+        stem = "mask_stage_v2_rate_0p7_seed_66_epochs_100"
+        (mask_directory / (stem + ".json")).write_text(
+            json.dumps(self._mask_manifest())
+        )
+        np.savez_compressed(mask_directory / (stem + ".npz"), rows=np.ones((1, 3)))
+        status = self.runner._build_completion_status(
+            self.job,
+            "0",
+            archive_path,
+            **self.inputs,
+        )
+        (directory / "status.json").write_text(json.dumps(status))
 
     def test_valid_resume_and_command_drift_rejection(self):
         self._write_complete()
@@ -221,6 +328,60 @@ class BiLSTMRunnerResumeTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "command.json mismatch"):
             self.runner._completed(self.job, ("0",), **self.inputs)
+
+    def _rewrite_archive(self, **updates):
+        archive_path = next((self.job.output_directory / "saved").glob("*.npz"))
+        with np.load(archive_path, allow_pickle=True) as archive:
+            values = {name: archive[name] for name in archive.files}
+        values.update(updates)
+        np.savez_compressed(archive_path, **values)
+
+    def _refresh_recorded_hashes(self):
+        status_path = self.job.output_directory / "status.json"
+        status = json.loads(status_path.read_text())
+        archive_path = next((self.job.output_directory / "saved").glob("*.npz"))
+        status["artifacts"] = self.runner._artifact_hashes(
+            self.job, archive_path, self.inputs["mask_root"], 100
+        )
+        status.pop("status_sha256")
+        status["status_sha256"] = self.runner._status_checksum(status)
+        status_path.write_text(json.dumps(status))
+
+    def test_archive_provenance_drift_is_rejected(self):
+        self._write_complete()
+        self._rewrite_archive(selected_path_parameter_count=np.array(10_629_661))
+        self._refresh_recorded_hashes()
+        with self.assertRaisesRegex(RuntimeError, "parameter count"):
+            self.runner._completed(self.job, ("0",), **self.inputs)
+
+    def test_corrupt_npz_is_rejected_instead_of_counted_as_complete(self):
+        self._write_complete()
+        archive = next((self.job.output_directory / "saved").glob("*.npz"))
+        generated = archive.read_bytes()
+        archive.write_bytes(generated[: len(generated) // 2])
+        with self.assertRaisesRegex(RuntimeError, "trusted NPZ"):
+            self.runner._build_completion_status(
+                self.job, "0", archive, **self.inputs
+            )
+
+    def test_status_log_and_saved_archive_drift_are_rejected(self):
+        mutations = {
+            "status": lambda: (self.job.output_directory / "status.json").write_text(
+                json.dumps({"status": "success", "return_code": 0})
+            ),
+            "train.log": lambda: (self.job.output_directory / "train.log").write_text(
+                _complete_log().replace("train_fscore:0.0", "train_fscore:0.1", 1)
+            ),
+            "archive": lambda: self._rewrite_archive(extra=np.array("drift")),
+        }
+        for expected, mutate in mutations.items():
+            with self.subTest(expected=expected):
+                if self.job.output_directory.exists():
+                    shutil.rmtree(self.job.output_directory)
+                self._write_complete()
+                mutate()
+                with self.assertRaisesRegex(RuntimeError, expected):
+                    self.runner._completed(self.job, ("0",), **self.inputs)
 
     def test_partial_and_stale_lock_are_rejected(self):
         self.job.output_directory.mkdir(parents=True)
@@ -245,6 +406,17 @@ class BiLSTMRunnerResumeTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             self.runner._launch(self.job, "0", **self.inputs)
         self.assertEqual(log.read_text(), "keep")
+
+    def test_completed_status_is_created_exclusively(self):
+        self.job.output_directory.mkdir(parents=True)
+        status_path = self.job.output_directory / "status.json"
+        first = {"status": "success", "return_code": 0}
+        self.runner._write_json_exclusive(status_path, first)
+        with self.assertRaisesRegex(RuntimeError, "immutable status"):
+            self.runner._write_json_exclusive(
+                status_path, {"status": "failed", "return_code": 1}
+            )
+        self.assertEqual(json.loads(status_path.read_text()), first)
 
 
 class BiLSTMManifestTests(unittest.TestCase):
@@ -343,6 +515,14 @@ class BiLSTMManifestTests(unittest.TestCase):
         )
         self.assertEqual(first, second)
         self.assertEqual(len(list((self.output / "formal/invocations").glob("*.json"))), 2)
+
+    def test_different_dataset_subsets_can_be_registered_incrementally(self):
+        first = self._manifest(datasets=("IEMOCAPFour",))
+        second = self._manifest(datasets=("CMUMOSI",))
+        self.assertEqual(first["git"], second["git"])
+        dataset_manifests = self.output / "formal/datasets"
+        self.assertTrue((dataset_manifests / "IEMOCAPFour.json").is_file())
+        self.assertTrue((dataset_manifests / "CMUMOSI.json").is_file())
 
     def test_gpu_worker_cap_is_enforced(self):
         job = self.runner.build_jobs(

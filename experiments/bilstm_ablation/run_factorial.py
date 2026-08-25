@@ -10,6 +10,8 @@ import subprocess
 import time
 from typing import Dict, List, Tuple
 
+import numpy as np
+
 
 DATASETS = {
     "IEMOCAPFour": {
@@ -61,6 +63,44 @@ PILOT_SEEDS = (66, 67, 68)
 FORMAL_RATES = tuple(index / 10.0 for index in range(8))
 FORMAL_SEEDS = (66, 67, 68, 69, 70)
 MAX_WORKERS_PER_GPU = 3
+PARAMETER_COUNTS = {
+    "IEMOCAPFour": {
+        "total": 36_165_564,
+        "selected": {
+            "original": 34_139_164,
+            "no_pre_bilstm": 29_781_164,
+            "no_post_bilstm": 15_109_164,
+            "no_all_bilstm": 10_751_164,
+        },
+    },
+    "IEMOCAPSix": {
+        "total": 36_166_566,
+        "selected": {
+            "original": 34_140_166,
+            "no_pre_bilstm": 29_782_166,
+            "no_post_bilstm": 15_110_166,
+            "no_all_bilstm": 10_752_166,
+        },
+    },
+    "CMUMOSI": {
+        "total": 36_044_061,
+        "selected": {
+            "original": 34_017_661,
+            "no_pre_bilstm": 29_659_661,
+            "no_post_bilstm": 14_987_661,
+            "no_all_bilstm": 10_629_661,
+        },
+    },
+    "CMUMOSEI": {
+        "total": 36_044_061,
+        "selected": {
+            "original": 34_017_661,
+            "no_pre_bilstm": 29_659_661,
+            "no_post_bilstm": 14_987_661,
+            "no_all_bilstm": 10_629_661,
+        },
+    },
+}
 LOCKED_TRAINING = {
     "audio_feature": FEATURE_NAMES["audio"],
     "text_feature": FEATURE_NAMES["text"],
@@ -92,6 +132,10 @@ class Job:
     seed: int
     split_tag: str
     output_directory: Path
+
+    @property
+    def artifact_scope(self):
+        return "smoke" if self.stage == "smoke" else "formal"
 
 
 def _rate_tag(rate):
@@ -143,7 +187,7 @@ def build_jobs(
                 for seed in seeds:
                     directory = (
                         Path(output_root)
-                        / stage
+                        / ("smoke" if stage == "smoke" else "formal")
                         / dataset
                         / arm
                         / "miss_{}".format(_rate_tag(rate))
@@ -262,7 +306,7 @@ def _job_payload(
 ):
     dataset = DATASETS[job.dataset]
     return {
-        "stage": job.stage,
+        "stage": job.artifact_scope,
         "dataset": job.dataset,
         "dataset_directory": dataset["directory"],
         "arm": job.arm,
@@ -299,6 +343,245 @@ def _completed_log(path, epochs, allow_short_run):
         and "save results in " in text
         and expected_smoke in text
     )
+
+
+def _sha256_file(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        while True:
+            block = handle.read(1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _mask_artifact_paths(job, mask_root, epochs):
+    stem = "mask_stage_v2_rate_{}_seed_{}_epochs_{}".format(
+        _rate_tag(job.missing_rate), job.seed, epochs
+    )
+    root = Path(mask_root) / job.dataset / job.split_tag
+    return root / (stem + ".npz"), root / (stem + ".json")
+
+
+def _archive_scalar(archive, name):
+    if name not in archive.files:
+        raise RuntimeError("trusted NPZ is missing {!r}".format(name))
+    value = archive[name]
+    if value.size != 1:
+        raise RuntimeError("trusted NPZ field {!r} is not scalar".format(name))
+    return value.item()
+
+
+def _require_equal(actual, expected, label):
+    if actual != expected:
+        raise RuntimeError(
+            "trusted NPZ {} mismatch: {!r} != {!r}".format(
+                label, actual, expected
+            )
+        )
+
+
+def _validate_mask_manifest(job, manifest, mask_root, epochs):
+    if not isinstance(manifest, dict):
+        raise RuntimeError("trusted NPZ mask manifest is not a dictionary")
+    expected = {
+        "generator": "gcnet-random-mask-v2-stage-aware",
+        "requested_missing_rate": job.missing_rate,
+        "seed": job.seed,
+        "epochs": epochs,
+    }
+    for key, value in expected.items():
+        _require_equal(manifest.get(key), value, "mask manifest {}".format(key))
+    hashes = [
+        manifest.get("sha256"),
+        manifest.get("validation_sha256"),
+        manifest.get("test_sha256"),
+    ]
+    train_hashes = manifest.get("train_sha256")
+    if not isinstance(train_hashes, (list, tuple)) or len(train_hashes) != epochs:
+        raise RuntimeError("trusted NPZ mask manifest train hashes mismatch")
+    hashes.extend(train_hashes)
+    if any(
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+        for value in hashes
+    ):
+        raise RuntimeError("trusted NPZ mask manifest contains an invalid hash")
+    bank_path, manifest_path = _mask_artifact_paths(job, mask_root, epochs)
+    if not bank_path.is_file() or not manifest_path.is_file():
+        raise RuntimeError("trusted mask bundle artifacts are incomplete")
+    try:
+        persisted = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("trusted mask manifest cannot be read") from error
+    if persisted != manifest:
+        raise RuntimeError("trusted NPZ mask manifest differs from mask-bank manifest")
+    return bank_path, manifest_path
+
+
+def _validate_archive(
+    job, archive_path, data_root_root, mask_root, epochs, allow_short_run
+):
+    try:
+        with Path(archive_path).open("rb") as archive_handle, np.load(
+            archive_handle, allow_pickle=True
+        ) as archive:
+            required = {
+                "args",
+                "fold_numbers",
+                "mask_bank_manifest",
+                "parameter_count",
+                "selected_path_parameter_count",
+                "smoke_only",
+            }
+            missing = required - set(archive.files)
+            if missing:
+                raise RuntimeError(
+                    "trusted NPZ is missing fields: {}".format(sorted(missing))
+                )
+            arguments = _archive_scalar(archive, "args")
+            if hasattr(arguments, "__dict__"):
+                arguments = vars(arguments)
+            if not isinstance(arguments, dict):
+                raise RuntimeError("trusted NPZ args are not a namespace or dictionary")
+            pre_context, post_context = ARMS[job.arm]
+            expected_arguments = {
+                "dataset": job.dataset,
+                "data_root": str(
+                    Path(data_root_root) / DATASETS[job.dataset]["directory"]
+                ),
+                "audio_feature": FEATURE_NAMES["audio"],
+                "text_feature": FEATURE_NAMES["text"],
+                "video_feature": FEATURE_NAMES["video"],
+                "base_model": "LSTM",
+                "graph_conv_variant": "original",
+                "pre_graph_context": pre_context,
+                "post_graph_context": post_context,
+                "windowp": 2,
+                "windowf": 2,
+                "hidden": 200,
+                "lr": 0.001,
+                "l2": 0.00001,
+                "dropout": 0.5,
+                "batch_size": 32,
+                "num_threads": 6,
+                "epochs": epochs,
+                "seed": job.seed,
+                "mask_seed": job.seed,
+                "mask_type": "constant-{:.1f}".format(job.missing_rate),
+                "mask_bank_root": str(
+                    Path(mask_root) / job.dataset / job.split_tag
+                ),
+                "fold_index": DATASETS[job.dataset]["fold"],
+                "output_dir": str(job.output_directory / "saved"),
+                "loss_recon": True,
+                "reccls_flag": False,
+                "lower_bound": False,
+                "time_attn": False,
+                "allow_short_run": bool(allow_short_run),
+            }
+            for name, expected in expected_arguments.items():
+                _require_equal(arguments.get(name), expected, "args.{}".format(name))
+            fold_numbers = archive["fold_numbers"].tolist()
+            expected_folds = [DATASETS[job.dataset]["fold"] or 1]
+            _require_equal(fold_numbers, expected_folds, "fold/split")
+            _require_equal(
+                bool(_archive_scalar(archive, "smoke_only")),
+                bool(allow_short_run),
+                "smoke provenance",
+            )
+            counts = PARAMETER_COUNTS[job.dataset]
+            _require_equal(
+                int(_archive_scalar(archive, "parameter_count")),
+                counts["total"],
+                "stored parameter count",
+            )
+            _require_equal(
+                int(_archive_scalar(archive, "selected_path_parameter_count")),
+                counts["selected"][job.arm],
+                "selected parameter count",
+            )
+            mask_manifest = _archive_scalar(archive, "mask_bank_manifest")
+    except RuntimeError:
+        raise
+    except Exception as error:
+        raise RuntimeError(
+            "trusted NPZ cannot be opened: {}".format(archive_path)
+        ) from error
+    return _validate_mask_manifest(job, mask_manifest, mask_root, epochs)
+
+
+def _artifact_hashes(job, archive_path, mask_root, epochs):
+    bank_path, mask_manifest_path = _mask_artifact_paths(job, mask_root, epochs)
+    paths = {
+        "command.json": job.output_directory / "command.json",
+        "train.log": job.output_directory / "train.log",
+        "archive": archive_path,
+        "mask_bundle": bank_path,
+        "mask_manifest": mask_manifest_path,
+    }
+    return {name: _sha256_file(path) for name, path in paths.items()}
+
+
+def _status_checksum(payload):
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _build_completion_status(
+    job,
+    gpu,
+    archive_path,
+    python,
+    repository,
+    data_root_root,
+    mask_root,
+    epochs=100,
+    allow_short_run=False,
+    elapsed_seconds=0.0,
+):
+    _validate_archive(
+        job,
+        archive_path,
+        data_root_root,
+        mask_root,
+        epochs,
+        allow_short_run,
+    )
+    payload = {
+        "status": "success",
+        "return_code": 0,
+        "elapsed_seconds": elapsed_seconds,
+        "gpu": str(gpu),
+        "artifacts": _artifact_hashes(job, archive_path, mask_root, epochs),
+    }
+    payload["status_sha256"] = _status_checksum(payload)
+    return payload
+
+
+def _validate_completion_status(job, status, archive_path, mask_root, epochs):
+    if not isinstance(status, dict):
+        raise RuntimeError("status metadata is invalid")
+    checksum = status.get("status_sha256")
+    unsigned = dict(status)
+    unsigned.pop("status_sha256", None)
+    if checksum != _status_checksum(unsigned):
+        raise RuntimeError("status integrity mismatch")
+    if status.get("status") != "success" or status.get("return_code") != 0:
+        raise RuntimeError(
+            "status return_code is not successful for {}".format(
+                job.output_directory
+            )
+        )
+    expected_hashes = _artifact_hashes(job, archive_path, mask_root, epochs)
+    recorded_hashes = status.get("artifacts")
+    if not isinstance(recorded_hashes, dict):
+        raise RuntimeError("status artifact hashes are missing")
+    for name, expected in expected_hashes.items():
+        if recorded_hashes.get(name) != expected:
+            raise RuntimeError("{} artifact hash mismatch".format(name))
 
 
 def _completed(
@@ -356,19 +639,35 @@ def _completed(
     )
     if payload != expected:
         raise RuntimeError("command.json mismatch for {}".format(directory))
-    if status.get("status") != "success" or status.get("return_code") != 0:
+    saved_entries = list((directory / "saved").iterdir())
+    archives = [
+        path
+        for path in saved_entries
+        if path.is_file() and path.suffix == ".npz"
+    ]
+    if len(archives) != 1 or len(saved_entries) != 1:
         raise RuntimeError(
-            "status return_code is not successful for {}".format(directory)
-        )
-    archives = list((directory / "saved").glob("*.npz"))
-    if len(archives) != 1:
-        raise RuntimeError(
-            "expected exactly one NPZ archive in {}, found {}".format(
-                directory / "saved", len(archives)
+            "expected exactly one NPZ archive and no other saved artifacts "
+            "in {}, found {} entries".format(
+                directory / "saved",
+                len(saved_entries),
             )
         )
     if not _completed_log(directory / "train.log", epochs, allow_short_run):
         raise RuntimeError("train.log completion markers or epoch count are invalid")
+    _validate_completion_status(
+        job, status, archives[0], mask_root, epochs
+    )
+    # Hash verification precedes allow_pickle=True so only the exact archive
+    # accepted at process completion is deserialized on resume.
+    _validate_archive(
+        job,
+        archives[0],
+        data_root_root,
+        mask_root,
+        epochs,
+        allow_short_run,
+    )
     return True
 
 
@@ -401,6 +700,15 @@ def _write_json_exclusive_or_equal(path, payload):
     except FileExistsError:
         if path.read_text(encoding="utf-8") != encoded:
             raise RuntimeError("immutable JSON mismatch: {}".format(path))
+
+
+def _write_json_exclusive(path, payload):
+    try:
+        with path.open("x", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+    except FileExistsError as error:
+        raise RuntimeError("immutable status already exists: {}".format(path)) from error
 
 
 def _launch(
@@ -527,14 +835,36 @@ def run_jobs(
                     survivors.append((job, gpu, process, handle, started_at))
                     continue
                 handle.close()
-                _write_json(
-                    job.output_directory / "status.json",
-                    {
+                if return_code == 0:
+                    archives = list((job.output_directory / "saved").glob("*.npz"))
+                    if len(archives) != 1:
+                        raise RuntimeError(
+                            "expected exactly one NPZ archive after training, found {}".format(
+                                len(archives)
+                            )
+                        )
+                    status = _build_completion_status(
+                        job,
+                        gpu,
+                        archives[0],
+                        python,
+                        repository,
+                        data_root_root,
+                        mask_root,
+                        epochs,
+                        allow_short_run,
+                        time.time() - started_at,
+                    )
+                else:
+                    status = {
                         "status": "success" if return_code == 0 else "failed",
                         "return_code": return_code,
                         "elapsed_seconds": time.time() - started_at,
                         "gpu": gpu,
-                    },
+                    }
+                    status["status_sha256"] = _status_checksum(status)
+                _write_json_exclusive(
+                    job.output_directory / "status.json", status
                 )
                 _release_job(job)
                 if return_code != 0:
@@ -681,9 +1011,10 @@ def _ensure_run_manifest(
     except (FileNotFoundError, subprocess.CalledProcessError):
         gpu_names = []
     interpreter = _python_provenance(python, command_output)
+    artifact_scope = "smoke" if stage == "smoke" else "formal"
     manifest = {
         "git": {"head": output(["git", "rev-parse", "HEAD"]), "clean": True},
-        "stage": stage,
+        "artifact_scope": artifact_scope,
         "python": interpreter["python"],
         "versions": interpreter["versions"],
         "gpu_names": gpu_names,
@@ -692,18 +1023,15 @@ def _ensure_run_manifest(
             "data_root_root": str(Path(data_root_root).resolve()),
             "mask_root": str(Path(mask_root).resolve()),
         },
-        "datasets": {
-            dataset: _dataset_manifest(data_root_root, dataset)
-            for dataset in datasets
-        },
         "locked_training": LOCKED_TRAINING,
         "arms": {name: list(modes) for name, modes in ARMS.items()},
+        "parameter_counts": PARAMETER_COUNTS,
         "environment": {
             "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
             "PYTHONHASHSEED": "0",
         },
     }
-    path = Path(output_root) / stage / "run_manifest.json"
+    path = Path(output_root) / artifact_scope / "run_manifest.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with path.open("x", encoding="utf-8") as handle:
@@ -716,6 +1044,19 @@ def _ensure_run_manifest(
             raise RuntimeError("run manifest mismatch: {}".format(path)) from error
         if existing != manifest:
             raise RuntimeError("run manifest mismatch: {}".format(path))
+    dataset_records = {}
+    dataset_root = path.parent / "datasets"
+    dataset_root.mkdir(parents=True, exist_ok=True)
+    for dataset in datasets:
+        record = _dataset_manifest(data_root_root, dataset)
+        dataset_path = dataset_root / "{}.json".format(dataset)
+        try:
+            _write_json_exclusive_or_equal(dataset_path, record)
+        except RuntimeError as error:
+            raise RuntimeError(
+                "run manifest mismatch for dataset {}".format(dataset)
+            ) from error
+        dataset_records[dataset] = record
     invocation = {
         "stage": stage,
         "datasets": list(datasets),
@@ -738,7 +1079,9 @@ def _ensure_run_manifest(
     )
     invocation_path.parent.mkdir(parents=True, exist_ok=True)
     _write_json_exclusive_or_equal(invocation_path, invocation)
-    return manifest
+    result = dict(manifest)
+    result["datasets"] = dataset_records
+    return result
 
 
 def main():
