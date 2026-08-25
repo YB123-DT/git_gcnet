@@ -490,7 +490,13 @@ def _validate_mask_manifest(job, manifest, mask_root, epochs):
 
 
 def _validate_archive(
-    job, archive_path, data_root_root, mask_root, epochs, allow_short_run
+    job,
+    archive_path,
+    data_root_root,
+    mask_root,
+    epochs,
+    allow_short_run,
+    expected_sha256=None,
 ):
     descriptor = None
     try:
@@ -498,6 +504,11 @@ def _validate_archive(
         with os.fdopen(descriptor, "rb") as archive_handle:
             descriptor = None
             archive_sha256 = _hash_open_file(archive_handle)
+            if (
+                expected_sha256 is not None
+                and archive_sha256 != expected_sha256
+            ):
+                raise RuntimeError("trusted NPZ archive digest mismatch")
             with np.load(archive_handle, allow_pickle=True) as archive:
                 required = {
                     "args",
@@ -677,6 +688,7 @@ def _validate_completion_status(job, status, archive_path, mask_root, epochs):
     for name, expected in expected_hashes.items():
         if recorded_hashes.get(name) != expected:
             raise RuntimeError("{} artifact hash mismatch".format(name))
+    return recorded_hashes["archive"]
 
 
 def _completed(
@@ -750,7 +762,7 @@ def _completed(
         )
     if not _completed_log(directory / "train.log", epochs, allow_short_run):
         raise RuntimeError("train.log completion markers or epoch count are invalid")
-    _validate_completion_status(
+    expected_archive_sha256 = _validate_completion_status(
         job, status, archives[0], mask_root, epochs
     )
     # Hash verification precedes allow_pickle=True so only the exact archive
@@ -762,6 +774,7 @@ def _completed(
         mask_root,
         epochs,
         allow_short_run,
+        expected_archive_sha256,
     )
     return True
 

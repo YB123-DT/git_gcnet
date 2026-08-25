@@ -419,6 +419,11 @@ class BiLSTMRunnerResumeTests(unittest.TestCase):
         np.savez_compressed(
             replacement,
             args=np.array(_MarkerPickle(marker), dtype=object),
+            fold_numbers=np.array([1]),
+            mask_bank_manifest=np.array({}, dtype=object),
+            parameter_count=np.array(0),
+            selected_path_parameter_count=np.array(0),
+            smoke_only=np.array(False),
         )
         original_hash = self.runner._hash_open_file
 
@@ -439,6 +444,36 @@ class BiLSTMRunnerResumeTests(unittest.TestCase):
                     100,
                     False,
                 )
+        self.assertFalse(marker.exists())
+
+    def test_resume_swap_after_status_validation_never_opens_pickle(self):
+        self._write_complete()
+        archive = next((self.job.output_directory / "saved").glob("*.npz"))
+        marker = Path(self.temporary.name) / "resume-pickle-marker"
+        replacement = Path(self.temporary.name) / "resume-replacement.npz"
+        np.savez_compressed(
+            replacement,
+            args=np.array(_MarkerPickle(marker), dtype=object),
+            fold_numbers=np.array([1]),
+            mask_bank_manifest=np.array({}, dtype=object),
+            parameter_count=np.array(0),
+            selected_path_parameter_count=np.array(0),
+            smoke_only=np.array(False),
+        )
+        original_validation = self.runner._validate_completion_status
+
+        def swap_after_status(*args, **kwargs):
+            digest = original_validation(*args, **kwargs)
+            os.replace(replacement, archive)
+            return digest
+
+        with mock.patch.object(
+            self.runner,
+            "_validate_completion_status",
+            side_effect=swap_after_status,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "archive digest mismatch"):
+                self.runner._completed(self.job, ("0",), **self.inputs)
         self.assertFalse(marker.exists())
 
     def test_status_log_and_saved_archive_drift_are_rejected(self):
