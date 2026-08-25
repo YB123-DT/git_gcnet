@@ -1,5 +1,6 @@
 import hashlib
 import json
+import shutil
 import tempfile
 import unittest
 from argparse import Namespace
@@ -287,6 +288,33 @@ def _fold(root, arm, rate, seed):
 
 
 class TrustedJobTests(unittest.TestCase):
+    def test_relocated_phase_preserves_original_command_identity_but_rejects_suffix_drift(self):
+        from experiments.second_graph_aggregation_iemocap6.summarize_gate import collect_job
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_fold = _write_job(
+                _fold(root / "source" / "formal", "genagg", 0.0, 66),
+                "genagg", 0.0, 66,
+            )
+            relocated_formal = root / "relocated" / "formal"
+            relocated_formal.parent.mkdir(parents=True)
+            shutil.move(str(source_fold.parents[3]), str(relocated_formal))
+            relocated_fold = _fold(relocated_formal, "genagg", 0.0, 66)
+
+            row = collect_job(relocated_fold, "genagg", 0.0, 66)
+            self.assertEqual(row["arm"], "genagg")
+
+            payload_path = relocated_fold / "command.json"
+            payload = json.loads(payload_path.read_text())
+            output_index = payload["command"].index("--output-dir") + 1
+            payload["command"][output_index] = payload["command"][output_index].replace(
+                "miss_0p0", "miss_0p1"
+            )
+            payload_path.write_text(json.dumps(payload))
+            with self.assertRaisesRegex(ValueError, "relocated.*suffix"):
+                collect_job(relocated_fold, "genagg", 0.0, 66)
+
     def test_collects_each_current_candidate_with_exact_counts_and_runtime(self):
         from experiments.second_graph_aggregation_iemocap6.summarize_gate import (
             collect_job,

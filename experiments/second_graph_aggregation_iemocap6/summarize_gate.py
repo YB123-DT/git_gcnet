@@ -310,6 +310,37 @@ def _without_legacy_defaults(command: Sequence[str]) -> list:
     return normalized
 
 
+def _command_original_fold(
+    command: Sequence[str], relocated_fold: Path, arm: str, rate: float, seed: int
+) -> Path:
+    if command.count("--output-dir") != 1:
+        raise ValueError("command must contain exactly one --output-dir")
+    index = command.index("--output-dir")
+    if index + 1 >= len(command):
+        raise ValueError("command --output-dir is missing its value")
+    raw_output = str(command[index + 1])
+    output = Path(raw_output)
+    if not output.is_absolute() or ".." in output.parts or output.name != "saved":
+        raise ValueError("command original output-dir is not a safe absolute saved path")
+    original_fold = output.parent
+    expected_suffix = (
+        "formal",
+        arm,
+        "miss_{}".format(_rate_tag(rate)),
+        "seed_{}".format(seed),
+        "fold_5",
+    )
+    original_suffix = tuple(original_fold.parts[-5:])
+    relocated_suffix = tuple(Path(relocated_fold).parts[-5:])
+    if original_suffix != expected_suffix or relocated_suffix != expected_suffix:
+        raise ValueError(
+            "relocated artifact suffix mismatch: original={!r}, relocated={!r}, expected={!r}".format(
+                original_suffix, relocated_suffix, expected_suffix
+            )
+        )
+    return original_fold
+
+
 def _validated_archive(
     fold_directory: Path,
     arm: str,
@@ -347,6 +378,7 @@ def _validated_archive(
     payload = json.loads((fold_directory / "command.json").read_text(encoding="utf-8"))
     command = payload.get("command")
     python, repository, data_root, mask_root = _locked_paths(command)
+    original_fold = _command_original_fold(command, fold_directory, arm, rate, seed)
     manifest_roots = manifest["roots"]
     expected_command_data_root = manifest_roots["data"]
     if historical_original and float(rate) in (0.5, 0.7):
@@ -365,7 +397,7 @@ def _validated_archive(
             raise ValueError(
                 "command {} mismatch: {!r} != {!r}".format(label, actual, expected_path)
             )
-    job = Job("formal", arm, float(rate), int(seed), fold_directory)
+    job = Job("formal", arm, float(rate), int(seed), original_fold)
     expected = _job_payload(
         job, str(payload.get("gpu")), python, repository, data_root, mask_root
     )
