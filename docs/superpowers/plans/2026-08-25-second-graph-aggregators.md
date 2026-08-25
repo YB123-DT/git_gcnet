@@ -2,7 +2,9 @@
 
 > **面向 AI 代理的工作者：** 必需子技能：使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务实现此计划。步骤使用复选框（`- [ ]`）语法跟踪进度。
 
-**目标：** 在不重新训练 Original、不改变 GCNet 其他模块的前提下，实现 GenAgg 与 scaled Soft Medoid 第二层聚合器，完成验证并运行 IEMOCAPSix fold-5 的12任务判别实验。
+**目标：** 在不重新训练 Original 的前提下，分两阶段完成四个可训练图候选：Phase A 为 GenAgg 与 scaled Soft Medoid；Phase B 为 SSMA Conv2 与自定义 RTDR。每阶段运行 IEMOCAPSix fold-5 的12任务判别实验，共24个候选任务。
+
+**范围更新（2026-08-25）：** 下文任务1–8原文是已执行的Phase A计划，保留作为provenance，不回写成“仿佛一开始就包含全部候选”。Phase B按 [新增候选决策](../specs/2026-08-25-additional-graph-candidates-design.md) 执行：SSMA只替换两支conv2聚合；纯线性RTLF因与Original等价被否决；非平凡零参数实验明确命名为RTDR，只改变二跳relation-transition mask。Ego–Neighbor Separation和Centered Clipping只形成否决证据，不注册训练任务。
 
 **架构：** 新聚合器封装在独立文件中，并通过 `GraphNetwork.conv2` 的单一选择器接入。训练循环只为 GenAgg 加入来源要求的 inverse-consistency loss；现有 runner 仅增加候选 arm 和可选并行-arm 模式，以复用全部 manifest、锁、resume 和进程清理逻辑。
 
@@ -242,7 +244,7 @@ PYTHONPATH=gcnet:. /home/yangbin/miniconda3/envs/multimodalerc310/bin/python \
 
 若检查失败，按根因修复；不创建新 smoke 脚本，不重复无关测试。
 
-### 任务7：启动并完成12任务判别实验
+### 任务7：启动并完成Phase A的12任务判别实验
 
 - [ ] **步骤1：验证远端数据和 inherited Original**
 
@@ -281,3 +283,21 @@ PYTHONPATH=gcnet:. /home/yangbin/miniconda3/envs/multimodalerc310/bin/python \
 - [ ] **步骤4：提交结果和代码**
 
 使用 Lore commits，包含 Tested、Not-tested、Directive 与真实结果边界；未完成候选不进入完成版本目录。
+
+### 任务9：完成Phase B并自动发布
+
+- [ ] **步骤1：SSMA与RTDR按TDD实现并两阶段审查**
+
+SSMA通过独立tiny oracle、双分支参数增量、Torch1.8 GPU反向；RTDR通过Original原路径bit-exact和full-transition容差等价，再开放diagonal selector。
+
+- [ ] **步骤2：扩展CLI、归档身份与runner**
+
+Phase B固定为 `ssma rtdr` × missing `{0.0,0.7}` × seeds `{66,67,68}`，`stage=formal`，四卡每卡三个进程。不得启动Original。
+
+- [ ] **步骤3：运行、监控、回传和汇总**
+
+两阶段合计24个候选任务均要求return code 0、100 epoch记录、一个NPZ、mask/provenance一致；失败任务只按原task key修复后resume。
+
+- [ ] **步骤4：自动推送指定仓库**
+
+将完成代码、实验说明、manifest、任务级结果和双语汇总同步回 `/data2/yb/paper`，整理为完成版本目录，使用Lore commit提交，并推送到 `https://github.com/YB123-DT/git_gcnet`。失败/未完成任务放入明确的未完成记录或排除，不得混入完成结果。

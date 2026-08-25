@@ -17,9 +17,9 @@ Chinese mirror: [test-spec-second-graph-aggregators.zh.md](test-spec-second-grap
 
 ## Runner proof
 
-1. Build exactly 12 unique jobs for two arms, two rates, and three seeds.
+1. Build exactly 12 unique jobs per two-arm phase, two rates, and three seeds; Phase A plus Phase B totals 24 candidate jobs.
 2. Candidate commands differ from Original only by second aggregation and output identity.
-3. Parallel-arm mode makes one `run_jobs` call over all 12 `stage=formal` jobs; legacy mode remains sequential. A test must prove `stage=gate` artifacts cannot silently satisfy formal resume.
+3. Parallel-arm mode makes one `run_jobs` call over all 12 `stage=formal` jobs in a phase; legacy mode remains sequential. A test must prove `stage=gate` artifacts cannot silently satisfy formal resume.
 4. Resume accepts only complete immutable artifacts and never launches Original.
 5. Gate rejects provenance/mask mismatch, nonfinite values, a nonpositive rate mean, a nonpositive seed macro, or fewer than two positive seeds. Historical Original archives may omit only fields introduced after their source run, which map to locked legacy defaults; any other drift is rejected.
 
@@ -29,7 +29,15 @@ Chinese mirror: [test-spec-second-graph-aggregators.zh.md](test-spec-second-grap
 2. Synchronize a clean committed source snapshot to a real Git clone on biggpu.
 3. Run exactly one FP32 candidate forward/backward per module in the official training interpreter.
 4. Compare source manifests before any job launch.
-5. Run the 12 tasks and validate exactly one NPZ plus 100 epoch records per task.
+5. Run both 12-task phases and validate exactly one NPZ plus 100 epoch records per task.
+
+## Added-candidate proof
+
+1. SSMA FFT output matches explicit tiny 2-D circular convolution, is neighbor-permutation invariant, has a nonzero mixed-neighbor derivative, enforces degree at most five, and adds exactly 595,400 formal-model parameters across two branches.
+2. SSMA changes only both conv2 modules, preserves all shared initialization and graph edges, and passes one official Torch 1.8 complex backward check.
+3. RTDR `early` is bit-exact to Original in forward/backward/RNG/parameters; decomposed `full-transition` matches within forward `1e-6` and backward `1e-5`; `diagonal` changes only the two-hop relation-transition mask and adds zero parameters.
+4. A symbolic/tensor test demonstrates immediate ego-neighbor concat-linear equivalence to current GraphConv, documenting formal rejection.
+5. Centered Clipping is recorded as non-transferable because its center initialization, iteration count, threshold scale, and good/outlier semantics are ungrounded and its minority assumption fails at locked degree; no training arm is registered.
 
 ## Completion proof
 
@@ -37,3 +45,4 @@ Chinese mirror: [test-spec-second-graph-aggregators.zh.md](test-spec-second-grap
 - Static compilation reports zero errors.
 - Architect review approves scope and attribution.
 - Gate report is bilingual and contains traceable task-level evidence.
+- Verified completed artifacts are synchronized locally, committed, and pushed to `YB123-DT/git_gcnet`; incomplete jobs are absent from completed-version folders.

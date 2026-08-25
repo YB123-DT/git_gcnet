@@ -1,4 +1,3 @@
 # Test Specification (English Mirror)
 
-Prove exact legacy add identity, hand-computed GenAgg and Soft Medoid formulas, finite gradients, parameter counts, two-branch-only integration, training-loss routing, CLI/archive identity, 12-job runner construction, immutable resume, paired gate behavior, one official-environment GPU check, complete unit regression, and bilingual evidence output. The canonical test specification is [here](test-spec-second-graph-aggregators.md).
-
+Prove exact legacy identity; hand-check GenAgg, Soft Medoid, and SSMA mechanisms; verify finite gradients, parameter counts, controlled integration, training/CLI/archive identity, immutable resume, and one official-environment GPU check. RTDR requires bit-exact Original-path and tolerance-bounded full-transition controls before diagonal routing is runnable. Algebraic ego redundancy and Centered Clipping non-transferability are evidence artifacts, not training arms. Two 12-job phases total 24 candidate jobs, followed by verified automatic publication. The canonical test specification is [here](test-spec-second-graph-aggregators.md).

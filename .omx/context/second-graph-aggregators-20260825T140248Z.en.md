@@ -1,4 +1,3 @@
 # Context Snapshot (English Mirror)
 
-Implement source-faithful GenAgg and scaled Soft Medoid only at both GCNet second GraphConv layers. Preserve every other model and protocol component, inherit the existing 40 Original archives, avoid epoch smoke tests, verify compatibility with Torch 1.8/PyG 2.0.1, and run a 12-job paired gate on IEMOCAPSix fold 5. The canonical snapshot is [here](second-graph-aggregators-20260825T140248Z.md).
-
+Implement and evaluate GenAgg, scaled Soft Medoid, and SSMA at GCNet's second graph layer, plus a clearly labeled custom RTDR relation-transition-routing hypothesis. Inherit the existing 40 Original archives, avoid epoch smoke tests, verify compatibility with Torch 1.8/PyG 2.0.1, and record mathematical rejection evidence for pure linear RTLF, redundant Ego–Neighbor Separation, and non-transferable Centered Clipping. Run two 12-job candidate phases and automatically publish only verified completed code/results. The canonical snapshot is [here](second-graph-aggregators-20260825T140248Z.md).

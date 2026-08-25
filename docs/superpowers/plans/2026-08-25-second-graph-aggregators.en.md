@@ -1,4 +1,3 @@
 # GCNet Second-Layer Aggregators Implementation Plan (English Mirror)
 
-The canonical detailed plan is [2026-08-25-second-graph-aggregators.md](2026-08-25-second-graph-aggregators.md). It defines eight TDD tasks: mathematical unit tests and compatible implementations; exact legacy integration; training/CLI/archive identity; reuse of the locked runner; inherited-control summary; full local and one-time official GPU verification; the 12-job four-GPU gate; and automatic pass/fail continuation without rerunning Original or first-wave tasks.
-
+The canonical detailed plan is [2026-08-25-second-graph-aggregators.md](2026-08-25-second-graph-aggregators.md). Phase A retains the original eight-task provenance for GenAgg and Soft Medoid. The 2026-08-25 addendum adds Phase B for SSMA and custom RTDR, yielding two 12-job waves (24 candidate jobs total) without rerunning Original. After verified completion, code, manifests, task-level results, and bilingual summaries are automatically committed and pushed to `YB123-DT/git_gcnet`; incomplete jobs are not published as completed versions.
