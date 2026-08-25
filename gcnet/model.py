@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pad_sequence
-from torch_geometric.nn import RGCNConv, GraphConv
+from torch_geometric.nn import RGCNConv
 
 from module import *
 from graph import batch_graphify
@@ -19,6 +19,7 @@ from cp_lecc_rgcn import CompletePreservingLowRankECCConv
 from missing_patterns import flatten_valid_node_masks
 from mpfilm_rgcn import MissingPatternFiLMRGCNConv
 from sequence_aff import MaskConditionedSequenceAFF
+from second_graph_aggregation import build_second_graph_conv, GenAggGraphConv
 
 
 def _linear_from_forked_cpu_rng(in_features, out_features):
@@ -40,7 +41,7 @@ def _sequence_aff_from_forked_cpu_rng(channels):
 class GraphNetwork(torch.nn.Module):
     def __init__(self, num_features, num_relations, time_attn, hidden_size=64,
                  dropout=0.5, no_cuda=False, graph_conv_variant='original',
-                 post_graph_context='bilstm'):
+                 post_graph_context='bilstm', second_graph_aggregation='add'):
         """
         The Speaker-level context encoder in the form of a 2 layer GCN.
         """
@@ -71,7 +72,10 @@ class GraphNetwork(torch.nn.Module):
                 num_relations,
                 variant=graph_conv_variant,
             )
-        self.conv2 = GraphConv(hidden_size, hidden_size)
+        self.second_graph_aggregation = second_graph_aggregation
+        self.conv2 = build_second_graph_conv(
+            second_graph_aggregation, hidden_size, hidden_size
+        )
 
         ## nodal attention
         D_h = num_features+hidden_size
@@ -130,6 +134,11 @@ class GraphNetwork(torch.nn.Module):
 
         return hidden # [seqlen, batch, D_h]
 
+    def second_graph_auxiliary_loss(self):
+        if isinstance(self.conv2, GenAggGraphConv):
+            return self.conv2.inverse_consistency_loss()
+        return next(self.conv2.parameters()).new_zeros(())
+
         
 '''
 base_model: LSTM or GRU
@@ -142,7 +151,8 @@ class GraphModel(nn.Module):
     def __init__(self, base_model, adim, tdim, vdim, D_e, graph_hidden_size, n_speakers, window_past, window_future,
                  n_classes, dropout=0.5, time_attn=True, no_cuda=False,
                  graph_conv_variant='original', pre_graph_context='bilstm',
-                 post_graph_context='bilstm', branch_fusion='addition'):
+                 post_graph_context='bilstm', branch_fusion='addition',
+                 second_graph_aggregation='add'):
         
         super(GraphModel, self).__init__()
 
@@ -168,6 +178,7 @@ class GraphModel(nn.Module):
         self.pre_graph_context = pre_graph_context
         self.post_graph_context = post_graph_context
         self.branch_fusion = branch_fusion
+        self.second_graph_aggregation = second_graph_aggregation
 
         # The base model is the sequential context encoder.
         # Change input features => 2*D_e
@@ -188,12 +199,14 @@ class GraphModel(nn.Module):
         n_relations = 3
         self.graph_net_temporal = GraphNetwork(
             2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
-            self.no_cuda, graph_conv_variant, post_graph_context
+            self.no_cuda, graph_conv_variant, post_graph_context,
+            second_graph_aggregation
         )
         n_relations = n_speakers ** 2
         self.graph_net_speaker = GraphNetwork(
             2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
-            self.no_cuda, graph_conv_variant, post_graph_context
+            self.no_cuda, graph_conv_variant, post_graph_context,
+            second_graph_aggregation
         )
 
         ## classification and reconstruction
@@ -227,6 +240,12 @@ class GraphModel(nn.Module):
             for parameter in module.parameters()
         )
         return total - excluded
+
+    def second_graph_auxiliary_loss(self):
+        return (
+            self.graph_net_temporal.second_graph_auxiliary_loss()
+            + self.graph_net_speaker.second_graph_auxiliary_loss()
+        )
 
     def forward(self, inputfeats, input_features_mask, qmask, umask, seq_lengths):
         """
