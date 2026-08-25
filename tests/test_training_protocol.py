@@ -1,3 +1,5 @@
+import os
+import pickle
 import random
 import subprocess
 import sys
@@ -74,44 +76,140 @@ class TrainingProtocolTests(unittest.TestCase):
                         self.assertEqual(branch.post_graph_context, post_context)
                         self.assertIsInstance(branch.grufusion, nn.LSTM)
 
-    def test_result_archive_records_context_identity_and_parameter_counts(self):
-        class TinyModel(nn.Module):
-            def __init__(self):
-                super().__init__()
-                self.selected = nn.Linear(3, 2)
-                self.bypassed = nn.Linear(5, 4)
-
-            def selected_path_parameter_count(self):
-                return sum(parameter.numel() for parameter in self.selected.parameters())
-
-        args = Namespace(
-            dataset="IEMOCAPSix",
-            base_model="LSTM",
-            graph_conv_variant="original",
-            fold_index=3,
-            seed=66,
-            mask_type="constant-0.5",
-            pre_graph_context="linear",
-            post_graph_context="linear",
-        )
-        model = TinyModel()
-        suffix = train_gcnet.build_result_suffix(args)
-        self.assertIn("_prectx:linear_postctx:linear", suffix)
-
+    def test_short_linear_linear_run_records_context_and_parameter_provenance(self):
+        project_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory:
-            archive_path = Path(directory) / (suffix + ".npz")
-            train_gcnet.save_result_archive(
-                str(archive_path),
-                args=args,
-                fold_numbers=[3],
-                mask_bank_manifest={"sha256": "trusted"},
-                model=model,
-                smoke_only=True,
-                folder_losswhole=[],
-                folder_savewhole=[],
+            root = Path(directory)
+            data_root = root / "data"
+            output_root = root / "results"
+            feature_root = data_root / "features"
+            feature_names = ("audio", "text", "video")
+            for feature_name in feature_names:
+                (feature_root / feature_name).mkdir(parents=True)
+
+            video_ids = {}
+            video_labels = {}
+            video_speakers = {}
+            video_sentences = {}
+            videos = []
+            for session in range(1, 6):
+                video = "Ses0{}_fixture".format(session)
+                utterances = [
+                    "{}_utt0".format(video),
+                    "{}_utt1".format(video),
+                ]
+                videos.append(video)
+                video_ids[video] = utterances
+                video_labels[video] = [session % 6, (session + 1) % 6]
+                video_speakers[video] = ["F", "M"]
+                video_sentences[video] = ["first", "second"]
+                for feature_index, feature_name in enumerate(feature_names):
+                    for utterance_index, utterance in enumerate(utterances):
+                        values = np.array(
+                            [session, feature_index + 1, utterance_index + 1],
+                            dtype=np.float32,
+                        )
+                        np.save(feature_root / feature_name / utterance, values)
+
+            label_path = data_root / "IEMOCAP_features_raw_6way.pkl"
+            with label_path.open("wb") as handle:
+                pickle.dump(
+                    (
+                        video_ids,
+                        video_labels,
+                        video_speakers,
+                        video_sentences,
+                        set(videos[:4]),
+                        set(videos[4:]),
+                    ),
+                    handle,
+                )
+
+            environment = os.environ.copy()
+            environment["GCNET_CACHE_ROOT"] = str(root / "cache")
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "train_gcnet.py",
+                    "--dataset",
+                    "IEMOCAPSix",
+                    "--data-root",
+                    str(data_root),
+                    "--audio-feature",
+                    "audio",
+                    "--text-feature",
+                    "text",
+                    "--video-feature",
+                    "video",
+                    "--base-model",
+                    "LSTM",
+                    "--graph-conv-variant",
+                    "original",
+                    "--pre-graph-context",
+                    "linear",
+                    "--post-graph-context",
+                    "linear",
+                    "--hidden",
+                    "2",
+                    "--windowp",
+                    "1",
+                    "--windowf",
+                    "1",
+                    "--dropout",
+                    "0",
+                    "--batch-size",
+                    "4",
+                    "--epochs",
+                    "1",
+                    "--fold-index",
+                    "1",
+                    "--num-threads",
+                    "1",
+                    "--mask-type",
+                    "constant-0.1",
+                    "--mask-bank-root",
+                    str(root / "mask-banks"),
+                    "--output-dir",
+                    str(output_root),
+                    "--allow-short-run",
+                    "--no-cuda",
+                ],
+                cwd=project_root / "gcnet",
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+
+            archives = list(output_root.glob("*.npz"))
+            self.assertEqual(len(archives), 1)
+            archive_path = archives[0]
+            self.assertIn(
+                "_prectx:linear_postctx:linear_",
+                archive_path.name,
+            )
+            model = train_gcnet.GraphModel(
+                "LSTM",
+                3,
+                3,
+                3,
+                2,
+                1,
+                n_speakers=2,
+                window_past=1,
+                window_future=1,
+                n_classes=6,
+                dropout=0.0,
+                time_attn=False,
+                no_cuda=True,
+                graph_conv_variant="original",
+                pre_graph_context="linear",
+                post_graph_context="linear",
             )
             with np.load(archive_path, allow_pickle=True) as archive:
                 stored_args = archive["args"].item()
+                self.assertTrue(bool(archive["smoke_only"]))
                 self.assertEqual(stored_args.pre_graph_context, "linear")
                 self.assertEqual(stored_args.post_graph_context, "linear")
                 self.assertEqual(
