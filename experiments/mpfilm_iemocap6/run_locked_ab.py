@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import time
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 ARMS = ("original", "full")
@@ -65,8 +65,8 @@ def build_jobs(
     stage: str,
     output_root: Path,
     arms: Sequence[str] = ARMS,
-    rates: Sequence[float] | None = None,
-    seeds: Sequence[int] | None = None,
+    rates: Optional[Sequence[float]] = None,
+    seeds: Optional[Sequence[int]] = None,
 ) -> List[Job]:
     if stage == "gate":
         default_rates, default_seeds = GATE_RATES, GATE_SEEDS
