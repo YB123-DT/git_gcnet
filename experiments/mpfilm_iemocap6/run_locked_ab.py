@@ -24,6 +24,7 @@ ARM_TO_GRAPH_VARIANT = {
     "genagg": "original",
     "soft_medoid": "original",
     "ssma": "original",
+    "rtdr": "original",
 }
 ARM_TO_BRANCH_FUSION = {
     arm: "mask_sequence_aff" if arm == "sequence_aff" else "addition"
@@ -33,6 +34,9 @@ ARM_TO_SECOND_GRAPH_AGGREGATION = {
     "genagg": "genagg",
     "soft_medoid": "soft_medoid",
     "ssma": "ssma",
+}
+ARM_TO_RELATION_TRACK_ROUTING = {
+    "rtdr": "diagonal",
 }
 GATE_RATES = (0.0, 0.7)
 FORMAL_RATES = tuple(index / 10 for index in range(8))
@@ -169,6 +173,9 @@ def build_command(
     second_aggregation = ARM_TO_SECOND_GRAPH_AGGREGATION.get(job.arm)
     if second_aggregation is not None:
         command.extend(("--second-graph-aggregation", second_aggregation))
+    relation_track_routing = ARM_TO_RELATION_TRACK_ROUTING.get(job.arm)
+    if relation_track_routing is not None:
+        command.extend(("--relation-track-routing", relation_track_routing))
     return command
 
 

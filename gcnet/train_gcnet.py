@@ -158,6 +158,9 @@ def build_model(args, adim, tdim, vdim):
                        branch_fusion=branch_fusion,
                        second_graph_aggregation=getattr(
                            args, 'second_graph_aggregation', 'add'
+                       ),
+                       relation_track_routing=getattr(
+                           args, 'relation_track_routing', 'early'
                        ))
     print("Model have {} paramerters in total".format(sum(x.numel() for x in model.parameters())))
     print ('Graph NN with', args.base_model, 'as base model.')
@@ -509,6 +512,12 @@ def create_argument_parser():
         default='add',
         help='aggregation used by the second graph-convolution layer',
     )
+    parser.add_argument(
+        '--relation-track-routing',
+        choices=['early', 'diagonal'],
+        default='early',
+        help='routing policy between relation-aware graph layers',
+    )
 
     ## Params for training
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
@@ -547,6 +556,11 @@ def build_result_suffix(args):
     )
     if second_graph_aggregation != 'add':
         suffix += f'_secondagg:{second_graph_aggregation}'
+    relation_track_routing = getattr(
+        args, 'relation_track_routing', 'early'
+    )
+    if relation_track_routing != 'early':
+        suffix += f'_relationtrack:{relation_track_routing}'
     return suffix
 
 
@@ -561,6 +575,11 @@ def build_archive_filename(args, timestamp):
     )
     if second_graph_aggregation != 'add':
         identity += f'_secondagg_{second_graph_aggregation}'
+    relation_track_routing = getattr(
+        args, 'relation_track_routing', 'early'
+    )
+    if relation_track_routing != 'early':
+        identity += f'_relationtrack_{relation_track_routing}'
     return (
         f'{identity}_f{args.fold_index}_s{args.seed}'
         f'_m{mask_rate}_{timestamp}.npz'

@@ -19,6 +19,20 @@ from train_gcnet import seed_everything, select_epoch_mask_banks
 
 
 class TrainingProtocolTests(unittest.TestCase):
+    def test_relation_track_routing_cli_defaults_to_early_and_accepts_diagonal(self):
+        parser = train_gcnet.create_argument_parser()
+
+        self.assertEqual(parser.parse_args([]).relation_track_routing, "early")
+        self.assertEqual(
+            parser.parse_args(
+                ["--relation-track-routing", "diagonal"]
+            ).relation_track_routing,
+            "diagonal",
+        )
+        with redirect_stderr(StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args(["--relation-track-routing", "dense"])
+
     def test_second_graph_aggregation_cli_defaults_accepts_candidates_and_rejects_unknown(self):
         parser = train_gcnet.create_argument_parser()
 
@@ -183,6 +197,91 @@ class TrainingProtocolTests(unittest.TestCase):
                 torch.equal(expected, explicit_model.state_dict()[name]), name
             )
 
+    def test_build_model_legacy_namespace_defaults_to_early_relation_routing(self):
+        legacy_args = Namespace(
+            hidden=4,
+            base_model="LSTM",
+            n_speakers=2,
+            windowp=1,
+            windowf=1,
+            n_classes=6,
+            dropout=0.0,
+            time_attn=False,
+            no_cuda=True,
+            graph_conv_variant="original",
+            pre_graph_context="bilstm",
+            post_graph_context="bilstm",
+            branch_fusion="addition",
+            second_graph_aggregation="add",
+        )
+        explicit_args = Namespace(
+            **vars(legacy_args), relation_track_routing="early"
+        )
+
+        torch.manual_seed(381)
+        legacy_model = train_gcnet.build_model(
+            legacy_args, adim=2, tdim=2, vdim=2
+        )
+        legacy_rng = torch.get_rng_state().clone()
+        torch.manual_seed(381)
+        explicit_model = train_gcnet.build_model(
+            explicit_args, adim=2, tdim=2, vdim=2
+        )
+
+        self.assertEqual(legacy_model.relation_track_routing, "early")
+        self.assertEqual(explicit_model.relation_track_routing, "early")
+        self.assertTrue(torch.equal(legacy_rng, torch.get_rng_state()))
+        self.assertEqual(
+            list(legacy_model.state_dict()), list(explicit_model.state_dict())
+        )
+        for name, expected in legacy_model.state_dict().items():
+            self.assertTrue(
+                torch.equal(expected, explicit_model.state_dict()[name]), name
+            )
+
+    def test_build_model_propagates_diagonal_relation_routing_and_rejects_confounding(self):
+        base_args = dict(
+            hidden=4,
+            base_model="LSTM",
+            n_speakers=2,
+            windowp=1,
+            windowf=1,
+            n_classes=6,
+            dropout=0.0,
+            time_attn=False,
+            no_cuda=True,
+            graph_conv_variant="original",
+            pre_graph_context="bilstm",
+            post_graph_context="bilstm",
+            branch_fusion="addition",
+            second_graph_aggregation="add",
+            relation_track_routing="diagonal",
+        )
+
+        model = train_gcnet.build_model(
+            Namespace(**base_args), adim=2, tdim=2, vdim=2
+        )
+        self.assertEqual(model.relation_track_routing, "diagonal")
+        self.assertEqual(
+            model.graph_net_temporal.relation_track_routing, "diagonal"
+        )
+        self.assertEqual(
+            model.graph_net_speaker.relation_track_routing, "diagonal"
+        )
+
+        with self.assertRaisesRegex(
+            ValueError, "diagonal relation-track routing"
+        ):
+            train_gcnet.build_model(
+                Namespace(**{
+                    **base_args,
+                    "second_graph_aggregation": "ssma",
+                }),
+                adim=2,
+                tdim=2,
+                vdim=2,
+            )
+
     def test_build_model_propagates_second_graph_aggregation_candidates(self):
         base_args = dict(
             hidden=4,
@@ -214,9 +313,10 @@ class TrainingProtocolTests(unittest.TestCase):
 
     def test_second_graph_auxiliary_loss_preserves_old_loss_object_unless_training_genagg(self):
         class AuxiliaryModel(nn.Module):
-            def __init__(self, selector):
+            def __init__(self, selector, relation_track_routing="early"):
                 super().__init__()
                 self.second_graph_aggregation = selector
+                self.relation_track_routing = relation_track_routing
                 self.temporal_auxiliary = nn.Parameter(torch.tensor(2.0))
                 self.speaker_auxiliary = nn.Parameter(torch.tensor(3.0))
                 self.auxiliary_calls = 0
@@ -225,14 +325,17 @@ class TrainingProtocolTests(unittest.TestCase):
                 self.auxiliary_calls += 1
                 return self.temporal_auxiliary + self.speaker_auxiliary
 
-        for selector, train in (
-            ("add", True),
-            ("soft_medoid", True),
-            ("ssma", True),
-            ("genagg", False),
+        for selector, routing, train in (
+            ("add", "early", True),
+            ("add", "diagonal", True),
+            ("soft_medoid", "early", True),
+            ("ssma", "early", True),
+            ("genagg", "early", False),
         ):
-            with self.subTest(selector=selector, train=train):
-                model = AuxiliaryModel(selector)
+            with self.subTest(
+                selector=selector, routing=routing, train=train
+            ):
+                model = AuxiliaryModel(selector, routing)
                 base_loss = torch.tensor(7.0, requires_grad=True)
                 result = train_gcnet.add_second_graph_auxiliary_loss(
                     base_loss, model, train=train
@@ -341,6 +444,48 @@ class TrainingProtocolTests(unittest.TestCase):
             self.assertNotEqual(
                 candidate_filenames[selector], expected_filename
             )
+
+    def test_relation_track_result_identity_preserves_early_and_tags_diagonal(self):
+        legacy_args = Namespace(
+            dataset="IEMOCAPSix",
+            base_model="LSTM",
+            graph_conv_variant="original",
+            fold_index=5,
+            seed=66,
+            mask_type="constant-0.7",
+            pre_graph_context="bilstm",
+            post_graph_context="bilstm",
+            branch_fusion="addition",
+            second_graph_aggregation="add",
+        )
+        explicit_early = Namespace(
+            **vars(legacy_args), relation_track_routing="early"
+        )
+        diagonal = Namespace(
+            **vars(legacy_args), relation_track_routing="diagonal"
+        )
+
+        legacy_suffix = train_gcnet.build_result_suffix(legacy_args)
+        legacy_filename = train_gcnet.build_archive_filename(legacy_args, 123.5)
+        self.assertEqual(
+            train_gcnet.build_result_suffix(explicit_early), legacy_suffix
+        )
+        self.assertEqual(
+            train_gcnet.build_archive_filename(explicit_early, 123.5),
+            legacy_filename,
+        )
+        self.assertIn(
+            "relationtrack:diagonal",
+            train_gcnet.build_result_suffix(diagonal),
+        )
+        self.assertIn(
+            "relationtrack_diagonal",
+            train_gcnet.build_archive_filename(diagonal, 123.5),
+        )
+        self.assertNotEqual(
+            train_gcnet.build_archive_filename(diagonal, 123.5),
+            legacy_filename,
+        )
 
     def test_archive_filename_keeps_only_compact_run_identity(self):
         args = Namespace(

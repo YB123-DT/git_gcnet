@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import experiments.mpfilm_iemocap6.run_locked_ab as locked_runner
+
 from experiments.mpfilm_iemocap6.run_locked_ab import (
     ARM_TO_BRANCH_FUSION,
     ARM_TO_GRAPH_VARIANT,
@@ -53,6 +55,54 @@ def _write_complete_job(job, payload):
 
 
 class LockedRunnerTests(unittest.TestCase):
+    def test_rtdr_arm_is_a_single_variable_original_graph_configuration(self):
+        self.assertEqual(ARM_TO_GRAPH_VARIANT["rtdr"], "original")
+        self.assertEqual(ARM_TO_BRANCH_FUSION["rtdr"], "addition")
+        self.assertNotIn("rtdr", ARM_TO_SECOND_GRAPH_AGGREGATION)
+        self.assertEqual(
+            locked_runner.ARM_TO_RELATION_TRACK_ROUTING,
+            {"rtdr": "diagonal"},
+        )
+
+    def test_rtdr_command_differs_from_original_only_by_relation_routing_flag(self):
+        original, rtdr = build_jobs(
+            "formal",
+            Path("/tmp/results"),
+            arms=("original", "rtdr"),
+            rates=(0.7,),
+            seeds=(68,),
+        )
+        original_command = build_command(
+            original,
+            python=Path("/env/bin/python"),
+            repository=Path("/repo"),
+            data_root=Path("/data/IEMOCAP"),
+            mask_bank_root=Path("/tmp/banks"),
+        )
+        rtdr_command = build_command(
+            rtdr,
+            python=Path("/env/bin/python"),
+            repository=Path("/repo"),
+            data_root=Path("/data/IEMOCAP"),
+            mask_bank_root=Path("/tmp/banks"),
+        )
+
+        original_output = original_command.index("--output-dir") + 1
+        rtdr_output = rtdr_command.index("--output-dir") + 1
+        rtdr_without_candidate_identity = list(rtdr_command)
+        rtdr_without_candidate_identity[rtdr_output] = original_command[
+            original_output
+        ]
+        self.assertEqual(
+            rtdr_without_candidate_identity[:-2], original_command
+        )
+        self.assertEqual(
+            rtdr_without_candidate_identity[-2:],
+            ["--relation-track-routing", "diagonal"],
+        )
+        self.assertNotIn("--second-graph-aggregation", rtdr_command)
+        self.assertNotIn("--relation-track-routing", original_command)
+
     def test_second_aggregation_arms_keep_original_graph_and_addition_fusion(self):
         self.assertEqual(ARM_TO_GRAPH_VARIANT["genagg"], "original")
         self.assertEqual(ARM_TO_GRAPH_VARIANT["soft_medoid"], "original")
@@ -218,6 +268,21 @@ class LockedRunnerTests(unittest.TestCase):
             )
             self.assertIn("--second-graph-aggregation", command)
             self.assertNotIn("mask_sequence_aff", command)
+
+    def test_phase_b_has_twelve_unique_ssma_rtdr_jobs_and_no_original(self):
+        jobs = build_jobs(
+            "formal",
+            Path("/tmp/results"),
+            arms=("ssma", "rtdr"),
+            rates=(0.0, 0.7),
+            seeds=(66, 67, 68),
+        )
+        keys = {(job.arm, job.missing_rate, job.seed) for job in jobs}
+
+        self.assertEqual(len(jobs), 12)
+        self.assertEqual(len(keys), 12)
+        self.assertEqual({job.arm for job in jobs}, {"ssma", "rtdr"})
+        self.assertNotIn("original", {job.arm for job in jobs})
 
     def test_gate_contains_two_rates_two_seeds_and_two_arms(self):
         jobs = build_jobs("gate", Path("/tmp/results"))
@@ -540,7 +605,7 @@ class ParallelArmTests(unittest.TestCase):
         jobs = build_jobs(
             "formal",
             Path("/tmp/results"),
-            arms=("genagg", "soft_medoid"),
+            arms=("ssma", "rtdr"),
             rates=(0.0, 0.7),
             seeds=(66, 67, 68),
         )
