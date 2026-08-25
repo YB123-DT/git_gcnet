@@ -155,10 +155,20 @@ def build_model(args, adim, tdim, vdim):
                        graph_conv_variant=args.graph_conv_variant,
                        pre_graph_context=args.pre_graph_context,
                        post_graph_context=args.post_graph_context,
-                       branch_fusion=branch_fusion)
+                       branch_fusion=branch_fusion,
+                       second_graph_aggregation=getattr(
+                           args, 'second_graph_aggregation', 'add'
+                       ))
     print("Model have {} paramerters in total".format(sum(x.numel() for x in model.parameters())))
     print ('Graph NN with', args.base_model, 'as base model.')
     return model
+
+
+def add_second_graph_auxiliary_loss(loss, model, train):
+    """Compose the GenAgg regularizer without changing legacy loss paths."""
+    if train and model.second_graph_aggregation == 'genagg':
+        return loss + model.second_graph_auxiliary_loss()
+    return loss
 
 
 def seed_everything(seed):
@@ -405,6 +415,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
         loss2 = rec_loss(recon_input_features, input_features, input_features_mask, umask, adim, tdim, vdim)
         if args.loss_recon: loss = loss1 + loss2
         if not args.loss_recon: loss = loss1
+        loss = add_second_graph_auxiliary_loss(loss, model, train)
         
         ## save batch results
         # pred_ = torch.argmax(lp_,1) # [batch*seq_len]
@@ -492,6 +503,12 @@ def create_argument_parser():
         default='addition',
         help='temporal/speaker graph branch fusion',
     )
+    parser.add_argument(
+        '--second-graph-aggregation',
+        choices=['add', 'genagg', 'soft_medoid'],
+        default='add',
+        help='aggregation used by the second graph-convolution layer',
+    )
 
     ## Params for training
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
@@ -518,21 +535,35 @@ def create_argument_parser():
 def build_result_suffix(args):
     mask_rate = args.mask_type.split('-')[-1]
     branch_fusion = getattr(args, 'branch_fusion', 'addition')
-    return (
+    suffix = (
         f'{args.dataset.lower()}_Graph{args.base_model}'
         f'_variant:{args.graph_conv_variant}_fold:{args.fold_index}'
         f'_seed:{args.seed}_mask:{mask_rate}'
         f'_prectx:{args.pre_graph_context}_postctx:{args.post_graph_context}'
         f'_branchfusion:{branch_fusion}'
     )
+    second_graph_aggregation = getattr(
+        args, 'second_graph_aggregation', 'add'
+    )
+    if second_graph_aggregation != 'add':
+        suffix += f'_secondagg:{second_graph_aggregation}'
+    return suffix
 
 
 def build_archive_filename(args, timestamp):
     mask_rate = args.mask_type.split('-')[-1].replace('.', 'p')
     branch_fusion = getattr(args, 'branch_fusion', 'addition')
-    return (
+    identity = (
         f'{args.dataset.lower()}_{args.graph_conv_variant}_{branch_fusion}'
-        f'_f{args.fold_index}_s{args.seed}_m{mask_rate}_{timestamp}.npz'
+    )
+    second_graph_aggregation = getattr(
+        args, 'second_graph_aggregation', 'add'
+    )
+    if second_graph_aggregation != 'add':
+        identity += f'_secondagg_{second_graph_aggregation}'
+    return (
+        f'{identity}_f{args.fold_index}_s{args.seed}'
+        f'_m{mask_rate}_{timestamp}.npz'
     )
 
 

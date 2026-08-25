@@ -19,6 +19,24 @@ from train_gcnet import seed_everything, select_epoch_mask_banks
 
 
 class TrainingProtocolTests(unittest.TestCase):
+    def test_second_graph_aggregation_cli_defaults_accepts_candidates_and_rejects_unknown(self):
+        parser = train_gcnet.create_argument_parser()
+
+        self.assertEqual(parser.parse_args([]).second_graph_aggregation, "add")
+        for mode in ("add", "genagg", "soft_medoid"):
+            with self.subTest(mode=mode):
+                self.assertEqual(
+                    parser.parse_args(
+                        ["--second-graph-aggregation", mode]
+                    ).second_graph_aggregation,
+                    mode,
+                )
+        with redirect_stderr(StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args(
+                    ["--second-graph-aggregation", "median"]
+                )
+
     def test_context_cli_defaults_preserve_original_bilstm_protocol(self):
         args = train_gcnet.create_argument_parser().parse_args([])
 
@@ -127,6 +145,113 @@ class TrainingProtocolTests(unittest.TestCase):
                 torch.equal(expected, explicit_model.state_dict()[name]), name
             )
 
+    def test_build_model_legacy_namespace_defaults_to_add_second_graph_identity(self):
+        legacy_args = Namespace(
+            hidden=4,
+            base_model="LSTM",
+            n_speakers=2,
+            windowp=1,
+            windowf=1,
+            n_classes=6,
+            dropout=0.0,
+            time_attn=False,
+            no_cuda=True,
+            graph_conv_variant="original",
+            pre_graph_context="bilstm",
+            post_graph_context="bilstm",
+            branch_fusion="addition",
+        )
+        explicit_args = Namespace(
+            **vars(legacy_args), second_graph_aggregation="add"
+        )
+
+        torch.manual_seed(281)
+        legacy_model = train_gcnet.build_model(
+            legacy_args, adim=2, tdim=2, vdim=2
+        )
+        legacy_rng = torch.get_rng_state().clone()
+        torch.manual_seed(281)
+        explicit_model = train_gcnet.build_model(
+            explicit_args, adim=2, tdim=2, vdim=2
+        )
+
+        self.assertEqual(legacy_model.second_graph_aggregation, "add")
+        self.assertEqual(explicit_model.second_graph_aggregation, "add")
+        self.assertTrue(torch.equal(legacy_rng, torch.get_rng_state()))
+        for name, expected in legacy_model.state_dict().items():
+            self.assertTrue(
+                torch.equal(expected, explicit_model.state_dict()[name]), name
+            )
+
+    def test_build_model_propagates_second_graph_aggregation_candidates(self):
+        base_args = dict(
+            hidden=4,
+            base_model="LSTM",
+            n_speakers=2,
+            windowp=1,
+            windowf=1,
+            n_classes=6,
+            dropout=0.0,
+            time_attn=False,
+            no_cuda=True,
+            graph_conv_variant="original",
+            pre_graph_context="bilstm",
+            post_graph_context="bilstm",
+            branch_fusion="addition",
+        )
+
+        for selector in ("genagg", "soft_medoid"):
+            with self.subTest(selector=selector):
+                model = train_gcnet.build_model(
+                    Namespace(
+                        **base_args, second_graph_aggregation=selector
+                    ),
+                    adim=2,
+                    tdim=2,
+                    vdim=2,
+                )
+                self.assertEqual(model.second_graph_aggregation, selector)
+
+    def test_second_graph_auxiliary_loss_preserves_old_loss_object_unless_training_genagg(self):
+        class AuxiliaryModel(nn.Module):
+            def __init__(self, selector):
+                super().__init__()
+                self.second_graph_aggregation = selector
+                self.temporal_auxiliary = nn.Parameter(torch.tensor(2.0))
+                self.speaker_auxiliary = nn.Parameter(torch.tensor(3.0))
+                self.auxiliary_calls = 0
+
+            def second_graph_auxiliary_loss(self):
+                self.auxiliary_calls += 1
+                return self.temporal_auxiliary + self.speaker_auxiliary
+
+        for selector, train in (
+            ("add", True),
+            ("soft_medoid", True),
+            ("genagg", False),
+        ):
+            with self.subTest(selector=selector, train=train):
+                model = AuxiliaryModel(selector)
+                base_loss = torch.tensor(7.0, requires_grad=True)
+                result = train_gcnet.add_second_graph_auxiliary_loss(
+                    base_loss, model, train=train
+                )
+                self.assertIs(result, base_loss)
+                self.assertEqual(result.item(), 7.0)
+                self.assertEqual(model.auxiliary_calls, 0)
+
+        model = AuxiliaryModel("genagg")
+        base_loss = torch.tensor(7.0, requires_grad=True)
+        result = train_gcnet.add_second_graph_auxiliary_loss(
+            base_loss, model, train=True
+        )
+        self.assertEqual(result.item(), 12.0)
+        self.assertEqual(model.auxiliary_calls, 1)
+        result.backward()
+        self.assertEqual(base_loss.grad.item(), 1.0)
+        self.assertEqual(model.temporal_auxiliary.grad.item(), 1.0)
+        self.assertEqual(model.speaker_auxiliary.grad.item(), 1.0)
+
     def test_result_suffix_legacy_namespace_defaults_to_addition(self):
         legacy_args = Namespace(
             dataset="IEMOCAPSix",
@@ -150,6 +275,71 @@ class TrainingProtocolTests(unittest.TestCase):
             "_branchfusion:addition",
             train_gcnet.build_result_suffix(legacy_args),
         )
+
+    def test_second_graph_result_identity_preserves_add_and_tags_candidates(self):
+        legacy_args = Namespace(
+            dataset="IEMOCAPSix",
+            base_model="LSTM",
+            graph_conv_variant="original",
+            fold_index=1,
+            seed=100,
+            mask_type="constant-0.1",
+            pre_graph_context="bilstm",
+            post_graph_context="bilstm",
+            branch_fusion="addition",
+        )
+        explicit_add = Namespace(
+            **vars(legacy_args), second_graph_aggregation="add"
+        )
+        expected_suffix = (
+            "iemocapsix_GraphLSTM_variant:original_fold:1_seed:100_mask:0.1"
+            "_prectx:bilstm_postctx:bilstm_branchfusion:addition"
+        )
+        expected_filename = (
+            "iemocapsix_original_addition_f1_s100_m0p1_123.5.npz"
+        )
+
+        self.assertEqual(
+            train_gcnet.build_result_suffix(legacy_args), expected_suffix
+        )
+        self.assertEqual(
+            train_gcnet.build_result_suffix(explicit_add), expected_suffix
+        )
+        self.assertEqual(
+            train_gcnet.build_archive_filename(legacy_args, 123.5),
+            expected_filename,
+        )
+        self.assertEqual(
+            train_gcnet.build_archive_filename(explicit_add, 123.5),
+            expected_filename,
+        )
+
+        candidate_suffixes = {
+            selector: train_gcnet.build_result_suffix(
+                Namespace(
+                    **vars(legacy_args), second_graph_aggregation=selector
+                )
+            )
+            for selector in ("genagg", "soft_medoid")
+        }
+        candidate_filenames = {
+            selector: train_gcnet.build_archive_filename(
+                Namespace(
+                    **vars(legacy_args), second_graph_aggregation=selector
+                ),
+                123.5,
+            )
+            for selector in ("genagg", "soft_medoid")
+        }
+        self.assertEqual(len(set(candidate_suffixes.values())), 2)
+        self.assertEqual(len(set(candidate_filenames.values())), 2)
+        for selector in ("genagg", "soft_medoid"):
+            self.assertIn(selector, candidate_suffixes[selector])
+            self.assertIn(selector, candidate_filenames[selector])
+            self.assertNotEqual(candidate_suffixes[selector], expected_suffix)
+            self.assertNotEqual(
+                candidate_filenames[selector], expected_filename
+            )
 
     def test_archive_filename_keeps_only_compact_run_identity(self):
         args = Namespace(
