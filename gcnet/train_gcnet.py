@@ -142,6 +142,7 @@ def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_si
 def build_model(args, adim, tdim, vdim):
     D_e = args.hidden
     graph_h = args.hidden // 2
+    branch_fusion = getattr(args, 'branch_fusion', 'addition')
     model = GraphModel(args.base_model,
                        adim, tdim, vdim, D_e, graph_h,
                        n_speakers=args.n_speakers,
@@ -154,7 +155,7 @@ def build_model(args, adim, tdim, vdim):
                        graph_conv_variant=args.graph_conv_variant,
                        pre_graph_context=args.pre_graph_context,
                        post_graph_context=args.post_graph_context,
-                       branch_fusion=args.branch_fusion)
+                       branch_fusion=branch_fusion)
     print("Model have {} paramerters in total".format(sum(x.numel() for x in model.parameters())))
     print ('Graph NN with', args.base_model, 'as base model.')
     return model
@@ -516,12 +517,13 @@ def create_argument_parser():
 
 def build_result_suffix(args):
     mask_rate = args.mask_type.split('-')[-1]
+    branch_fusion = getattr(args, 'branch_fusion', 'addition')
     return (
         f'{args.dataset.lower()}_Graph{args.base_model}'
         f'_variant:{args.graph_conv_variant}_fold:{args.fold_index}'
         f'_seed:{args.seed}_mask:{mask_rate}'
         f'_prectx:{args.pre_graph_context}_postctx:{args.post_graph_context}'
-        f'_branchfusion:{args.branch_fusion}'
+        f'_branchfusion:{branch_fusion}'
     )
 
 

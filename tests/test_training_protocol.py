@@ -91,6 +91,66 @@ class TrainingProtocolTests(unittest.TestCase):
                         self.assertEqual(branch.post_graph_context, post_context)
                         self.assertIsInstance(branch.grufusion, nn.LSTM)
 
+    def test_build_model_legacy_namespace_defaults_to_addition_identity(self):
+        legacy_args = Namespace(
+            hidden=4,
+            base_model="LSTM",
+            n_speakers=2,
+            windowp=1,
+            windowf=1,
+            n_classes=6,
+            dropout=0.0,
+            time_attn=False,
+            no_cuda=True,
+            graph_conv_variant="original",
+            pre_graph_context="bilstm",
+            post_graph_context="bilstm",
+        )
+        explicit_args = Namespace(
+            **vars(legacy_args), branch_fusion="addition"
+        )
+
+        torch.manual_seed(181)
+        legacy_model = train_gcnet.build_model(
+            legacy_args, adim=2, tdim=2, vdim=2
+        )
+        legacy_rng = torch.get_rng_state().clone()
+        torch.manual_seed(181)
+        explicit_model = train_gcnet.build_model(
+            explicit_args, adim=2, tdim=2, vdim=2
+        )
+
+        self.assertEqual(legacy_model.branch_fusion, "addition")
+        self.assertTrue(torch.equal(legacy_rng, torch.get_rng_state()))
+        for name, expected in legacy_model.state_dict().items():
+            self.assertTrue(
+                torch.equal(expected, explicit_model.state_dict()[name]), name
+            )
+
+    def test_result_suffix_legacy_namespace_defaults_to_addition(self):
+        legacy_args = Namespace(
+            dataset="IEMOCAPSix",
+            base_model="LSTM",
+            graph_conv_variant="original",
+            fold_index=1,
+            seed=100,
+            mask_type="constant-0.1",
+            pre_graph_context="bilstm",
+            post_graph_context="bilstm",
+        )
+        explicit_args = Namespace(
+            **vars(legacy_args), branch_fusion="addition"
+        )
+
+        self.assertEqual(
+            train_gcnet.build_result_suffix(legacy_args),
+            train_gcnet.build_result_suffix(explicit_args),
+        )
+        self.assertIn(
+            "_branchfusion:addition",
+            train_gcnet.build_result_suffix(legacy_args),
+        )
+
     def test_short_mask_sequence_aff_run_records_full_provenance(self):
         project_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory:
