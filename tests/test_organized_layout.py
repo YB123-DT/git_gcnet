@@ -1,4 +1,5 @@
 import json
+import statistics
 import unittest
 from pathlib import Path
 
@@ -54,6 +55,32 @@ class OrganizedLayoutTest(unittest.TestCase):
             self.assertNotEqual(
                 payload["protocol"], "five_fold_cross_validation"
             )
+
+    def test_original_compact_summary_matches_task_level_source(self):
+        paired = json.loads(
+            (RESULTS / "sequence_aff" / "summary.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        compact = json.loads(
+            (RESULTS / "original" / "summary.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(len(paired["tasks"]), compact["task_count"])
+        for rate, expected in compact["rates"].items():
+            values = [
+                row["original"]["weighted_f1"]
+                for row in paired["tasks"]
+                if str(row["rate"]) == rate
+            ]
+            self.assertEqual(len(values), 5)
+            self.assertAlmostEqual(statistics.mean(values), expected, places=15)
+        self.assertAlmostEqual(
+            paired["macro"]["original_mean"],
+            compact["seed_macro_mean"],
+            places=15,
+        )
 
 
 if __name__ == "__main__":
