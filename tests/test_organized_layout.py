@@ -110,6 +110,27 @@ class OrganizedLayoutTest(unittest.TestCase):
             self.assertFalse(path.startswith(forbidden_roots), path)
             self.assertFalse(path.endswith(forbidden_suffixes), path)
 
+    def test_original_reference_files_match_official_upstream(self):
+        if not (ROOT / ".git").exists():
+            self.skipTest("source export has no Git object database")
+        names = (
+            "dataloader_iemocap.py",
+            "graph.py",
+            "model.py",
+            "train_gcnet.py",
+        )
+        for name in names:
+            expected = subprocess.check_output(
+                [
+                    "git",
+                    "show",
+                    "f43d2788481fd5889148f08b688259c9fd712002:gcnet/" + name,
+                ],
+                cwd=str(ROOT),
+            )
+            actual = (ROOT / "versions" / "original" / "reference" / name).read_bytes()
+            self.assertEqual(actual, expected, name)
+
 
 if __name__ == "__main__":
     unittest.main()
