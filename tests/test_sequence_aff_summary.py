@@ -16,7 +16,15 @@ def _snapshot(predicted=(0, 1, 2, 3, 4, 5)):
     return {"test_labels": [labels], "test_preds": [scores]}
 
 
-def _write_job(root, arm, rate, seed, mask_hash=None, predicted=(0, 1, 2, 3, 4, 5)):
+def _write_job(
+    root,
+    arm,
+    rate,
+    seed,
+    mask_hash=None,
+    predicted=(0, 1, 2, 3, 4, 5),
+    arg_overrides=None,
+):
     from experiments.sequence_aff_iemocap6.summarize import (
         SELECTED_PARAMETER_COUNTS,
         STORED_PARAMETER_COUNT,
@@ -45,6 +53,8 @@ def _write_job(root, arm, rate, seed, mask_hash=None, predicted=(0, 1, 2, 3, 4, 
         reccls_flag=False,
         lower_bound=False,
         time_attn=False,
+        pre_graph_context="bilstm",
+        post_graph_context="bilstm",
         graph_conv_variant="original",
         branch_fusion=fusion,
         seed=seed,
@@ -52,6 +62,8 @@ def _write_job(root, arm, rate, seed, mask_hash=None, predicted=(0, 1, 2, 3, 4, 
         mask_type=f"constant-{rate:.1f}",
         fold_index=5,
     )
+    for field, value in (arg_overrides or {}).items():
+        setattr(args, field, value)
     np.savez_compressed(
         saved / "run.npz",
         args=np.array(args, dtype=object),
@@ -139,6 +151,21 @@ class SequenceAFFArchiveTests(unittest.TestCase):
                 _write_job(root, arm, 0.0, 66, mask_hash=arm)
             with self.assertRaisesRegex(ValueError, "mask.*hash"):
                 collect_grid(root, rates=(0.0,), seeds=(66,))
+
+    def test_rejects_linear_pre_or_post_graph_context(self):
+        from experiments.sequence_aff_iemocap6.summarize import collect_job
+
+        for field in ("pre_graph_context", "post_graph_context"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as tmp:
+                fold = _write_job(
+                    Path(tmp),
+                    "sequence_aff",
+                    0.4,
+                    69,
+                    arg_overrides={field: "linear"},
+                )
+                with self.assertRaisesRegex(ValueError, field):
+                    collect_job(fold, "sequence_aff", 0.4, 69)
 
 
 class SequenceAFFStatisticsTests(unittest.TestCase):

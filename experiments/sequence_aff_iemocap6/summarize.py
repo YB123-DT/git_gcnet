@@ -199,6 +199,8 @@ def collect_job(fold_directory: Path, arm: str, rate: float, seed: int) -> Dict[
     expected_args = dict(LOCKED_TRAINING)
     expected_args.pop("fold")
     expected_args.update(
+        pre_graph_context="bilstm",
+        post_graph_context="bilstm",
         graph_conv_variant="original",
         branch_fusion=ARM_TO_BRANCH_FUSION[arm],
         seed=seed,
