@@ -4,8 +4,7 @@ from typing import Tuple
 
 import torch
 from torch import Tensor, nn
-
-from missing_patterns import encode_missing_patterns
+from torch.nn import functional as F
 
 
 class MaskConditionedSequenceAFF(nn.Module):
@@ -24,7 +23,12 @@ class MaskConditionedSequenceAFF(nn.Module):
 
         self.channels = channels
         self.pattern_dim = pattern_dim
-        bottleneck = max(channels // reduction, 1)
+        self.register_buffer(
+            "_pattern_lookup",
+            torch.tensor([6, 2, 1, 5, 0, 4, 3, 6], dtype=torch.long),
+            persistent=False,
+        )
+        bottleneck = max(channels // reduction, 2)
         self.local_context = self._make_context(bottleneck)
         self.global_context = self._make_context(bottleneck)
         self._zero_initialize_outputs()
@@ -43,12 +47,12 @@ class MaskConditionedSequenceAFF(nn.Module):
             nn.init.zeros_(context[-1].bias)
 
     @staticmethod
-    def _is_binary(tensor: Tensor) -> bool:
-        return bool((tensor == tensor.bool().to(tensor.dtype)).all())
+    def _is_binary(tensor: Tensor) -> Tensor:
+        return (tensor == tensor.bool().to(tensor.dtype)).all()
 
     def _validate_inputs(
         self, x: Tensor, y: Tensor, modality_mask: Tensor, umask: Tensor
-    ) -> None:
+    ) -> Tuple[Tensor, Tensor]:
         if x.dim() != 3 or x.size(-1) != self.channels:
             raise ValueError(f"x must have shape [T,B,{self.channels}]")
         if y.shape != x.shape:
@@ -61,40 +65,56 @@ class MaskConditionedSequenceAFF(nn.Module):
             raise ValueError("x and y must be on the same device")
         if modality_mask.dim() != 3 or modality_mask.shape != x.shape[:2] + (3,):
             raise ValueError("modality_mask must have shape [T,B,3]")
-        if modality_mask.is_complex() or not self._is_binary(modality_mask):
-            raise ValueError("modality_mask must contain only binary values")
         if umask.dim() != 2 or umask.shape != (x.size(1), x.size(0)):
             raise ValueError("umask must have shape [B,T]")
-        if umask.is_complex() or not self._is_binary(umask):
+        if modality_mask.is_complex():
+            raise ValueError("modality_mask must contain only binary values")
+        if umask.is_complex():
             raise ValueError("umask must contain only binary values")
-        if bool((umask.sum(dim=1) == 0).any()):
-            raise ValueError("every conversation must contain a valid utterance")
 
-        valid = umask.t().bool().to(modality_mask.device)
-        if bool((modality_mask[valid].sum(dim=-1) == 0).any()):
+        mask = modality_mask.to(device=x.device, dtype=x.dtype)
+        valid_values = umask.to(device=x.device, dtype=x.dtype)
+        binary_mask = self._is_binary(mask)
+        binary_valid = self._is_binary(valid_values)
+        valid = valid_values.t().bool()
+        conversations_nonempty = valid.any(dim=0).all()
+        valid_modalities_nonempty = ((mask.sum(dim=-1) > 0) | ~valid).all()
+        checks = torch.stack(
+            (
+                binary_mask,
+                binary_valid,
+                conversations_nonempty,
+                valid_modalities_nonempty,
+            )
+        )
+        if not bool(checks.all()):
+            if not bool(binary_mask):
+                raise ValueError("modality_mask must contain only binary values")
+            if not bool(binary_valid):
+                raise ValueError("umask must contain only binary values")
+            if not bool(conversations_nonempty):
+                raise ValueError("every conversation must contain a valid utterance")
             raise ValueError("every valid utterance must retain a modality")
+        return mask, valid
 
     def _encode_patterns(
         self, modality_mask: Tensor, valid: Tensor
     ) -> Tuple[Tensor, Tensor]:
-        safe_mask = modality_mask.clone()
-        safe_mask[~valid] = 1
-        flattened_pattern, complete = encode_missing_patterns(
-            safe_mask.reshape(-1, 3)
+        safe_mask = torch.where(
+            valid.unsqueeze(-1), modality_mask, torch.ones_like(modality_mask)
         )
-        pattern = flattened_pattern.reshape(
-            modality_mask.size(0), modality_mask.size(1), self.pattern_dim
-        )
-        incomplete = (~complete).reshape(modality_mask.shape[:2]) & valid
-        pattern = pattern * valid.unsqueeze(-1).to(pattern.dtype)
+        bits = safe_mask.to(dtype=torch.long)
+        codes = bits[..., 0] * 4 + bits[..., 1] * 2 + bits[..., 2]
+        columns = self._pattern_lookup[codes]
+        pattern = F.one_hot(columns, num_classes=7)[..., : self.pattern_dim]
+        pattern = pattern.to(dtype=modality_mask.dtype)
+        incomplete = (codes != 7) & valid
         return pattern, incomplete
 
     def forward(
         self, x: Tensor, y: Tensor, modality_mask: Tensor, umask: Tensor
     ) -> Tensor:
-        self._validate_inputs(x, y, modality_mask, umask)
-        valid = umask.to(device=x.device).t().bool()
-        mask = modality_mask.to(device=x.device, dtype=x.dtype)
+        mask, valid = self._validate_inputs(x, y, modality_mask, umask)
         pattern, incomplete = self._encode_patterns(mask, valid)
 
         base = x + y
@@ -111,5 +131,4 @@ class MaskConditionedSequenceAFF(nn.Module):
 
         gate = torch.sigmoid(local + global_context)
         aff = 2 * (gate * x + (1 - gate) * y)
-        active = incomplete.to(x.dtype).unsqueeze(-1)
-        return base + active * (aff - base)
+        return torch.where(incomplete.unsqueeze(-1), aff, base)

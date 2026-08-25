@@ -1,7 +1,10 @@
+import inspect
 import unittest
 
 import torch
 
+import sequence_aff
+from missing_patterns import encode_missing_patterns
 from sequence_aff import MaskConditionedSequenceAFF
 
 
@@ -20,6 +23,23 @@ PATTERNS = torch.tensor(
 
 
 class SequenceAFFTests(unittest.TestCase):
+    def test_vectorized_pattern_encoding_matches_shared_encoder(self):
+        module = MaskConditionedSequenceAFF(8)
+        valid = torch.ones(7, 1, dtype=torch.bool)
+
+        actual, incomplete = module._encode_patterns(PATTERNS[:, None, :], valid)
+        expected, complete = encode_missing_patterns(PATTERNS)
+
+        torch.testing.assert_close(actual[:, 0], expected)
+        torch.testing.assert_close(incomplete[:, 0], ~complete)
+
+    def test_forward_source_has_no_host_pattern_conversion(self):
+        source = inspect.getsource(sequence_aff)
+
+        self.assertNotIn(".cpu(", source)
+        self.assertNotIn(".tolist(", source)
+        self.assertNotIn("encode_missing_patterns", source)
+
     def test_encodes_seven_patterns_in_time_batch_order_and_ignores_padding(self):
         module = MaskConditionedSequenceAFF(8)
         modality_mask = torch.zeros(4, 2, 3)
@@ -183,6 +203,58 @@ class SequenceAFFTests(unittest.TestCase):
             parameter.grad for parameter in module.parameters()
         ]
         self.assertTrue(all(gradient is not None for gradient in gradients))
+        self.assertTrue(all(torch.isfinite(gradient).all() for gradient in gradients))
+
+    def test_small_channel_module_retains_content_dependent_gate(self):
+        module = MaskConditionedSequenceAFF(7, reduction=4)
+        self.assertEqual(module.local_context[0].out_features, 2)
+        with torch.no_grad():
+            for parameter in module.parameters():
+                parameter.zero_()
+            module.local_context[0].weight[0, 2] = 1
+            module.local_context[0].weight[1, 2] = -1
+            module.local_context[1].weight.fill_(1)
+            module.local_context[-1].weight[0, 0] = 2
+
+        x = torch.zeros(2, 1, 7)
+        y = torch.zeros_like(x)
+        x[:, :, 0] = 1
+        y[:, :, 0] = -1
+        x[0, 0, 2] = 1
+        x[1, 0, 2] = -1
+        mask = PATTERNS[0].repeat(2, 1, 1)
+
+        output = module(x, y, mask, torch.ones(1, 2))
+
+        self.assertNotEqual(output[0, 0, 0].item(), output[1, 0, 0].item())
+
+    def test_complete_bypass_ignores_nonfinite_aff_candidate(self):
+        module = MaskConditionedSequenceAFF(8)
+        x = torch.zeros(2, 1, 8)
+        y = torch.ones_like(x)
+        x[1, 0] = float("inf")
+        mask = torch.stack((PATTERNS[6], PATTERNS[0]))[:, None, :]
+
+        output = module(x, y, mask, torch.ones(1, 2))
+
+        torch.testing.assert_close(output[0], (x + y)[0], rtol=0, atol=0)
+        self.assertTrue(torch.isfinite(output[0]).all())
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+    def test_cuda_forward_backward_is_finite(self):
+        module = MaskConditionedSequenceAFF(8).cuda()
+        x = torch.randn(4, 2, 8, device="cuda", requires_grad=True)
+        y = torch.randn(4, 2, 8, device="cuda", requires_grad=True)
+        mask = PATTERNS[:4, None, :].repeat(1, 2, 1).cuda()
+        umask = torch.ones(2, 4, device="cuda")
+
+        output = module(x, y, mask, umask)
+        output.square().mean().backward()
+
+        self.assertEqual(output.device.type, "cuda")
+        gradients = [x.grad, y.grad] + [
+            parameter.grad for parameter in module.parameters()
+        ]
         self.assertTrue(all(torch.isfinite(gradient).all() for gradient in gradients))
 
     def test_parameter_count_matches_two_independent_context_mlps(self):
