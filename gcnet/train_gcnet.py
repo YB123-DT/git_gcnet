@@ -151,7 +151,9 @@ def build_model(args, adim, tdim, vdim):
                        dropout=args.dropout,
                        time_attn=args.time_attn,
                        no_cuda=args.no_cuda,
-                       graph_conv_variant=args.graph_conv_variant)
+                       graph_conv_variant=args.graph_conv_variant,
+                       pre_graph_context=args.pre_graph_context,
+                       post_graph_context=args.post_graph_context)
     print("Model have {} paramerters in total".format(sum(x.numel() for x in model.parameters())))
     print ('Graph NN with', args.base_model, 'as base model.')
     return model
@@ -439,8 +441,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, rec_loss, dataloader,
     return avg_accuracy, avg_fscore, vidnames, [avg_loss, avg_loss1, avg_loss2], [savepreds, savelabels, savespeakers, savehiddens, savefmask]
 
 
-if __name__ == '__main__':
-
+def create_argument_parser():
     parser = argparse.ArgumentParser()
 
     ## Params for input
@@ -471,6 +472,18 @@ if __name__ == '__main__':
         default='original',
         help='first relation-aware graph propagation variant',
     )
+    parser.add_argument(
+        '--pre-graph-context',
+        choices=['bilstm', 'linear'],
+        default='bilstm',
+        help='context encoder before graph propagation',
+    )
+    parser.add_argument(
+        '--post-graph-context',
+        choices=['bilstm', 'linear'],
+        default='bilstm',
+        help='context encoder after graph propagation',
+    )
 
     ## Params for training
     parser.add_argument('--no-cuda', action='store_true', default=False, help='does not use GPU')
@@ -491,7 +504,39 @@ if __name__ == '__main__':
     parser.add_argument('--loss-recon', action='store_true', default=False, help='whether to use reconstrctuion loss')
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
-    args = parser.parse_args()
+    return parser
+
+
+def build_result_suffix(args):
+    mask_rate = args.mask_type.split('-')[-1]
+    return (
+        f'{args.dataset.lower()}_Graph{args.base_model}'
+        f'_variant:{args.graph_conv_variant}_fold:{args.fold_index}'
+        f'_seed:{args.seed}_mask:{mask_rate}'
+        f'_prectx:{args.pre_graph_context}_postctx:{args.post_graph_context}'
+    )
+
+
+def save_result_archive(save_path, args, fold_numbers, mask_bank_manifest, model,
+                        smoke_only, folder_losswhole, folder_savewhole):
+    np.savez_compressed(
+        save_path,
+        args=np.array(args, dtype=object),
+        fold_numbers=np.array(fold_numbers),
+        mask_bank_manifest=np.array(mask_bank_manifest, dtype=object),
+        parameter_count=np.array(sum(x.numel() for x in model.parameters())),
+        selected_path_parameter_count=np.array(
+            model.selected_path_parameter_count()
+        ),
+        smoke_only=np.array(bool(smoke_only)),
+        folder_losswhole=np.array(folder_losswhole, dtype=object),
+        folder_savewhole=np.array(folder_savewhole, dtype=object),
+    )
+
+
+if __name__ == '__main__':
+
+    args = create_argument_parser().parse_args()
     if args.num_threads < 1:
         raise ValueError('num_threads must be positive')
     torch.set_num_threads(args.num_threads)
@@ -651,12 +696,7 @@ if __name__ == '__main__':
     save_root = config.MODEL_DIR if args.output_dir is None else args.output_dir
     if not os.path.exists(save_root): os.makedirs(save_root)
     ## gain suffix_name
-    mask_rate = args.mask_type.split('-')[-1]
-    suffix_name = (
-        f'{args.dataset.lower()}_Graph{args.base_model}'
-        f'_variant:{args.graph_conv_variant}_fold:{args.fold_index}'
-        f'_seed:{args.seed}_mask:{mask_rate}'
-    )
+    suffix_name = build_result_suffix(args)
     ## gain feature_name and cls_name
     feature_name = f'{audio_feature};{text_feature};{video_feature}'
     cls_name = f'lossrecon:{args.loss_recon}+lower:{args.lower_bound}+reccls:{args.reccls_flag}'
@@ -669,12 +709,13 @@ if __name__ == '__main__':
     save_path = f'{save_root}/{suffix_name}_features:{feature_name}_classifier:{cls_name}_{res_name}_{time.time()}.npz'
     print(f'SMOKE_ONLY={bool(args.allow_short_run)}')
     print (f'save results in {save_path}')
-    np.savez_compressed(save_path,
-                        args=np.array(args, dtype=object),
-                        fold_numbers=np.array(fold_numbers),
-                        mask_bank_manifest=np.array(mask_bank_manifest, dtype=object),
-                        parameter_count=np.array(sum(x.numel() for x in model.parameters())),
-                        smoke_only=np.array(bool(args.allow_short_run)),
-                        folder_losswhole=np.array(folder_losswhole, dtype=object),
-                        folder_savewhole=np.array(folder_savewhole, dtype=object)
-                        )
+    save_result_archive(
+        save_path,
+        args=args,
+        fold_numbers=fold_numbers,
+        mask_bank_manifest=mask_bank_manifest,
+        model=model,
+        smoke_only=args.allow_short_run,
+        folder_losswhole=folder_losswhole,
+        folder_savewhole=folder_savewhole,
+    )
