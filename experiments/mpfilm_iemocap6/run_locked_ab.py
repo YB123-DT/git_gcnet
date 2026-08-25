@@ -21,10 +21,16 @@ ARM_TO_GRAPH_VARIANT = {
     "parameter_matched": "content_film_control",
     "cp_lecc": "cp_lecc",
     "sequence_aff": "original",
+    "genagg": "original",
+    "soft_medoid": "original",
 }
 ARM_TO_BRANCH_FUSION = {
     arm: "mask_sequence_aff" if arm == "sequence_aff" else "addition"
     for arm in ARM_TO_GRAPH_VARIANT
+}
+ARM_TO_SECOND_GRAPH_AGGREGATION = {
+    "genagg": "genagg",
+    "soft_medoid": "soft_medoid",
 }
 GATE_RATES = (0.0, 0.7)
 FORMAL_RATES = tuple(index / 10 for index in range(8))
@@ -108,7 +114,7 @@ def build_command(
     data_root: Path,
     mask_bank_root: Path,
 ) -> List[str]:
-    return [
+    command = [
         str(python),
         "-u",
         str(Path(repository) / "gcnet" / "train_gcnet.py"),
@@ -158,6 +164,10 @@ def build_command(
         str(job.output_directory / "saved"),
         "--loss-recon",
     ]
+    second_aggregation = ARM_TO_SECOND_GRAPH_AGGREGATION.get(job.arm)
+    if second_aggregation is not None:
+        command.extend(("--second-graph-aggregation", second_aggregation))
+    return command
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -427,6 +437,7 @@ def _ensure_run_manifest(
     workers_per_gpu: int,
     python: Path,
     command_output=subprocess.check_output,
+    parallel_arms: bool = False,
 ) -> dict:
     def output(command):
         return command_output(command, cwd=repository, text=True).strip()
@@ -483,6 +494,8 @@ def _ensure_run_manifest(
         "workers_per_gpu": workers_per_gpu,
         "job_count": len(arms) * len(rates) * len(seeds),
     }
+    if parallel_arms:
+        invocation["parallel_arms"] = True
     canonical = json.dumps(
         invocation, sort_keys=True, separators=(",", ":")
     ).encode("utf-8")
@@ -529,6 +542,7 @@ def main() -> None:
     )
     parser.add_argument("--rates", nargs="+", type=float)
     parser.add_argument("--seeds", nargs="+", type=int)
+    parser.add_argument("--parallel-arms", action="store_true")
     args = parser.parse_args()
     if args.workers_per_gpu < 1:
         raise ValueError("workers-per-gpu must be positive")
@@ -552,12 +566,11 @@ def main() -> None:
         tuple(args.gpus),
         args.workers_per_gpu,
         args.python,
+        parallel_arms=args.parallel_arms,
     )
-    # Run arms sequentially so every comparison uses the same immutable banks
-    # without oversubscribing the requested per-GPU worker limit.
-    for arm in args.arms:
+    if args.parallel_arms:
         run_jobs(
-            (job for job in jobs if job.arm == arm),
+            jobs,
             tuple(args.gpus),
             args.workers_per_gpu,
             args.python,
@@ -565,6 +578,18 @@ def main() -> None:
             args.data_root,
             args.mask_bank_root,
         )
+    else:
+        # Preserve the legacy sequential per-arm scheduling behavior by default.
+        for arm in args.arms:
+            run_jobs(
+                (job for job in jobs if job.arm == arm),
+                tuple(args.gpus),
+                args.workers_per_gpu,
+                args.python,
+                repository,
+                args.data_root,
+                args.mask_bank_root,
+            )
 
 
 if __name__ == "__main__":
