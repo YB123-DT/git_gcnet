@@ -20,6 +20,10 @@ from missing_patterns import flatten_valid_node_masks
 from mpfilm_rgcn import MissingPatternFiLMRGCNConv
 from sequence_aff import MaskConditionedSequenceAFF
 from second_graph_aggregation import build_second_graph_conv, GenAggGraphConv
+from relation_track_routing import (
+    decompose_rgcn_relation_tracks,
+    relation_track_graph_conv,
+)
 
 
 def _linear_from_forked_cpu_rng(in_features, out_features):
@@ -41,7 +45,8 @@ def _sequence_aff_from_forked_cpu_rng(channels):
 class GraphNetwork(torch.nn.Module):
     def __init__(self, num_features, num_relations, time_attn, hidden_size=64,
                  dropout=0.5, no_cuda=False, graph_conv_variant='original',
-                 post_graph_context='bilstm', second_graph_aggregation='add'):
+                 post_graph_context='bilstm', second_graph_aggregation='add',
+                 relation_track_routing='early'):
         """
         The Speaker-level context encoder in the form of a 2 layer GCN.
         """
@@ -56,6 +61,20 @@ class GraphNetwork(torch.nn.Module):
                 )
             )
         self.post_graph_context = post_graph_context
+        if relation_track_routing not in ('early', 'diagonal'):
+            raise ValueError(
+                "relation_track_routing must be 'early' or 'diagonal', got {!r}".format(
+                    relation_track_routing
+                )
+            )
+        if relation_track_routing == 'diagonal' and (
+            graph_conv_variant != 'original' or second_graph_aggregation != 'add'
+        ):
+            raise ValueError(
+                "diagonal relation-track routing requires "
+                "graph_conv_variant='original' and second_graph_aggregation='add'"
+            )
+        self.relation_track_routing = relation_track_routing
 
         ## graph modeling
         self.graph_conv_variant = graph_conv_variant
@@ -95,11 +114,25 @@ class GraphNetwork(torch.nn.Module):
         '''
 
         ## graph model: graph => outputs
-        if self.graph_conv_variant == 'original':
+        if self.relation_track_routing == 'diagonal':
+            common, relation_tracks, out = decompose_rgcn_relation_tracks(
+                self.conv1, features, edge_index, edge_type
+            )
+            out = relation_track_graph_conv(
+                self.conv2,
+                common,
+                relation_tracks,
+                out,
+                edge_index,
+                edge_type,
+                diagonal=True,
+            )
+        elif self.graph_conv_variant == 'original':
             out = self.conv1(features, edge_index, edge_type)
         else:
             out = self.conv1(features, edge_index, edge_type, node_mask)
-        out = self.conv2(out, edge_index) # [hidden_size -> hidden_size]
+        if self.relation_track_routing == 'early':
+            out = self.conv2(out, edge_index) # [hidden_size -> hidden_size]
         outputs = torch.cat([features, out], dim=-1) # [num_nodes, num_features(16)+hidden_size(8)]
 
         ## change utterance to conversation: (outputs->outputs)
@@ -152,7 +185,7 @@ class GraphModel(nn.Module):
                  n_classes, dropout=0.5, time_attn=True, no_cuda=False,
                  graph_conv_variant='original', pre_graph_context='bilstm',
                  post_graph_context='bilstm', branch_fusion='addition',
-                 second_graph_aggregation='add'):
+                 second_graph_aggregation='add', relation_track_routing='early'):
         
         super(GraphModel, self).__init__()
 
@@ -179,6 +212,7 @@ class GraphModel(nn.Module):
         self.post_graph_context = post_graph_context
         self.branch_fusion = branch_fusion
         self.second_graph_aggregation = second_graph_aggregation
+        self.relation_track_routing = relation_track_routing
 
         # The base model is the sequential context encoder.
         # Change input features => 2*D_e
@@ -200,13 +234,13 @@ class GraphModel(nn.Module):
         self.graph_net_temporal = GraphNetwork(
             2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
             self.no_cuda, graph_conv_variant, post_graph_context,
-            second_graph_aggregation
+            second_graph_aggregation, relation_track_routing
         )
         n_relations = n_speakers ** 2
         self.graph_net_speaker = GraphNetwork(
             2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
             self.no_cuda, graph_conv_variant, post_graph_context,
-            second_graph_aggregation
+            second_graph_aggregation, relation_track_routing
         )
 
         ## classification and reconstruction

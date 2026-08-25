@@ -111,6 +111,85 @@ class SecondGraphAggregationIntegrationTests(unittest.TestCase):
             else:
                 self.assertTrue(torch.equal(expected.grad, actual.grad), expected_name)
 
+    def test_implicit_and_explicit_early_relation_routing_are_bit_exact(self):
+        seed = 103
+        torch.manual_seed(seed)
+        implicit = self._model("add")
+        implicit_rng = torch.get_rng_state().clone()
+        torch.manual_seed(seed)
+        explicit = self._model("add", relation_track_routing="early")
+
+        self.assertTrue(torch.equal(implicit_rng, torch.get_rng_state()))
+        self.assertEqual(list(implicit.state_dict()), list(explicit.state_dict()))
+        for name, expected in implicit.state_dict().items():
+            self.assertTrue(torch.equal(expected, explicit.state_dict()[name]), name)
+
+        implicit.eval()
+        explicit.eval()
+        implicit_inputs = self._inputs(requires_grad=True)
+        explicit_inputs = self._inputs(requires_grad=True)
+        implicit_outputs = implicit(*implicit_inputs)
+        explicit_outputs = explicit(*explicit_inputs)
+        for expected, actual in zip(
+            (implicit_outputs[0], implicit_outputs[1][0], implicit_outputs[2]),
+            (explicit_outputs[0], explicit_outputs[1][0], explicit_outputs[2]),
+        ):
+            self.assertTrue(torch.equal(expected, actual))
+
+        self._loss(implicit_outputs).backward()
+        self._loss(explicit_outputs).backward()
+        self.assertTrue(torch.equal(
+            implicit_inputs[0][0].grad, explicit_inputs[0][0].grad
+        ))
+        for (expected_name, expected), (actual_name, actual) in zip(
+            implicit.named_parameters(), explicit.named_parameters()
+        ):
+            self.assertEqual(expected_name, actual_name)
+            if expected.grad is None:
+                self.assertIsNone(actual.grad, expected_name)
+            else:
+                self.assertTrue(torch.equal(expected.grad, actual.grad), expected_name)
+
+    def test_diagonal_relation_routing_uses_both_branches_without_new_parameters(self):
+        seed = 107
+        torch.manual_seed(seed)
+        original = self._model("add")
+        original_count = sum(parameter.numel() for parameter in original.parameters())
+        original_rng = torch.get_rng_state().clone()
+        torch.manual_seed(seed)
+        diagonal = self._model("add", relation_track_routing="diagonal")
+        diagonal_rng = torch.get_rng_state().clone()
+
+        self.assertTrue(torch.equal(original_rng, diagonal_rng))
+        self.assertEqual(
+            sum(parameter.numel() for parameter in diagonal.parameters()),
+            original_count,
+        )
+        self.assertEqual(list(diagonal.state_dict()), list(original.state_dict()))
+        self.assertEqual(diagonal.graph_net_temporal.relation_track_routing, "diagonal")
+        self.assertEqual(diagonal.graph_net_speaker.relation_track_routing, "diagonal")
+        outputs = diagonal(*self._inputs(requires_grad=True))
+        self.assertTrue(all(torch.isfinite(value).all() for value in (
+            outputs[0], outputs[1][0], outputs[2]
+        )))
+        self._loss(outputs).backward()
+        for branch_name in ("temporal", "speaker"):
+            branch = getattr(diagonal, "graph_net_{}".format(branch_name))
+            self.assertIsNotNone(branch.conv1.weight.grad)
+            self.assertIsNotNone(next(branch.conv2.parameters()).grad)
+
+    def test_diagonal_relation_routing_rejects_confounded_graph_variants(self):
+        with self.assertRaisesRegex(ValueError, "diagonal relation-track routing"):
+            self._model("genagg", relation_track_routing="diagonal")
+        with self.assertRaisesRegex(ValueError, "diagonal relation-track routing"):
+            self._model(
+                "add",
+                relation_track_routing="diagonal",
+                graph_conv_variant="cp_lecc",
+            )
+        with self.assertRaisesRegex(ValueError, "relation_track_routing"):
+            self._model("add", relation_track_routing="dense")
+
     def test_candidates_replace_only_conv2_and_preserve_shared_initialization(self):
         seed = 109
         torch.manual_seed(seed)
