@@ -1,5 +1,6 @@
 import json
 import statistics
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,16 @@ RESULTS = ROOT / "results" / "iemocap6" / "fold5"
 
 
 class OrganizedLayoutTest(unittest.TestCase):
+    def test_version_directories_are_self_describing(self):
+        required = {"README.md", "config.json", "variant.py", "__init__.py"}
+        for name in ("original", "mpfilm", "cp_lecc", "sequence_aff"):
+            actual = {
+                path.name
+                for path in (ROOT / "versions" / name).iterdir()
+                if path.is_file()
+            }
+            self.assertTrue(required.issubset(actual), (name, actual))
+
     def test_only_completed_versions_are_published(self):
         version_root = ROOT / "versions"
         self.assertTrue(version_root.is_dir())
@@ -81,6 +92,23 @@ class OrganizedLayoutTest(unittest.TestCase):
             compact["seed_macro_mean"],
             places=15,
         )
+
+    def test_tracked_tree_excludes_legacy_bulk_and_large_artifacts(self):
+        if not (ROOT / ".git").exists():
+            self.skipTest("source export has no Git index")
+        tracked = subprocess.check_output(
+            ["git", "ls-files"], cwd=str(ROOT), text=True
+        ).splitlines()
+        forbidden_roots = (
+            "baseline-",
+            "dataset/",
+            "experiments/",
+            "feature_extraction/",
+        )
+        forbidden_suffixes = (".ckpt", ".pt", ".pth")
+        for path in tracked:
+            self.assertFalse(path.startswith(forbidden_roots), path)
+            self.assertFalse(path.endswith(forbidden_suffixes), path)
 
 
 if __name__ == "__main__":

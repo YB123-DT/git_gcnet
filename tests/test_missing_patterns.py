@@ -5,6 +5,9 @@ import torch
 from missing_patterns import encode_missing_patterns, flatten_valid_node_masks
 
 
+assert_close = getattr(torch.testing, "assert_close", torch.testing.assert_allclose)
+
+
 class PatternEncodingTests(unittest.TestCase):
     def test_encodes_all_seven_patterns(self):
         masks = torch.tensor(
@@ -23,8 +26,8 @@ class PatternEncodingTests(unittest.TestCase):
 
         encoded, complete = encode_missing_patterns(masks)
 
-        torch.testing.assert_close(encoded, expected)
-        torch.testing.assert_close(
+        assert_close(encoded, expected)
+        assert_close(
             complete, torch.tensor([False] * 6 + [True])
         )
 
@@ -53,7 +56,7 @@ class PatternEncodingTests(unittest.TestCase):
 
         actual = flatten_valid_node_masks(mask, [3, 1])
 
-        torch.testing.assert_close(actual, expected)
+        assert_close(actual, expected)
 
 
 if __name__ == "__main__":

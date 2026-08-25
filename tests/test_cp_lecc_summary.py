@@ -10,13 +10,13 @@ from pathlib import Path
 
 import numpy as np
 
-from experiments.cp_lecc_iemocap6.summarize_gate import (
+from versions.cp_lecc.summarize import (
     archive_metrics,
     assert_complete_archive_equal,
     _collect,
     paired_gate,
 )
-from experiments.mpfilm_iemocap6.run_locked_ab import Job, build_command
+from versions.mpfilm.run_locked_ab import Job, build_command
 
 
 def _snapshot(labels=None, predicted=None, hidden_shift=0):
@@ -414,7 +414,7 @@ class SummaryCliTests(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "experiments.cp_lecc_iemocap6.summarize_gate",
+                    "versions.cp_lecc.summarize",
                     "--candidate-root",
                     str(candidate_root),
                     "--original-root",

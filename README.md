@@ -1,206 +1,76 @@
-# GCNet: Graph Completion Network for Incomplete Multimodal Learning in Conversation
+# GCNet Completed Variants
 
-Correspondence to: 
-  - Zheng Lian (lianzheng2016@ia.ac.cn)
-  - Licai Sun (sunlicai2019@ia.ac.cn)
-  - Lan Chen (chenlanjojo@gmail.com)
+这个仓库只展示已经完成判别实验的 GCNet 版本。四个版本共用一套数据读取、
+mask bank、图构建、训练、损失和评估代码；每个版本目录只保存真正不同的模块
+与锁定配置。
 
-## Paper
-[**GCNet: Graph Completion Network for Incomplete Multimodal Learning in Conversation**](https://arxiv.org/abs/2203.02177)<br>
-Zheng Lian, Lan Chen, Licai Sun, Bin Liu, Jianhua Tao<br>
-IEEE Transactions on pattern analysis and machine intelligence, 2022
+## 已完成版本
 
-Please cite our paper if you find our work useful for your research:
+| 版本 | 精确替换位置 | IEMOCAPSix fixed-fold-5 结论 |
+|---|---|---|
+| `original` | 官方 GCNet | 8 rates × 5 seeds 的配对基准 |
+| `mpfilm` | temporal/speaker 第一层 RGCN | Faithful Edge-wise 相对 Linearized 平均 `+0.000391`，不稳定，失败 |
+| `cp_lecc` | temporal/speaker 第一层 RGCN | corrected protocol 只完成 `.5/.7`，整体晋级失败 |
+| `sequence_aff` | `hidden1 + hidden2` 分支融合 | `0.623101` vs Original `0.626974`，失败 |
 
-```tex
-@article{lian2022gcnet,
-  title={GCNet: Graph Completion Network for Incomplete Multimodal Learning in Conversation},
-  author={Lian, Zheng and Chen, Lan and Sun, Licai and Liu, Bin and Tao, Jianhua},
-  journal={IEEE Transactions on pattern analysis and machine intelligence},
-  year={2022},
-  publisher={IEEE}
-}
+这些结果使用固定的 IEMOCAP-6 第 5 fold，不是五折交叉验证均值。
+
+## 目录
+
+```text
+common/gcnet/                    # 四版本共享 GCNet 主干
+versions/original/              # 官方 no-op 配置
+versions/mpfilm/                # Missing-Pattern FiLM RGCN
+versions/cp_lecc/               # Complete-Preserving Low-Rank ECC
+versions/sequence_aff/          # mask-conditioned Sequence AFF
+results/iemocap6/fold5/         # 紧凑结果与 provenance
+environment/                    # 唯一共享环境
+provenance/source_map.json      # 新路径到历史 commit 的映射
+run.py                          # 唯一运行入口
 ```
 
-## Usage (Choose IEMOCAP-Six for Example)
+## 统一运行入口
 
-### Prerequisites
-- Python 3.8
-- CUDA 10.2
-- pytorch ==1.8.0
-- torchvision == 0.9.0
-- torch_geometric == 2.0.1
-- fairseq == 0.10.1
-- transformers==4.5.1
-- pandas == 1.2.5
-
-
-
-### Pretrained model
-
-```shell
-## for lexical feature extraction
-https://huggingface.co/microsoft/deberta-large/tree/main  -> ../tools/transformers/deberta-large
-
-## for acoustic feature extraction
-https://dl.fbaipublicfiles.com/fairseq/wav2vec/wav2vec_large.pt  -> ../tools/wav2vec
-
-## for face extractor (OpenFace-win)
-https://drive.google.com/file/d/1-O8epcTDYCrRUU_mtXgjrS3OWA4HTp0-/view?usp=share_link  -> ./OpenFace_2.2.0_win_x64
-
-## for visual feature extraction
-https://drive.google.com/file/d/1wT2h5sz22SaEL4YTBwTIB3WoL4HUvg5B/view?usp=share_link ->  ../tools/manet
-
-## using ffmpeg for sub-video extraction
-https://ffmpeg.org/download.html#build-linux ->  ../tools/ffmpeg-4.4.1-i686-static
+```bash
+python run.py --version original --help
+python run.py --version mpfilm --help
+python run.py --version cp_lecc --help
+python run.py --version sequence_aff --help
 ```
 
+正式训练参数仍通过共享 GCNet CLI 提供。例如：
 
-
-### Datasets
-
-~~~~shell
-# download IEMOCAP dataset and put it into ../emotion-data/IEMOCAP
-https://sail.usc.edu/iemocap/iemocap_release.htm   ->   ../emotion-data/IEMOCAP
-
-# whole video -> subvideo
-python preprocess.py split_video_by_start_end_IEMOCAP
-
-# subvideo -> detect face
-python detect.py --model='face_detection_yunet_2021sep.onnx' --videofolder='dataset/IEMOCAP/subvideo' --save='dataset/IEMOCAP/subvideofaces' --dataset='IEMOCAP'
-
-# extract visual features
-cd feature_extraction/visual
-python extract_manet_embedding.py --dataset='IEMOCAPFour' --gpu=0
-python preprocess.py feature_compressed_iemocap dataset/IEMOCAP/features/manet dataset/IEMOCAP/features/manet_UTT
-
-# extract acoustic features
-python preprocess.py split_audio_from_video_16k 'dataset/IEMOCAP/subvideo' 'dataset/IEMOCAP/subaudio'
-cd feature_extraction/audio
-python extract_wav2vec_embedding.py --dataset='IEMOCAPFour' --feature_level='UTTERANCE' --gpu=0
-
-# extract textual features
-python preprocess.py generate_transcription_files_IEMOCAP
-cd feature_extraction/text
-python extract_text_embedding_LZ.py --dataset='IEMOCAPFour' --feature_level='UTTERANCE' --model_name='deberta-large' --gpu=0
-
-###################################################################
-# We also provide pre-extracted multimodal features
-IEMOCAP: https://drive.google.com/file/d/1Hn82-ZD0CNqXQtImd982YHHi-3gIX2G3/view?usp=share_link  -> ./dataset/IEMOCAP/features
-CMUMOSI: https://drive.google.com/file/d/1aJxArYfZsA-uLC0sOwIkjl_0ZWxiyPxj/view?usp=share_link  -> ./dataset/CMUMOSI/features
-CMUMOSEI:https://drive.google.com/file/d/1L6oDbtpFW2C4MwL5TQsEflY1WHjtv7L5/view?usp=share_link  -> ./dataset/CMUMOSEI/features
-~~~~
-
-
-
-
-
-### Run GCNet
-
-To evaluate the performance of different methods, we run each experiment 10 times (with different seeds) and report the average values on the test set. 
-
-~~~~shell
-cd gcnet
-CUDA_VISIBLE_DEVICES=0 python -u train_gcnet.py --epoch=100 --lr=0.001 --hidden=200 --mask-type='constant-0.2' --windowp=2 --windowf=2 --base-model='LSTM' --loss-recon --dataset='IEMOCAPSix' --audio-feature='wav2vec-large-c-UTT' --text-feature='deberta-large-4-UTT' --video-feature='manet_UTT' --seed=66
-~~~~
-
-
-
-### Run MMIN/AE/CRA Baselines
-
-1. change feature format
-
-~~~~shell
-cd baseline-mmin
-python change_format.py change_feat_format_iemocapsix
-~~~~
-
-2. train MMIN model
-
-```shell
-# train fully model => for mmin
-python train_baseline.py --dataset_mode=iemocapsix_multimodal  --model=utt_fusion --gpu_ids=0 --modality='AVL' --log_dir=./logs --checkpoints_dir=./checkpoints --print_freq=10 --input_dim_a=512 --embd_size_a=128 --input_dim_v=1024 --embd_size_v=128 --input_dim_l=1024 --embd_size_l=128 --cls_layers=128,128 --dropout_rate=0.3 --niter=20 --niter_decay=80 --beta1=0.9 --init_type kaiming --batch_size=256 --lr=1e-3 --run_idx=6 --name=utt_fusion --suffix=iemocapsix_AVL  --output_dim=6
-
-# train mmin model
-python -u train_miss.py --mask_rate=0.2 --dataset_mode=iemocapsix_miss  --model=mmin --log_dir=./logs --checkpoints_dir=./checkpoints --print_freq=10 --gpu_ids=0 --input_dim_a=512 --embd_size_a=128 --input_dim_v=1024 --embd_size_v=128 --input_dim_l=1024 --embd_size_l=128 --AE_layers=256,128,64 --n_blocks=5 --num_thread=0 --pretrained_path='checkpoints/utt_fusion_iemocapsix_AVL' --ce_weight=1.0 --mse_weight=4.0 --cycle_weight=2.0 --cls_layers=128,128 --dropout_rate=0.5 --niter=20 --niter_decay=80 --init_type normal --batch_size=256 --lr=1e-3 --run_idx=8 --name=mmin --suffix=iemocapsix_MMINTemp
+```bash
+python run.py \
+  --version original \
+  --dataset IEMOCAPSix \
+  --fold-index 5 \
+  --seed 66 \
+  --mask-seed 66 \
+  --mask-type constant-0.5 \
+  --data-root /path/to/IEMOCAP \
+  --mask-bank-root /path/to/mask_banks \
+  --output-dir /path/to/output \
+  --base-model LSTM \
+  --loss-recon
 ```
 
-3. train AE model
+`--graph-conv-variant` 和 `--branch-fusion` 由版本配置锁定，不能在命令行
+覆盖，防止版本名称与实际运行结构不一致。
 
-```shell
-python -u train_miss.py --mask_rate=0.2 --dataset_mode=iemocapsix_miss  --model=mmin_AE --log_dir=./logs --checkpoints_dir=./checkpoints --print_freq=10 --gpu_ids=0 --input_dim_a=512 --embd_size_a=128 --input_dim_v=1024 --embd_size_v=128 --input_dim_l=1024 --embd_size_l=128 --AE_layers=256,128 --ce_weight=1.0 --mse_weight=0.2 --cls_layers=128,128 --dropout_rate=0.5 --niter=20 --niter_decay=80 --init_type normal --batch_size=256 --lr=1e-3 --run_idx=8 --name=mmin --suffix=iemocapsix_AETemp
-```
+## 数据与大型实验资产
 
-4. train CRA model
+Git 只保存代码、Markdown、JSON 和小型汇总。以下内容不进入仓库：
 
-```shell
-python -u train_miss.py --mask_rate=0.2 --dataset_mode=iemocapsix_miss  --n_blocks=2 --model=mmin_CRA --log_dir=./logs --checkpoints_dir=./checkpoints --print_freq=10 --gpu_ids=0 --input_dim_a=512 --embd_size_a=128 --input_dim_v=1024 --embd_size_v=128 --input_dim_l=1024 --embd_size_l=128 --AE_layers=256,128 --ce_weight=1.0 --mse_weight=0.8 --cls_layers=128,128 --dropout_rate=0.5 --niter=20 --niter_decay=80 --init_type normal --batch_size=256 --lr=1e-3 --run_idx=8 --name=mmin --suffix=iemocapsix_CRATemp
-```
+- wav2vec/DeBERTa/MANet 特征；
+- 原始数据集与完整 feature archives；
+- mask banks；
+- checkpoint、原始 NPZ 和逐 epoch 日志。
 
+每个结果目录的 `provenance.json` 记录原始服务器 artifact root、source
+commit、fold、seeds 和实际完成的 missing rates。
 
+## 范围边界
 
-### Run CPM-Net Baseline
-
-```shell
-cd baseline-cpmnet
-
-## change feature format
-python change_format.py change_feat_format_iemocapsix
-
-## training model
-python test_lianzheng.py --dataset='iemocapsix'  --missing-rate=0.2 --epochs-train=30 --epochs-test=300 --lsd-dim=128 --lamb=1
-```
-
-
-
-### Run CCA/DCCA/DCCAE Baselines
-
-```shell
-cd baseline-cca
-
-# training with cpmnet-generated data format
-please first run ''python change_format.py change_feat_format_iemocapsix'' in baseline-cpmnet
-
-# train CCA
-python cca.py   --dataset='iemocapsix' --missing-rate=0.2 --n-components=2
-
-# train DCCA
-python dcca.py  --dataset='iemocapsix' --missing-rate=0.2 --n-hidden=256 --max-epoch=100 --n-components=2
-
-# train DCCAE
-python dccae.py --dataset='iemocapsix' --missing-rate=0.2 --n-hidden=256 --max-epoch=100 --n-components=2
-```
-
-
-
-### Other Examples
-
-1. For other datasets, please refer to **run.sh**
-2. For parameter turning, please see:
-
-```shell
-## dataset: [CMUMOSI, IEMOCAPFour, IEMOCAPSix, CMUMOSEI]
-sh run_gcnet.sh [dataset] [gpu_ids]
-
-## dataset: [cmumosi, iemocapfour, iemocapsix, cmumosei]
-sh run_mmin.sh [dataset] [gpu_ids]
-sh run_ae.sh [dataset] [gpu_ids]
-sh run_cra.sh [dataset] [gpu_ids]
-
-## dataset: [cmumosi, iemocapfour, iemocapsix, cmumosei]
-sh run_cca.sh [dataset]
-sh run_dcca.sh [dataset]
-sh run_dccae.sh [dataset]
-
-## run on tf115env37
-## dataset: [cmumosi, iemocapfour, iemocapsix, cmumosei]
-sh run_cpmnetsub1.sh [dataset]
-sh run_cpmnetsub2.sh [dataset]
-sh run_cpmnetsub3.sh [dataset]
-```
-
-
-
-### Acknowledgement
-
-Thanks to [openface](https://github.com/TadasBaltrusaitis/OpenFace), [fairseq](https://github.com/facebookresearch/fairseq), [CPM-Nets](https://github.com/hanmenghan/CPM_Nets), [DialogueGCN](https://github.com/declare-lab/conv-emotion/tree/master/DialogueGCN), [CCA](https://github.com/ashawkey/CCA), [DCCA](https://github.com/Michaelvll/DeepCCA), [MMIN](https://github.com/AIM3-RUC/MMIN/tree/master).
+本发布入口不包含尚未完成的候选。研究历史仍保留在本地 Git 分支中，但只有
+通过锁定实验并完成结果审计的方法才会加入 `versions/` 和 `results/`。

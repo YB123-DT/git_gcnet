@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from experiments.mpfilm_iemocap6.run_locked_ab import (
+from versions.mpfilm.run_locked_ab import (
     _claim_job,
     _completed,
     _ensure_run_manifest,
@@ -163,7 +163,7 @@ class LockedRunnerTests(unittest.TestCase):
 
     def test_child_environment_requires_deterministic_cublas(self):
         source = Path(
-            "experiments/mpfilm_iemocap6/run_locked_ab.py"
+            "versions/mpfilm/run_locked_ab.py"
         ).read_text(encoding="utf-8")
 
         self.assertIn('CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"', source)
