@@ -4,14 +4,14 @@ Chinese version: [EXPERIMENT.zh.md](EXPERIMENT.zh.md). English mirror: [EXPERIME
 
 ## Status boundary (2026-08-25)
 
-This document is the preregistered execution and publication record, not a results claim. `IMPLEMENTED` means that code and deterministic tests exist; it does not mean that IEMOCAPSix performance improved.
+This document now records the completed preregistered discrimination experiment. All four mechanisms were implemented and all 24 candidate tasks finished successfully, but all four failed the advancement gate. Detailed evidence is available in [RESULTS](results/RESULTS.md), [Chinese RESULTS](results/RESULTS.zh.md), [English RESULTS](results/RESULTS.en.md), [ANALYSIS](results/ANALYSIS.md), [Chinese ANALYSIS](results/ANALYSIS.zh.md), and [English ANALYSIS](results/ANALYSIS.en.md).
 
 | Candidate | Current state | Evidence boundary |
 |---|---|---|
-| GenAgg | `IMPLEMENTED; FORMAL TRAINING PENDING` | Core implementation commit `f34405993b96dcfcc64c7867dd82af5a54415073`; GCNet integration `183369c655c200c7a96d5fed84bd0b16519728be`; training identity `dae2903a99744ec9a95a7294373a2c4713c12fd9`; runner `bad59fd25130ebc83726d44f3832e682e46cc795`. |
-| Scaled Soft Medoid | `IMPLEMENTED; FORMAL TRAINING PENDING` | Same four Phase-A commits. No IEMOCAPSix effect is claimed yet. |
-| SSMA Conv2 | `IMPLEMENTED; OFFICIAL-ENVIRONMENT GATE PASSED; FORMAL TRAINING PENDING` | Core commit `08aa55fb255d5e32aa9f6171246e6e2821c97c71`; two-branch/CLI/runner integration `24ea3e7bfb65621d48d935291cb233db69f54dcc`. |
-| Custom RTDR | `PENDING IMPLEMENTATION AND TESTS` | The design is fixed, but no code, compatibility result, parameter-count result, or training result may be inferred from this document. |
+| GenAgg | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Core implementation commit `f34405993b96dcfcc64c7867dd82af5a54415073`; GCNet integration `183369c655c200c7a96d5fed84bd0b16519728be`; training identity `dae2903a99744ec9a95a7294373a2c4713c12fd9`; runner `bad59fd25130ebc83726d44f3832e682e46cc795`. |
+| Scaled Soft Medoid | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Same four Phase-A implementation commits; all six canonical archives passed provenance validation. |
+| SSMA Conv2 | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Core commit `08aa55fb255d5e32aa9f6171246e6e2821c97c71`; two-branch/CLI/runner integration `24ea3e7bfb65621d48d935291cb233db69f54dcc`. |
+| Custom RTDR | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Core commit `8f375b2509016daf5395863b0220591bc8bcd3ee`; CLI/runner commit `a107f7448978f4c22f87a6b61ec45b53da312aa0`; zero added trainable parameters. |
 | Ego–Neighbor Separation | `REJECTED BEFORE TRAINING` | Algebraically redundant with GCNet's existing neighbor and root transforms. |
 | Centered Clipping | `PARKED BEFORE TRAINING` | A source-faithful persistent center, iteration count, and threshold are not grounded for shuffled conversation nodes. |
 
@@ -44,9 +44,9 @@ The literature search supports a cross-domain-transfer framing for GenAgg, Soft 
 | GenAgg | Replace only both `conv2` aggregation primitives | Learn cardinality dependence, centralization, and nonlinear scalar transformation before the existing `lin_l`. Natural missingness changes message distributions that a fixed sum cannot adapt to. The source inverse-consistency objective is added exactly once during training. | +59/branch, +118 total |
 | Scaled Soft Medoid | Replace only both `conv2` aggregation primitives | Compute a degree-scaled soft medoid over bias-free transformed messages, then add the original bias and root path once. This tests resistance to an isolated message-space outlier without assuming a learnable reliability gate. | +0 |
 | SSMA Conv2 | Replace only both `conv2` aggregation primitives | Mix raw incoming neighbor states in the Fourier-domain polynomial signal, compress `2976 -> 100`, then apply the existing `lin_l`. Unlike sum, it can express cross-neighbor products before compression. Explicit self edges remain ordinary inputs. | +297,700/branch, +595,400 total |
-| Custom RTDR | Planned replacement of the two-layer graph core's routing only | Preserve all existing weights and compare all relation transitions with a diagonal `q=r` two-hop transition mask. This tests relation-transition routing, not “late fusion.” | Expected +0; `PENDING VERIFICATION` |
+| Custom RTDR | Replace the two-layer graph core's routing only | Preserve all existing weights and compare all relation transitions with a diagonal `q=r` two-hop transition mask. This tests relation-transition routing, not “late fusion.” | +0, verified |
 
-The inherited Original selected path has 34,140,166 trainable parameters. Therefore the locked expected totals are 34,140,284 for GenAgg, 34,140,166 for Soft Medoid, and 34,735,566 for SSMA. RTDR's equality to the Original parameter count remains a required test, not a completed fact.
+The inherited Original selected path has 34,140,166 trainable parameters. The corresponding totals are 34,140,284 for GenAgg, 34,140,166 for Soft Medoid and RTDR, and 34,735,566 for SSMA. RTDR's untouched early core matched Original with maximum absolute error 0; its full-transition decomposition matched with maximum absolute error `5.96e-8` in the official Torch 1.8 check.
 
 ## What remains unchanged
 
@@ -75,11 +75,11 @@ All candidate tasks use `stage=formal`, because stage is part of the immutable a
 
 | Phase | Arms | Missing rates | Seeds | Fold | New tasks | Scheduling |
 |---|---|---|---|---:|---:|---|
-| A | `genagg`, `soft_medoid` | `0.0`, `0.7` | `66`, `67`, `68` | 5 | 12 | GPUs 0–3, 3 workers/GPU |
-| B | `ssma`, `rtdr` | `0.0`, `0.7` | `66`, `67`, `68` | 5 | 12 | GPUs 0–3, 3 workers/GPU |
+| A | `genagg`, `soft_medoid` | `0.0`, `0.7` | `66`, `67`, `68` | 5 | 12/12 success | Initially GPUs 4–7, 3 jobs/GPU; canonical recovery on GPUs 5–7 |
+| B | `ssma`, `rtdr` | `0.0`, `0.7` | `66`, `67`, `68` | 5 | 12/12 success | GPUs 5–7, 3 jobs/GPU with automatic queue continuation |
 | Total | four candidates | two rates | three seeds | 5 | 24 | two bounded 12-job waves |
 
-Phase A is code-ready but its formal 12-task result set is `PENDING`. Phase B cannot launch until RTDR implementation, Original/full-transition equivalence tests, CLI identity, and runner mapping are complete. SSMA alone is ready at the implementation and environment-gate levels. Original is never placed in either candidate wave.
+Phase A initially assigned three jobs to each of GPUs 4–7. Formal-training processes on GPU 4 repeatedly exited with code `-9`; those failed attempts are retained only as diagnostics and never enter the canonical comparison. The affected three task keys were rerun on GPUs 5, 6, and 7 and succeeded. Phase B used GPUs 5–7, three concurrent jobs per GPU, with the remaining queue starting automatically as slots became free; it completed 12/12. Original was never scheduled in either wave.
 
 ## Original inheritance
 
@@ -90,13 +90,13 @@ The 40 existing Original archives are read-only controls:
   protocol_recovery_v1_biggpu/formal/original
 ```
 
-They will be joined to candidates by `(missing_rate, seed, fold)` and mask SHA256; they are not retrained. Their historical run manifest records source HEAD `d64fa9b6003d9a37fef5f135ce194fd206baac2a`, Original selected-path parameter count 34,140,166, the locked feature tree, and the fixed mask bank. Before any candidate launch or comparison, a dedicated legacy-aware Original validator **must be implemented, tested, and pass**. Because these archives predate several newer provenance fields, that future validator may map only absent fields to the locked defaults `branch_fusion=addition`, `pre_graph_context=bilstm`, `post_graph_context=bilstm`, and `second_graph_aggregation=add`; it must reject drift in source/run manifest, command, dataset, fold, features, seed, rate, parameter count, and mask hash. Candidate archives must pass the current strict validation path. This paragraph specifies a pending gate and does not claim that the legacy-aware validator already exists.
+They were joined to candidates by `(missing_rate, seed, fold)` and mask SHA256; they were not retrained. Commit `d515386f3207105c8207c34eca3f9743d2b80e4f` implemented the fail-closed legacy-aware validator. It allows only historically absent fields to map to the locked defaults `branch_fusion=addition`, `pre_graph_context=bilstm`, `post_graph_context=bilstm`, `second_graph_aggregation=add`, and `relation_track_routing=early`, while strictly checking source/run manifest, command, dataset, fold, features, seed, rate, parameter count, and mask hash. Validation passed for Original 40/40 and candidates 24/24 before the summary was accepted.
 
 ## Efficiency and failure protocol
 
 1. Do not run epoch-level smoke jobs. One synthetic forward/backward per candidate in the official environment is the compatibility gate.
 2. Use one clean remote Git clone made from the verified commit, not a source tree without `.git`. Compare local and remote HEAD plus a source SHA256 manifest.
-3. Launch one 12-job phase with `--parallel-arms --gpus 0 1 2 3 --workers-per-gpu 3`. Do not launch twelve serial wrappers and do not include `original`.
+3. Launch bounded parallel waves without `original`. The actual Phase-A and Phase-B GPU allocation and the GPU-4 diagnostic recovery are recorded above; completed canonical task keys were not rerun.
 4. Reuse the existing stage-aware runner, locks, immutable run/invocation manifests, task keys, and resume behavior. A completed valid task is never rerun.
 5. A task is complete only with return code 0, all 100 epoch records, exactly one readable NPZ, finite metrics, and matching command/mask/source provenance. Diagnose only the failing task and resume the same task key.
 6. Run the full local regression suite once after the code surface is stable, not after every small selector edit.
@@ -104,18 +104,27 @@ They will be joined to candidates by `(missing_rate, seed, fold)` and mask SHA25
 
 ## Decision rule
 
-For each candidate, pair every valid task with inherited Original. Advancement requires both rate-level paired mean F1 deltas to be positive, the seed-macro paired delta to be positive, at least two of three seed-macro deltas to be positive, and no non-finite or collapsed run. An advancing candidate reuses its six first-wave artifacts and fills the remaining rates/seeds; a rejected candidate stops. A scientifically negative but provenance-complete result is retained and published as negative evidence. An incomplete or invalid run is not called FAIL; it remains `INCOMPLETE` until repaired or explicitly archived as such.
+For each candidate, every valid task was paired with inherited Original. Advancement required both rate-level paired mean F1 deltas to be positive, the seed-macro paired delta to be positive, at least two of three seed-macro deltas to be positive, and no non-finite or collapsed run.
+
+| Candidate | Seed-macro F1 delta | Gate result | Decisive evidence |
+|---|---:|---|---|
+| GenAgg | -0.187831724 | FAIL | Collapse detected; macro effect strongly negative |
+| Soft Medoid | -0.004304363 | FAIL | Macro effect negative |
+| SSMA | -0.007173215 | FAIL | Macro effect negative |
+| RTDR | +0.002541466 | FAIL | Only 1/3 seed macros positive; required at least 2/3 |
+
+Thus all four candidates stop after their six-task discrimination subset; none is expanded to eight missing rates × five seeds. The 24 provenance-valid completed runs remain scientific negative evidence rather than infrastructure failures. See [RESULTS](results/RESULTS.md) and the detailed [ANALYSIS](results/ANALYSIS.md).
 
 SSMA additionally requires a parameter-matched sum-plus-MLP control before any claim that gains arise from neighbor interaction rather than parameter count. RTDR must first show that its `early` path is bit-exact Original and its `full-transition` decomposition agrees with Original within forward tolerance `1e-6` and backward tolerance `1e-5`.
 
 ## Automatic result publication to GitHub
 
-The publication target is the configured remote `github`, whose URL is [https://github.com/YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet). Publication is an automatic terminal step after training; it must not require another user prompt.
+The publication target is the configured remote `github`, whose URL is [https://github.com/YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet). Training and result validation are complete. Publication has not yet been claimed as pushed; after final repository verification it will be completed in this same work turn without another user prompt.
 
 The automation performs the following ordered gate:
 
-1. Wait for both 12-job waves to reach terminal state. Validate every completed archive and the inherited Original pairing; retain valid negative results, but exclude half-written, corrupted, or provenance-mismatched artifacts from completed-version folders.
-2. Synchronize code, task-level NPZ results, logs needed for audit, run/invocation manifests, source/hash manifests, and generated `RESULTS.md`, `RESULTS.zh.md`, and `RESULTS.en.md` back to the authoritative local workspace under `/data2/yb/paper`.
+1. Treat the completed 24/24 candidate archives and validated 40/40 Original controls as the immutable evidence set; failed GPU-4 attempts stay in diagnostics only.
+2. Keep code, task-level NPZ results, logs needed for audit, run/invocation manifests, source/hash manifests, `RESULTS.md/.zh.md/.en.md`, and `ANALYSIS.md/.zh.md/.en.md` in the authoritative local workspace under `/data2/yb/paper`.
 3. Do not upload datasets, extracted feature tensors, mask-bank payloads, environment credentials, device-login tokens, caches, checkpoints without a declared need, or absolute-path-only symlinks. Publish the mask hashes and provenance needed to reproduce pairing.
 4. Re-run repository tests and result/provenance validation on the exact tree to be published. Record candidate status as `PASS`, scientific `FAIL`, or infrastructure `INCOMPLETE` without converting one category into another.
 5. Place only verified completed versions in the organized repository layout, create a Lore-format commit whose `Tested:` trailer names the validation commands and whose `Not-tested:` trailer states any remaining gap, then push the current experiment branch with:
@@ -126,4 +135,4 @@ git push github HEAD:refs/heads/exp/second-graph-aggregators
 
 6. Confirm publication by comparing the local commit with `git ls-remote github refs/heads/exp/second-graph-aggregators`. A transport failure is retried from the same local commit; training is not rerun. Promotion into the GitHub `main` completed-version layout occurs only from that verified commit, without force-pushing or rewriting unrelated completed versions.
 
-This upload step publishes code and real completed results even when the scientific verdict is negative. RTDR and formal metric tables remain `PENDING` in this document until their artifacts exist and pass the gates above.
+This upload step will publish the code and real completed negative results. The document does not claim that the push has already happened; remote-SHA confirmation is the final publication evidence.
