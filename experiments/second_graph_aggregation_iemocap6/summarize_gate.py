@@ -130,6 +130,43 @@ def _candidate_invocation(arm: str) -> dict:
     }
 
 
+def _rtdr_extension_invocation() -> dict:
+    return {
+        "arms": ["rtdr"],
+        "fold": 5,
+        "gpus": ["5", "6", "7"],
+        "job_count": 15,
+        "parallel_arms": True,
+        "rates": [0.0, 0.5, 0.7],
+        "seeds": [66, 67, 68, 69, 70],
+        "stage": "formal",
+        "workers_per_gpu": 3,
+    }
+
+
+def _rtdr_full_invocation() -> dict:
+    return {
+        "arms": ["rtdr"],
+        "fold": 5,
+        "gpus": ["5", "6", "7"],
+        "job_count": 40,
+        "parallel_arms": True,
+        "rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+        "seeds": [66, 67, 68, 69, 70],
+        "stage": "formal",
+        "workers_per_gpu": 3,
+    }
+
+
+def _valid_gpu_list(gpus: Any) -> bool:
+    return (
+        isinstance(gpus, list)
+        and bool(gpus)
+        and len(set(gpus)) == len(gpus)
+        and all(isinstance(gpu, str) and gpu.isdigit() for gpu in gpus)
+    )
+
+
 def _scalar(value: Any) -> Any:
     array = np.asarray(value)
     return array.item() if array.size == 1 else value
@@ -190,15 +227,21 @@ def _canonical_digest(payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
-def _validate_invocations(formal: Path, arm: str, historical: bool) -> None:
+def _validate_invocations(
+    formal: Path, arm: str, historical: bool, rate: float, seed: int
+) -> None:
     directory = formal / "invocations"
     if not directory.is_dir() or directory.is_symlink():
         raise ValueError("invocation directory is missing or unsafe: {}".format(directory))
     paths = sorted(directory.glob("*.json"))
     expected = _historical_invocations() if historical else (_candidate_invocation(arm),)
-    if len(paths) != len(expected):
+    phase_b = not historical and arm in ("ssma", "rtdr")
+    valid_counts = (1, 2, 3) if phase_b else (len(expected),)
+    if len(paths) not in valid_counts:
         raise ValueError(
-            "invocation set mismatch: expected {}, found {}".format(len(expected), len(paths))
+            "invocation set mismatch: expected {}, found {}".format(
+                " or ".join(str(value) for value in valid_counts), len(paths)
+            )
         )
     found = []
     for path in paths:
@@ -214,21 +257,47 @@ def _validate_invocations(formal: Path, arm: str, historical: bool) -> None:
         if found_by_digest != expected_by_digest:
             raise ValueError("invocation payload mismatch for {}".format(formal))
     else:
-        payload = dict(found[0])
-        gpus = payload.pop("gpus", None)
-        if (
-            not isinstance(gpus, list)
-            or not gpus
-            or len(set(gpus)) != len(gpus)
-            or any(not isinstance(gpu, str) or not gpu.isdigit() for gpu in gpus)
-        ):
-            raise ValueError("invocation gpus must be non-empty unique numeric strings")
-        if payload != expected[0]:
+        base_matches = []
+        for payload in found:
+            normalized = dict(payload)
+            gpus = normalized.pop("gpus", None)
+            if normalized == expected[0] and _valid_gpu_list(gpus):
+                base_matches.append(payload)
+        if len(base_matches) != 1:
             raise ValueError("invocation payload mismatch for {}".format(formal))
+        remaining = [payload for payload in found if payload is not base_matches[0]]
+        expected_remaining = []
+        if len(remaining) >= 1:
+            expected_remaining.append(_rtdr_extension_invocation())
+        if len(remaining) == 2:
+            expected_remaining.append(_rtdr_full_invocation())
+        remaining_by_digest = {
+            _canonical_digest(payload): payload for payload in remaining
+        }
+        expected_by_digest = {
+            _canonical_digest(payload): payload for payload in expected_remaining
+        }
+        if remaining_by_digest != expected_by_digest:
+            raise ValueError("invocation payload mismatch for {}".format(formal))
+    if not any(
+        arm in payload["arms"]
+        and float(rate) in payload["rates"]
+        and int(seed) in payload["seeds"]
+        for payload in found
+    ):
+        raise ValueError(
+            "invocation set does not cover arm={} rate={} seed={}".format(
+                arm, rate, seed
+            )
+        )
 
 
 def _validate_run_manifest(
-    fold_directory: Path, arm: str, historical: bool
+    fold_directory: Path,
+    arm: str,
+    historical: bool,
+    rate: float,
+    seed: int,
 ) -> Mapping[str, Any]:
     # Locked layout: formal/<arm>/miss_*/seed_*/fold_5.
     try:
@@ -295,7 +364,7 @@ def _validate_run_manifest(
         name != "Tesla V100-SXM2-32GB" for name in gpu_names
     ):
         raise ValueError("run manifest gpu_names mismatch")
-    _validate_invocations(formal, arm, historical)
+    _validate_invocations(formal, arm, historical, rate, seed)
     return manifest
 
 
@@ -356,7 +425,11 @@ def _validated_archive(
     if not fold_directory.is_dir() or fold_directory.is_symlink():
         raise ValueError("job directory is missing or unsafe: {}".format(fold_directory))
     manifest = _validate_run_manifest(
-        fold_directory, arm, historical=historical_original
+        fold_directory,
+        arm,
+        historical=historical_original,
+        rate=rate,
+        seed=seed,
     )
     lock = fold_directory / ".active.lock"
     if lock.exists():
@@ -712,13 +785,14 @@ def summarize_candidate(
     }
     macro_delta = float(np.mean(np.asarray(list(seed_macro.values()), dtype=np.float64)))
     positive_seeds = sum(value > 0.0 for value in seed_macro.values())
+    minimum_positive_seeds = (len(seeds) + 1) // 2
     positive_rates = all(row["mean_delta"] > 0.0 for row in rate_means.values())
     passed = (
         all_finite
         and all_noncollapsed
         and positive_rates
         and macro_delta > 0.0
-        and positive_seeds >= 2
+        and positive_seeds >= minimum_positive_seeds
     )
     return {
         "arm": arm,
@@ -731,8 +805,10 @@ def summarize_candidate(
             "all_finite": bool(all_finite),
             "all_noncollapsed": bool(all_noncollapsed),
             "both_rate_means_positive": bool(positive_rates),
+            "all_rate_means_positive": bool(positive_rates),
             "seed_macro_positive": bool(macro_delta > 0.0),
             "positive_seed_macros": int(positive_seeds),
+            "minimum_positive_seed_macros": int(minimum_positive_seeds),
         },
     }
 
