@@ -90,9 +90,16 @@ class GraphModelMPFiLMIntegrationTests(unittest.TestCase):
 
         original_count = sum(parameter.numel() for parameter in original.parameters())
         candidate_count = sum(parameter.numel() for parameter in candidate.parameters())
-        self.assertEqual(original_count, 34_140_166)
-        self.assertEqual(candidate_count, 34_200_838)
+        self.assertEqual(original_count, 36_166_566)
+        self.assertEqual(candidate_count, 36_227_238)
         self.assertEqual(candidate_count - original_count, 60_672)
+        self.assertEqual(original.selected_path_parameter_count(), 34_140_166)
+        self.assertEqual(candidate.selected_path_parameter_count(), 34_200_838)
+        self.assertEqual(
+            candidate.selected_path_parameter_count()
+            - original.selected_path_parameter_count(),
+            60_672,
+        )
 
     def test_cp_lecc_construction_preserves_every_common_parameter(self):
         seed = 83
