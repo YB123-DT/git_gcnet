@@ -505,7 +505,7 @@ def create_argument_parser():
     )
     parser.add_argument(
         '--second-graph-aggregation',
-        choices=['add', 'genagg', 'soft_medoid'],
+        choices=['add', 'genagg', 'soft_medoid', 'ssma'],
         default='add',
         help='aggregation used by the second graph-convolution layer',
     )

@@ -23,7 +23,7 @@ class TrainingProtocolTests(unittest.TestCase):
         parser = train_gcnet.create_argument_parser()
 
         self.assertEqual(parser.parse_args([]).second_graph_aggregation, "add")
-        for mode in ("add", "genagg", "soft_medoid"):
+        for mode in ("add", "genagg", "soft_medoid", "ssma"):
             with self.subTest(mode=mode):
                 self.assertEqual(
                     parser.parse_args(
@@ -200,7 +200,7 @@ class TrainingProtocolTests(unittest.TestCase):
             branch_fusion="addition",
         )
 
-        for selector in ("genagg", "soft_medoid"):
+        for selector in ("genagg", "soft_medoid", "ssma"):
             with self.subTest(selector=selector):
                 model = train_gcnet.build_model(
                     Namespace(
@@ -228,6 +228,7 @@ class TrainingProtocolTests(unittest.TestCase):
         for selector, train in (
             ("add", True),
             ("soft_medoid", True),
+            ("ssma", True),
             ("genagg", False),
         ):
             with self.subTest(selector=selector, train=train):
@@ -320,7 +321,7 @@ class TrainingProtocolTests(unittest.TestCase):
                     **vars(legacy_args), second_graph_aggregation=selector
                 )
             )
-            for selector in ("genagg", "soft_medoid")
+            for selector in ("genagg", "soft_medoid", "ssma")
         }
         candidate_filenames = {
             selector: train_gcnet.build_archive_filename(
@@ -329,11 +330,11 @@ class TrainingProtocolTests(unittest.TestCase):
                 ),
                 123.5,
             )
-            for selector in ("genagg", "soft_medoid")
+            for selector in ("genagg", "soft_medoid", "ssma")
         }
-        self.assertEqual(len(set(candidate_suffixes.values())), 2)
-        self.assertEqual(len(set(candidate_filenames.values())), 2)
-        for selector in ("genagg", "soft_medoid"):
+        self.assertEqual(len(set(candidate_suffixes.values())), 3)
+        self.assertEqual(len(set(candidate_filenames.values())), 3)
+        for selector in ("genagg", "soft_medoid", "ssma"):
             self.assertIn(selector, candidate_suffixes[selector])
             self.assertIn(selector, candidate_filenames[selector])
             self.assertNotEqual(candidate_suffixes[selector], expected_suffix)

@@ -4,7 +4,11 @@ import torch
 from torch_geometric.nn import GraphConv, RGCNConv
 
 from model import GraphModel, GraphNetwork
-from second_graph_aggregation import GenAggGraphConv, SoftMedoidGraphConv
+from second_graph_aggregation import (
+    GenAggGraphConv,
+    SoftMedoidGraphConv,
+    SSMAGraphConv,
+)
 
 
 class SecondGraphAggregationIntegrationTests(unittest.TestCase):
@@ -142,6 +146,7 @@ class SecondGraphAggregationIntegrationTests(unittest.TestCase):
         for selector, conv_type in (
             ("genagg", GenAggGraphConv),
             ("soft_medoid", SoftMedoidGraphConv),
+            ("ssma", SSMAGraphConv),
         ):
             with self.subTest(selector=selector):
                 torch.manual_seed(seed)
@@ -164,6 +169,17 @@ class SecondGraphAggregationIntegrationTests(unittest.TestCase):
                 extras = set(normalized) - set(original_parameters)
                 if selector == "soft_medoid":
                     self.assertEqual(extras, set())
+                elif selector == "ssma":
+                    self.assertEqual(
+                        extras,
+                        {
+                            "graph_net_{}.conv2.compressor.{}".format(
+                                branch, suffix
+                            )
+                            for branch in ("temporal", "speaker")
+                            for suffix in ("weight", "bias")
+                        },
+                    )
                 else:
                     self.assertEqual(
                         extras,
@@ -186,6 +202,7 @@ class SecondGraphAggregationIntegrationTests(unittest.TestCase):
             ("add", 0),
             ("soft_medoid", 0),
             ("genagg", 118),
+            ("ssma", 595_400),
         ):
             with self.subTest(selector=selector):
                 model = self._model(selector, **dimensions)
@@ -205,7 +222,7 @@ class SecondGraphAggregationIntegrationTests(unittest.TestCase):
             self._model("median")
 
     def test_auxiliary_loss_is_safe_zero_for_non_genagg_and_before_forward(self):
-        for selector in ("add", "soft_medoid", "genagg"):
+        for selector in ("add", "soft_medoid", "ssma", "genagg"):
             with self.subTest(selector=selector):
                 model = self._model(selector).to(dtype=torch.float64)
                 loss = model.second_graph_auxiliary_loss()
@@ -213,6 +230,23 @@ class SecondGraphAggregationIntegrationTests(unittest.TestCase):
                 self.assertEqual(loss.dtype, torch.float64)
                 self.assertEqual(loss.device, next(model.parameters()).device)
                 self.assertEqual(loss.item(), 0.0)
+
+    def test_ssma_selected_path_forward_and_backward_are_finite(self):
+        torch.manual_seed(131)
+        model = self._model("ssma")
+        inputs = self._inputs(requires_grad=True)
+
+        outputs = model(*inputs)
+        self.assertTrue(all(torch.isfinite(value).all() for value in (
+            outputs[0], outputs[1][0], outputs[2]
+        )))
+        self._loss(outputs).backward()
+
+        self.assertTrue(torch.isfinite(inputs[0][0].grad).all())
+        for branch_name in ("temporal", "speaker"):
+            conv = getattr(model, "graph_net_{}".format(branch_name)).conv2
+            self.assertIsNotNone(conv.compressor.weight.grad)
+            self.assertTrue(torch.isfinite(conv.compressor.weight.grad).all())
 
     def test_genagg_auxiliary_is_exact_branch_sum_and_reaches_both_maps(self):
         torch.manual_seed(127)

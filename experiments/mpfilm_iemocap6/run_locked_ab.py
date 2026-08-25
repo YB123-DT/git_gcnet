@@ -23,6 +23,7 @@ ARM_TO_GRAPH_VARIANT = {
     "sequence_aff": "original",
     "genagg": "original",
     "soft_medoid": "original",
+    "ssma": "original",
 }
 ARM_TO_BRANCH_FUSION = {
     arm: "mask_sequence_aff" if arm == "sequence_aff" else "addition"
@@ -31,6 +32,7 @@ ARM_TO_BRANCH_FUSION = {
 ARM_TO_SECOND_GRAPH_AGGREGATION = {
     "genagg": "genagg",
     "soft_medoid": "soft_medoid",
+    "ssma": "ssma",
 }
 GATE_RATES = (0.0, 0.7)
 FORMAL_RATES = tuple(index / 10 for index in range(8))

@@ -56,23 +56,29 @@ class LockedRunnerTests(unittest.TestCase):
     def test_second_aggregation_arms_keep_original_graph_and_addition_fusion(self):
         self.assertEqual(ARM_TO_GRAPH_VARIANT["genagg"], "original")
         self.assertEqual(ARM_TO_GRAPH_VARIANT["soft_medoid"], "original")
+        self.assertEqual(ARM_TO_GRAPH_VARIANT["ssma"], "original")
         self.assertEqual(ARM_TO_BRANCH_FUSION["genagg"], "addition")
         self.assertEqual(ARM_TO_BRANCH_FUSION["soft_medoid"], "addition")
+        self.assertEqual(ARM_TO_BRANCH_FUSION["ssma"], "addition")
         self.assertEqual(
             ARM_TO_SECOND_GRAPH_AGGREGATION,
-            {"genagg": "genagg", "soft_medoid": "soft_medoid"},
+            {
+                "genagg": "genagg",
+                "soft_medoid": "soft_medoid",
+                "ssma": "ssma",
+            },
         )
 
     def test_second_aggregation_flag_is_appended_only_for_candidate_arms(self):
         jobs = build_jobs(
             "formal",
             Path("/tmp/results"),
-            arms=("genagg", "soft_medoid"),
+            arms=("genagg", "soft_medoid", "ssma"),
             rates=(0.0,),
             seeds=(66,),
         )
 
-        for job, expected in zip(jobs, ("genagg", "soft_medoid")):
+        for job, expected in zip(jobs, ("genagg", "soft_medoid", "ssma")):
             command = build_command(
                 job,
                 python=Path("/env/bin/python"),
@@ -188,6 +194,30 @@ class LockedRunnerTests(unittest.TestCase):
         self.assertEqual(len(jobs), 12)
         self.assertEqual(len(keys), 12)
         self.assertNotIn("original", {job.arm for job in jobs})
+
+    def test_ssma_discrimination_wave_has_six_jobs_and_no_original(self):
+        jobs = build_jobs(
+            "formal",
+            Path("/tmp/results"),
+            arms=("ssma",),
+            rates=(0.0, 0.7),
+            seeds=(66, 67, 68),
+        )
+
+        self.assertEqual(len(jobs), 6)
+        self.assertEqual({job.arm for job in jobs}, {"ssma"})
+        self.assertEqual({job.missing_rate for job in jobs}, {0.0, 0.7})
+        self.assertEqual({job.seed for job in jobs}, {66, 67, 68})
+        for job in jobs:
+            command = build_command(
+                job,
+                python=Path("/env/bin/python"),
+                repository=Path("/repo"),
+                data_root=Path("/data/IEMOCAP"),
+                mask_bank_root=Path("/tmp/banks"),
+            )
+            self.assertIn("--second-graph-aggregation", command)
+            self.assertNotIn("mask_sequence_aff", command)
 
     def test_gate_contains_two_rates_two_seeds_and_two_arms(self):
         jobs = build_jobs("gate", Path("/tmp/results"))
