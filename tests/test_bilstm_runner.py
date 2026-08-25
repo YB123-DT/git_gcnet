@@ -1,14 +1,31 @@
 import ast
 import argparse
 import json
+import math
+import os
+import signal
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
+
+
+def _write_marker(path):
+    Path(path).write_text("pickle-opened")
+
+
+class _MarkerPickle:
+    def __init__(self, path):
+        self.path = path
+
+    def __reduce__(self):
+        return _write_marker, (self.path,)
 
 
 class BiLSTMRunnerContractTests(unittest.TestCase):
@@ -122,6 +139,20 @@ class BiLSTMRunnerContractTests(unittest.TestCase):
         self.assertEqual(
             job.output_directory,
             Path("/results/formal/CMUMOSI/no_pre_bilstm/miss_0p3/seed_70/official_split"),
+        )
+
+    def test_rates_must_be_finite_exact_tenths_without_path_collisions(self):
+        for invalid in (float("nan"), float("inf"), -float("inf"), 0.31, 0.34):
+            with self.subTest(rate=invalid):
+                with self.assertRaisesRegex(ValueError, "exact tenths"):
+                    self.runner.build_jobs(
+                        "formal", Path("/results"), rates=(invalid,)
+                    )
+        jobs = self.runner.build_jobs(
+            "formal", Path("/results"), rates=(0.0, 0.1, 0.7), seeds=(66,)
+        )
+        self.assertEqual(
+            len({job.output_directory for job in jobs}), len(jobs)
         )
 
     def test_commands_lock_hparams_contexts_roots_and_fold_behavior(self):
@@ -364,6 +395,52 @@ class BiLSTMRunnerResumeTests(unittest.TestCase):
                 self.job, "0", archive, **self.inputs
             )
 
+    def test_archive_symlink_is_rejected(self):
+        self._write_complete()
+        archive = next((self.job.output_directory / "saved").glob("*.npz"))
+        target = archive.with_name("target.npz")
+        archive.rename(target)
+        archive.symlink_to(target.name)
+        with self.assertRaisesRegex(RuntimeError, "symlink"):
+            self.runner._validate_archive(
+                self.job,
+                archive,
+                self.inputs["data_root_root"],
+                self.inputs["mask_root"],
+                100,
+                False,
+            )
+
+    def test_path_swap_never_deserializes_replacement_pickle(self):
+        self._write_complete()
+        archive = next((self.job.output_directory / "saved").glob("*.npz"))
+        marker = Path(self.temporary.name) / "pickle-marker"
+        replacement = archive.with_name("replacement.npz")
+        np.savez_compressed(
+            replacement,
+            args=np.array(_MarkerPickle(marker), dtype=object),
+        )
+        original_hash = self.runner._hash_open_file
+
+        def swap_after_hash(handle):
+            digest = original_hash(handle)
+            os.replace(replacement, archive)
+            return digest
+
+        with mock.patch.object(
+            self.runner, "_hash_open_file", side_effect=swap_after_hash
+        ):
+            with self.assertRaisesRegex(RuntimeError, "changed"):
+                self.runner._validate_archive(
+                    self.job,
+                    archive,
+                    self.inputs["data_root_root"],
+                    self.inputs["mask_root"],
+                    100,
+                    False,
+                )
+        self.assertFalse(marker.exists())
+
     def test_status_log_and_saved_archive_drift_are_rejected(self):
         mutations = {
             "status": lambda: (self.job.output_directory / "status.json").write_text(
@@ -534,6 +611,72 @@ class BiLSTMManifestTests(unittest.TestCase):
                 (job,), ("0",), 4, Path("/python"), Path("/repo"),
                 self.data, Path("/masks"),
             )
+
+    def test_invocation_lock_rejects_concurrent_owner(self):
+        first = self.runner._claim_invocation(self.output)
+        self.addCleanup(self.runner._release_invocation, first)
+        with self.assertRaisesRegex(RuntimeError, "runner lock"):
+            self.runner._claim_invocation(self.output)
+
+    def test_atomic_json_failure_never_publishes_partial_content(self):
+        path = self.output / "formal/run_manifest.json"
+        path.parent.mkdir(parents=True)
+        with mock.patch.object(os, "replace", side_effect=OSError("crash")):
+            with self.assertRaisesRegex(OSError, "crash"):
+                self.runner._write_json_exclusive_or_equal(path, {"large": "x" * 10000})
+        self.assertFalse(path.exists())
+        self.assertEqual(list(path.parent.glob(".run_manifest.json.*.tmp")), [])
+
+    def test_shared_iemocap_feature_fingerprints_are_deduplicated(self):
+        calls = []
+        original = self.runner._fingerprint_uncached
+
+        def record(path):
+            calls.append(str(Path(path).resolve()))
+            return original(path)
+
+        with mock.patch.object(
+            self.runner, "_fingerprint_uncached", side_effect=record
+        ):
+            self._manifest(datasets=("IEMOCAPFour", "IEMOCAPSix"))
+        shared_audio = str(
+            (self.data / "IEMOCAP/features/wav2vec-large-c-UTT").resolve()
+        )
+        self.assertEqual(calls.count(shared_audio), 1)
+
+
+class ProcessGroupTests(unittest.TestCase):
+    def setUp(self):
+        from experiments.bilstm_ablation import run_factorial
+
+        self.runner = run_factorial
+
+    def test_stubborn_child_group_is_killed_and_reaped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "child-survived"
+            child_code = (
+                "import signal,sys,time; from pathlib import Path; "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "time.sleep(0.7); Path(sys.argv[1]).write_text('alive')"
+            )
+            parent_code = (
+                "import signal,subprocess,sys,time; "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "subprocess.Popen([sys.executable,'-c',sys.argv[1],sys.argv[2]]); "
+                "print('ready', flush=True); time.sleep(30)"
+            )
+            process = subprocess.Popen(
+                [sys.executable, "-c", parent_code, child_code, str(marker)],
+                stdout=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+            )
+            self.assertEqual(process.stdout.readline().strip(), "ready")
+            self.runner._terminate_process_group(process, timeout=0.1)
+            process.stdout.close()
+            self.assertIsNotNone(process.returncode)
+            time.sleep(0.8)
+            self.assertFalse(marker.exists())
 
 
 if __name__ == "__main__":

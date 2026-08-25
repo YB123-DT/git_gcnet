@@ -4,9 +4,13 @@ import argparse
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
+import signal
+import stat
 import subprocess
+import tempfile
 import time
 from typing import Dict, List, Tuple
 
@@ -173,12 +177,22 @@ def build_jobs(
     default_rates, default_seeds = _stage_defaults(stage)
     datasets = _validated_subset(datasets, DATASETS, "datasets")
     arms = _validated_subset(arms, ARMS, "arms")
-    rates = tuple(default_rates if rates is None else rates)
+    raw_rates = tuple(default_rates if rates is None else rates)
+    normalized_rates = []
+    for raw_rate in raw_rates:
+        rate = float(raw_rate)
+        scaled = rate * 10.0
+        if (
+            not math.isfinite(rate)
+            or not 0.0 <= rate <= 0.7
+            or abs(scaled - round(scaled)) > 1e-9
+        ):
+            raise ValueError("rates must be finite exact tenths between 0.0 and 0.7")
+        normalized_rates.append(round(scaled) / 10.0)
+    rates = tuple(normalized_rates)
     seeds = tuple(default_seeds if seeds is None else seeds)
     if len(rates) != len(set(rates)) or len(seeds) != len(set(seeds)):
         raise ValueError("duplicate rates or seeds are not allowed")
-    if any(rate < 0.0 or rate > 0.7 for rate in rates):
-        raise ValueError("rates must be between 0.0 and 0.7")
     jobs = []
     for dataset in datasets:
         split_tag = DATASETS[dataset]["split_tag"]
@@ -197,6 +211,8 @@ def build_jobs(
                     jobs.append(
                         Job(stage, dataset, arm, rate, seed, split_tag, directory)
                     )
+    if len({job.output_directory for job in jobs}) != len(jobs):
+        raise RuntimeError("job output directories are not unique")
     return jobs
 
 
@@ -346,14 +362,66 @@ def _completed_log(path, epochs, allow_short_run):
 
 
 def _sha256_file(path):
+    path = Path(path)
+    if path.is_symlink():
+        raise RuntimeError("refusing symlink artifact: {}".format(path))
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(str(path), flags)
+    except OSError as error:
+        raise RuntimeError("cannot open stable artifact: {}".format(path)) from error
+    with os.fdopen(descriptor, "rb") as handle:
+        return _hash_open_file(handle)
+
+
+def _hash_open_file(handle):
     digest = hashlib.sha256()
-    with Path(path).open("rb") as handle:
-        while True:
-            block = handle.read(1024 * 1024)
-            if not block:
-                break
-            digest.update(block)
+    handle.seek(0)
+    while True:
+        block = handle.read(1024 * 1024)
+        if not block:
+            break
+        digest.update(block)
+    handle.seek(0)
     return digest.hexdigest()
+
+
+def _stable_stat(file_stat):
+    return (
+        file_stat.st_dev,
+        file_stat.st_ino,
+        file_stat.st_mode,
+        file_stat.st_size,
+        file_stat.st_mtime_ns,
+        file_stat.st_ctime_ns,
+    )
+
+
+def _open_stable_archive(path):
+    path = Path(path)
+    if path.is_symlink():
+        raise RuntimeError("trusted NPZ archive must not be a symlink")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(str(path), flags)
+    except OSError as error:
+        raise RuntimeError("trusted NPZ archive cannot be opened safely") from error
+    opened_stat = os.fstat(descriptor)
+    if not stat.S_ISREG(opened_stat.st_mode):
+        os.close(descriptor)
+        raise RuntimeError("trusted NPZ archive is not a regular file")
+    return descriptor, opened_stat
+
+
+def _verify_stable_archive(path, descriptor, opened_stat):
+    after_stat = os.fstat(descriptor)
+    try:
+        path_stat = os.stat(str(path), follow_symlinks=False)
+    except OSError as error:
+        raise RuntimeError("trusted NPZ archive path changed during validation") from error
+    expected = _stable_stat(opened_stat)
+    if _stable_stat(after_stat) != expected or _stable_stat(path_stat) != expected:
+        raise RuntimeError("trusted NPZ archive changed during validation")
 
 
 def _mask_artifact_paths(job, mask_root, epochs):
@@ -424,96 +492,115 @@ def _validate_mask_manifest(job, manifest, mask_root, epochs):
 def _validate_archive(
     job, archive_path, data_root_root, mask_root, epochs, allow_short_run
 ):
+    descriptor = None
     try:
-        with Path(archive_path).open("rb") as archive_handle, np.load(
-            archive_handle, allow_pickle=True
-        ) as archive:
-            required = {
-                "args",
-                "fold_numbers",
-                "mask_bank_manifest",
-                "parameter_count",
-                "selected_path_parameter_count",
-                "smoke_only",
-            }
-            missing = required - set(archive.files)
-            if missing:
-                raise RuntimeError(
-                    "trusted NPZ is missing fields: {}".format(sorted(missing))
+        descriptor, opened_stat = _open_stable_archive(archive_path)
+        with os.fdopen(descriptor, "rb") as archive_handle:
+            descriptor = None
+            archive_sha256 = _hash_open_file(archive_handle)
+            with np.load(archive_handle, allow_pickle=True) as archive:
+                required = {
+                    "args",
+                    "fold_numbers",
+                    "mask_bank_manifest",
+                    "parameter_count",
+                    "selected_path_parameter_count",
+                    "smoke_only",
+                }
+                missing = required - set(archive.files)
+                if missing:
+                    raise RuntimeError(
+                        "trusted NPZ is missing fields: {}".format(sorted(missing))
+                    )
+                arguments = _archive_scalar(archive, "args")
+                if hasattr(arguments, "__dict__"):
+                    arguments = vars(arguments)
+                if not isinstance(arguments, dict):
+                    raise RuntimeError(
+                        "trusted NPZ args are not a namespace or dictionary"
+                    )
+                pre_context, post_context = ARMS[job.arm]
+                expected_arguments = {
+                    "dataset": job.dataset,
+                    "data_root": str(
+                        Path(data_root_root)
+                        / DATASETS[job.dataset]["directory"]
+                    ),
+                    "audio_feature": FEATURE_NAMES["audio"],
+                    "text_feature": FEATURE_NAMES["text"],
+                    "video_feature": FEATURE_NAMES["video"],
+                    "base_model": "LSTM",
+                    "graph_conv_variant": "original",
+                    "pre_graph_context": pre_context,
+                    "post_graph_context": post_context,
+                    "windowp": 2,
+                    "windowf": 2,
+                    "hidden": 200,
+                    "lr": 0.001,
+                    "l2": 0.00001,
+                    "dropout": 0.5,
+                    "batch_size": 32,
+                    "num_threads": 6,
+                    "epochs": epochs,
+                    "seed": job.seed,
+                    "mask_seed": job.seed,
+                    "mask_type": "constant-{:.1f}".format(job.missing_rate),
+                    "mask_bank_root": str(
+                        Path(mask_root) / job.dataset / job.split_tag
+                    ),
+                    "fold_index": DATASETS[job.dataset]["fold"],
+                    "output_dir": str(job.output_directory / "saved"),
+                    "loss_recon": True,
+                    "reccls_flag": False,
+                    "lower_bound": False,
+                    "time_attn": False,
+                    "allow_short_run": bool(allow_short_run),
+                }
+                for name, expected in expected_arguments.items():
+                    _require_equal(
+                        arguments.get(name), expected, "args.{}".format(name)
+                    )
+                fold_numbers = archive["fold_numbers"].tolist()
+                expected_folds = [DATASETS[job.dataset]["fold"] or 1]
+                _require_equal(fold_numbers, expected_folds, "fold/split")
+                _require_equal(
+                    bool(_archive_scalar(archive, "smoke_only")),
+                    bool(allow_short_run),
+                    "smoke provenance",
                 )
-            arguments = _archive_scalar(archive, "args")
-            if hasattr(arguments, "__dict__"):
-                arguments = vars(arguments)
-            if not isinstance(arguments, dict):
-                raise RuntimeError("trusted NPZ args are not a namespace or dictionary")
-            pre_context, post_context = ARMS[job.arm]
-            expected_arguments = {
-                "dataset": job.dataset,
-                "data_root": str(
-                    Path(data_root_root) / DATASETS[job.dataset]["directory"]
-                ),
-                "audio_feature": FEATURE_NAMES["audio"],
-                "text_feature": FEATURE_NAMES["text"],
-                "video_feature": FEATURE_NAMES["video"],
-                "base_model": "LSTM",
-                "graph_conv_variant": "original",
-                "pre_graph_context": pre_context,
-                "post_graph_context": post_context,
-                "windowp": 2,
-                "windowf": 2,
-                "hidden": 200,
-                "lr": 0.001,
-                "l2": 0.00001,
-                "dropout": 0.5,
-                "batch_size": 32,
-                "num_threads": 6,
-                "epochs": epochs,
-                "seed": job.seed,
-                "mask_seed": job.seed,
-                "mask_type": "constant-{:.1f}".format(job.missing_rate),
-                "mask_bank_root": str(
-                    Path(mask_root) / job.dataset / job.split_tag
-                ),
-                "fold_index": DATASETS[job.dataset]["fold"],
-                "output_dir": str(job.output_directory / "saved"),
-                "loss_recon": True,
-                "reccls_flag": False,
-                "lower_bound": False,
-                "time_attn": False,
-                "allow_short_run": bool(allow_short_run),
-            }
-            for name, expected in expected_arguments.items():
-                _require_equal(arguments.get(name), expected, "args.{}".format(name))
-            fold_numbers = archive["fold_numbers"].tolist()
-            expected_folds = [DATASETS[job.dataset]["fold"] or 1]
-            _require_equal(fold_numbers, expected_folds, "fold/split")
-            _require_equal(
-                bool(_archive_scalar(archive, "smoke_only")),
-                bool(allow_short_run),
-                "smoke provenance",
-            )
-            counts = PARAMETER_COUNTS[job.dataset]
-            _require_equal(
-                int(_archive_scalar(archive, "parameter_count")),
-                counts["total"],
-                "stored parameter count",
-            )
-            _require_equal(
-                int(_archive_scalar(archive, "selected_path_parameter_count")),
-                counts["selected"][job.arm],
-                "selected parameter count",
-            )
-            mask_manifest = _archive_scalar(archive, "mask_bank_manifest")
+                counts = PARAMETER_COUNTS[job.dataset]
+                _require_equal(
+                    int(_archive_scalar(archive, "parameter_count")),
+                    counts["total"],
+                    "stored parameter count",
+                )
+                _require_equal(
+                    int(
+                        _archive_scalar(
+                            archive, "selected_path_parameter_count"
+                        )
+                    ),
+                    counts["selected"][job.arm],
+                    "selected parameter count",
+                )
+                mask_manifest = _archive_scalar(archive, "mask_bank_manifest")
+            _verify_stable_archive(archive_path, archive_handle.fileno(), opened_stat)
     except RuntimeError:
         raise
     except Exception as error:
         raise RuntimeError(
             "trusted NPZ cannot be opened: {}".format(archive_path)
         ) from error
-    return _validate_mask_manifest(job, mask_manifest, mask_root, epochs)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+    mask_paths = _validate_mask_manifest(job, mask_manifest, mask_root, epochs)
+    return mask_paths[0], mask_paths[1], archive_sha256
 
 
-def _artifact_hashes(job, archive_path, mask_root, epochs):
+def _artifact_hashes(
+    job, archive_path, mask_root, epochs, archive_sha256=None
+):
     bank_path, mask_manifest_path = _mask_artifact_paths(job, mask_root, epochs)
     paths = {
         "command.json": job.output_directory / "command.json",
@@ -522,7 +609,13 @@ def _artifact_hashes(job, archive_path, mask_root, epochs):
         "mask_bundle": bank_path,
         "mask_manifest": mask_manifest_path,
     }
-    return {name: _sha256_file(path) for name, path in paths.items()}
+    hashes = {name: _sha256_file(path) for name, path in paths.items() if name != "archive"}
+    hashes["archive"] = (
+        _sha256_file(archive_path)
+        if archive_sha256 is None
+        else archive_sha256
+    )
+    return hashes
 
 
 def _status_checksum(payload):
@@ -542,7 +635,7 @@ def _build_completion_status(
     allow_short_run=False,
     elapsed_seconds=0.0,
 ):
-    _validate_archive(
+    _, _, archive_sha256 = _validate_archive(
         job,
         archive_path,
         data_root_root,
@@ -555,7 +648,9 @@ def _build_completion_status(
         "return_code": 0,
         "elapsed_seconds": elapsed_seconds,
         "gpu": str(gpu),
-        "artifacts": _artifact_hashes(job, archive_path, mask_root, epochs),
+        "artifacts": _artifact_hashes(
+            job, archive_path, mask_root, epochs, archive_sha256
+        ),
     }
     payload["status_sha256"] = _status_checksum(payload)
     return payload
@@ -692,14 +787,61 @@ def _release_job(job):
         lock.unlink()
 
 
+def _claim_invocation(output_root):
+    output_root = Path(output_root)
+    output_root.mkdir(parents=True, exist_ok=True)
+    lock = output_root / ".runner.lock"
+    try:
+        descriptor = os.open(
+            str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644
+        )
+    except FileExistsError as error:
+        raise RuntimeError("output-root runner lock already exists: {}".format(lock)) from error
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        json.dump({"pid": os.getpid(), "runner": str(Path(__file__).resolve())}, handle)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    return lock
+
+
+def _release_invocation(lock):
+    lock = Path(lock)
+    if lock.exists():
+        lock.unlink()
+
+
+def _atomic_replace_text(path, encoded):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=".{}.".format(path.name), suffix=".tmp", dir=str(path.parent)
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(str(temporary), str(path))
+        directory_descriptor = os.open(str(path.parent), os.O_RDONLY)
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
 def _write_json_exclusive_or_equal(path, payload):
     encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    try:
-        with path.open("x", encoding="utf-8") as handle:
-            handle.write(encoded)
-    except FileExistsError:
+    path = Path(path)
+    if path.exists():
         if path.read_text(encoding="utf-8") != encoded:
             raise RuntimeError("immutable JSON mismatch: {}".format(path))
+        return
+    _atomic_replace_text(path, encoded)
 
 
 def _write_json_exclusive(path, payload):
@@ -756,12 +898,42 @@ def _launch(
             env=environment,
             stdout=log_handle,
             stderr=subprocess.STDOUT,
+            start_new_session=True,
         )
     except Exception:
         log_handle.close()
         _release_job(job)
         raise
     return process, log_handle
+
+
+def _terminate_process_group(process, timeout=5.0):
+    if process.poll() is not None:
+        process.wait()
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        process.wait()
+        return
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait(timeout=timeout)
+    else:
+        # The group leader may exit on TERM while a child ignores it.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
 
 def _validate_gpu_capacity(gpus, workers_per_gpu):
@@ -872,9 +1044,7 @@ def run_jobs(
             running = survivors
     finally:
         for job, _, process, handle, _ in running:
-            if process.poll() is None:
-                process.terminate()
-                process.wait()
+            _terminate_process_group(process)
             handle.close()
             _release_job(job)
     if failures:
@@ -923,18 +1093,25 @@ print(json.dumps({
     return provenance
 
 
-def _fingerprint(path):
-    path = Path(path)
+def _fingerprint_uncached(path):
+    path = Path(path).resolve()
     if not path.exists():
         raise RuntimeError("dataset artifact does not exist: {}".format(path))
     digest = hashlib.sha256()
     total_size = 0
     file_count = 0
-    files = [path] if path.is_file() else sorted(
-        candidate for candidate in path.rglob("*") if candidate.is_file()
-    )
-    if not files:
-        raise RuntimeError("dataset artifact contains no files: {}".format(path))
+    if path.is_file():
+        files = iter((path,))
+    else:
+        def walk_files():
+            for root, directories, filenames in os.walk(str(path)):
+                directories.sort()
+                for filename in sorted(filenames):
+                    candidate = Path(root) / filename
+                    if candidate.is_file():
+                        yield candidate
+
+        files = walk_files()
     for candidate in files:
         relative = (
             candidate.name
@@ -952,6 +1129,8 @@ def _fingerprint(path):
                 digest.update(block)
                 total_size += len(block)
         file_count += 1
+    if file_count == 0:
+        raise RuntimeError("dataset artifact contains no files: {}".format(path))
     return {
         "path": str(path.resolve()),
         "sha256": digest.hexdigest(),
@@ -960,7 +1139,14 @@ def _fingerprint(path):
     }
 
 
-def _dataset_manifest(data_root_root, dataset):
+def _fingerprint(path, cache):
+    resolved = str(Path(path).resolve())
+    if resolved not in cache:
+        cache[resolved] = _fingerprint_uncached(resolved)
+    return cache[resolved]
+
+
+def _dataset_manifest(data_root_root, dataset, fingerprint_cache):
     entry = DATASETS[dataset]
     root = Path(data_root_root) / entry["directory"]
     features = root / "features"
@@ -971,10 +1157,18 @@ def _dataset_manifest(data_root_root, dataset):
         "split_tag": entry["split_tag"],
         "metric": entry["metric"],
         "fingerprints": {
-            "label": _fingerprint(root / LABEL_FILENAMES[dataset]),
-            "audio": _fingerprint(features / FEATURE_NAMES["audio"]),
-            "text": _fingerprint(features / FEATURE_NAMES["text"]),
-            "video": _fingerprint(features / FEATURE_NAMES["video"]),
+            "label": _fingerprint(
+                root / LABEL_FILENAMES[dataset], fingerprint_cache
+            ),
+            "audio": _fingerprint(
+                features / FEATURE_NAMES["audio"], fingerprint_cache
+            ),
+            "text": _fingerprint(
+                features / FEATURE_NAMES["text"], fingerprint_cache
+            ),
+            "video": _fingerprint(
+                features / FEATURE_NAMES["video"], fingerprint_cache
+            ),
         },
     }
 
@@ -1034,21 +1228,15 @@ def _ensure_run_manifest(
     path = Path(output_root) / artifact_scope / "run_manifest.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with path.open("x", encoding="utf-8") as handle:
-            json.dump(manifest, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-    except FileExistsError:
-        try:
-            existing = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            raise RuntimeError("run manifest mismatch: {}".format(path)) from error
-        if existing != manifest:
-            raise RuntimeError("run manifest mismatch: {}".format(path))
+        _write_json_exclusive_or_equal(path, manifest)
+    except (OSError, RuntimeError) as error:
+        raise RuntimeError("run manifest mismatch: {}".format(path)) from error
     dataset_records = {}
+    fingerprint_cache = {}
     dataset_root = path.parent / "datasets"
     dataset_root.mkdir(parents=True, exist_ok=True)
     for dataset in datasets:
-        record = _dataset_manifest(data_root_root, dataset)
+        record = _dataset_manifest(data_root_root, dataset, fingerprint_cache)
         dataset_path = dataset_root / "{}.json".format(dataset)
         try:
             _write_json_exclusive_or_equal(dataset_path, record)
@@ -1084,7 +1272,7 @@ def _ensure_run_manifest(
     return result
 
 
-def main():
+def _create_runner_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", choices=("smoke", "pilot", "formal"), required=True)
     parser.add_argument("--output-root", type=Path, required=True)
@@ -1105,7 +1293,10 @@ def main():
     parser.add_argument("--seeds", nargs="+", type=int)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--allow-short-run", action="store_true", default=False)
-    args = parser.parse_args()
+    return parser
+
+
+def _execute_invocation(args):
     _validate_gpu_capacity(tuple(args.gpus), args.workers_per_gpu)
     repository = Path(__file__).resolve().parents[2]
     jobs = build_jobs(
@@ -1149,6 +1340,15 @@ def main():
             args.epochs,
             args.allow_short_run,
         )
+
+
+def main():
+    args = _create_runner_parser().parse_args()
+    lock = _claim_invocation(args.output_root)
+    try:
+        _execute_invocation(args)
+    finally:
+        _release_invocation(lock)
 
 
 if __name__ == "__main__":
