@@ -4,14 +4,14 @@ Chinese version: [EXPERIMENT.zh.md](EXPERIMENT.zh.md). English mirror: [EXPERIME
 
 ## Status boundary (2026-08-25)
 
-This document records three evidence stages without rewriting their chronology. First, all four mechanisms completed the preregistered six-task discrimination subset and all four failed its advancement gate. Second, a user-directed post-gate RTDR extension satisfied its separate 15-pair extension criterion. Third, the completed 40-pair RTDR full-rate audit did **not** satisfy its separately predefined `stable_positive` criterion. Original was never retrained. Initial evidence remains in [RESULTS](results/RESULTS.md) and [ANALYSIS](results/ANALYSIS.md); the follow-ups are recorded in [RTDR extension RESULTS](results/rtdr_extension/RESULTS.md) and [RTDR full RESULTS](results/rtdr_full/RESULTS.md), each with Chinese and English mirrors and a machine-readable `summary.json`.
+This document records four evidence stages without rewriting their chronology. First, all four mechanisms completed the preregistered six-task discrimination subset and all four failed its advancement gate. Second, a user-directed post-gate RTDR extension satisfied its separate 15-pair extension criterion. Third, the completed 40-pair RTDR full-rate audit did **not** satisfy its separately predefined `stable_positive` criterion. Fourth, all four mechanisms were placed on a uniform minimum grid of three missing rates and five seeds. Original was never retrained. Initial evidence remains in [RESULTS](results/RESULTS.md) and [ANALYSIS](results/ANALYSIS.md); follow-ups are recorded in [uniform three-rate RESULTS](results/uniform_three_rate/RESULTS.md), [RTDR extension RESULTS](results/rtdr_extension/RESULTS.md), and [RTDR full RESULTS](results/rtdr_full/RESULTS.md).
 
 | Candidate | Current state | Evidence boundary |
 |---|---|---|
-| GenAgg | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Core implementation commit `f34405993b96dcfcc64c7867dd82af5a54415073`; GCNet integration `183369c655c200c7a96d5fed84bd0b16519728be`; training identity `dae2903a99744ec9a95a7294373a2c4713c12fd9`; runner `bad59fd25130ebc83726d44f3832e682e46cc795`. |
-| Scaled Soft Medoid | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Same four Phase-A implementation commits; all six canonical archives passed provenance validation. |
-| SSMA Conv2 | `IMPLEMENTED; 6/6 SUCCESS; GATE FAIL` | Core commit `08aa55fb255d5e32aa9f6171246e6e2821c97c71`; two-branch/CLI/runner integration `24ea3e7bfb65621d48d935291cb233db69f54dcc`. |
-| Custom RTDR | `IMPLEMENTED; INITIAL GATE FAIL; EXTENSION CRITERION PASS; FULL stable_positive=false` | Initial 6/6 gate delta `+0.002541466` with only 1/3 positive seed macros; 15/15 extension criterion passed; 40/40 full audit had overall delta `-0.002810103`, 3/8 positive rate means, and 3/5 positive seed macros. Core commit `8f375b2509016daf5395863b0220591bc8bcd3ee`; CLI/runner commit `a107f7448978f4c22f87a6b61ec45b53da312aa0`; zero added trainable parameters. |
+| GenAgg | `INITIAL GATE FAIL; UNIFORM false` | Uniform 15-pair delta `-0.204847963`, 0/3 positive rates, 0/5 positive seed macros, with collapse. |
+| Scaled Soft Medoid | `INITIAL GATE FAIL; UNIFORM false` | Uniform 15-pair delta `+0.004706753`, 2/3 positive rates and 4/5 positive seed macros; missing `0.7` delta `-0.002089281`. |
+| SSMA Conv2 | `INITIAL GATE FAIL; UNIFORM false` | Uniform 15-pair delta `-0.001153174`, 1/3 positive rates and 2/5 positive seed macros. |
+| Custom RTDR | `INITIAL GATE FAIL; UNIFORM true; FULL stable_positive=false` | Uniform 15-pair delta `+0.008510981`, 3/3 positive rates and 3/5 positive seed macros; the broader 40-pair audit remained negative overall at `-0.002810103`. |
 | Ego–Neighbor Separation | `REJECTED BEFORE TRAINING` | Algebraically redundant with GCNet's existing neighbor and root transforms. |
 | Centered Clipping | `PARKED BEFORE TRAINING` | A source-faithful persistent center, iteration count, and threshold are not grounded for shuffled conversation nodes. |
 
@@ -94,7 +94,15 @@ stable_positive = overall macro delta > 0
                   and all runs finite and non-collapsed
 ```
 
-Its observed value was `false`: the overall paired F1 delta was `-0.002810103`, only 3/8 rate means were positive, and 3/5 seed macros were positive. This is a post-gate stability audit, not a retroactive advancement PASS. Across all arms, the final evidence set contains 58 unique candidate archives: 18 from GenAgg, Soft Medoid, and SSMA, plus 40 RTDR archives. No reused task is counted twice.
+Its observed value was `false`: the overall paired F1 delta was `-0.002810103`, only 3/8 rate means were positive, and 3/5 seed macros were positive. This is a post-gate stability audit, not a retroactive advancement PASS.
+
+### Uniform three-rate, five-seed evidence layer
+
+The uniform layer covers rates `{0.0,0.5,0.7}` and seeds `{66,67,68,69,70}` for every arm. It required 27 new trainings: nine each for GenAgg, Soft Medoid, and SSMA; RTDR's 15 cells were reused. The formal invocation used GPUs 1–7. GPU 4 produced three code-`-9` attempts, which were moved to diagnostics; the same locked task identities then completed on GPUs 1–3. Failed attempts contribute no metric. Original was not retrained.
+
+`uniform_stable` requires an overall positive macro delta, 3/3 positive rate means, at least 3/5 positive seed macros, and finite non-collapsed runs. GenAgg was `false` (`-0.204847963`, 0/3 rates, 0/5 seeds, collapse); Soft Medoid was `false` (`+0.004706753`, 2/3 rates, 4/5 seeds, non-collapsed; rate `0.7` was `-0.002089281`); SSMA was `false` (`-0.001153174`, 1/3 rates, 2/5 seeds); RTDR was `true` (`+0.008510981`, 3/3 rates, 3/5 seeds). This bounded RTDR descriptor does not supersede full-rate `stable_positive=false`.
+
+The final evidence set contains 85 unique candidate archives: GenAgg 15 + Soft Medoid 15 + SSMA 15 + RTDR 40. Reused cells are counted once.
 
 ## Original inheritance
 
@@ -105,7 +113,7 @@ The 40 existing Original archives are read-only controls:
   protocol_recovery_v1_biggpu/formal/original
 ```
 
-They were joined to candidates by `(missing_rate, seed, fold)` and mask SHA256; they were not retrained. Commit `d515386f3207105c8207c34eca3f9743d2b80e4f` implemented the fail-closed legacy-aware validator. It allows only historically absent fields to map to the locked defaults `branch_fusion=addition`, `pre_graph_context=bilstm`, `post_graph_context=bilstm`, `second_graph_aggregation=add`, and `relation_track_routing=early`, while strictly checking source/run manifest, command, dataset, fold, features, seed, rate, parameter count, and mask hash. Validation passed for Original 40/40 and the initial candidates 24/24; the final unique candidate set is 58/58 provenance-valid. Original training count remained zero throughout.
+They were joined to candidates by `(missing_rate, seed, fold)` and mask SHA256; they were not retrained. Commit `d515386f3207105c8207c34eca3f9743d2b80e4f` implemented the fail-closed legacy-aware validator. It allows only historically absent fields to map to the locked defaults `branch_fusion=addition`, `pre_graph_context=bilstm`, `post_graph_context=bilstm`, `second_graph_aggregation=add`, and `relation_track_routing=early`, while strictly checking source/run manifest, command, dataset, fold, features, seed, rate, parameter count, and mask hash. Original training count remained zero throughout; the final unique candidate archive count is 85.
 
 ## Efficiency and failure protocol
 
@@ -134,11 +142,11 @@ SSMA additionally requires a parameter-matched sum-plus-MLP control before any c
 
 ## Automatic result publication to GitHub
 
-The publication target is the configured remote `github`, whose URL is [https://github.com/YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet). Training and result validation are complete for the 40 Original controls and 58 unique candidate archives. Evidence commit `97370fd49cb130bc10c620f1293ebff00985b729` was pushed to `exp/second-graph-aggregators`; `git ls-remote` returned the same SHA. Before publication, 260 tests passed with one expected skip and all 246 checksum-ledger entries verified.
+The earlier 58-candidate evidence snapshot was published to [https://github.com/YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet) as commit `97370fd49cb130bc10c620f1293ebff00985b729`; `git ls-remote` returned the same SHA. That attestation predates the 27 uniform-layer trainings and does not establish publication of the current 85-archive set.
 
 The automation performs the following ordered gate:
 
-1. Treat the completed 58/58 unique candidate archives and validated 40/40 Original controls as the immutable evidence set; failed GPU-4 attempts stay in diagnostics only, reused RTDR tasks are counted once, and Original training count is zero.
+1. Treat the published 58/58 candidate snapshot as an earlier evidence layer; the current uniform layer contains 85 unique candidate archives, failed GPU-4 attempts stay in diagnostics only, reused tasks are counted once, and Original training count is zero.
 2. Keep code, task-level NPZ results, logs needed for audit, run/invocation manifests, source/hash manifests, the initial `RESULTS.md/.zh.md/.en.md` and `ANALYSIS.md/.zh.md/.en.md`, and the RTDR extension/full summaries in the authoritative local workspace under `/data2/yb/paper`.
 3. Do not upload datasets, extracted feature tensors, mask-bank payloads, environment credentials, device-login tokens, caches, checkpoints without a declared need, or absolute-path-only symlinks. Publish the mask hashes and provenance needed to reproduce pairing.
 4. Re-run repository tests and result/provenance validation on the exact tree to be published. Record candidate status as `PASS`, scientific `FAIL`, or infrastructure `INCOMPLETE` without converting one category into another.
@@ -150,4 +158,4 @@ git push github HEAD:refs/heads/exp/second-graph-aggregators
 
 6. Confirm publication by comparing the local commit with `git ls-remote github refs/heads/exp/second-graph-aggregators`. A transport failure is retried from the same local commit; training is not rerun. Promotion into the GitHub `main` completed-version layout occurs only from that verified commit, without force-pushing or rewriting unrelated completed versions.
 
-The verified evidence commit publishes the code and all three evidence stages: the initial four-arm negative gate, the bounded RTDR extension, and the negative full-audit `stable_positive` result. This later documentation-only attestation does not alter the archived evidence or its checksums.
+The earlier verified commit contains the first three evidence stages only. For the fourth, uniform 85-archive layer, 360/360 checksums and 267 tests (one expected skip) have passed locally. Publication remains pending until this exact tree is committed, pushed, and its branch SHA is matched with `git ls-remote`.

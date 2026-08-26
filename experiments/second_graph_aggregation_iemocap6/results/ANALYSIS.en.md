@@ -104,6 +104,19 @@ The first RTDR-only follow-up added seeds `69` and `70` and missing rate `0.5`, 
 
 The 15-pair macro delta was `+0.008510981`. Seed macros were `+0.028398252`, `-0.000814593`, `-0.011880751`, `+0.011559326`, and `+0.015292671` for seeds 66–70, respectively: 3/5 were positive. This audit therefore met its descriptive three-rate rule. It was nevertheless a selective post-gate result, not an independent replication: six cells were reused from the historical gate, the same inherited Original controls were reused, and only RTDR was extended.
 
+## Uniform four-arm 15-pair analysis
+
+The later uniform layer applies the same three rates `{0.0,0.5,0.7}` and five seeds `{66,67,68,69,70}` to all four mechanisms. GenAgg, Soft Medoid, and SSMA each contribute 15 candidate archives after nine new trainings per arm; RTDR reuses its existing 15 cells. Original remains a read-only paired control and was not retrained. The machine-readable source is [uniform_three_rate/summary.json](uniform_three_rate/summary.json).
+
+| Arm | Overall macro delta | Positive rate means | Positive seed macros | Non-collapsed | `uniform_stable` |
+|---|---:|---:|---:|---:|---:|
+| GenAgg | -0.204847963 | 0/3 | 0/5 | no | `false` |
+| Scaled Soft Medoid | +0.004706753 | 2/3 | 4/5 | yes | `false` |
+| SSMA Conv2 | -0.001153174 | 1/3 | 2/5 | yes | `false` |
+| RTDR | +0.008510981 | 3/3 | 3/5 | yes | `true` |
+
+The common grid strengthens the negative GenAgg finding: no rate mean or seed macro is positive, and at least one run is collapsed. SSMA remains near zero and sign-unstable. Soft Medoid is the closest non-RTDR result, with a positive overall mean and 4/5 positive seed macros, but it fails the all-rate condition because its missing-`0.7` mean delta is `-0.002089281`; this is not evidence of uniform improvement. RTDR meets the bounded `uniform_stable` descriptor, but that descriptor covers only three selected rates and cannot override the eight-rate audit below.
+
 ## RTDR full 40-pair audit
 
 The final RTDR audit covered all eight missing rates and five seeds, for 40 paired cells. The source-validated machine-readable result is [rtdr_full/summary.json](rtdr_full/summary.json), with [trilingual task evidence](rtdr_full/RESULTS.en.md). Values below are mean ± sample SD across five paired runs per rate.

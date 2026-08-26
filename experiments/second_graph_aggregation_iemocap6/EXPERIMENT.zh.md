@@ -4,7 +4,7 @@
 
 ## 当前边界
 
-这份文件按时间顺序保留三层证据，不追溯改写早期判定：四个模块首先完成预注册的6任务判别子集，四者均 gate FAIL；随后用户要求的 RTDR 15对 post-gate extension 通过了其单独的扩展判据；最后40对 full-rate audit 没有满足另行预定义的 `stable_positive`。Original 全程没有重新训练。初始证据见[中文 RESULTS](results/RESULTS.zh.md)和[中文 ANALYSIS](results/ANALYSIS.zh.md)；后续证据见[RTDR extension](results/rtdr_extension/RESULTS.zh.md)与[RTDR full audit](results/rtdr_full/RESULTS.zh.md)，并均保留主文件、英文镜像和 `summary.json`。
+这份文件按时间顺序保留四层证据，不追溯改写早期判定：四个模块先后经历初始6任务 gate、RTDR 15对扩展、RTDR 40对 full-rate audit，最后全部放到统一的三 missing rate、五 seed 网格。Original 全程没有重新训练。详见[中文 RESULTS](results/RESULTS.zh.md)、[中文 ANALYSIS](results/ANALYSIS.zh.md)和[统一逐任务证据](results/uniform_three_rate/RESULTS.zh.md)。
 
 | 候选 | 精确插入位置 | 参数变化 | 状态 |
 |---|---|---:|---|
@@ -33,7 +33,13 @@ Phase A 初始使用 GPU 4–7、每卡三个任务；GPU 4 的正式训练进�
 
 初始 gate 保持不变。看到初始结果后，用户明确要求继续检查 RTDR 的稳定性。15对 extension 覆盖 missing `{0.0,0.5,0.7}` 与 seeds `{66,67,68,69,70}`，复用已有6个任务，只新增9次训练；其单独锁定的扩展判据PASS，overall为 `+0.008510981`，3个rate均值均为正，3/5 seed macros为正。随后 full audit 覆盖8个missing rate×5 seeds，复用这15个任务，只新增25次训练，最终形成40/40个 provenance-valid RTDR 归档。
 
-Full audit 的预定义条件是：overall macro delta为正、至少6/8个rate均值为正、至少3/5个seed macro为正，且全部运行finite、六类不坍塌。实际 `stable_positive=false`：overall为 `-0.002810103`，仅3/8个rate均值为正，3/5个seed macros为正。这是post-gate稳定性审计，不是追溯性晋级PASS。最终唯一candidate归档数是58：GenAgg、Soft Medoid、SSMA各6个，RTDR 40个；复用任务不重复计数。
+Full audit 的预定义条件是：overall macro delta为正、至少6/8个rate均值为正、至少3/5个seed macro为正，且全部运行finite、六类不坍塌。实际 `stable_positive=false`：overall为 `-0.002810103`，仅3/8个rate均值为正，3/5个seed macros为正。
+
+## 统一三档证据
+
+共同网格为 `{0.0,0.5,0.7}` × seeds `{66,67,68,69,70}`，每臂 15 对。GenAgg、Soft Medoid、SSMA 各新训练 9 次，共新增 27 次；RTDR 复用已有 15 个单元。正式 invocation 使用 GPU 1–7；GPU 4 三次 `-9` attempt 移入 diagnostics 后，相同 task identity 在 GPU 1–3 成功完成。
+
+GenAgg `-0.204847963`、0/3 rates、0/5 seeds，且有坍塌（`uniform_stable=false`）；Soft Medoid `+0.004706753`、2/3 rates、4/5 seeds、无坍塌，但 `0.7` 为 `-0.002089281`（`false`）；SSMA `-0.001153174`、1/3 rates、2/5 seeds（`false`）；RTDR `+0.008510981`、3/3 rates、3/5 seeds（`true`），但 full-rate `stable_positive=false` 仍然成立。最终唯一 candidate 归档数为 85 = 15 + 15 + 15 + 40，Original 重训练数为 0。
 
 Original 的 40 个 NPZ 从以下只读目录继承，不重新训练：
 
@@ -42,7 +48,7 @@ Original 的 40 个 NPZ 从以下只读目录继承，不重新训练：
   protocol_recovery_v1_biggpu/formal/original
 ```
 
-配对键为 missing rate、seed、fold 与 mask SHA256。commit `d515386f3207105c8207c34eca3f9743d2b80e4f` 已实现 fail-closed Original legacy-aware validator：只把历史上不存在的字段映射到锁定默认值 `branch_fusion=addition`、`pre_graph_context=bilstm`、`post_graph_context=bilstm`、`second_graph_aggregation=add`、`relation_track_routing=early`，其余 source、命令、数据集、特征、参数数、rate、seed、fold 和 mask hash 均严格检查。初始汇总前 Original 40/40、候选 24/24 均通过 provenance 校验；最终唯一candidate集合为58/58 provenance-valid，Original训练数全程为0。
+配对键为 missing rate、seed、fold 与 mask SHA256。commit `d515386f3207105c8207c34eca3f9743d2b80e4f` 已实现 fail-closed Original legacy-aware validator。最终唯一 candidate 归档数为 85，Original 训练数全程为 0。
 
 ## 效率约束与判定
 
@@ -52,12 +58,12 @@ Original 的 40 个 NPZ 从以下只读目录继承，不重新训练：
 
 ## 跑完后自动上传 GitHub
 
-正式训练、结果回传与 provenance 校验已经完成。证据 commit `97370fd49cb130bc10c620f1293ebff00985b729` 已推送到 GitHub 分支 `exp/second-graph-aggregators`，且 `git ls-remote` 返回相同 SHA。发布前 260 项测试通过（1 项预期跳过），哈希清单 246/246 项验证一致。自动流程为：
+早期58个candidate归档的证据 commit `97370fd49cb130bc10c620f1293ebff00985b729` 已推送并通过 `git ls-remote` 核对；它不包含本轮新增27次训练。当前85归档统一证据层已在本地通过360/360项哈希和267项测试（1项预期跳过），但仍需提交、推送并用 `git ls-remote` 核对当前分支SHA后，才能声称已发布。自动流程为：
 
-1. 固定已经验证的唯一candidate 58/58 与 Original 40/40 证据集，复用的 RTDR 任务只计一次，Original训练数为0，GPU 4 的失败 attempt 只留在 diagnostics；
+1. 当时发布的 58/58 candidate 快照与 Original 40/40 属于早期证据层；当前统一层将唯一 candidate 归档数扩展到 85，不借用早期 commit 声称已发布；
 2. 保留代码、任务级 NPZ、必要日志、run/invocation manifest、源文件与 mask hash，以及初始 `RESULTS.md/.zh.md/.en.md`、`ANALYSIS.md/.zh.md/.en.md`和RTDR extension/full汇总；
 3. 在将要发布的树上重跑测试和结果校验，按 Lore 协议提交；
 4. 推送到 [YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet) 的 `exp/second-graph-aggregators` 分支，并用 `git ls-remote` 核对远端 SHA；
 5. 推送失败只从同一个本地 commit 重试，绝不因此重跑训练；合入 GitHub `main` 的完成版本目录时不 force-push，也不改写其他已完成版本。
 
-数据集、巨大特征文件、登录凭据、缓存和 diagnostics-only 失败 attempt 没有作为 canonical 结果上传。已发布证据同时保留初始四臂负 gate、RTDR 限定 extension PASS 和 full-audit `stable_positive=false`，没有把后两者写成初始晋级成功。本次后续仅增加发布证明文字，不改变已归档证据及其哈希。
+数据集、巨大特征文件、登录凭据、缓存和 diagnostics-only 失败 attempt 不作为 canonical 结果上传。早期已发布证据保留初始四臂负 gate、RTDR 限定 extension PASS 和 full-audit `stable_positive=false`；当前第四层统一证据将在完成本轮验证后另行发布，不借用旧SHA声称已经上传。

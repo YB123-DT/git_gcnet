@@ -21,3 +21,16 @@ PASS 表示满足全部初始晋级条件；FAIL 表示至少有一项条件未�
 | 完整（rates 0.0-0.7） | 40 | -0.002810103 | 3/8 | 3/5 | `stable_positive=false` |
 
 逐任务证据见[扩展结果](rtdr_extension/RESULTS.zh.md)和[完整网格结果](rtdr_full/RESULTS.zh.md)。
+
+## 统一三档缺失率、五种子对比
+
+为使所有已实现模块都具有同样的最低证据网格，最终对比固定 missing rates `{0.0,0.5,0.7}` 和 seeds `{66,67,68,69,70}`，每个实验臂 15 个配对单元。`uniform_stable` 要求总体 macro 差值为正、3/3 个 rate 均值为正、至少 3/5 个 seed macro 为正，且全部运行 finite、无坍塌。这是单独的描述层，不改写初始 gate，也不改写 RTDR full-rate `stable_positive=false` 的结果。
+
+| 候选模块 | 配对单元 | 总体差值 | 正向 rates | 正向 seeds | 无坍塌 | `uniform_stable` |
+|---|---:|---:|---:|---:|---:|---:|
+| genagg | 15 | -0.204847963 | 0/3 | 0/5 | 否 | `false` |
+| soft_medoid | 15 | +0.004706753 | 2/3 | 4/5 | 是 | `false` |
+| ssma | 15 | -0.001153174 | 1/3 | 2/5 | 是 | `false` |
+| rtdr | 15 | +0.008510981 | 3/3 | 3/5 | 是 | `true` |
+
+Soft Medoid 的总体差值小幅为正，但 missing `0.7` 均值差为 `-0.002089281`，因此未满足全 rate 为正的条件。RTDR 是唯一满足这一有限三档描述条件的模块，但其更广的 40 对审计仍是总体负值。逐任务证据见[统一三档结果](uniform_three_rate/RESULTS.zh.md)和 [summary.json](uniform_three_rate/summary.json)。

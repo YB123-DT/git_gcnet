@@ -104,6 +104,19 @@ Soft Medoid、SSMA 和 RTDR 均没有丢失类别覆盖。GenAgg 的失败受到
 
 15 对 macro 差值为 `+0.008510981`。Seeds 66–70 的 macro 依次为 `+0.028398252`、`-0.000814593`、`-0.011880751`、`+0.011559326`、`+0.015292671`，其中 3/5 为正，因此满足该三-rate描述性规则。但这仍是选择性的 post-gate 结果，不是独立复现：其中 6 个单元来自历史初始 gate，继续复用了同一批 Original 对照，而且只有 RTDR 被扩展。
 
+## 四模块统一 15 对分析
+
+后续统一证据层对四个模块都使用相同的三个 rates `{0.0,0.5,0.7}` 和五个 seeds `{66,67,68,69,70}`。GenAgg、Soft Medoid 和 SSMA 每臂新增 9 次训练后，各有 15 个 candidate 归档；RTDR 复用已有 15 个单元。Original 仍是只读配对对照，没有重新训练。机器可读来源为 [uniform_three_rate/summary.json](uniform_three_rate/summary.json)。
+
+| 模块 | 总体 macro 差值 | 正向 rate 均值 | 正向 seed macro | 无坍塌 | `uniform_stable` |
+|---|---:|---:|---:|---:|---:|
+| GenAgg | -0.204847963 | 0/3 | 0/5 | 否 | `false` |
+| Scaled Soft Medoid | +0.004706753 | 2/3 | 4/5 | 是 | `false` |
+| SSMA Conv2 | -0.001153174 | 1/3 | 2/5 | 是 | `false` |
+| RTDR | +0.008510981 | 3/3 | 3/5 | 是 | `true` |
+
+共同网格进一步巩固了 GenAgg 的负结果：没有任何 rate 均值或 seed macro 为正，且至少一次运行坍塌。SSMA 仍接近零且符号不稳定。Soft Medoid 是 RTDR 之外最接近的结果，总体均值为正且 4/5 个 seed macro 为正，但 missing `0.7` 的均值差为 `-0.002089281`，未满足全 rate 为正的条件，不能称为统一改进。RTDR 满足有限的 `uniform_stable` 描述条件，但该条件只覆盖三个选定 rate，不能覆盖下文八档审计的结论。
+
 ## RTDR 完整 40 对审计
 
 最终 RTDR 审计覆盖 8 个 missing rates 和 5 个 seeds，共 40 个配对单元。经过来源校验的机器可读结果见 [rtdr_full/summary.json](rtdr_full/summary.json)，中文任务级证据见 [rtdr_full/RESULTS.zh.md](rtdr_full/RESULTS.zh.md)。下表为每个 rate 的 5 个配对运行均值 ± 样本标准差。

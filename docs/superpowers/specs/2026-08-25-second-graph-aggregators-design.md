@@ -134,7 +134,7 @@ The first wave has exactly 12 new tasks: two candidates × missing rates `{0.0, 
 
 The inherited Original archives predate the current branch-fusion, pre/post-context, selected-path-count, and second-aggregation fields. Their dedicated validator treats absent historical fields as the locked legacy defaults (`addition`, `bilstm`, `bilstm`, `add`) while still requiring the original run manifest, command, fold, feature, seed, rate, parameter count, and mask SHA. Candidate jobs use the current strict payload validator. Original and candidate roots must be distinct.
 
-A candidate advances only if all archives pass provenance validation, both rate-level paired mean F1 deltas are positive, the seed-macro paired delta is positive, at least two of three seed-macro deltas are positive, and no run is non-finite or collapsed. An advancing candidate is completed to eight rates × five seeds without rerunning its first-wave tasks. A rejected candidate is recorded and stopped.
+That two-rate, three-seed rule is retained only as the historical screening gate. The user subsequently raised the minimum evidence floor for every trained module to missing rates `{0.0,0.5,0.7}` × seeds `{66,67,68,69,70}`, or 15 mask-paired cells per candidate. The uniform descriptive flag requires a positive overall macro delta, positive paired means at all three rates, at least three of five positive seed macros, finite outputs, and no collapsed run. It does not retroactively change the historical gate. A candidate that survives this common floor may then be completed to all eight rates × five seeds without rerunning completed cells.
 
 ## Synchronization contract
 

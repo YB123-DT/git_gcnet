@@ -75,7 +75,7 @@ biggpu 正式训练使用 `/data2/yb/reproduction_envs/gcnet-official/bin/python
 
 历史 Original 早于当前 branch fusion、pre/post context、selected-path-count 与 second aggregation 字段。专用继承验证器把缺失历史字段解释为锁定默认值 `addition/bilstm/bilstm/add`，但仍严格验证原始run manifest、命令、fold、特征、seed、rate、参数数与mask SHA；候选继续使用当前严格payload验证。Original根目录必须与候选目录分离。
 
-晋级必须同时满足：所有 provenance 与 mask SHA 正确；0.0和0.7两个 rate 的配对平均 F1 均为正；seed-macro 配对均值为正；三个seed至少两个为正；没有非有限值或坍塌。晋级者再补齐8 rates ×5 seeds，失败者立即停止并记录。
+上述两档 rate × 三个 seeds 的规则只保留为历史初筛 gate。用户随后把每个已训练模块的最低证据统一提高为 missing `{0.0,0.5,0.7}` × seeds `{66,67,68,69,70}`，即每个候选15个 mask 配对单元。统一描述性判据要求：总体宏差值为正、三个 rate 的配对均值全部为正、五个 seed macro 至少三个为正、输出 finite 且没有坍塌；它不追溯改写历史 gate。通过这一共同证据底线的候选再补齐8 rates ×5 seeds，已完成单元继续继承而不重跑。
 
 ## 本地与远端同步
 
