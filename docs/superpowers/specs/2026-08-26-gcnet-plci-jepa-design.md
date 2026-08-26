@@ -182,10 +182,13 @@ U_q^\Delta\sigma(V_R^\Delta R_i^{n\mid m}+V_H^\Delta h_i^J),
 \[
 \operatorname{BR}(v;\kappa)
 =
-\kappa\frac{v}{\|v\|_2+\epsilon}\tanh(\|v\|_2),
+\frac{\kappa v}
+{\sqrt{\kappa^2+\|v\|_2^2+\epsilon}},
 \]
 
-所以 \(\|\operatorname{BR}(v;\kappa)\|_2\le\kappa\)。
+所以 \(\|\operatorname{BR}(v;\kappa)\|_2<\kappa\)。该形式在 \(v=0\)
+附近具有非零导数，可与 context/innovation output 的严格零初始化共同使用；禁止
+使用未写入目标函数的 straight-through surrogate gradient。
 
 ## 6. 预测公式
 

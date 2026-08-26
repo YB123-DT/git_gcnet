@@ -122,6 +122,10 @@ def normalize_latent(value: torch.Tensor, eps: float = 1e-6) -> torch.Tensor: ..
 def bounded_residual(value: torch.Tensor, kappa: float, eps: float = 1e-6) -> torch.Tensor: ...
 ```
 
+`bounded_residual` 固定使用
+`kappa * value / sqrt(kappa**2 + ||value||**2 + eps)`，保证范数严格小于
+`kappa` 且零初始化点仍有梯度；不得加入 straight-through surrogate。
+
 - [ ] **步骤 4：运行测试确认通过并提交**
 
 ### 任务 3：Source-anchored predictor 与唯一 JEPA loss
