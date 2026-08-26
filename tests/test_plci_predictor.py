@@ -1,3 +1,5 @@
+import copy
+
 import pytest
 import torch
 
@@ -7,6 +9,8 @@ from gcnet_plci_jepa.modules import (
     PLCIPredictions,
     PLCITargetPrediction,
     SourceAnchoredPredictor,
+    bounded_residual,
+    normalize_latent,
 )
 
 
@@ -122,6 +126,60 @@ def test_source_base_is_reused_across_patterns_for_the_same_anchor_and_target():
     assert len(seen) == 3
     ASSERT_CLOSE(seen[0], seen[1], rtol=0, atol=0)
     assert predictor.base_trunk[0].in_features == 3 + 2 * 2
+
+
+def test_base_scale_does_not_change_correction_geometry():
+    predictor = make_predictor()
+    with torch.no_grad():
+        predictor.context_outputs["visual"].weight.copy_(
+            torch.tensor([[0.3, -0.2], [-0.1, 0.4], [0.2, 0.1], [-0.4, 0.2]])
+        )
+        predictor.context_outputs["visual"].bias.copy_(
+            torch.tensor([-0.1, 0.2, -0.3, 0.4])
+        )
+    scaled = copy.deepcopy(predictor)
+    with torch.no_grad():
+        scaled.base_outputs["visual"].weight.mul_(7.0)
+        scaled.base_outputs["visual"].bias.mul_(7.0)
+    inputs = make_inputs(torch.tensor([[[1, 0, 0]]]))
+
+    original_path = predictor(*inputs).targets[1].paths
+    scaled_path = scaled(*inputs).targets[1].paths
+
+    ASSERT_CLOSE(original_path, scaled_path, rtol=1e-5, atol=1e-6)
+
+
+def test_path_normalizes_base_before_adding_bounded_corrections():
+    predictor = make_predictor()
+    with torch.no_grad():
+        predictor.context_outputs["visual"].weight.copy_(
+            torch.tensor([[0.3, -0.2], [-0.1, 0.4], [0.2, 0.1], [-0.4, 0.2]])
+        )
+        predictor.context_outputs["visual"].bias.copy_(
+            torch.tensor([-0.1, 0.2, -0.3, 0.4])
+        )
+    captured = {}
+    handles = [
+        predictor.base_outputs["visual"].register_forward_hook(
+            lambda _module, _inputs, output: captured.setdefault("base", output)
+        ),
+        predictor.context_outputs["visual"].register_forward_hook(
+            lambda _module, _inputs, output: captured.setdefault("context", output)
+        ),
+    ]
+    try:
+        record = predictor(
+            *make_inputs(torch.tensor([[[1, 0, 0]]]))
+        ).targets[1]
+    finally:
+        for handle in handles:
+            handle.remove()
+
+    expected = normalize_latent(
+        normalize_latent(captured["base"])
+        + bounded_residual(captured["context"], predictor.context_cap)
+    ).unsqueeze(0)
+    ASSERT_CLOSE(record.paths, expected)
 
 
 def test_context_conditions_hidden_in_rank_space_before_target_output():

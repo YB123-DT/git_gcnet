@@ -373,7 +373,9 @@ class SourceAnchoredPredictor(nn.Module):
                         innovation = torch.zeros_like(context)
                         paths.append(
                             normalize_latent(
-                                self._base(canonical[anchor], anchor, target)
+                                normalize_latent(
+                                    self._base(canonical[anchor], anchor, target)
+                                )
                                 + context
                             )
                         )
@@ -391,7 +393,9 @@ class SourceAnchoredPredictor(nn.Module):
                             )
                             paths.append(
                                 normalize_latent(
-                                    self._base(canonical[anchor], anchor, target)
+                                    normalize_latent(
+                                        self._base(canonical[anchor], anchor, target)
+                                    )
                                     + context
                                     + innovation
                                 )
