@@ -61,6 +61,27 @@ def test_balanced_sampler_replays_generator_state_without_global_rng():
     assert torch.equal(torch.random.get_rng_state(), global_state)
 
 
+@pytest.mark.parametrize("umask", [torch.ones(3), torch.ones(2, 3, 1)])
+def test_balanced_sampler_rejects_non_matrix_umask(umask):
+    with pytest.raises(ValueError, match=r"\[B, L\]"):
+        sample_balanced_patterns(umask, torch.Generator().manual_seed(66))
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA unavailable")
+def test_balanced_sampler_accepts_cpu_generator_with_cuda_umask():
+    generator = torch.Generator().manual_seed(66)
+    umask = torch.tensor([[1.0, 1.0, 0.0]], device="cuda")
+
+    availability = sample_balanced_patterns(umask, generator)
+
+    assert availability.device == umask.device
+    assert torch.count_nonzero(availability[~umask.T.bool()]) == 0
+    assert all(
+        tuple(row.tolist()) in ACTIVE_PATTERNS
+        for row in availability[umask.T.bool()]
+    )
+
+
 def test_expand_modality_mask_repeats_each_modality_by_its_dimension():
     availability = torch.tensor(
         [[[1, 0, 1], [0, 1, 1]], [[1, 1, 0], [0, 0, 0]]]

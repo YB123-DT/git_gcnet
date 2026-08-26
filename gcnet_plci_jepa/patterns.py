@@ -1,5 +1,7 @@
 """Availability patterns and masks for PLCI auxiliary examples."""
 
+from typing import Tuple
+
 import torch
 
 
@@ -18,6 +20,9 @@ def sample_balanced_patterns(
     generator: torch.Generator,
 ) -> torch.Tensor:
     """Return ``[L, B, 3]`` with one uniform active pattern per utterance."""
+    if umask.ndim != 2:
+        raise ValueError("umask must have shape [B, L]")
+
     valid = umask.T.bool()
     availability = torch.zeros(
         (*valid.shape, 3), dtype=umask.dtype, device=umask.device
@@ -26,8 +31,8 @@ def sample_balanced_patterns(
         len(ACTIVE_PATTERNS),
         (int(valid.sum().item()),),
         generator=generator,
-        device=umask.device,
-    )
+        device="cpu",
+    ).to(umask.device)
     patterns = torch.tensor(
         ACTIVE_PATTERNS, dtype=umask.dtype, device=umask.device
     )
@@ -37,7 +42,7 @@ def sample_balanced_patterns(
 
 def expand_modality_mask(
     availability: torch.Tensor,
-    dimensions: tuple[int, int, int],
+    dimensions: Tuple[int, int, int],
 ) -> torch.Tensor:
     """Expand ``[L, B, 3]`` availability across modality feature widths."""
     if availability.ndim != 3 or availability.shape[-1] != 3:
