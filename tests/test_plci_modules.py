@@ -49,8 +49,10 @@ def test_bounded_residual_matches_formula_and_respects_radius():
     assert torch.all(torch.norm(result, dim=-1) <= kappa)
 
 
-@pytest.mark.parametrize("kappa", [0.0, -0.1])
-def test_bounded_residual_rejects_non_positive_radius(kappa):
+@pytest.mark.parametrize(
+    "kappa", [0.0, -0.1, float("nan"), float("inf"), -float("inf"), "bad", 1j]
+)
+def test_bounded_residual_rejects_invalid_radius(kappa):
     with pytest.raises(ValueError, match="kappa"):
         bounded_residual(torch.ones(2, 3), kappa)
 
@@ -246,8 +248,10 @@ def test_ema_teacher_updates_parameters_and_float_buffers_exactly():
     assert all(not parameter.requires_grad for parameter in teacher.parameters())
 
 
-@pytest.mark.parametrize("tau", [-0.01, 1.0, 1.1])
-def test_ema_teacher_rejects_tau_outside_half_open_unit_interval(tau):
+@pytest.mark.parametrize(
+    "tau", [-0.01, 1.0, 1.1, float("nan"), float("inf"), -float("inf"), "bad", 1j]
+)
+def test_ema_teacher_rejects_invalid_tau(tau):
     students = StudentAdapterBank((2, 3, 4), latent_dim=5).projectors
     teacher = EMATeacherBank(students)
     with pytest.raises(ValueError, match="tau"):

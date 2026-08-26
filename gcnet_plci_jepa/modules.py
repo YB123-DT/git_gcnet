@@ -1,6 +1,8 @@
 """Projection, residual-adapter, and EMA-teacher modules for PLCI-JEPA."""
 
 import copy
+import math
+from numbers import Real
 from typing import Dict, Tuple
 
 import torch
@@ -9,6 +11,14 @@ from torch.nn import functional as F
 
 
 MODALITIES = ("audio", "text", "visual")
+
+
+def _is_finite_real(value: object) -> bool:
+    return (
+        isinstance(value, Real)
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def normalize_latent(value: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
@@ -23,8 +33,8 @@ def bounded_residual(
     eps: float = 1e-6,
 ) -> torch.Tensor:
     """Smoothly bound each last-dimension vector to radius ``kappa``."""
-    if kappa <= 0:
-        raise ValueError("kappa must be positive")
+    if not _is_finite_real(kappa) or kappa <= 0:
+        raise ValueError("kappa must be a finite positive real number")
     norm = torch.norm(value, dim=-1, keepdim=True)
     return kappa * value / (norm + eps) * torch.tanh(norm)
 
@@ -172,8 +182,8 @@ class EMATeacherBank(nn.Module):
 
     @torch.no_grad()
     def update_from(self, students: nn.ModuleDict, tau: float) -> None:
-        if tau < 0 or tau >= 1:
-            raise ValueError("tau must satisfy 0 <= tau < 1")
+        if not _is_finite_real(tau) or tau < 0 or tau >= 1:
+            raise ValueError("tau must be finite and satisfy 0 <= tau < 1")
         teacher_state = self.projectors.state_dict()
         student_state = students.state_dict()
         if tuple(teacher_state.keys()) != tuple(student_state.keys()):
