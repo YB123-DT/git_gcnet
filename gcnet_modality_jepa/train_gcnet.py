@@ -54,6 +54,13 @@ from .shared_state import load_shared_checkpoint, shared_state_hash
 from .splits import build_iemocap_loso_split, build_official_split
 from .targets import ModalityMeans, compute_modality_means
 from gcnet_jepa_replacement.model import ReplacementJEPAGraphModel
+from gcnet_plci_jepa.loss import plci_jepa_loss
+from gcnet_plci_jepa.model import PLCIJEPAGraphModel
+from gcnet_plci_jepa.patterns import (
+    ACTIVE_PATTERNS,
+    expand_modality_mask,
+    sample_balanced_patterns,
+)
 
 
 def set_random_seed(seed, strict_deterministic=False):
@@ -273,6 +280,28 @@ def get_loaders(
 def build_model(args, adim, tdim, vdim):
     D_e = args.hidden
     graph_h = args.hidden // 2
+    if getattr(args, "jepa_architecture", "independent") == "plci":
+        model = PLCIJEPAGraphModel(
+            args.base_model, adim, tdim, vdim, D_e, graph_h,
+            n_speakers=args.n_speakers,
+            window_past=args.windowp,
+            window_future=args.windowf,
+            n_classes=args.n_classes,
+            dropout=args.dropout,
+            time_attn=args.time_attn,
+            no_cuda=args.no_cuda,
+            latent_dim=args.plci_latent_dim,
+            source_dim=args.plci_source_dim,
+            context_rank=args.plci_context_rank,
+            innovation_rank=args.plci_innovation_rank,
+            context_cap=args.plci_context_cap,
+            innovation_cap=args.plci_innovation_cap,
+            pattern_embedding_dim=args.plci_pattern_embedding_dim,
+            predictor_embedding_dim=args.plci_predictor_embedding_dim,
+        )
+        print("Model have {} paramerters in total".format(sum(x.numel() for x in model.parameters())))
+        print('Graph NN with', args.base_model, 'as base model.')
+        return model
     model_class = (
         ReplacementJEPAGraphModel
         if getattr(args, "model_variant", "addon") == "replacement"
@@ -541,6 +570,32 @@ def compute_stability_reconstruction_loss(
 
 
 def validate_training_args(args):
+    if getattr(args, "jepa_architecture", "independent") == "plci":
+        incompatible = (
+            (not args.loss_recon, "--loss-recon is required"),
+            (args.reccls_flag, "--reccls-flag is unsupported"),
+            (args.lower_bound, "--lower-bound is unsupported"),
+            (args.reconstruction_target != "missing", "--reconstruction-target must be missing"),
+            (args.all_modal_recon_weight != 0.0, "--all-modal-recon-weight must be zero"),
+            (args.stability_recon_weight != 0.0, "--stability-recon-weight must be zero"),
+            (args.model_variant != "addon", "--model-variant must be addon"),
+        )
+        for invalid, message in incompatible:
+            if invalid:
+                raise ValueError("PLCI: {}".format(message))
+        positive = (
+            "plci_latent_dim", "plci_source_dim", "plci_context_rank",
+            "plci_innovation_rank", "plci_pattern_embedding_dim",
+            "plci_predictor_embedding_dim",
+        )
+        if any(getattr(args, name) <= 0 for name in positive):
+            raise ValueError("PLCI dimensions and ranks must be positive")
+        for name in ("plci_context_cap", "plci_innovation_cap"):
+            value = getattr(args, name)
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError("PLCI caps must be positive and finite")
+        if not math.isfinite(args.plci_ema_tau) or not 0.0 <= args.plci_ema_tau < 1.0:
+            raise ValueError("--plci-ema-tau must be finite and in [0, 1)")
     if args.model_variant == "replacement" and args.loss_recon:
         raise ValueError(
             "--model-variant replacement cannot be combined with --loss-recon"
@@ -586,6 +641,7 @@ def _backward_and_optimizer_step(
     model,
     optimizer,
     gradient_clip_norm,
+    post_step=None,
 ):
     """Backpropagate, optionally clip, then step; return the pre-clip norm."""
     loss.backward()
@@ -599,6 +655,8 @@ def _backward_and_optimizer_step(
     if not math.isfinite(pre_clip_norm):
         raise RuntimeError("pre-clip total gradient norm must be finite")
     optimizer.step()
+    if post_step is not None:
+        post_step()
     return pre_clip_norm
 
 
@@ -706,6 +764,7 @@ def train_or_eval_model(
     epoch=0,
     mask_schedule=None,
     collect_artifacts=True,
+    plci_aux_generator=None,
 ):
     if all_modal_rec_loss is None:
         all_modal_rec_loss = AllModalReconLoss()
@@ -742,6 +801,7 @@ def train_or_eval_model(
         epoch=epoch,
         mask_schedule=mask_schedule,
         collect_artifacts=collect_artifacts,
+        plci_aux_generator=plci_aux_generator,
     )
 
 
@@ -766,6 +826,7 @@ def _train_or_eval_model_impl(
     epoch,
     mask_schedule,
     collect_artifacts,
+    plci_aux_generator,
 ):
     preds, masks, labels, vidnames = [], [], [], []
     savepreds, savelabels, savespeakers, savehiddens, savefmask = [], [], [], [], []
@@ -784,6 +845,8 @@ def _train_or_eval_model_impl(
     mask_missing_elements = 0
     mask_total_elements = 0
     pre_clip_gradient_norms = []
+    plci_pattern_counts = {"{}{}{}".format(*pattern): 0 for pattern in ACTIVE_PATTERNS}
+    plci_ema_steps_before = int(getattr(model, "ema_step", 0))
 
     dataset = args.dataset
     reccls_flag = args.reccls_flag
@@ -795,7 +858,18 @@ def _train_or_eval_model_impl(
         model.train()
     else:
         model.eval()
-    enable_prediction = bool(mask_rate and args.jepa_weight)
+    plci_enabled = getattr(args, "jepa_architecture", "independent") == "plci"
+    enable_prediction = (
+        bool(mask_rate and args.jepa_weight) if not plci_enabled else False
+    )
+    if plci_enabled and train and plci_aux_generator is None:
+        plci_aux_generator = torch.Generator(device="cpu")
+        explicit_seed = getattr(args, "plci_aux_seed", None)
+        plci_aux_generator.manual_seed(
+            explicit_seed if explicit_seed is not None else SeedBundle(args.seed).derive(
+                "plci_aux:fold:{}".format(fold)
+            )
+        )
     record_epoch_collapse = bool(
         train
         and getattr(args, "epoch_collapse_diagnostics", False)
@@ -920,7 +994,16 @@ def _train_or_eval_model_impl(
         # log_prob: [seqlen, batch, num_classes]
         # input_features_recon # padded, ?*[seqlen, batch, dim]
         '''
-        if reccls_flag: # whether use reconstruction features for classification
+        if plci_enabled:
+            log_prob, recon_input_features, hidden, _ = model.forward_natural(
+                masked_input_features,
+                input_features_mask[0],
+                qmask,
+                umask,
+                lengths,
+            )
+            modality_predictions = None
+        elif reccls_flag: # whether use reconstruction features for classification
             _, recon_input_features, _, _ = model(
                 masked_input_features, qmask, umask, lengths,
                 predict_modalities=enable_prediction,
@@ -1011,7 +1094,37 @@ def _train_or_eval_model_impl(
             )
         else:
             loss4 = log_prob.new_zeros(())
-        if modality_predictions is None:
+        if plci_enabled and train:
+            auxiliary_availability = sample_balanced_patterns(
+                umask, plci_aux_generator
+            )
+            expanded_auxiliary = expand_modality_mask(
+                auxiliary_availability, (adim, tdim, vdim)
+            ).to(dtype=input_features[0].dtype)
+            auxiliary_source = input_features[0] * expanded_auxiliary
+            auxiliary_predictions, _, _ = model.forward_auxiliary(
+                auxiliary_source,
+                auxiliary_availability,
+                qmask,
+                umask,
+                lengths,
+            )
+            with torch.no_grad():
+                teacher_targets = model.encode_teacher_targets(input_features[0])
+            loss3, missing_counts = plci_jepa_loss(
+                auxiliary_predictions, teacher_targets
+            )
+            valid_auxiliary = auxiliary_availability[umask.T.bool()]
+            for pattern in ACTIVE_PATTERNS:
+                key = "{}{}{}".format(*pattern)
+                plci_pattern_counts[key] += int(
+                    (valid_auxiliary == valid_auxiliary.new_tensor(pattern))
+                    .all(dim=-1).sum().item()
+                )
+        elif plci_enabled:
+            loss3 = log_prob.new_zeros(())
+            missing_counts = {"utterances": 0, "targets": 0, "paths": 0}
+        elif modality_predictions is None:
             loss3, _ = miss0_jepa_loss(model)
             missing_counts = {"audio": 0, "text": 0, "visual": 0}
         else:
@@ -1045,7 +1158,7 @@ def _train_or_eval_model_impl(
             loss2,
             loss3,
             loss4,
-            enable_prediction,
+            (plci_enabled and train) or enable_prediction,
             stability_reconstruction_loss=loss5,
         )
         named_losses = (
@@ -1104,6 +1217,10 @@ def _train_or_eval_model_impl(
                     model,
                     optimizer,
                     getattr(args, "gradient_clip_norm", 0.0),
+                    post_step=(
+                        (lambda: model.update_teacher(args.plci_ema_tau))
+                        if plci_enabled else None
+                    ),
                 )
             )
 
@@ -1165,6 +1282,11 @@ def _train_or_eval_model_impl(
             else 0.0
         ),
     }
+    if plci_enabled:
+        diagnostics["plci"] = {
+            "pattern_counts": plci_pattern_counts,
+            "ema_steps": int(getattr(model, "ema_step", 0)) - plci_ema_steps_before,
+        }
     _attach_gradient_clip_diagnostics(
         diagnostics,
         args=args,
@@ -1427,6 +1549,15 @@ def run_training_fold(
     """Run either the official every-epoch test or strict test-once lifecycle."""
     if evaluation_fn is None:
         evaluation_fn = train_or_eval_model
+    plci_aux_generator = None
+    if getattr(args, "jepa_architecture", "independent") == "plci":
+        plci_aux_generator = torch.Generator(device="cpu")
+        explicit_seed = getattr(args, "plci_aux_seed", None)
+        plci_aux_generator.manual_seed(
+            explicit_seed if explicit_seed is not None else SeedBundle(args.seed).derive(
+                "plci_aux:fold:{}".format(fold)
+            )
+        )
     schedules = {
         split: build_mask_schedule(args, split, fold, mask_rate)
         for split in ("train", "validation", "test")
@@ -1473,6 +1604,7 @@ def run_training_fold(
             epoch=epoch,
             mask_schedule=schedules["train"],
             collect_artifacts=False,
+            plci_aux_generator=plci_aux_generator,
         )
         _require_finite_result(train_result, "train")
         validation_result = evaluation_fn(
@@ -1495,6 +1627,7 @@ def run_training_fold(
             epoch=epoch if evaluation_protocol == "official" else 0,
             mask_schedule=schedules["validation"],
             collect_artifacts=False,
+            plci_aux_generator=plci_aux_generator,
         )
         _require_finite_result(validation_result, "validation")
         validation_f1 = float(validation_result[1])
@@ -1530,6 +1663,7 @@ def run_training_fold(
                 epoch=epoch,
                 mask_schedule=schedules["test"],
                 collect_artifacts=is_best,
+                plci_aux_generator=plci_aux_generator,
             )
             test_call_count += 1
             _require_finite_result(test_result, "test")
@@ -1576,6 +1710,7 @@ def run_training_fold(
         epoch=0,
         mask_schedule=schedules["test"],
         collect_artifacts=True,
+        plci_aux_generator=plci_aux_generator,
     )
     _require_finite_result(test_result, "test")
     return {
@@ -1646,6 +1781,17 @@ def build_argument_parser():
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
     parser.add_argument('--jepa-weight', type=float, default=0.1, help='centered modality prediction loss weight')
+    parser.add_argument('--jepa-architecture', choices=['independent', 'plci'], default='independent')
+    parser.add_argument('--plci-latent-dim', type=int, default=256)
+    parser.add_argument('--plci-source-dim', type=int, default=256)
+    parser.add_argument('--plci-context-rank', type=int, default=32)
+    parser.add_argument('--plci-innovation-rank', type=int, default=32)
+    parser.add_argument('--plci-context-cap', type=float, default=0.25)
+    parser.add_argument('--plci-innovation-cap', type=float, default=0.25)
+    parser.add_argument('--plci-pattern-embedding-dim', type=int, default=32)
+    parser.add_argument('--plci-predictor-embedding-dim', type=int, default=32)
+    parser.add_argument('--plci-ema-tau', type=float, default=0.996)
+    parser.add_argument('--plci-aux-seed', type=int, default=None)
     parser.add_argument('--all-modal-recon-weight', type=float, default=0.0, help='diagnostic reconstruction weight over complete observed modalities')
     parser.add_argument('--detach-predictor-input', action='store_true', default=False, help='train only the Predictor with JEPA gradients')
     parser.add_argument('--predictor-dropout', type=float, default=0.1, help='dropout inside modality predictors')
@@ -1780,7 +1926,11 @@ if __name__ == '__main__':
             modality_means = modality_means.to("cuda")
             torch.cuda.reset_peak_memory_stats()
         # Shared tensors must be loaded and validated before optimizer state exists.
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.l2)
+        optimizer = optim.Adam(
+            (parameter for parameter in model.parameters() if parameter.requires_grad),
+            lr=args.lr,
+            weight_decay=args.l2,
+        )
 
         print (f'Step2: training (multiple epoches)')
         if not args.mask_type.startswith('constant'):
