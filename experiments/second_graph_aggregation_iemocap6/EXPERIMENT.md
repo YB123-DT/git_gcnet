@@ -158,4 +158,4 @@ git push github HEAD:refs/heads/exp/second-graph-aggregators
 
 6. Confirm publication by comparing the local commit with `git ls-remote github refs/heads/exp/second-graph-aggregators`. A transport failure is retried from the same local commit; training is not rerun. Promotion into the GitHub `main` completed-version layout occurs only from that verified commit, without force-pushing or rewriting unrelated completed versions.
 
-The earlier verified commit contains the first three evidence stages only. For the fourth, uniform 85-archive layer, 360/360 checksums and 267 tests (one expected skip) have passed locally. Publication remains pending until this exact tree is committed, pushed, and its branch SHA is matched with `git ls-remote`.
+The earlier verified commit contains the first three evidence stages only. The fourth, uniform 85-archive layer passed 360/360 checksums and 267 tests (one expected skip), was published as evidence commit `f72cd776d5260644a84005241e55639b994bb1dc`, and `git ls-remote` returned the same SHA.

@@ -47,6 +47,6 @@ No epoch smoke was used, and completed canonical task keys were reused rather th
 
 ## Automatic publication
 
-The earlier 58-candidate evidence snapshot was published as commit `97370fd49cb130bc10c620f1293ebff00985b729` on [YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet), and `git ls-remote` returned the same SHA. That attestation predates the 27 new trainings. For the current 85-archive layer, 360/360 checksums and 267 tests (one expected skip) have passed locally; publication remains pending until this exact tree is committed, pushed, and its branch SHA is matched with `git ls-remote`.
+The earlier 58-candidate evidence snapshot was published as commit `97370fd49cb130bc10c620f1293ebff00985b729` on [YB123-DT/git_gcnet](https://github.com/YB123-DT/git_gcnet). The fourth, uniform 85-archive layer passed 360/360 checksums and 267 tests (one expected skip), was published as evidence commit `f72cd776d5260644a84005241e55639b994bb1dc`, and `git ls-remote` returned the same SHA.
 
 Trilingual evidence: initial [RESULTS](results/RESULTS.en.md) and [ANALYSIS](results/ANALYSIS.en.md), bounded [RTDR extension](results/rtdr_extension/RESULTS.en.md), and [RTDR full audit](results/rtdr_full/RESULTS.en.md), each with canonical and Chinese mirrors plus machine-readable summaries.

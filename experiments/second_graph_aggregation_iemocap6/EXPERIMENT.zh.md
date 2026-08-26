@@ -58,7 +58,7 @@ Original 的 40 个 NPZ 从以下只读目录继承，不重新训练：
 
 ## 跑完后自动上传 GitHub
 
-早期58个candidate归档的证据 commit `97370fd49cb130bc10c620f1293ebff00985b729` 已推送并通过 `git ls-remote` 核对；它不包含本轮新增27次训练。当前85归档统一证据层已在本地通过360/360项哈希和267项测试（1项预期跳过），但仍需提交、推送并用 `git ls-remote` 核对当前分支SHA后，才能声称已发布。自动流程为：
+早期58个candidate归档的证据 commit `97370fd49cb130bc10c620f1293ebff00985b729` 不包含本轮新增27次训练。当前85归档统一证据层已通过360/360项哈希和267项测试（1项预期跳过），并作为证据 commit `f72cd776d5260644a84005241e55639b994bb1dc` 推送；`git ls-remote` 返回相同SHA。自动流程为：
 
 1. 当时发布的 58/58 candidate 快照与 Original 40/40 属于早期证据层；当前统一层将唯一 candidate 归档数扩展到 85，不借用早期 commit 声称已发布；
 2. 保留代码、任务级 NPZ、必要日志、run/invocation manifest、源文件与 mask hash，以及初始 `RESULTS.md/.zh.md/.en.md`、`ANALYSIS.md/.zh.md/.en.md`和RTDR extension/full汇总；
