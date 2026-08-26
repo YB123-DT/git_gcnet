@@ -15,6 +15,9 @@ from gcnet_plci_jepa.modules import (
 
 
 MODALITIES = ("audio", "text", "visual")
+ASSERT_CLOSE = getattr(
+    torch.testing, "assert_close", torch.testing.assert_allclose
+)
 
 
 def test_normalize_latent_matches_layer_norm_then_l2_normalization():
@@ -32,7 +35,7 @@ def test_normalize_latent_matches_layer_norm_then_l2_normalization():
 
     assert result.shape == value.shape
     assert torch.isfinite(result).all()
-    torch.testing.assert_close(result, expected)
+    ASSERT_CLOSE(result, expected)
 
 
 def test_bounded_residual_matches_formula_and_respects_radius():
@@ -45,7 +48,7 @@ def test_bounded_residual_matches_formula_and_respects_radius():
 
     assert result.shape == value.shape
     assert torch.isfinite(result).all()
-    torch.testing.assert_close(result, expected)
+    ASSERT_CLOSE(result, expected)
     assert torch.all(torch.norm(result, dim=-1) <= kappa)
 
 
@@ -135,12 +138,14 @@ def test_student_bank_routes_only_observed_incomplete_rows_and_bypasses_atv():
     for index, name in enumerate(MODALITIES):
         block = masked_features[..., slices[name]]
         selected = incomplete & availability[..., index].bool()
-        torch.testing.assert_close(seen[name], block[selected])
-        torch.testing.assert_close(
+        ASSERT_CLOSE(seen[name], block[selected])
+        ASSERT_CLOSE(
             latents[name][selected], bank.projectors[name](block[selected])
         )
         assert torch.count_nonzero(latents[name][~selected]) == 0
-        torch.testing.assert_close(adapted[..., slices[name]][selected], block[selected])
+        ASSERT_CLOSE(
+            adapted[..., slices[name]][selected], block[selected]
+        )
         missing = incomplete & ~availability[..., index].bool()
         assert torch.count_nonzero(adapted[..., slices[name]][missing]) == 0
 
@@ -167,7 +172,7 @@ def test_student_bank_adds_adapter_residual_only_to_observed_incomplete_blocks()
         block = features[..., start : start + width]
         selected = (availability.sum(dim=-1) < 3) & availability[..., index].bool()
         expected = block[selected] + bank.adapters[name](latents[name][selected])
-        torch.testing.assert_close(
+        ASSERT_CLOSE(
             adapted[..., start : start + width][selected], expected
         )
     assert torch.equal(adapted[0, 1], features[0, 1])
@@ -221,7 +226,7 @@ def test_ema_teacher_splits_full_features_and_returns_pre_normalized_latents():
     start = 0
     for name, width in zip(MODALITIES, (2, 3, 4)):
         expected = teacher.projectors[name](full_features[..., start : start + width])
-        torch.testing.assert_close(latents[name], expected)
+        ASSERT_CLOSE(latents[name], expected)
         assert latents[name].shape == (3, 2, 5)
         start += width
 
@@ -244,7 +249,7 @@ def test_ema_teacher_updates_parameters_and_float_buffers_exactly():
             old_state[name] * 0.25
             + students.state_dict()[student_name] * 0.75
         )
-        torch.testing.assert_close(value, expected)
+        ASSERT_CLOSE(value, expected)
     assert all(not parameter.requires_grad for parameter in teacher.parameters())
 
 
