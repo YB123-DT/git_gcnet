@@ -44,7 +44,7 @@ def test_bounded_residual_matches_formula_and_respects_radius():
     norm = torch.norm(value, dim=-1, keepdim=True)
 
     result = bounded_residual(value, kappa)
-    expected = kappa * value / (norm + 1e-6) * torch.tanh(norm)
+    expected = kappa * value / torch.sqrt(kappa * kappa + norm.square() + 1e-6)
 
     assert result.shape == value.shape
     assert torch.isfinite(result).all()
