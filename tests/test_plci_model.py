@@ -146,6 +146,16 @@ def test_encode_hidden_checks_and_adds_post_rnn_residual():
         )
 
 
+def test_pattern_residual_uses_model_dtype_for_uint8_mask_bank():
+    model = PLCIJEPAGraphModel(**plci_arguments()).eval()
+    _, _, umask, _ = inputs()
+    availability = mixed_availability(umask).to(torch.uint8)
+
+    residual = model.pattern_residual(availability, umask, allow_atv=True)
+
+    assert residual.dtype == model.pattern_projection.weight.dtype
+
+
 def test_atv_natural_path_is_exact_and_bypasses_student_and_pattern_modules():
     torch.manual_seed(31)
     model = PLCIJEPAGraphModel(**plci_arguments()).eval()

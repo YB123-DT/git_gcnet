@@ -143,7 +143,7 @@ class PLCIJEPAGraphModel(GraphModel):
             ids[selected] = pattern_id
             if pattern != ATV_PATTERN:
                 active |= selected
-        residual = availability.new_zeros(
+        residual = self.pattern_projection.weight.new_zeros(
             availability.shape[0], availability.shape[1], self.recurrent_dim
         )
         if bool(active.any()):
