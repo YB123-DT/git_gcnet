@@ -106,6 +106,60 @@ def test_context_and_innovation_output_factors_are_zero_initialized():
         assert torch.count_nonzero(output.bias) == 0
 
 
+def test_source_base_is_reused_across_patterns_for_the_same_anchor_and_target():
+    predictor = make_predictor()
+    latents, hidden, _, umask = make_inputs(torch.tensor([[[1, 0, 0]]]))
+    seen = []
+    handle = predictor.base_outputs["visual"].register_forward_pre_hook(
+        lambda _module, inputs: seen.append(inputs[0].detach().clone())
+    )
+    try:
+        predictor(latents, hidden, torch.tensor([[[1.0, 0.0, 0.0]]]), umask)
+        predictor(latents, hidden, torch.tensor([[[1.0, 1.0, 0.0]]]), umask)
+    finally:
+        handle.remove()
+
+    assert len(seen) == 3
+    ASSERT_CLOSE(seen[0], seen[1], rtol=0, atol=0)
+    assert predictor.base_trunk[0].in_features == 3 + 2 * 2
+
+
+def test_context_conditions_hidden_in_rank_space_before_target_output():
+    predictor = make_predictor()
+    seen = []
+    handle = predictor.context_outputs["visual"].register_forward_pre_hook(
+        lambda _module, inputs: seen.append(inputs[0])
+    )
+    try:
+        predictor(*make_inputs(torch.tensor([[[1, 1, 0]]])))
+    finally:
+        handle.remove()
+
+    actual_hidden = make_inputs(torch.tensor([[[1, 1, 0]]]))[1][0, 0]
+    expected = torch.nn.functional.gelu(
+        predictor.context_projection(actual_hidden)
+        + predictor.context_pattern_embedding(torch.tensor(3))
+        + predictor.context_target_embedding(torch.tensor(2))
+    )
+    assert len(seen) == 1
+    ASSERT_CLOSE(seen[0], expected)
+
+
+def test_innovation_uses_current_graph_hidden_after_zero_init_is_lifted():
+    predictor = make_predictor()
+    torch.nn.init.constant_(predictor.innovation_outputs["visual"].weight, 0.4)
+    latents, hidden, availability, umask = make_inputs(
+        torch.tensor([[[1, 1, 0]]])
+    )
+
+    first = predictor(latents, hidden, availability, umask).targets[0]
+    changed_hidden = hidden.clone()
+    changed_hidden.add_(3.0)
+    second = predictor(latents, changed_hidden, availability, umask).targets[0]
+
+    assert not torch.allclose(first.innovation_norms, second.innovation_norms)
+
+
 def test_context_and_innovation_residual_norms_respect_caps():
     predictor = make_predictor()
     for output in predictor.context_outputs.values():

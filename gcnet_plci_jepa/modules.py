@@ -212,7 +212,7 @@ class SourceAnchoredPredictor(nn.Module):
         self.target_embedding = nn.Embedding(3, embedding_dim)
         self.pattern_embedding = nn.Embedding(6, embedding_dim)
 
-        base_width = source_dim + 3 * embedding_dim
+        base_width = source_dim + 2 * embedding_dim
         self.base_trunk = nn.Sequential(
             nn.Linear(base_width, hidden_dim),
             nn.GELU(),
@@ -220,20 +220,17 @@ class SourceAnchoredPredictor(nn.Module):
         self.base_outputs = nn.ModuleDict(
             {name: nn.Linear(hidden_dim, latent_dim) for name in MODALITIES}
         )
-        self.context_projection = nn.Sequential(
-            nn.Linear(hidden_dim, context_rank),
-            nn.GELU(),
-        )
+        self.context_projection = nn.Linear(hidden_dim, context_rank)
+        self.context_pattern_embedding = nn.Embedding(6, context_rank)
+        self.context_target_embedding = nn.Embedding(3, context_rank)
         self.context_outputs = nn.ModuleDict(
             {name: nn.Linear(context_rank, latent_dim) for name in MODALITIES}
         )
 
         relation_width = 4 * source_dim + 4 * embedding_dim
-        self.innovation_trunk = nn.Sequential(
-            nn.Linear(relation_width, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, innovation_rank),
-            nn.GELU(),
+        self.relation_projection = nn.Linear(relation_width, innovation_rank)
+        self.innovation_hidden_projection = nn.Linear(
+            hidden_dim, innovation_rank
         )
         self.innovation_outputs = nn.ModuleDict(
             {name: nn.Linear(innovation_rank, latent_dim) for name in MODALITIES}
@@ -252,14 +249,12 @@ class SourceAnchoredPredictor(nn.Module):
         canonical: torch.Tensor,
         anchor: int,
         target: int,
-        pattern: int,
     ) -> torch.Tensor:
         value = torch.cat(
             (
                 canonical,
                 self._embedding(self.anchor_embedding, anchor, canonical),
                 self._embedding(self.target_embedding, target, canonical),
-                self._embedding(self.pattern_embedding, pattern, canonical),
             )
         )
         return self.base_outputs[MODALITIES[target]](self.base_trunk(value))
@@ -272,6 +267,7 @@ class SourceAnchoredPredictor(nn.Module):
         added: int,
         target: int,
         pattern: int,
+        graph_hidden: torch.Tensor,
     ) -> torch.Tensor:
         relation = torch.cat(
             (
@@ -285,9 +281,11 @@ class SourceAnchoredPredictor(nn.Module):
                 self._embedding(self.pattern_embedding, pattern, anchor_value),
             )
         )
-        raw = self.innovation_outputs[MODALITIES[target]](
-            self.innovation_trunk(relation)
+        rank_value = F.gelu(
+            self.relation_projection(relation)
+            + self.innovation_hidden_projection(graph_hidden)
         )
+        raw = self.innovation_outputs[MODALITIES[target]](rank_value)
         return bounded_residual(raw, self.innovation_cap)
 
     def forward(
@@ -351,8 +349,21 @@ class SourceAnchoredPredictor(nn.Module):
                 }
                 for target in targets:
                     target_name = MODALITIES[target]
-                    context_raw = self.context_outputs[target_name](
+                    context_rank_value = F.gelu(
                         self.context_projection(graph_hidden[time, item])
+                        + self._embedding(
+                            self.context_pattern_embedding,
+                            pattern,
+                            graph_hidden,
+                        )
+                        + self._embedding(
+                            self.context_target_embedding,
+                            target,
+                            graph_hidden,
+                        )
+                    )
+                    context_raw = self.context_outputs[target_name](
+                        context_rank_value
                     )
                     context = bounded_residual(context_raw, self.context_cap)
                     paths = []  # type: List[torch.Tensor]
@@ -362,7 +373,7 @@ class SourceAnchoredPredictor(nn.Module):
                         innovation = torch.zeros_like(context)
                         paths.append(
                             normalize_latent(
-                                self._base(canonical[anchor], anchor, target, pattern)
+                                self._base(canonical[anchor], anchor, target)
                                 + context
                             )
                         )
@@ -376,10 +387,11 @@ class SourceAnchoredPredictor(nn.Module):
                                 added,
                                 target,
                                 pattern,
+                                graph_hidden[time, item],
                             )
                             paths.append(
                                 normalize_latent(
-                                    self._base(canonical[anchor], anchor, target, pattern)
+                                    self._base(canonical[anchor], anchor, target)
                                     + context
                                     + innovation
                                 )
