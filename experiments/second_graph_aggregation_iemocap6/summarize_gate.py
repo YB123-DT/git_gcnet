@@ -158,6 +158,34 @@ def _rtdr_full_invocation() -> dict:
     }
 
 
+def _phase_a_uniform_invocation() -> dict:
+    return {
+        "arms": ["genagg", "soft_medoid"],
+        "fold": 5,
+        "gpus": ["1", "2", "3", "4"],
+        "job_count": 30,
+        "parallel_arms": True,
+        "rates": [0.0, 0.5, 0.7],
+        "seeds": [66, 67, 68, 69, 70],
+        "stage": "formal",
+        "workers_per_gpu": 3,
+    }
+
+
+def _ssma_uniform_invocation() -> dict:
+    return {
+        "arms": ["ssma"],
+        "fold": 5,
+        "gpus": ["5", "6", "7"],
+        "job_count": 15,
+        "parallel_arms": True,
+        "rates": [0.0, 0.5, 0.7],
+        "seeds": [66, 67, 68, 69, 70],
+        "stage": "formal",
+        "workers_per_gpu": 3,
+    }
+
+
 def _valid_gpu_list(gpus: Any) -> bool:
     return (
         isinstance(gpus, list)
@@ -235,8 +263,9 @@ def _validate_invocations(
         raise ValueError("invocation directory is missing or unsafe: {}".format(directory))
     paths = sorted(directory.glob("*.json"))
     expected = _historical_invocations() if historical else (_candidate_invocation(arm),)
+    phase_a = not historical and arm in ("genagg", "soft_medoid")
     phase_b = not historical and arm in ("ssma", "rtdr")
-    valid_counts = (1, 2, 3) if phase_b else (len(expected),)
+    valid_counts = (1, 2) if phase_a else ((1, 2, 3, 4) if phase_b else (len(expected),))
     if len(paths) not in valid_counts:
         raise ValueError(
             "invocation set mismatch: expected {}, found {}".format(
@@ -266,11 +295,17 @@ def _validate_invocations(
         if len(base_matches) != 1:
             raise ValueError("invocation payload mismatch for {}".format(formal))
         remaining = [payload for payload in found if payload is not base_matches[0]]
-        expected_remaining = []
-        if len(remaining) >= 1:
-            expected_remaining.append(_rtdr_extension_invocation())
-        if len(remaining) == 2:
-            expected_remaining.append(_rtdr_full_invocation())
+        if phase_a:
+            expected_remaining = (
+                [] if not remaining else [_phase_a_uniform_invocation()]
+            )
+        else:
+            expected_chain = [
+                _rtdr_extension_invocation(),
+                _rtdr_full_invocation(),
+                _ssma_uniform_invocation(),
+            ]
+            expected_remaining = expected_chain[: len(remaining)]
         remaining_by_digest = {
             _canonical_digest(payload): payload for payload in remaining
         }
