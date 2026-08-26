@@ -153,9 +153,16 @@ def test_dual_source_has_two_source_anchored_paths():
 
 ```python
 @dataclass
+class PLCITargetPrediction:
+    utterance_index: int
+    target_modality: int
+    source_pattern: int
+    anchor_modalities: tuple[int, ...]
+    paths: torch.Tensor  # [one_or_two_paths, latent_dim]
+
+@dataclass
 class PLCIPredictions:
-    paths: dict[str, list[torch.Tensor]]
-    selection: dict[str, list[torch.Tensor]]
+    targets: list[PLCITargetPrediction]
 
 class SourceAnchoredPredictor(nn.Module):
     def forward(
@@ -173,6 +180,9 @@ def plci_jepa_loss(
 ```
 
 Loss 只实现 `1 - dot(unit_prediction, unit_teacher)`；不得加入 path、variance、covariance 或 innovation penalty。
+Loss 必须先对每个 target 的一或两条 path 平均，再对同一 utterance 的一或两个
+missing targets 平均，最后对有效 utterances 平均；禁止直接对所有 paths 求全局
+平均。
 
 - [ ] **步骤 4：运行测试确认通过并提交**
 
@@ -222,14 +232,17 @@ class PLCIJEPAGraphModel(GraphModel):
     ): ...
 
     def forward_auxiliary(
-        self, full_features, availability, qmask, umask, seq_lengths
+        self, source_features, availability, qmask, umask, seq_lengths
     ): ...
+
+    @torch.no_grad()
+    def encode_teacher_targets(self, teacher_features): ...
 
     @torch.no_grad()
     def update_teacher(self, tau: float) -> None: ...
 ```
 
-ATV natural batch 必须 bypass adapter/pattern 并与共享参数的 Original forward 精确一致。Auxiliary forward 返回 predictions、teacher targets 和 hidden，不计算 classifier/reconstruction head。
+ATV natural batch 必须 bypass adapter/pattern 并与共享参数的 Original forward 精确一致。Trainer 在调用前完成 `source_features = teacher_features * expanded_mask`；auxiliary source API 不接受完整 target。Auxiliary forward 返回 predictions 和 hidden，不计算 classifier/reconstruction head；teacher targets 由独立 no-gradient API 产生。
 
 - [ ] **步骤 5：运行 `test_plci_model.py` 与旧 `test_modality_jepa.py` 并提交**
 
@@ -270,13 +283,27 @@ def test_plci_updates_teacher_only_after_optimizer_step():
 
 默认值保持 `jepa-architecture=independent`，旧命令和 checkpoint key 不变。
 
+`validate_training_args` 在 PLCI 模式必须要求：
+
+```text
+loss_recon=True
+reccls_flag=False
+lower_bound=False
+reconstruction_target=missing
+all_modal_recon_weight=0
+stability_recon_weight=0
+model_variant=addon
+```
+
 - [ ] **步骤 4：实现 loss/EMA 路由**
 
-训练 batch：natural forward → independent auxiliary pattern sample → auxiliary forward → 合并 backward → existing optimizer/clip step → EMA update。Validation/test 禁止 teacher/predictor execution。
+训练 batch：natural forward → independent auxiliary pattern sample → trainer先mask完整feature → auxiliary source forward → 独立no-gradient teacher target → 合并 backward → existing optimizer/clip step → EMA update。PLCI auxiliary 启用不依赖 natural mask rate，因此 `eta=0` 仍执行；validation/test 禁止 teacher/predictor execution。
 
 - [ ] **步骤 5：记录 auxiliary generator state 并运行测试**
 
-将 generator state、pattern counts、EMA step 和 PLCI config 写入 fold metrics/run manifest；不创建正式 sweep runner。
+Optimizer 只接收 `requires_grad=True` 参数；重写/覆盖 train-mode 行为以保证 teacher
+始终 eval。将 generator state、pattern counts、EMA step 和 PLCI config 写入 fold
+metrics/run manifest；不创建正式 sweep runner，也不声明支持中途恢复训练。
 
 - [ ] **步骤 6：提交**
 
@@ -289,7 +316,10 @@ def test_plci_updates_teacher_only_after_optimizer_step():
 
 - [ ] **步骤 1：编写失败测试**
 
-改变 auxiliary missing target 的完整值，断言 adapted source、hidden 和 prediction 不变而 teacher/loss 改变；记录 student/teacher std、effective rank、Real-vs-Shuffle、context norm、innovation norm 和六 pattern counts。
+改变 auxiliary missing target 的完整值，使用 forward hook 同时断言 student
+projector 与 GCNet 实际收到的 source tensor 不变，并断言 adapted source、hidden
+和 prediction 不变而 teacher/loss 改变；记录 student/teacher std、effective
+rank、Real-vs-Shuffle、context norm、innovation norm 和六 pattern counts。
 
 - [ ] **步骤 2：实现纯诊断函数**
 
@@ -341,4 +371,3 @@ git diff --check
 - [ ] **步骤 4：记录实现边界并提交**
 
 文档必须明确：尚未运行正式训练、没有结果、不能进入完成版本仓库；下一步只能在用户另行要求时设计实验协议。
-

@@ -48,6 +48,10 @@ auxiliary GCNet forward。
 
 Auxiliary view 从完整训练 feature 副本继续删除 modality。完整 target 只进入
 no-gradient EMA teacher，不进入 student source、GCNet input 或 predictor input。
+Trainer 必须先构造 `aux_source_features = full_features * expanded_mask`；student
+与 GCNet API 只接收 `aux_source_features`。完整 `teacher_features` 通过独立的
+`encode_teacher_targets` no-gradient API 进入 teacher，防止函数内部先投影后
+mask 的静默泄漏。
 
 ## 3. Natural-path adaptation
 
@@ -262,6 +266,15 @@ dual 和 ATV 三套 backbone forward。
 训练顺序固定为 natural forward、auxiliary forward、一次合并 backward、
 optimizer step、EMA update。Teacher requires_grad=False。
 
+PLCI auxiliary 的启用条件只依赖 `train`、`jepa_architecture=plci` 与
+`lambda_J>0`，不依赖 natural missing rate；因此正式 \(\eta=0\) 仍执行预定义
+auxiliary JEPA。Validation/test 永远不执行 PLCI predictor 或 teacher。
+
+为保持方法边界，PLCI 模式拒绝 `reccls_flag`、`lower_bound`、full-fused/all-modal
+reconstruction、stability reconstruction 和 replacement-JEPA；同时要求 Original
+missing-only reconstruction 被启用。Teacher 参数不进入 optimizer，且 model
+进入 train mode 后 teacher 仍固定为 eval mode。
+
 测试删除 teacher、base/context/innovation predictor 和 auxiliary sampler；保留
 student projectors、classification adapters、pattern hidden projection、GCNet、
 Original reconstruction head 和 classifier。不执行 test-time completion。
@@ -276,3 +289,6 @@ Std、effective rank、Real-vs-Shuffle、prediction cosine、context norm 和 in
 norm只记录为诊断，不进入训练 objective。训练阶段拥有完整 A/T/V feature 是本
 方法与 Original GCNet 共享的前提假设。
 
+第一版实现不声明支持中途恢复训练。EMA step 与 auxiliary RNG state 进入审计
+记录，但不把现有结果 NPZ 伪装成可恢复 checkpoint；若以后需要恢复协议，必须
+单独设计 model/optimizer/teacher/RNG 的原子 checkpoint。
