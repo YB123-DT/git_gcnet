@@ -22,7 +22,7 @@ def _phase_a_extension_invocation():
     return {
         "arms": ["genagg", "soft_medoid"],
         "fold": 5,
-        "gpus": ["1", "2", "3", "4"],
+        "gpus": ["1", "2", "3", "4", "5", "6", "7"],
         "job_count": 30,
         "parallel_arms": True,
         "rates": [0.0, 0.5, 0.7],
@@ -129,7 +129,7 @@ class UniformInvocationContractTests(unittest.TestCase):
                 )
                 extension = _phase_a_extension_invocation()
                 if mutation == "drift":
-                    extension["gpus"] = ["0", "1", "2", "3"]
+                    extension["gpus"] = ["1", "2", "3", "4"]
                     _write_invocation(formal, extension)
                 else:
                     _write_invocation(formal, extension)

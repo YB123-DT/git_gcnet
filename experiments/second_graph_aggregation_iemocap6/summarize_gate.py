@@ -162,7 +162,7 @@ def _phase_a_uniform_invocation() -> dict:
     return {
         "arms": ["genagg", "soft_medoid"],
         "fold": 5,
-        "gpus": ["1", "2", "3", "4"],
+        "gpus": ["1", "2", "3", "4", "5", "6", "7"],
         "job_count": 30,
         "parallel_arms": True,
         "rates": [0.0, 0.5, 0.7],
