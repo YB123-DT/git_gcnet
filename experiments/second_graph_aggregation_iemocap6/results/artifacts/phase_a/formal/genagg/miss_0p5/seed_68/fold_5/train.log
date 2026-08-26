@@ -1,0 +1,415 @@
+Namespace(allow_short_run=False, audio_feature='wav2vec-large-c-UTT', base_model='LSTM', batch_size=32, branch_fusion='addition', data_root='/data2/yb/paper/GCNet_TPAMI_modality_jepa_20260818/dataset/IEMOCAP', dataset='IEMOCAPSix', dropout=0.5, epochs=100, fold_index=5, graph_conv_variant='original', hidden=200, l2=1e-05, loss_recon=True, lower_bound=False, lr=0.001, mask_bank_root='/data2/yb/paper/experiments/mpfilm_iemocap6_20260824/mask_banks', mask_seed=68, mask_type='constant-0.5', n_classes=6, n_speakers=2, no_cuda=False, num_folder=5, num_threads=6, output_dir='/data2/yb/paper/experiments/second_graph_aggregation_iemocap6_20260825/formal/genagg/miss_0p5/seed_68/fold_5/saved', post_graph_context='bilstm', pre_graph_context='bilstm', reccls_flag=False, second_graph_aggregation='genagg', seed=68, text_feature='deberta-large-4-UTT', time_attn=False, video_feature='manet_UTT', windowf=2, windowp=2)
+====== Reading Data =======
+audio dimension: 512; text dimension: 1024; video dimension: 1024
+stage-aware mask bundle: sha256=9854a6c8d347c4fa104576092d5c33c5d2052d8d2f7f9ed623bcc7f7d91be6d5 requested=0.5000 realized=0.5030
+====== Training and Evaluation =======
+>>>>> Cross-validation: training on the 5 folder >>>>>
+Step1: build model (each folder has its own model)
+Model have 36419934 paramerters in total
+Graph NN with LSTM as base model.
+Step2: training (multiple epoches)
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:1; train_fscore:18.23%; train_loss:5.2817; train_loss1:1.7856; train_loss2:2.6984
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:2; train_fscore:14.50%; train_loss:4.4642; train_loss1:1.7828; train_loss2:2.4675
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:3; train_fscore:12.87%; train_loss:3.9116; train_loss1:1.7682; train_loss2:2.0349
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:4; train_fscore:14.82%; train_loss:3.6717; train_loss1:1.8112; train_loss2:1.8053
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:5; train_fscore:13.90%; train_loss:3.3874; train_loss1:1.7846; train_loss2:1.5639
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:6; train_fscore:12.06%; train_loss:3.022; train_loss1:1.7743; train_loss2:1.2183
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:7; train_fscore:14.70%; train_loss:2.791; train_loss1:1.7613; train_loss2:1.007
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:8; train_fscore:14.85%; train_loss:2.7728; train_loss1:1.8244; train_loss2:0.93
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:9; train_fscore:16.31%; train_loss:2.5624; train_loss1:1.7679; train_loss2:0.7791
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:10; train_fscore:12.78%; train_loss:2.557; train_loss1:1.8109; train_loss2:0.7332
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:11; train_fscore:16.73%; train_loss:2.6199; train_loss1:1.8081; train_loss2:0.8006
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:12; train_fscore:15.84%; train_loss:2.5846; train_loss1:1.8096; train_loss2:0.7647
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:13; train_fscore:17.74%; train_loss:2.4759; train_loss1:1.7637; train_loss2:0.7028
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:14; train_fscore:16.05%; train_loss:2.6367; train_loss1:1.8036; train_loss2:0.8245
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:15; train_fscore:13.41%; train_loss:2.556; train_loss1:1.7759; train_loss2:0.7719
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:16; train_fscore:12.55%; train_loss:2.4881; train_loss1:1.7409; train_loss2:0.7394
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:17; train_fscore:13.64%; train_loss:2.4647; train_loss1:1.7597; train_loss2:0.6978
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:18; train_fscore:16.22%; train_loss:2.5079; train_loss1:1.7309; train_loss2:0.7701
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:19; train_fscore:14.05%; train_loss:2.5575; train_loss1:1.7549; train_loss2:0.7961
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:20; train_fscore:16.70%; train_loss:2.4633; train_loss1:1.7641; train_loss2:0.693
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:21; train_fscore:16.15%; train_loss:2.5268; train_loss1:1.7624; train_loss2:0.7586
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:22; train_fscore:15.45%; train_loss:2.5105; train_loss1:1.7518; train_loss2:0.7531
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:23; train_fscore:15.71%; train_loss:2.4903; train_loss1:1.7536; train_loss2:0.7315
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:24; train_fscore:15.01%; train_loss:2.4366; train_loss1:1.7282; train_loss2:0.7034
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:25; train_fscore:16.73%; train_loss:2.3991; train_loss1:1.7381; train_loss2:0.6562
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:26; train_fscore:15.03%; train_loss:2.4415; train_loss1:1.7251; train_loss2:0.7118
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:27; train_fscore:17.80%; train_loss:2.454; train_loss1:1.7459; train_loss2:0.7038
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:28; train_fscore:17.28%; train_loss:2.4787; train_loss1:1.7541; train_loss2:0.7204
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:29; train_fscore:17.75%; train_loss:2.4322; train_loss1:1.733; train_loss2:0.6952
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:30; train_fscore:19.03%; train_loss:2.428; train_loss1:1.7474; train_loss2:0.6765
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:31; train_fscore:18.06%; train_loss:2.4608; train_loss1:1.7357; train_loss2:0.7212
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:32; train_fscore:16.49%; train_loss:2.4626; train_loss1:1.7368; train_loss2:0.7217
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:33; train_fscore:16.87%; train_loss:2.4499; train_loss1:1.6971; train_loss2:0.7491
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:34; train_fscore:21.38%; train_loss:2.4794; train_loss1:1.6885; train_loss2:0.7865
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:35; train_fscore:23.62%; train_loss:2.3928; train_loss1:1.6872; train_loss2:0.701
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:36; train_fscore:24.84%; train_loss:2.4333; train_loss1:1.6566; train_loss2:0.7704
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:37; train_fscore:23.54%; train_loss:2.3925; train_loss1:1.6394; train_loss2:0.7458
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:38; train_fscore:23.49%; train_loss:2.5923; train_loss1:1.7831; train_loss2:0.7957
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:39; train_fscore:23.29%; train_loss:2.457; train_loss1:1.6917; train_loss2:0.7304
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:40; train_fscore:21.79%; train_loss:2.4624; train_loss1:1.6965; train_loss2:0.7306
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:41; train_fscore:21.60%; train_loss:2.4601; train_loss1:1.6989; train_loss2:0.7346
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:42; train_fscore:22.57%; train_loss:2.4007; train_loss1:1.666; train_loss2:0.7188
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:43; train_fscore:25.45%; train_loss:2.448; train_loss1:1.6435; train_loss2:0.7963
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:44; train_fscore:26.37%; train_loss:2.3628; train_loss1:1.6381; train_loss2:0.7182
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:45; train_fscore:26.84%; train_loss:2.3375; train_loss1:1.6384; train_loss2:0.6934
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:46; train_fscore:25.61%; train_loss:2.2738; train_loss1:1.6245; train_loss2:0.6439
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:47; train_fscore:29.25%; train_loss:2.2707; train_loss1:1.5815; train_loss2:0.6846
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:48; train_fscore:25.71%; train_loss:2.3265; train_loss1:1.5928; train_loss2:0.7304
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:49; train_fscore:31.50%; train_loss:2.3482; train_loss1:1.5755; train_loss2:0.7698
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:50; train_fscore:30.47%; train_loss:2.3877; train_loss1:1.5683; train_loss2:0.8166
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:51; train_fscore:30.91%; train_loss:2.3498; train_loss1:1.5589; train_loss2:0.7875
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:52; train_fscore:32.07%; train_loss:2.2548; train_loss1:1.535; train_loss2:0.7163
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:53; train_fscore:34.88%; train_loss:2.2133; train_loss1:1.5219; train_loss2:0.6884
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:54; train_fscore:35.45%; train_loss:2.1437; train_loss1:1.4879; train_loss2:0.6529
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:55; train_fscore:36.34%; train_loss:2.1816; train_loss1:1.4748; train_loss2:0.7042
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:56; train_fscore:39.73%; train_loss:2.2015; train_loss1:1.4592; train_loss2:0.7394
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:57; train_fscore:39.02%; train_loss:2.1637; train_loss1:1.4444; train_loss2:0.7157
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:58; train_fscore:41.66%; train_loss:2.1311; train_loss1:1.428; train_loss2:0.6993
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:59; train_fscore:40.54%; train_loss:2.0757; train_loss1:1.389; train_loss2:0.6832
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:60; train_fscore:39.80%; train_loss:2.1009; train_loss1:1.406; train_loss2:0.6916
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:61; train_fscore:37.95%; train_loss:2.0909; train_loss1:1.4037; train_loss2:0.6822
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:62; train_fscore:43.79%; train_loss:2.0738; train_loss1:1.3446; train_loss2:0.7244
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:63; train_fscore:47.98%; train_loss:2.0135; train_loss1:1.2593; train_loss2:0.749
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:64; train_fscore:48.31%; train_loss:1.9666; train_loss1:1.2354; train_loss2:0.7242
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:65; train_fscore:50.28%; train_loss:1.9024; train_loss1:1.1778; train_loss2:0.7142
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:66; train_fscore:49.91%; train_loss:1.8309; train_loss1:1.1658; train_loss2:0.6562
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:67; train_fscore:49.15%; train_loss:1.8921; train_loss1:1.1665; train_loss2:0.7164
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:68; train_fscore:49.83%; train_loss:1.9359; train_loss1:1.1526; train_loss2:0.7742
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:69; train_fscore:49.98%; train_loss:1.8762; train_loss1:1.1534; train_loss2:0.7134
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:70; train_fscore:48.74%; train_loss:1.9499; train_loss1:1.226; train_loss2:0.7086
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:71; train_fscore:47.56%; train_loss:1.932; train_loss1:1.2367; train_loss2:0.6834
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:72; train_fscore:48.61%; train_loss:1.9601; train_loss1:1.2136; train_loss2:0.728
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:73; train_fscore:50.90%; train_loss:1.8314; train_loss1:1.107; train_loss2:0.705
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:74; train_fscore:56.45%; train_loss:1.805; train_loss1:1.043; train_loss2:0.7486
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:75; train_fscore:58.50%; train_loss:1.7361; train_loss1:0.9926; train_loss2:0.73
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:76; train_fscore:58.66%; train_loss:1.7483; train_loss1:0.9909; train_loss2:0.746
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:77; train_fscore:61.21%; train_loss:1.6233; train_loss1:0.9357; train_loss2:0.6805
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:78; train_fscore:61.92%; train_loss:1.6459; train_loss1:0.9301; train_loss2:0.7099
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:79; train_fscore:64.19%; train_loss:1.5268; train_loss1:0.8708; train_loss2:0.65
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:80; train_fscore:65.26%; train_loss:1.548; train_loss1:0.8716; train_loss2:0.6704
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:81; train_fscore:67.98%; train_loss:1.5888; train_loss1:0.8137; train_loss2:0.7695
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:82; train_fscore:69.22%; train_loss:1.4705; train_loss1:0.7781; train_loss2:0.6877
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:83; train_fscore:70.38%; train_loss:1.4109; train_loss1:0.7522; train_loss2:0.6544
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:84; train_fscore:71.86%; train_loss:1.4423; train_loss1:0.7187; train_loss2:0.7186
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:85; train_fscore:72.45%; train_loss:1.3574; train_loss1:0.6935; train_loss2:0.6597
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:86; train_fscore:73.87%; train_loss:1.3225; train_loss1:0.6601; train_loss2:0.6585
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:87; train_fscore:74.05%; train_loss:1.3563; train_loss1:0.6535; train_loss2:0.6991
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:88; train_fscore:74.12%; train_loss:1.3519; train_loss1:0.641; train_loss2:0.7067
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:89; train_fscore:76.43%; train_loss:1.34; train_loss1:0.6071; train_loss2:0.7291
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:90; train_fscore:77.09%; train_loss:1.2752; train_loss1:0.5799; train_loss2:0.6915
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:91; train_fscore:78.91%; train_loss:1.2634; train_loss1:0.5537; train_loss2:0.7058
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:92; train_fscore:79.73%; train_loss:1.2662; train_loss1:0.5335; train_loss2:0.7291
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:93; train_fscore:81.43%; train_loss:1.2172; train_loss1:0.5061; train_loss2:0.7072
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:94; train_fscore:81.59%; train_loss:1.1582; train_loss1:0.4867; train_loss2:0.668
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:95; train_fscore:82.86%; train_loss:1.1661; train_loss1:0.4647; train_loss2:0.6965
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:96; train_fscore:83.17%; train_loss:1.2057; train_loss1:0.4527; train_loss2:0.7489
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:97; train_fscore:83.08%; train_loss:1.1143; train_loss1:0.4315; train_loss2:0.6794
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:98; train_fscore:84.54%; train_loss:1.1065; train_loss1:0.4185; train_loss2:0.6846
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:99; train_fscore:83.82%; train_loss:1.1012; train_loss1:0.4384; train_loss2:0.6595
+sample number: 5810.0
+sample number: 1623.0
+sample number: 1623.0
+epoch:100; train_fscore:85.13%; train_loss:1.0612; train_loss1:0.4001; train_loss2:0.6576
+Step3: saving and testing on the 5 folder
+>>>>> Finish: training on the 5 folder, duration: 497.99834752082825 >>>>>
+====== Saving =======
+SMOKE_ONLY=False
+save results in /data2/yb/paper/experiments/second_graph_aggregation_iemocap6_20260825/formal/genagg/miss_0p5/seed_68/fold_5/saved/iemocapsix_original_addition_secondagg_genagg_f5_s68_m0p5_1787707183.230568.npz
