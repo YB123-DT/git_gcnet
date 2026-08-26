@@ -13,7 +13,13 @@ class VersionRunnerTest(unittest.TestCase):
     def test_registry_contains_only_completed_versions(self):
         self.assertEqual(
             VERSION_NAMES,
-            ("original", "mpfilm", "cp_lecc", "sequence_aff"),
+            (
+                "original",
+                "mpfilm",
+                "cp_lecc",
+                "sequence_aff",
+                "full_fused_reconstruction",
+            ),
         )
 
     def test_locked_arguments_for_each_version(self):
@@ -24,6 +30,12 @@ class VersionRunnerTest(unittest.TestCase):
             resolve("sequence_aff")["branch_fusion"],
             "mask_sequence_aff",
         )
+        self.assertEqual(
+            resolve("full_fused_reconstruction")["reconstruction_target"],
+            "full_fused",
+        )
+        for name in VERSION_NAMES[:-1]:
+            self.assertEqual(resolve(name)["reconstruction_target"], "missing")
 
     def test_unknown_version_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "unknown completed version"):
@@ -34,6 +46,11 @@ class VersionRunnerTest(unittest.TestCase):
             build_command("mpfilm", ["--graph-conv-variant", "original"])
         with self.assertRaisesRegex(ValueError, "locked argument"):
             build_command("sequence_aff", ["--branch-fusion=addition"])
+        with self.assertRaisesRegex(ValueError, "locked argument"):
+            build_command(
+                "full_fused_reconstruction",
+                ["--reconstruction-target", "missing"],
+            )
 
     def test_build_command_uses_shared_trainer_and_stable_flags(self):
         command = build_command("cp_lecc", ["--dataset", "IEMOCAPSix"])
@@ -49,6 +66,8 @@ class VersionRunnerTest(unittest.TestCase):
                 "addition",
                 "--graph-conv-variant",
                 "cp_lecc",
+                "--reconstruction-target",
+                "missing",
                 "--dataset",
                 "IEMOCAPSix",
             ],

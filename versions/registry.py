@@ -4,7 +4,13 @@ import json
 from pathlib import Path
 
 
-VERSION_NAMES = ("original", "mpfilm", "cp_lecc", "sequence_aff")
+VERSION_NAMES = (
+    "original",
+    "mpfilm",
+    "cp_lecc",
+    "sequence_aff",
+    "full_fused_reconstruction",
+)
 _ROOT = Path(__file__).resolve().parent
 
 
@@ -14,6 +20,10 @@ def resolve(name):
     path = _ROOT / name / "config.json"
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
-    if set(payload) != {"graph_conv_variant", "branch_fusion"}:
+    if set(payload) != {
+        "graph_conv_variant",
+        "branch_fusion",
+        "reconstruction_target",
+    }:
         raise ValueError("invalid locked configuration for {!r}".format(name))
     return payload

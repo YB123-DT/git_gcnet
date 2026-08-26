@@ -1,6 +1,6 @@
 # GCNet Completed Variants
 
-这个仓库只展示已经完成判别实验的 GCNet 版本。四个版本共用一套数据读取、
+这个仓库只展示已经完成判别实验的 GCNet 版本。五个版本共用一套数据读取、
 mask bank、图构建、训练、损失和评估代码；每个版本目录只保存真正不同的模块
 与锁定配置。
 
@@ -12,18 +12,21 @@ mask bank、图构建、训练、损失和评估代码；每个版本目录只�
 | `mpfilm` | temporal/speaker 第一层 RGCN | Faithful Edge-wise 相对 Linearized 平均 `+0.000391`，不稳定，失败 |
 | `cp_lecc` | temporal/speaker 第一层 RGCN | corrected protocol 只完成 `.5/.7`，整体晋级失败 |
 | `sequence_aff` | `hidden1 + hidden2` 分支融合 | `0.623101` vs Original `0.626974`，失败 |
+| `full_fused_reconstruction` | `linear_rec` 的监督目标选择 | IEMOCAP-6 总体 `+0.23` W-F1 points，不显著；MOSI active rates 平均 `+0.54` points |
 
 这些结果使用固定的 IEMOCAP-6 第 5 fold，不是五折交叉验证均值。
 
 ## 目录
 
 ```text
-common/gcnet/                    # 四版本共享 GCNet 主干
+common/gcnet/                    # 五版本共享 GCNet 主干
 versions/original/              # 官方 no-op 配置
 versions/mpfilm/                # Missing-Pattern FiLM RGCN
 versions/cp_lecc/               # Complete-Preserving Low-Rank ECC
 versions/sequence_aff/          # mask-conditioned Sequence AFF
-results/iemocap6/fold5/         # 紧凑结果与 provenance
+versions/full_fused_reconstruction/ # 完整 A/T/V 重建监督
+results/iemocap6/fold5/         # IEMOCAPSix 紧凑结果与 provenance
+results/cmumosi/fold1/          # CMU-MOSI 紧凑结果与 provenance
 environment/                    # 唯一共享环境
 provenance/source_map.json      # 新路径到历史 commit 的映射
 run.py                          # 唯一运行入口
@@ -36,6 +39,7 @@ python run.py --version original --help
 python run.py --version mpfilm --help
 python run.py --version cp_lecc --help
 python run.py --version sequence_aff --help
+python run.py --version full_fused_reconstruction --help
 ```
 
 正式训练参数仍通过共享 GCNet CLI 提供。例如：
@@ -55,8 +59,8 @@ python run.py \
   --loss-recon
 ```
 
-`--graph-conv-variant` 和 `--branch-fusion` 由版本配置锁定，不能在命令行
-覆盖，防止版本名称与实际运行结构不一致。
+`--graph-conv-variant`、`--branch-fusion` 和 `--reconstruction-target` 由版本
+配置锁定，不能在命令行覆盖，防止版本名称与实际运行结构不一致。
 
 ## 数据与大型实验资产
 

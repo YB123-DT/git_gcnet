@@ -24,6 +24,7 @@ from model import GraphModel
 from dataloader_iemocap import IEMOCAPDataset, load_iemocap_dataset
 from dataloader_cmumosi import CMUMOSIDataset
 from loss import MaskedCELoss, MaskedMSELoss, MaskedReconLoss
+from versions.full_fused_reconstruction.variant import FullFusedReconLoss
 from mask_bank import (
     batch_mask_from_bank,
     load_or_create_stage_mask_bundle,
@@ -509,6 +510,12 @@ def create_argument_parser():
     parser.add_argument('--allow-short-run', action='store_true', default=False, help='mark and save a smoke run shorter than 60 epochs')
     parser.add_argument('--mask-type', type=str, default='constant-0.1', help='mask rate [0~1] for input argumentation: constant-float; linear; convex; concave')
     parser.add_argument('--loss-recon', action='store_true', default=False, help='whether to use reconstrctuion loss')
+    parser.add_argument(
+        '--reconstruction-target',
+        choices=['missing', 'full_fused'],
+        default='missing',
+        help='dimensions supervised by the existing reconstruction head',
+    )
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
     return parser
@@ -522,6 +529,7 @@ def build_result_suffix(args):
         f'_seed:{args.seed}_mask:{mask_rate}'
         f'_prectx:{args.pre_graph_context}_postctx:{args.post_graph_context}'
         f'_branchfusion:{args.branch_fusion}'
+        f'_rectarget:{args.reconstruction_target}'
     )
 
 
@@ -643,7 +651,11 @@ if __name__ == '__main__':
         model = build_model(args, adim, tdim, vdim)
         reg_loss = MaskedMSELoss()
         cls_loss = MaskedCELoss()
-        rec_loss = MaskedReconLoss()
+        rec_loss = (
+            FullFusedReconLoss()
+            if args.reconstruction_target == 'full_fused'
+            else MaskedReconLoss()
+        )
         if cuda:
             model.cuda()
             cls_loss.cuda()

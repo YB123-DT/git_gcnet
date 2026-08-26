@@ -14,6 +14,7 @@ TRAINER = ROOT / "common" / "gcnet" / "train_gcnet.py"
 LOCKED_FLAGS = {
     "branch_fusion": "--branch-fusion",
     "graph_conv_variant": "--graph-conv-variant",
+    "reconstruction_target": "--reconstruction-target",
 }
 
 

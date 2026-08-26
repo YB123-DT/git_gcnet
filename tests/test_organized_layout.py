@@ -12,7 +12,13 @@ RESULTS = ROOT / "results" / "iemocap6" / "fold5"
 class OrganizedLayoutTest(unittest.TestCase):
     def test_version_directories_are_self_describing(self):
         required = {"README.md", "config.json", "variant.py", "__init__.py"}
-        for name in ("original", "mpfilm", "cp_lecc", "sequence_aff"):
+        for name in (
+            "original",
+            "mpfilm",
+            "cp_lecc",
+            "sequence_aff",
+            "full_fused_reconstruction",
+        ):
             actual = {
                 path.name
                 for path in (ROOT / "versions" / name).iterdir()
@@ -30,7 +36,13 @@ class OrganizedLayoutTest(unittest.TestCase):
         }
         self.assertEqual(
             names,
-            {"original", "mpfilm", "cp_lecc", "sequence_aff"},
+            {
+                "original",
+                "mpfilm",
+                "cp_lecc",
+                "sequence_aff",
+                "full_fused_reconstruction",
+            },
         )
 
     def test_unfinished_surfaces_are_absent(self):
