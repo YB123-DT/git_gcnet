@@ -185,6 +185,40 @@ class GraphModel(nn.Module):
             raise RuntimeError("stability reconstruction is disabled")
         return self.stability_rec_head(hidden)
 
+    def encode_hidden(
+        self,
+        inputfeats,
+        qmask,
+        umask,
+        seq_lengths,
+        pre_graph_residual=None,
+    ):
+        """Run the Original recurrent and graph path."""
+        if self.base_model == 'LSTM':
+            outputs, _ = self.lstm(inputfeats[0])
+        elif self.base_model == 'GRU':
+            outputs, _ = self.gru(inputfeats[0])
+        else:
+            raise ValueError("base_model must be LSTM or GRU")
+
+        if pre_graph_residual is not None:
+            if pre_graph_residual.shape != outputs.shape:
+                raise ValueError(
+                    "pre_graph_residual must match recurrent outputs [L, B, 2*D_e]"
+                )
+            outputs = outputs + pre_graph_residual
+        outputs = outputs.unsqueeze(2)
+
+        features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers,
+                                                             self.window_past, self.window_future, 'temporal', self.no_cuda)
+        assert len(edge_type_mapping) == 3
+        hidden1 = self.graph_net_temporal(features, edge_index, edge_type, seq_lengths, umask)
+        features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers,
+                                                             self.window_past, self.window_future, 'speaker', self.no_cuda)
+        assert len(edge_type_mapping) == self.n_speakers ** 2
+        hidden2 = self.graph_net_speaker(features, edge_index, edge_type, seq_lengths, umask)
+        return hidden1 + hidden2
+
     def forward(self, inputfeats, qmask, umask, seq_lengths):
         """
         inputfeats -> ?*[seqlen, batch, dim]
@@ -193,25 +227,7 @@ class GraphModel(nn.Module):
         seq_lengths -> each conversation lens
         """
 
-        ## sequence modeling
-        ## inputfeats -> outputs [seqlen, batch, ?, dim]
-        if self.base_model == 'LSTM':
-            outputs, _ = self.lstm(inputfeats[0])
-            outputs = outputs.unsqueeze(2)
-        elif self.base_model == 'GRU':
-            outputs, _ = self.gru(U[0])
-            outputs = outputs.unsqueeze(2)
-
-        ## add graph model
-        features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers, 
-                                                             self.window_past, self.window_future, 'temporal', self.no_cuda)
-        assert len(edge_type_mapping) == 3
-        hidden1 = self.graph_net_temporal(features, edge_index, edge_type, seq_lengths, umask)
-        features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers, 
-                                                             self.window_past, self.window_future, 'speaker', self.no_cuda)
-        assert len(edge_type_mapping) == self.n_speakers ** 2
-        hidden2 = self.graph_net_speaker(features, edge_index, edge_type, seq_lengths, umask)
-        hidden = hidden1 + hidden2
+        hidden = self.encode_hidden(inputfeats, qmask, umask, seq_lengths)
 
         ## for classification
         log_prob = self.smax_fc(hidden) # [seqlen, batch, n_classes]

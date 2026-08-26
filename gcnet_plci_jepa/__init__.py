@@ -6,6 +6,7 @@ from .patterns import (
     sample_balanced_patterns,
 )
 from .loss import plci_jepa_loss
+from .model import PLCIJEPAGraphModel
 from .modules import (
     PLCIPredictions,
     PLCITargetPrediction,
@@ -20,4 +21,5 @@ __all__ = [
     "PLCITargetPrediction",
     "SourceAnchoredPredictor",
     "plci_jepa_loss",
+    "PLCIJEPAGraphModel",
 ]
