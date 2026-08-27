@@ -31,15 +31,17 @@ distribution.
 
 ## 3. Training Data Flow
 
-For each batch, the existing fixed natural mask bank produces availability
-`a_nat` and the corresponding masked feature tensor `x_nat`.
+For each batch, the existing deterministic conversation-keyed Natural schedule
+produces availability `a_nat` and the corresponding masked feature tensor
+`x_nat`. Dataset, split, fold, seed, epoch, side, and missing rate uniquely
+determine the mask without consuming global RNG.
 
 ```text
 complete frozen targets x_full
           │
           ├─────────────── EMA teacher projectors ──> target latents
           │
-natural mask bank
+Natural mask schedule
           ↓
 x_nat + a_nat
           ↓
@@ -150,7 +152,7 @@ unchanged.
 Keep unchanged:
 
 - datasets and splits;
-- fixed natural mask bank and conversation-to-mask mapping;
+- deterministic Natural mask schedule and conversation-to-mask mapping;
 - mask rate during training and evaluation;
 - GCNet graph construction and relations;
 - temporal and speaker branches;
@@ -183,8 +185,9 @@ experiment:
 6. Gradients reach student projectors, predictor, and GCNet from an incomplete
    batch; teacher gradients remain absent.
 7. Existing Dual-View PLCI tests remain green.
-8. The Single-View run manifest records the natural mask-bank identity and does
-   not record an auxiliary sampler identity.
+8. The Single-View manifest records the same train/validation/test mask schedule
+   hashes as the inherited Dual-View control and does not record an auxiliary
+   pattern sampler identity.
 
 No repeated one-epoch smoke matrix is required after these tests pass. A single
 GPU forward/backward integration check is the only runtime preflight.
@@ -197,21 +200,23 @@ GPU forward/backward integration check is the only runtime preflight.
 - fold: 5;
 - missing rates: `0.0`, `0.5`, `0.7`;
 - seeds: `66, 67, 68, 69, 70`;
-- mask source: the same fixed mask bank used by Original;
-- Original: inherited, never retrained;
+- mask source: the same deterministic Natural schedule used by Dual-View;
+- primary control: inherited Dual-View PLCI, never retrained;
+- secondary context: inherited Original, never retrained and not used as the
+  Single-vs-Dual protocol gate;
 - scheduling: at most three tasks per healthy GPU;
-- comparison: strictly paired by dataset, fold, seed, missing rate, and mask-bank
-  checksum.
+- comparison: strictly paired to Dual-View by dataset, fold, seed, missing rate,
+  evaluation lifecycle, and all three mask schedule config hashes.
 
 Rate zero is a preservation control rather than an expected gain. Rates 0.5 and
 0.7 test the active Single-View mechanism.
 
 ### Stage 2: expansion gate
 
-Expand to all eight missing rates with five seeds only if both nonzero Stage-1
-rates have positive mean deltas and at least three of five seed-level deltas are
-positive. Cross-dataset experiments remain blocked until the IEMOCAPSix sweep
-is complete.
+Expand to all eight missing rates with five seeds only if Single-View retains or
+improves the two nonzero Dual-View means without introducing collapse. Original
+remains a contextual reference. Cross-dataset experiments remain blocked until
+the IEMOCAPSix sweep is complete.
 
 ## 12. Failure Interpretation
 
@@ -219,8 +224,9 @@ is complete.
   claim that natural-view latent prediction is sufficient.
 - Improvement only at one rate indicates rate-specific pattern dependence, not
   a general Single-View result.
-- No improvement with correct paired masks rejects the Single-View hypothesis;
-  it does not validate the previously stopped unpaired Dual-View sweep.
+- A material drop from the strictly paired Dual-View control rejects the
+  simplification hypothesis; it does not validate the previously stopped
+  cross-dataset sweep.
 - A rate-zero change before training indicates an implementation regression.
   A rate-zero difference after training may arise from auxiliary gradients
   changing shared parameters and must not be described as fixed-parameter path

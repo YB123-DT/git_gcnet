@@ -4,7 +4,7 @@
 
 **目标：** 让 PLCI 使用官方 Natural mask、Natural student latent 和同一次 GCNet hidden 计算 JEPA loss，删除 Single-View 路径的平衡辅助采样与第二次 GCNet forward。
 
-**架构：** 新增一个很薄的 `SingleViewPLCIJEPAGraphModel`，继承现有已测试的 PLCI 模型，只负责从 Natural view 中筛选不完整 utterance 并调用原 source-anchored predictor。共享训练器新增 `plci-single` 路由，Dual-View 的 `plci` 路由保持原行为；正式实验复用固定 mask bank 和已有 Original 结果。
+**架构：** 新增一个很薄的 `SingleViewPLCIJEPAGraphModel`，继承现有已测试的 PLCI 模型，只负责从 Natural view 中筛选不完整 utterance 并调用原 source-anchored predictor。共享训练器新增 `plci-single` 路由，Dual-View 的 `plci` 路由保持原行为；正式实验复用相同的确定性 Natural schedule 和已有 Dual-View/Original 结果。
 
 **技术栈：** Python 3、PyTorch、PyTorch Geometric、pytest、现有 GCNet/PLCI 训练器、SSH `biggpu`。
 
@@ -18,7 +18,7 @@
 - 修改：`gcnet_modality_jepa/train_gcnet.py`——新增 `plci-single` 路由及 Single-View loss 分支。
 - 修改：`tests/test_plci_training.py`——CLI、构造、参数校验与 Dual-View 不回归测试。
 - 创建：`scripts/run_plci_single_view_iemocap6.py`——只调度 0.0/0.5/0.7 × 5 seeds，继承 Original。
-- 创建：`tests/test_plci_single_view_runner.py`——任务矩阵、固定 mask、禁止 Original 重跑。
+- 创建：`tests/test_plci_single_view_runner.py`——任务矩阵、schedule hash 控制、禁止 Dual-View/Original 重跑。
 - 创建：`docs/experiments/plci-single-view-stage1.md`——正式命令、输出根目录和停止/扩展规则。
 
 ### 任务 1：锁定 Natural target selection
@@ -323,16 +323,15 @@ assert all("plci-single" in job.command for job in jobs)
 
 任何 `original` 训练命令都使测试失败。
 
-- [ ] **步骤 2：编写固定 mask 与碰撞测试**
+- [ ] **步骤 2：编写确定性 schedule 与碰撞测试**
 
 每个 job 必须包含：
 
 ```text
---mask-bank-root <existing-fixed-bank>
 --fold 5
 --seed <66..70>
 --mask-type constant-<rate>
---evaluation-protocol strict
+--evaluation-protocol official
 ```
 
 输出目录编码 dataset、fold、rate、seed 和方法；已完成 manifest 继承，半写目录
@@ -341,7 +340,7 @@ assert all("plci-single" in job.command for job in jobs)
 - [ ] **步骤 3：实现最小 runner**
 
 Runner 只负责生成命令、健康 GPU 分配、最多每卡三个任务以及状态汇总。它不生成
-mask bank、不运行 Original、不解析半写 manifest 为完成结果。
+新 mask sampler、不运行 Dual-View/Original、不解析半写 manifest 为完成结果。
 
 - [ ] **步骤 4：运行 runner 测试一次**
 
@@ -355,7 +354,7 @@ pytest -q tests/test_plci_single_view_runner.py
 
 - [ ] **步骤 5：提交正式 runner**
 
-文档记录输出根目录、Python 环境、GPU 排布、继承 Original 根目录和停止命令。
+文档记录输出根目录、Python 环境、GPU 排布、继承 Dual-View/Original 根目录和停止命令。
 
 ### 任务 5：远程一次预检并启动正式判别实验
 
@@ -385,7 +384,7 @@ pytest -q tests/test_plci_single_view_runner.py
 
 - dataset=`IEMOCAPSix`；
 - fold=`5`；
-- mask bank checksum 与 Original manifest 一致；
+- train/validation/test schedule config hash 与 Dual-View manifest 一致；
 - 15 个 PLCI-Single 任务；
 - 0 个 Original 任务；
 - GPU 仅使用健康且未被其他用户占用的卡。
@@ -397,6 +396,6 @@ pytest -q tests/test_plci_single_view_runner.py
 
 - [ ] **步骤 5：汇总严格配对结果**
 
-每个 rate 输出：PLCI-Single 五个 seed、Original 五个 inherited seed、均值、delta、
-正向 seed 数、最佳 epoch 与坍塌检查。0.5/0.7 均通过 Stage-1 gate 后，才生成全
-missing-rate 扩展计划。
+每个 rate 输出：PLCI-Single、Dual-View 和 Original 的五个 inherited/aligned
+seed，Single-vs-Dual 均值差、逐 seed 差、最佳 epoch 与坍塌检查。0.5/0.7 均通过
+Stage-1 gate 后，才生成全 missing-rate 扩展计划。
