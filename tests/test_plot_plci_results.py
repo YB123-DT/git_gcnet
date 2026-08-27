@@ -11,6 +11,7 @@ from scripts.plot_plci_results import (
     build_matrix,
     load_original_records,
     load_plci_records,
+    main,
     validate_grid,
     weighted_f1_score,
 )
@@ -103,6 +104,70 @@ class PlotResultCollectionTests(unittest.TestCase):
         validate_grid(records, [66], [0.0, 0.1], "PLCI")
         with self.assertRaisesRegex(ValueError, "seed=67"):
             validate_grid(records, [66, 67], [0.0, 0.1], "PLCI")
+
+    def test_main_writes_csv_and_all_figures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plci_root = root / "plci"
+            original_root = root / "original"
+            output_root = root / "figures"
+            for rate in (0.0, 0.1):
+                for seed in (66, 67):
+                    plci_dir = plci_root / f"miss_{rate:.1f}" / f"seed_{seed}"
+                    plci_dir.mkdir(parents=True)
+                    (plci_dir / "fold_metrics.json").write_text(
+                        json.dumps([{
+                            "seed": seed,
+                            "missing_rate": rate,
+                            "weighted_f1": 0.60 + rate + (seed - 66) / 100,
+                            "accuracy": 0.65,
+                        }]),
+                        encoding="utf-8",
+                    )
+                    saved = (
+                        original_root
+                        / f"miss_{str(rate).replace('.', 'p')}"
+                        / f"seed_{seed}"
+                        / "fold_5"
+                        / "saved"
+                    )
+                    saved.mkdir(parents=True)
+                    payload = {
+                        "test_labels": np.array([0, 0, 1, 1]),
+                        "test_preds": np.array([
+                            [2.0, 0.0], [2.0, 0.0],
+                            [0.0, 2.0], [2.0, 0.0],
+                        ]),
+                        "test_fmask": np.ones(4),
+                    }
+                    history = np.empty((1, 1), dtype=object)
+                    history[0, 0] = payload
+                    np.savez(saved / "result.npz", folder_savewhole=history)
+
+            exit_code = main([
+                "--dataset", "IEMOCAPSix",
+                "--plci-root", str(plci_root),
+                "--original-root", str(original_root),
+                "--out-dir", str(output_root),
+                "--seeds", "66", "67",
+                "--missing-rates", "0.0", "0.1",
+            ])
+            self.assertEqual(exit_code, 0)
+            expected = [
+                "scores.csv",
+                "mean_curve.png", "mean_curve.pdf",
+                "seed_curves.png", "seed_curves.pdf",
+                "score_heatmaps.png", "score_heatmaps.pdf",
+                "delta_heatmap.png", "delta_heatmap.pdf",
+                "delta_curve.png", "delta_curve.pdf",
+            ]
+            for name in expected:
+                path = output_root / name
+                self.assertTrue(path.is_file(), name)
+                self.assertGreater(path.stat().st_size, 0, name)
+            with (output_root / "scores.csv").open(newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(len(rows), 8)
 
 
 if __name__ == "__main__":
