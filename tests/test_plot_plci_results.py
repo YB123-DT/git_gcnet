@@ -72,6 +72,32 @@ class PlotResultCollectionTests(unittest.TestCase):
             self.assertEqual(len(records), 1)
             self.assertAlmostEqual(records[0].value, 52.0)
 
+    def test_concatenates_legacy_conversation_lists_and_ignores_modality_mask_as_weight(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            saved = (
+                Path(tmp) / "miss_0p4" / "seed_68" / "fold_5" / "saved"
+            )
+            saved.mkdir(parents=True)
+            payload = {
+                "test_labels": [np.array([0, 1]), np.array([1, 2, 2])],
+                "test_preds": [
+                    np.array([[2, 0, 0], [0, 2, 0]]),
+                    np.array([[0, 2, 0], [2, 0, 0], [0, 0, 2]]),
+                ],
+                "test_fmask": [np.ones((2, 3)), np.ones((3, 3))],
+            }
+            history = np.empty((1, 1), dtype=object)
+            history[0, 0] = payload
+            np.savez(saved / "legacy.npz", folder_savewhole=history)
+            records = load_original_records(
+                Path(tmp), "IEMOCAPSix", metric="weighted_f1"
+            )
+            expected = weighted_f1_score(
+                np.array([0, 1, 1, 2, 2]),
+                np.array([0, 1, 1, 0, 2]),
+            )
+            self.assertAlmostEqual(records[0].value, 100.0 * expected)
+
     def test_recomputes_original_mosi_nonzero_binary_weighted_f1(self):
         with tempfile.TemporaryDirectory() as tmp:
             saved = (

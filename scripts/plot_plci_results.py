@@ -147,14 +147,26 @@ def _saved_prediction_dict(npz: np.lib.npyio.NpzFile, path: Path) -> dict:
     return candidates[-1]
 
 
+def _concatenate_saved(value: object) -> np.ndarray:
+    if isinstance(value, (list, tuple)):
+        arrays = [np.asarray(item) for item in value]
+        if not arrays:
+            return np.asarray([])
+        return np.concatenate(arrays, axis=0)
+    return np.asarray(value)
+
+
 def _score_saved_predictions(payload: dict, dataset: str, metric: str) -> float:
-    labels = np.asarray(payload["test_labels"]).reshape(-1)
-    predictions = np.asarray(payload["test_preds"])
-    weights = np.asarray(
-        payload.get("test_fmask", np.ones(labels.shape[0])), dtype=np.float64
-    ).reshape(-1)
-    if weights.shape[0] != labels.shape[0]:
-        raise ValueError("test_fmask length does not match test_labels")
+    labels = _concatenate_saved(payload["test_labels"]).reshape(-1)
+    predictions = _concatenate_saved(payload["test_preds"])
+    raw_mask = _concatenate_saved(
+        payload.get("test_fmask", np.ones(labels.shape[0]))
+    )
+    weights = (
+        np.asarray(raw_mask, dtype=np.float64).reshape(-1)
+        if raw_mask.ndim == 1 and raw_mask.shape[0] == labels.shape[0]
+        else np.ones(labels.shape[0], dtype=np.float64)
+    )
 
     if dataset in {"CMUMOSI", "CMUMOSEI"}:
         predictions = predictions.reshape(-1)
@@ -367,7 +379,9 @@ def render_figures(
     finite = combined[np.isfinite(combined)]
     vmin = float(finite.min()) if finite.size else 0.0
     vmax = float(finite.max()) if finite.size else 1.0
-    figure, axes = plt.subplots(1, 2, figsize=(12.2, 4.4), sharey=True)
+    figure, axes = plt.subplots(
+        1, 2, figsize=(12.2, 4.4), sharey=True, constrained_layout=True
+    )
     image = None
     for axis, (method, matrix) in zip(axes, matrices.items()):
         image = axis.imshow(matrix, aspect="auto", cmap="viridis", vmin=vmin, vmax=vmax)
@@ -377,9 +391,10 @@ def render_figures(
         axis.set_xlabel("Missing rate")
         _annotate_heatmap(axis, matrix)
     axes[0].set_ylabel("Seed")
-    figure.colorbar(image, ax=axes, label=ylabel, shrink=0.86)
+    figure.colorbar(
+        image, ax=axes.ravel().tolist(), label=ylabel, shrink=0.86, pad=0.025
+    )
     figure.suptitle(f"{dataset}: score matrix")
-    figure.subplots_adjust(left=0.08, right=0.91, bottom=0.12, top=0.82, wspace=0.16)
     _save_figure(figure, out_dir, "score_heatmaps", formats, dpi)
     plt.close(figure)
 
