@@ -61,6 +61,7 @@ from gcnet_plci_jepa.patterns import (
     expand_modality_mask,
     sample_balanced_patterns,
 )
+from gcnet_plci_single_view.model import SingleViewPLCIJEPAGraphModel
 
 
 def set_random_seed(seed, strict_deterministic=False):
@@ -277,11 +278,24 @@ def get_loaders(
     raise ValueError("unsupported dataset: {}".format(dataset_name))
 
 
+def _plci_mode(args):
+    architecture = getattr(args, "jepa_architecture", "independent")
+    if architecture in {"plci", "plci-single"}:
+        return architecture
+    return None
+
+
 def build_model(args, adim, tdim, vdim):
     D_e = args.hidden
     graph_h = args.hidden // 2
-    if getattr(args, "jepa_architecture", "independent") == "plci":
-        model = PLCIJEPAGraphModel(
+    plci_mode = _plci_mode(args)
+    if plci_mode is not None:
+        model_class = (
+            SingleViewPLCIJEPAGraphModel
+            if plci_mode == "plci-single"
+            else PLCIJEPAGraphModel
+        )
+        model = model_class(
             args.base_model, adim, tdim, vdim, D_e, graph_h,
             n_speakers=args.n_speakers,
             window_past=args.windowp,
@@ -570,7 +584,7 @@ def compute_stability_reconstruction_loss(
 
 
 def validate_training_args(args):
-    if getattr(args, "jepa_architecture", "independent") == "plci":
+    if _plci_mode(args) is not None:
         incompatible = (
             (not args.loss_recon, "--loss-recon is required"),
             (args.reccls_flag, "--reccls-flag is unsupported"),
@@ -743,6 +757,55 @@ def build_loss_vector(
     ]
 
 
+def _compute_plci_training_loss(
+    *,
+    mode,
+    model,
+    full_features,
+    natural_availability,
+    qmask,
+    umask,
+    lengths,
+    natural_latents,
+    natural_hidden,
+    dimensions,
+    auxiliary_generator,
+):
+    if mode == "plci-single":
+        predictions = model.predict_natural(
+            natural_latents,
+            natural_hidden,
+            natural_availability,
+            umask,
+        )
+        selected_availability = natural_availability
+    elif mode == "plci":
+        if auxiliary_generator is None:
+            raise ValueError("Dual-View PLCI requires an auxiliary generator")
+        selected_availability = sample_balanced_patterns(
+            umask,
+            auxiliary_generator,
+        )
+        expanded = expand_modality_mask(
+            selected_availability,
+            dimensions,
+        ).to(dtype=full_features.dtype)
+        predictions, _, _ = model.forward_auxiliary(
+            full_features * expanded,
+            selected_availability,
+            qmask,
+            umask,
+            lengths,
+        )
+    else:
+        raise ValueError("PLCI mode must be plci or plci-single")
+
+    with torch.no_grad():
+        teacher_targets = model.encode_teacher_targets(full_features)
+    loss, counts = plci_jepa_loss(predictions, teacher_targets)
+    return loss, counts, selected_availability
+
+
 def train_or_eval_model(
     args,
     model,
@@ -845,7 +908,10 @@ def _train_or_eval_model_impl(
     mask_missing_elements = 0
     mask_total_elements = 0
     pre_clip_gradient_norms = []
-    plci_pattern_counts = {"{}{}{}".format(*pattern): 0 for pattern in ACTIVE_PATTERNS}
+    plci_pattern_counts = {
+        "{}{}{}".format(*pattern): 0
+        for pattern in ACTIVE_PATTERNS + ((1, 1, 1),)
+    }
     plci_ema_steps_before = int(getattr(model, "ema_step", 0))
 
     dataset = args.dataset
@@ -858,11 +924,13 @@ def _train_or_eval_model_impl(
         model.train()
     else:
         model.eval()
-    plci_enabled = getattr(args, "jepa_architecture", "independent") == "plci"
+    plci_mode = _plci_mode(args)
+    plci_enabled = plci_mode is not None
+    plci_dual_view = plci_mode == "plci"
     enable_prediction = (
         bool(mask_rate and args.jepa_weight) if not plci_enabled else False
     )
-    if plci_enabled and train and plci_aux_generator is None:
+    if plci_dual_view and train and plci_aux_generator is None:
         plci_aux_generator = torch.Generator(device="cpu")
         explicit_seed = getattr(args, "plci_aux_seed", None)
         plci_aux_generator.manual_seed(
@@ -994,8 +1062,14 @@ def _train_or_eval_model_impl(
         # log_prob: [seqlen, batch, num_classes]
         # input_features_recon # padded, ?*[seqlen, batch, dim]
         '''
+        natural_latents = None
         if plci_enabled:
-            log_prob, recon_input_features, hidden, _ = model.forward_natural(
+            (
+                log_prob,
+                recon_input_features,
+                hidden,
+                natural_latents,
+            ) = model.forward_natural(
                 masked_input_features,
                 input_features_mask[0],
                 qmask,
@@ -1095,30 +1169,26 @@ def _train_or_eval_model_impl(
         else:
             loss4 = log_prob.new_zeros(())
         if plci_enabled and train:
-            auxiliary_availability = sample_balanced_patterns(
-                umask, plci_aux_generator
+            loss3, missing_counts, selected_availability = (
+                _compute_plci_training_loss(
+                    mode=plci_mode,
+                    model=model,
+                    full_features=input_features[0],
+                    natural_availability=input_features_mask[0],
+                    qmask=qmask,
+                    umask=umask,
+                    lengths=lengths,
+                    natural_latents=natural_latents,
+                    natural_hidden=hidden,
+                    dimensions=(adim, tdim, vdim),
+                    auxiliary_generator=plci_aux_generator,
+                )
             )
-            expanded_auxiliary = expand_modality_mask(
-                auxiliary_availability, (adim, tdim, vdim)
-            ).to(dtype=input_features[0].dtype)
-            auxiliary_source = input_features[0] * expanded_auxiliary
-            auxiliary_predictions, _, _ = model.forward_auxiliary(
-                auxiliary_source,
-                auxiliary_availability,
-                qmask,
-                umask,
-                lengths,
-            )
-            with torch.no_grad():
-                teacher_targets = model.encode_teacher_targets(input_features[0])
-            loss3, missing_counts = plci_jepa_loss(
-                auxiliary_predictions, teacher_targets
-            )
-            valid_auxiliary = auxiliary_availability[umask.T.bool()]
-            for pattern in ACTIVE_PATTERNS:
+            valid_plci = selected_availability[umask.T.bool()]
+            for pattern in ACTIVE_PATTERNS + ((1, 1, 1),):
                 key = "{}{}{}".format(*pattern)
                 plci_pattern_counts[key] += int(
-                    (valid_auxiliary == valid_auxiliary.new_tensor(pattern))
+                    (valid_plci == valid_plci.new_tensor(pattern))
                     .all(dim=-1).sum().item()
                 )
         elif plci_enabled:
@@ -1550,7 +1620,7 @@ def run_training_fold(
     if evaluation_fn is None:
         evaluation_fn = train_or_eval_model
     plci_aux_generator = None
-    if getattr(args, "jepa_architecture", "independent") == "plci":
+    if _plci_mode(args) == "plci":
         plci_aux_generator = torch.Generator(device="cpu")
         explicit_seed = getattr(args, "plci_aux_seed", None)
         plci_aux_generator.manual_seed(
@@ -1781,7 +1851,7 @@ def build_argument_parser():
     parser.add_argument('--reccls-flag', action='store_true', default=False, help='whether to use reconstrctuion features for classification')
     parser.add_argument('--lower-bound', action='store_true', default=False, help='whether remove missing modality in the training process')
     parser.add_argument('--jepa-weight', type=float, default=0.1, help='centered modality prediction loss weight')
-    parser.add_argument('--jepa-architecture', choices=['independent', 'plci'], default='independent')
+    parser.add_argument('--jepa-architecture', choices=['independent', 'plci', 'plci-single'], default='independent')
     parser.add_argument('--plci-latent-dim', type=int, default=256)
     parser.add_argument('--plci-source-dim', type=int, default=256)
     parser.add_argument('--plci-context-rank', type=int, default=32)
