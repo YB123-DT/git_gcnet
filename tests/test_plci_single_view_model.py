@@ -97,3 +97,57 @@ def test_natural_prediction_rejects_zero_pattern_at_valid_utterance():
 
     with pytest.raises(ValueError, match="pattern"):
         model.forward_natural(masked, availability, qmask, umask, lengths)
+
+
+def test_natural_missing_target_never_enters_student_hidden_or_prediction():
+    model = SingleViewPLCIJEPAGraphModel(**model_arguments()).eval()
+    full, masked, availability, qmask, umask, lengths = inputs()
+    _, _, hidden_1, latents_1 = model.forward_natural(
+        masked, availability, qmask, umask, lengths
+    )
+    predictions_1 = model.predict_natural(
+        latents_1, hidden_1, availability, umask
+    )
+    teacher_1 = model.encode_teacher_targets(full[0])
+
+    changed_full = full[0].clone()
+    changed_full[0, 0, 2:5].add_(1000.0)
+    _, _, hidden_2, latents_2 = model.forward_natural(
+        masked, availability, qmask, umask, lengths
+    )
+    predictions_2 = model.predict_natural(
+        latents_2, hidden_2, availability, umask
+    )
+    teacher_2 = model.encode_teacher_targets(changed_full)
+
+    torch.testing.assert_close(hidden_1, hidden_2, rtol=0, atol=0)
+    for first, second in zip(predictions_1.targets, predictions_2.targets):
+        torch.testing.assert_close(first.paths, second.paths, rtol=0, atol=0)
+    assert not torch.equal(teacher_1["text"][0, 0], teacher_2["text"][0, 0])
+
+
+def test_single_view_objective_reaches_student_predictor_and_gcnet_not_teacher():
+    model = SingleViewPLCIJEPAGraphModel(**model_arguments()).train()
+    full, masked, availability, qmask, umask, lengths = inputs()
+    log_prob, reconstruction, hidden, latents = model.forward_natural(
+        masked, availability, qmask, umask, lengths
+    )
+    predictions = model.predict_natural(latents, hidden, availability, umask)
+    teacher_targets = model.encode_teacher_targets(full[0])
+    jepa_loss, _ = plci_jepa_loss(predictions, teacher_targets)
+
+    (log_prob.sum() + reconstruction[0].sum() + jepa_loss).backward()
+
+    groups = (
+        model.student_adapter.projectors.parameters(),
+        model.predictor.parameters(),
+        model.graph_net_temporal.parameters(),
+    )
+    for parameters in groups:
+        gradients = [
+            parameter.grad for parameter in parameters if parameter.grad is not None
+        ]
+        assert gradients
+        assert all(torch.isfinite(gradient).all() for gradient in gradients)
+        assert sum(gradient.abs().sum().item() for gradient in gradients) > 0
+    assert all(parameter.grad is None for parameter in model.teacher.parameters())
