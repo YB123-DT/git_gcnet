@@ -55,6 +55,7 @@ class TrainConfig:
     top_k: int = 2
     projector_dropout: float = 0.1
     predictor_dropout: float = 0.1
+    fusion_type: str = "mean"
     jepa_weight: float = 0.1
     temperature: float = 0.03
     ema_tau: float = 0.996
@@ -462,6 +463,7 @@ def run_experiment(
         top_k=config_value.top_k,
         projector_dropout=config_value.projector_dropout,
         predictor_dropout=config_value.predictor_dropout,
+        fusion_type=config_value.fusion_type,
     ).to(device)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -592,6 +594,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--latent-dim", type=int, default=256)
     parser.add_argument("--num-experts", type=int, default=4)
     parser.add_argument("--top-k", type=int, default=2)
+    parser.add_argument(
+        "--fusion-type", choices=("mean", "slot"), default="mean"
+    )
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--l2", type=float, default=1e-5)
     parser.add_argument("--dropout", type=float, default=0.5)
@@ -627,6 +632,7 @@ def main() -> None:
         latent_dim=args.latent_dim,
         num_experts=args.num_experts,
         top_k=args.top_k,
+        fusion_type=args.fusion_type,
         jepa_weight=args.jepa_weight,
         temperature=args.temperature,
         ema_tau=args.ema_tau,

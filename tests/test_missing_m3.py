@@ -19,6 +19,7 @@ from gcnet_missing_m3.train_gcnet import (
     _dataset_shape,
     _metrics,
     _task_loss,
+    build_parser,
 )
 
 
@@ -74,6 +75,92 @@ def test_observed_set_encoder_zeros_padding():
 
     assert torch.count_nonzero(node[2]) == 0
     assert all(torch.count_nonzero(value[2]) == 0 for value in latents.values())
+
+
+def test_slot_fusion_supports_seven_patterns_without_missing_value_leakage():
+    torch.manual_seed(13)
+    encoder = ObservedSetEncoder(
+        (2, 3, 4), latent_dim=8, dropout=0.0, fusion_type="slot"
+    ).eval()
+    availability = _all_patterns()
+    umask = torch.ones(1, 7)
+    features = torch.randn(7, 1, 9)
+    changed = features.clone()
+    expanded = torch.repeat_interleave(
+        availability, torch.tensor((2, 3, 4)), dim=-1
+    )
+    changed[expanded == 0] += 10_000.0
+
+    first, _ = encoder(features, availability, umask)
+    second, _ = encoder(changed, availability, umask)
+
+    assert first.shape == (7, 1, 8)
+    ASSERT_CLOSE(first, second, rtol=0, atol=0)
+
+
+def test_slot_fusion_keeps_audio_text_and_visual_in_fixed_distinct_slots():
+    torch.manual_seed(19)
+    encoder = ObservedSetEncoder(
+        (1, 1, 1), latent_dim=4, dropout=0.0, fusion_type="slot"
+    ).eval()
+    availability = torch.tensor(
+        [[[1, 0, 0]], [[0, 1, 0]], [[0, 0, 1]]], dtype=torch.float32
+    )
+    captured = []
+    handle = encoder.fusion[0].register_forward_pre_hook(
+        lambda _module, values: captured.append(values[0].detach().clone())
+    )
+
+    encoder(torch.ones(3, 1, 3), availability, torch.ones(1, 3))
+    handle.remove()
+
+    fusion_input = captured[0]
+    assert fusion_input.shape == (3, 16)
+    for row, active_slot in enumerate((0, 1, 2)):
+        modality_slots = fusion_input[row, :12].reshape(3, 4)
+        assert torch.count_nonzero(modality_slots[active_slot]) > 0
+        inactive = [index for index in range(3) if index != active_slot]
+        assert torch.count_nonzero(modality_slots[inactive]) == 0
+
+
+def test_default_mean_fusion_is_exactly_backward_compatible():
+    torch.manual_seed(23)
+    default = ObservedSetEncoder((2, 3, 4), latent_dim=8, dropout=0.0).eval()
+    torch.manual_seed(23)
+    explicit = ObservedSetEncoder(
+        (2, 3, 4), latent_dim=8, dropout=0.0, fusion_type="mean"
+    ).eval()
+    availability = _all_patterns()
+    features = torch.randn(7, 1, 9)
+    umask = torch.ones(1, 7)
+
+    assert default.state_dict().keys() == explicit.state_dict().keys()
+    for key, value in default.state_dict().items():
+        ASSERT_CLOSE(value, explicit.state_dict()[key], rtol=0, atol=0)
+    first, _ = default(features, availability, umask)
+    second, _ = explicit(features, availability, umask)
+    ASSERT_CLOSE(first, second, rtol=0, atol=0)
+
+
+def test_fusion_type_is_validated_and_exposed_by_cli():
+    with pytest.raises(ValueError, match="fusion_type"):
+        ObservedSetEncoder((2, 3, 4), latent_dim=8, fusion_type="attention")
+
+    args = build_parser().parse_args(
+        [
+            "--audio-feature",
+            "a",
+            "--text-feature",
+            "t",
+            "--video-feature",
+            "v",
+            "--output-dir",
+            "out",
+            "--fusion-type",
+            "slot",
+        ]
+    )
+    assert args.fusion_type == "slot"
 
 
 def test_contextual_m3_selects_true_missing_targets_and_averages_two_sources(monkeypatch):

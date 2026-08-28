@@ -65,12 +65,16 @@ class ObservedSetEncoder(nn.Module):
         dimensions: Tuple[int, int, int],
         latent_dim: int,
         dropout: float = 0.1,
+        fusion_type: str = "mean",
     ) -> None:
         super().__init__()
         if len(dimensions) != 3 or any(int(value) <= 0 for value in dimensions):
             raise ValueError("dimensions must contain three positive integers")
+        if fusion_type not in {"mean", "slot"}:
+            raise ValueError("fusion_type must be 'mean' or 'slot'")
         self.dimensions = tuple(int(value) for value in dimensions)
         self.latent_dim = int(latent_dim)
+        self.fusion_type = fusion_type
         self.projectors = nn.ModuleDict(
             {
                 name: ModalityProjector(width, latent_dim, dropout)
@@ -79,9 +83,10 @@ class ObservedSetEncoder(nn.Module):
         )
         self.modality_embedding = nn.Embedding(3, latent_dim)
         self.pattern_embedding = nn.Embedding(8, latent_dim, padding_idx=0)
+        fusion_input_dim = latent_dim if fusion_type == "mean" else 4 * latent_dim
         self.fusion = nn.Sequential(
-            nn.LayerNorm(latent_dim),
-            nn.Linear(latent_dim, latent_dim),
+            nn.LayerNorm(fusion_input_dim),
+            nn.Linear(fusion_input_dim, latent_dim),
             nn.GELU(),
             nn.Dropout(dropout),
         )
@@ -120,6 +125,7 @@ class ObservedSetEncoder(nn.Module):
         latent_shape = (*features.shape[:2], self.latent_dim)
         latents: Dict[str, torch.Tensor] = {}
         evidence = features.new_zeros(latent_shape)
+        slots = []
         start = 0
         for index, (name, width) in enumerate(zip(MODALITIES, self.dimensions)):
             block = features[..., start : start + width]
@@ -129,6 +135,9 @@ class ObservedSetEncoder(nn.Module):
                 projected = self.projectors[name](block[selected])
                 latent[selected] = projected
                 evidence[selected] += projected + self.modality_embedding.weight[index]
+            slot = latent.clone()
+            slot[selected] += self.modality_embedding.weight[index]
+            slots.append(slot)
             latents[name] = latent
             start += width
 
@@ -138,9 +147,13 @@ class ObservedSetEncoder(nn.Module):
             + availability[..., 1].long() * 2
             + availability[..., 2].long()
         )
-        pooled = evidence / count + self.pattern_embedding(pattern_id)
+        pattern = self.pattern_embedding(pattern_id)
+        if self.fusion_type == "mean":
+            fusion_input = evidence / count + pattern
+        else:
+            fusion_input = torch.cat([*slots, pattern], dim=-1)
         node = features.new_zeros(latent_shape)
-        node[valid] = self.fusion(pooled[valid])
+        node[valid] = self.fusion(fusion_input[valid])
         return node, latents
 
 
@@ -321,6 +334,7 @@ class MissingM3GraphModel(GraphModel):
         top_k=2,
         projector_dropout=0.1,
         predictor_dropout=0.1,
+        fusion_type="mean",
     ) -> None:
         super().__init__(
             base_model,
@@ -341,7 +355,10 @@ class MissingM3GraphModel(GraphModel):
         self.dimensions = (adim, tdim, vdim)
         self.latent_dim = int(latent_dim)
         self.observed_set = ObservedSetEncoder(
-            self.dimensions, latent_dim, projector_dropout
+            self.dimensions,
+            latent_dim,
+            projector_dropout,
+            fusion_type=fusion_type,
         )
         self.teacher = EMATeacherProjectors(self.observed_set.projectors)
         if base_model == "LSTM":
