@@ -1,0 +1,38 @@
+{
+  "datasets": ["IEMOCAPFour", "CMUMOSI", "CMUMOSEI"],
+  "seeds": [66, 67, 68, 69, 70],
+  "rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+  "protocol": "one balanced mixed-rate checkpoint per dataset and seed; equal eight-rate validation W-F1 selection",
+  "weighted_f1_percent_mean_sd": {
+    "IEMOCAPFour": {
+      "0.0": [85.26, 0.79], "0.1": [85.27, 0.79],
+      "0.2": [84.47, 1.25], "0.3": [84.03, 0.44],
+      "0.4": [83.44, 1.07], "0.5": [82.46, 1.61],
+      "0.6": [81.88, 1.12], "0.7": [81.60, 1.57]
+    },
+    "CMUMOSI": {
+      "0.0": [85.44, 1.44], "0.1": [82.52, 2.12],
+      "0.2": [80.72, 1.50], "0.3": [79.06, 2.75],
+      "0.4": [76.84, 3.01], "0.5": [74.06, 3.05],
+      "0.6": [74.27, 1.67], "0.7": [71.29, 2.47]
+    },
+    "CMUMOSEI": {
+      "0.0": [86.43, 0.88], "0.1": [85.71, 0.53],
+      "0.2": [84.66, 0.81], "0.3": [83.98, 0.86],
+      "0.4": [83.14, 0.53], "0.5": [82.28, 0.63],
+      "0.6": [81.42, 0.62], "0.7": [80.65, 1.20]
+    }
+  },
+  "best_epochs": {
+    "IEMOCAPFour": {"66": 60, "67": 69, "68": 75, "69": 94, "70": 90},
+    "CMUMOSI": {"66": 44, "67": 92, "68": 41, "69": 50, "70": 79},
+    "CMUMOSEI": {"66": 16, "67": 32, "68": 27, "69": 42, "70": 30}
+  },
+  "verification": {
+    "formal_runs": 15,
+    "prediction_archives": 120,
+    "recomputed_archives": 120,
+    "failed_runs": 0
+  },
+  "attribution_warning": "Observed-set construction, mixed-rate training, and M3 loss changed together; run the matched lambda_J=0 control before attributing gains to M3."
+}
