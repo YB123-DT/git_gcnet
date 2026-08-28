@@ -59,3 +59,66 @@ runs.
 Do not launch other missing rates or datasets until all 15 jobs finish and the
 Single-vs-Dual paired table is audited. Expansion requires no collapse and no
 material loss at both active rates `0.5` and `0.7`.
+
+## Completed Results — 2026-08-27
+
+All 15 Single-View jobs completed successfully. All 15 pairs matched the
+existing Dual-View control in both conversation-mask schedule hash and shared
+initialization hash. Values below are Fold-5 test weighted F1 in percent.
+
+| Missing rate | Seed | Single-View | Dual-View | Paired delta |
+| --- | ---: | ---: | ---: | ---: |
+| 0.0 | 66 | 62.75 | 63.22 | -0.47 |
+| 0.0 | 67 | 62.72 | 60.80 | +1.93 |
+| 0.0 | 68 | 62.43 | 63.65 | -1.22 |
+| 0.0 | 69 | 63.16 | 62.63 | +0.53 |
+| 0.0 | 70 | 65.79 | 65.27 | +0.52 |
+| 0.5 | 66 | 60.54 | 61.63 | -1.09 |
+| 0.5 | 67 | 66.22 | 63.60 | +2.62 |
+| 0.5 | 68 | 63.68 | 62.67 | +1.01 |
+| 0.5 | 69 | 64.71 | 61.79 | +2.92 |
+| 0.5 | 70 | 63.29 | 66.19 | -2.91 |
+| 0.7 | 66 | 61.97 | 62.00 | -0.03 |
+| 0.7 | 67 | 64.53 | 63.72 | +0.81 |
+| 0.7 | 68 | 59.99 | 61.87 | -1.87 |
+| 0.7 | 69 | 61.73 | 63.62 | -1.89 |
+| 0.7 | 70 | 60.07 | 62.43 | -2.37 |
+
+Five-seed summaries report mean plus or minus sample standard deviation.
+
+| Missing rate | Single-View | Dual-View | Mean paired delta | Positive seeds | Paired t-test p |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0.0 | 63.37 +/- 1.38 | 63.11 +/- 1.62 | +0.26 | 3/5 | 0.652 |
+| 0.5 | 63.69 +/- 2.09 | 63.18 +/- 1.86 | +0.51 | 3/5 | 0.671 |
+| 0.7 | 61.66 +/- 1.85 | 62.73 +/- 0.89 | -1.07 | 1/5 | 0.158 |
+
+The non-zero-rate gate fails. Single-View gives a small, seed-sensitive gain at
+`0.5`, but loses `1.07` F1 on average at `0.7`, with only one of five paired
+seeds improving. No paired difference is statistically significant with five
+seeds. Do not expand this Single-View variant to the remaining missing rates or
+other datasets in its current form.
+
+The `jepa_loss=0`, zero pattern counts, and zero EMA steps stored in
+`fold_metrics.json` describe the final test-only pass, where JEPA is disabled.
+They do not mean that JEPA was absent during training: the training logs contain
+non-zero `train_loss3` at rates `0.5` and `0.7` (for example, seed 66 ends at
+`0.0545` and `0.1103`, respectively). At rate `0.0`, Single-View has no missing
+Natural targets, so its JEPA term is correctly zero.
+
+## Decision
+
+**FAIL — close the current natural-mask-only Single-View variant.** Retain the
+Dual-View pattern-balanced auxiliary route as the stronger PLCI formulation.
+The result supports the original reason for the auxiliary view: the Natural
+mask distribution alone does not provide sufficiently balanced supervision at
+high missingness.
+
+## Operational Record
+
+The first launcher attempt exited before training because the isolated remote
+code directory contained labels but not the large feature directories. Its logs
+were preserved at
+`/data2/yb/paper/experiments/plci_single_view_iemocap6_stage1_20260827_startup_failed_features_missing`.
+The isolated directory now links its `dataset/IEMOCAP/features` path to the
+shared feature store. A real Fold-5 batch was loaded before the successful
+launcher was started.
