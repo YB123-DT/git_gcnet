@@ -584,9 +584,13 @@ def compute_stability_reconstruction_loss(
 
 
 def validate_training_args(args):
-    if _plci_mode(args) is not None:
+    plci_mode = _plci_mode(args)
+    if plci_mode is not None:
         incompatible = (
-            (not args.loss_recon, "--loss-recon is required"),
+            (
+                plci_mode == "plci" and not args.loss_recon,
+                "--loss-recon is required",
+            ),
             (args.reccls_flag, "--reccls-flag is unsupported"),
             (args.lower_bound, "--lower-bound is unsupported"),
             (args.reconstruction_target != "missing", "--reconstruction-target must be missing"),

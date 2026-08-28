@@ -98,6 +98,53 @@ def test_cli_selects_continuation_rates_and_seeds_without_control_audit():
     assert args.audit_dual_view_controls is False
 
 
+def test_no_reconstruction_variant_removes_only_the_reconstruction_loss_flag():
+    with_reconstruction = build_jobs(
+        output_root=Path("/with-reconstruction"),
+        python="/env/bin/python",
+        gpus=(0,),
+        jobs_per_gpu=1,
+        rates=(0.5,),
+        seeds=(66,),
+        epochs=100,
+        loss_recon=True,
+    )[0]
+    without_reconstruction = build_jobs(
+        output_root=Path("/without-reconstruction"),
+        python="/env/bin/python",
+        gpus=(0,),
+        jobs_per_gpu=1,
+        rates=(0.5,),
+        seeds=(66,),
+        epochs=100,
+        loss_recon=False,
+    )[0]
+
+    assert "--loss-recon" in with_reconstruction.command
+    assert "--loss-recon" not in without_reconstruction.command
+    assert with_reconstruction.loss_recon is True
+    assert without_reconstruction.loss_recon is False
+    assert with_reconstruction.identity == (
+        "IEMOCAPSix:plci-single:fold5:rate0.5:seed66"
+    )
+    assert without_reconstruction.identity.endswith(":recon0")
+    assert with_reconstruction.identity != without_reconstruction.identity
+
+
+def test_cli_disables_reconstruction_loss_explicitly():
+    args = _parse_args(
+        [
+            "--output-root",
+            "/outputs",
+            "--python",
+            "/env/bin/python",
+            "--no-loss-recon",
+        ]
+    )
+
+    assert args.loss_recon is False
+
+
 @pytest.mark.parametrize(
     "kwargs, message",
     [

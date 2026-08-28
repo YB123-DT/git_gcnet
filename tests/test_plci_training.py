@@ -102,7 +102,6 @@ def test_single_view_loss_uses_natural_state_without_balanced_sampler():
 @pytest.mark.parametrize(
     "override",
     [
-        {"loss_recon": False},
         {"reccls_flag": True},
         {"lower_bound": True},
         {"reconstruction_target": "full_fused"},
@@ -119,6 +118,19 @@ def test_plci_rejects_incompatible_or_invalid_options(architecture, override):
     options.update(override)
     with pytest.raises(ValueError):
         validate_training_args(_args(**options))
+
+
+def test_dual_view_still_requires_inherited_reconstruction_objective():
+    with pytest.raises(ValueError, match="--loss-recon is required"):
+        validate_training_args(
+            _args(jepa_architecture="plci", loss_recon=False)
+        )
+
+
+def test_single_view_allows_latent_prediction_to_replace_reconstruction():
+    validate_training_args(
+        _args(jepa_architecture="plci-single", loss_recon=False)
+    )
 
 
 def test_ema_callback_runs_strictly_after_optimizer_step():

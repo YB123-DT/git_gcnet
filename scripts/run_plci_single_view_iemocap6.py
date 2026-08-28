@@ -37,19 +37,21 @@ class SingleViewJob:
     gpu: int
     slot: int
     epochs: int
+    loss_recon: bool
     output_dir: Path
     dual_view_dir: Path
     command: Tuple[str, ...]
 
     @property
     def identity(self) -> str:
-        return "{}:{}:fold{}:rate{:.1f}:seed{}".format(
+        identity = "{}:{}:fold{}:rate{:.1f}:seed{}".format(
             DATASET,
             self.method,
             FOLD,
             self.rate,
             self.seed,
         )
+        return identity if self.loss_recon else identity + ":recon0"
 
 
 def _rate_directory(rate: float) -> str:
@@ -74,6 +76,7 @@ def _training_command(
     seed: int,
     epochs: int,
     output_dir: Path,
+    loss_recon: bool,
 ) -> Tuple[str, ...]:
     return (
         python,
@@ -116,7 +119,7 @@ def _training_command(
         "0.1",
         "--stability-recon-weight",
         "0",
-        "--loss-recon",
+        *(("--loss-recon",) if loss_recon else ()),
         "--jepa-weight",
         "0.1",
         "--jepa-architecture",
@@ -139,6 +142,7 @@ def build_jobs(
     rates: Sequence[float] = STAGE1_RATES,
     seeds: Sequence[int] = STAGE1_SEEDS,
     epochs: int = 100,
+    loss_recon: bool = True,
     dual_view_root: Path = DEFAULT_DUAL_VIEW_ROOT,
 ) -> List[SingleViewJob]:
     normalized_gpus = tuple(int(gpu) for gpu in gpus)
@@ -190,6 +194,7 @@ def build_jobs(
                 gpu=gpu,
                 slot=slot,
                 epochs=epochs,
+                loss_recon=bool(loss_recon),
                 output_dir=output_dir,
                 dual_view_dir=Path(dual_view_root) / relative,
                 command=_training_command(
@@ -198,6 +203,7 @@ def build_jobs(
                     seed,
                     epochs,
                     output_dir,
+                    bool(loss_recon),
                 ),
             )
         )
@@ -358,6 +364,13 @@ def _parse_args(argv=None):
         default=list(STAGE1_SEEDS),
     )
     parser.add_argument("--audit-dual-view-controls", action="store_true")
+    parser.add_argument(
+        "--no-loss-recon",
+        action="store_false",
+        dest="loss_recon",
+        help="disable the inherited raw-feature reconstruction objective",
+    )
+    parser.set_defaults(loss_recon=True)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args(argv)
@@ -373,6 +386,7 @@ def main() -> int:
         rates=args.missing_rates,
         seeds=args.seeds,
         epochs=args.epochs,
+        loss_recon=args.loss_recon,
     )
     if args.audit_dual_view_controls:
         audit_dual_view_controls(jobs)
