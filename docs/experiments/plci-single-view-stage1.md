@@ -4,16 +4,19 @@
 
 - Dataset: `IEMOCAPSix`
 - Fold: `5`
-- Rates: `0.0`, `0.5`, `0.7`
+- Initial rates: `0.0`, `0.5`, `0.7`
+- Continuation rates: `0.1`, `0.2`, `0.3`, `0.4`, `0.6`
 - Seeds: `66`, `67`, `68`, `69`, `70`
-- New training jobs: `15`
+- Initial training jobs: `15`
+- Continuation training jobs: `25`
+- Total Single-View jobs after continuation: `40`
 - Dual-View jobs rerun: `0`
 - Original jobs rerun: `0`
 
-The primary A/B is Single-View versus the existing Dual-View PLCI runs. Both
-use `gcnet_modality_jepa.train_gcnet`, `evaluation_protocol=official`,
-`stability_recon_weight=0`, and the same deterministic conversation-mask
-schedule. Original is retained as secondary context.
+The primary output is the standalone Single-View performance curve over all
+eight missing rates. Dual-View is not the acceptance baseline; its existing
+results are retained only as an optional architecture ablation. Neither
+Dual-View nor Original is rerun by this continuation.
 
 ## Remote Paths
 
@@ -54,11 +57,12 @@ Only processes whose command contains both
 belong to this experiment. Do not terminate other users or unrelated GCNet
 runs.
 
-## Expansion Gate
+## Initial Expansion Decision
 
-Do not launch other missing rates or datasets until all 15 jobs finish and the
-Single-vs-Dual paired table is audited. Expansion requires no collapse and no
-material loss at both active rates `0.5` and `0.7`.
+The initial three-rate run completed without collapse and produced usable
+standalone scores. Following the author decision, run the remaining five rates
+before making a final method-level decision. Do not use a comparison with
+Dual-View alone to close the Single-View route.
 
 ## Completed Results — 2026-08-27
 
@@ -92,11 +96,11 @@ Five-seed summaries report mean plus or minus sample standard deviation.
 | 0.5 | 63.69 +/- 2.09 | 63.18 +/- 1.86 | +0.51 | 3/5 | 0.671 |
 | 0.7 | 61.66 +/- 1.85 | 62.73 +/- 0.89 | -1.07 | 1/5 | 0.158 |
 
-The non-zero-rate gate fails. Single-View gives a small, seed-sensitive gain at
-`0.5`, but loses `1.07` F1 on average at `0.7`, with only one of five paired
-seeds improving. No paired difference is statistically significant with five
-seeds. Do not expand this Single-View variant to the remaining missing rates or
-other datasets in its current form.
+The table above is retained as an optional architectural comparison, not as the
+acceptance criterion for Single-View. No paired difference is statistically
+significant with five seeds. The standalone scores at `0.5` and `0.7` justify
+recording the complete eight-rate curve before making a final method-level
+decision.
 
 The `jepa_loss=0`, zero pattern counts, and zero EMA steps stored in
 `fold_metrics.json` describe the final test-only pass, where JEPA is disabled.
@@ -105,13 +109,36 @@ non-zero `train_loss3` at rates `0.5` and `0.7` (for example, seed 66 ends at
 `0.0545` and `0.1103`, respectively). At rate `0.0`, Single-View has no missing
 Natural targets, so its JEPA term is correctly zero.
 
-## Decision
+## Current Decision
 
-**FAIL — close the current natural-mask-only Single-View variant.** Retain the
-Dual-View pattern-balanced auxiliary route as the stronger PLCI formulation.
-The result supports the original reason for the auxiliary view: the Natural
-mask distribution alone does not provide sufficiently balanced supervision at
-high missingness.
+**CONTINUE — complete the Single-View missing-rate sweep.** Do not treat
+Dual-View as the primary comparator. After all 40 Single-View runs finish,
+report the eight-rate five-seed curve on its own; any baseline comparison must
+be labelled separately and audited for protocol compatibility.
+
+## Full-Rate Continuation Launch — 2026-08-28
+
+The same runner was extended with explicit `--missing-rates` and `--seeds`
+selectors. A dry run generated 40 identities, inherited the 15 completed jobs,
+and selected exactly 25 new jobs at rates `0.1`, `0.2`, `0.3`, `0.4`, and
+`0.6`. It generated zero Original commands and does not require a Dual-View
+control audit.
+
+```bash
+cd /data2/yb/paper/GCNet_TPAMI_single_view_dev
+/data2/yb/reproduction_envs/gcnet-official/bin/python \
+  scripts/run_plci_single_view_iemocap6.py \
+  --output-root /data2/yb/paper/experiments/plci_single_view_iemocap6_stage1_20260827 \
+  --python /data2/yb/reproduction_envs/gcnet-official/bin/python \
+  --gpus 0 1 2 \
+  --jobs-per-gpu 3 \
+  --epochs 100 \
+  --missing-rates 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 \
+  --seeds 66 67 68 69 70
+```
+
+Launcher log:
+`/data2/yb/paper/plci_single_view_all_rates_launcher_20260828.log`.
 
 ## Operational Record
 

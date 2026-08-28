@@ -21,7 +21,7 @@ DATASET = "IEMOCAPSix"
 FOLD = 5
 STAGE1_RATES = (0.0, 0.5, 0.7)
 STAGE1_SEEDS = (66, 67, 68, 69, 70)
-ALLOWED_RATES = STAGE1_RATES
+ALLOWED_RATES = tuple(index / 10.0 for index in range(8))
 ALLOWED_SEEDS = STAGE1_SEEDS
 DEFAULT_GPUS = (0, 1, 2)
 DEFAULT_DUAL_VIEW_ROOT = Path(
@@ -339,15 +339,28 @@ def run_jobs(jobs: Sequence[SingleViewJob]) -> List[Dict[str, object]]:
     return results
 
 
-def _parse_args():
+def _parse_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--python", required=True)
     parser.add_argument("--gpus", type=int, nargs="+", default=DEFAULT_GPUS)
     parser.add_argument("--jobs-per-gpu", type=int, default=3)
+    parser.add_argument(
+        "--missing-rates",
+        type=float,
+        nargs="+",
+        default=list(STAGE1_RATES),
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        default=list(STAGE1_SEEDS),
+    )
+    parser.add_argument("--audit-dual-view-controls", action="store_true")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--dry-run", action="store_true")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def main() -> int:
@@ -357,9 +370,12 @@ def main() -> int:
         python=args.python,
         gpus=args.gpus,
         jobs_per_gpu=args.jobs_per_gpu,
+        rates=args.missing_rates,
+        seeds=args.seeds,
         epochs=args.epochs,
     )
-    audit_dual_view_controls(jobs)
+    if args.audit_dual_view_controls:
+        audit_dual_view_controls(jobs)
     if args.dry_run:
         print(json.dumps([asdict(job) for job in jobs], indent=2, default=str))
         return 0

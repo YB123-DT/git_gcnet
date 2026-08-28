@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.run_plci_single_view_iemocap6 import build_jobs
+from scripts.run_plci_single_view_iemocap6 import _parse_args, build_jobs
 
 
 def test_stage1_builds_only_fifteen_single_view_jobs():
@@ -55,13 +55,56 @@ def test_stage1_matches_dual_view_protocol_except_architecture_and_output():
     )
 
 
+def test_continuation_accepts_all_unrun_rates_without_repeating_completed_rates():
+    jobs = build_jobs(
+        output_root=Path("/outputs"),
+        python="/env/bin/python",
+        gpus=(0, 1, 2),
+        jobs_per_gpu=3,
+        rates=(0.1, 0.2, 0.3, 0.4, 0.6),
+        seeds=(66, 67, 68, 69, 70),
+        epochs=100,
+    )
+
+    assert len(jobs) == 25
+    assert {job.rate for job in jobs} == {0.1, 0.2, 0.3, 0.4, 0.6}
+    assert {job.seed for job in jobs} == {66, 67, 68, 69, 70}
+
+
+def test_cli_selects_continuation_rates_and_seeds_without_control_audit():
+    args = _parse_args(
+        [
+            "--output-root",
+            "/outputs",
+            "--python",
+            "/env/bin/python",
+            "--missing-rates",
+            "0.1",
+            "0.2",
+            "0.3",
+            "0.4",
+            "0.6",
+            "--seeds",
+            "66",
+            "67",
+            "68",
+            "69",
+            "70",
+        ]
+    )
+
+    assert args.missing_rates == [0.1, 0.2, 0.3, 0.4, 0.6]
+    assert args.seeds == [66, 67, 68, 69, 70]
+    assert args.audit_dual_view_controls is False
+
+
 @pytest.mark.parametrize(
     "kwargs, message",
     [
         ({"gpus": ()}, "GPU"),
         ({"gpus": (4,)}, "GPU 4"),
         ({"jobs_per_gpu": 4}, "jobs_per_gpu"),
-        ({"rates": (0.4,)}, "rate"),
+        ({"rates": (0.8,)}, "rate"),
         ({"seeds": (71,)}, "seed"),
         ({"epochs": 0}, "epochs"),
     ],
