@@ -56,6 +56,9 @@ class TrainConfig:
     projector_dropout: float = 0.1
     predictor_dropout: float = 0.1
     fusion_type: str = "mean"
+    local_context_residual: bool = False
+    local_fusion_hidden_dim: int = 256
+    local_fusion_dropout: float = 0.2
     jepa_weight: float = 0.1
     temperature: float = 0.03
     ema_tau: float = 0.996
@@ -106,6 +109,28 @@ def _write_json(path: Path, value: object) -> None:
         json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     os.replace(temporary, path)
+
+
+def _write_run_config(path: Path, config_value: TrainConfig) -> None:
+    _write_json(path, asdict(config_value))
+
+
+def _save_best_checkpoint(
+    path: Path,
+    model_state: Mapping[str, torch.Tensor],
+    config_value: TrainConfig,
+    epoch: int,
+    validation_mean_weighted_f1: float,
+) -> None:
+    torch.save(
+        {
+            "model": model_state,
+            "config": asdict(config_value),
+            "epoch": epoch,
+            "validation_mean_weighted_f1": validation_mean_weighted_f1,
+        },
+        path,
+    )
 
 
 def _state_to_cpu(model: torch.nn.Module) -> Dict[str, torch.Tensor]:
@@ -419,7 +444,7 @@ def run_experiment(
         raise ValueError("fold is outside the dataset fold range")
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
-    _write_json(output / "config.json", asdict(config_value))
+    _write_run_config(output / "config.json", config_value)
     set_random_seed(config_value.seed)
     device = torch.device(config_value.device)
     loaders = get_loaders(
@@ -464,6 +489,9 @@ def run_experiment(
         projector_dropout=config_value.projector_dropout,
         predictor_dropout=config_value.predictor_dropout,
         fusion_type=config_value.fusion_type,
+        local_context_residual=config_value.local_context_residual,
+        local_fusion_hidden_dim=config_value.local_fusion_hidden_dim,
+        local_fusion_dropout=config_value.local_fusion_dropout,
     ).to(device)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -525,14 +553,12 @@ def run_experiment(
             best_score = validation_mean
             best_epoch = epoch + 1
             best_state = _state_to_cpu(model)
-            torch.save(
-                {
-                    "model": best_state,
-                    "config": asdict(config_value),
-                    "epoch": best_epoch,
-                    "validation_mean_weighted_f1": best_score,
-                },
+            _save_best_checkpoint(
                 output / "best.pt",
+                model_state=best_state,
+                config_value=config_value,
+                epoch=best_epoch,
+                validation_mean_weighted_f1=best_score,
             )
     if best_state is None:
         raise RuntimeError("no best checkpoint was selected")
@@ -599,6 +625,9 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("mean", "slot", "raw-residual"),
         default="mean",
     )
+    parser.add_argument("--local-context-residual", action="store_true")
+    parser.add_argument("--local-fusion-hidden-dim", type=int, default=256)
+    parser.add_argument("--local-fusion-dropout", type=float, default=0.2)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--l2", type=float, default=1e-5)
     parser.add_argument("--dropout", type=float, default=0.5)
@@ -635,6 +664,9 @@ def main() -> None:
         num_experts=args.num_experts,
         top_k=args.top_k,
         fusion_type=args.fusion_type,
+        local_context_residual=args.local_context_residual,
+        local_fusion_hidden_dim=args.local_fusion_hidden_dim,
+        local_fusion_dropout=args.local_fusion_dropout,
         jepa_weight=args.jepa_weight,
         temperature=args.temperature,
         ema_tau=args.ema_tau,

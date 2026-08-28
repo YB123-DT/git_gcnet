@@ -241,6 +241,63 @@ class RawResidualObservedEncoder(nn.Module):
         return output, latents
 
 
+class LocalContextResidualFusion(nn.Module):
+    """Fuse utterance-local Student slots into a GCNet hidden residual."""
+
+    def __init__(
+        self,
+        latent_dim: int,
+        context_dim: int,
+        hidden_dim: int = 256,
+        dropout: float = 0.2,
+    ) -> None:
+        super().__init__()
+        input_dim = 3 * int(latent_dim) + 3
+        self.latent_dim = int(latent_dim)
+        self.context_dim = int(context_dim)
+        self.fusion = nn.Sequential(
+            nn.LayerNorm(input_dim),
+            nn.Linear(input_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, context_dim),
+        )
+        nn.init.zeros_(self.fusion[-1].weight)
+        nn.init.zeros_(self.fusion[-1].bias)
+
+    def forward(
+        self,
+        latents: Mapping[str, torch.Tensor],
+        availability: torch.Tensor,
+        umask: torch.Tensor,
+    ) -> torch.Tensor:
+        if set(latents) != set(MODALITIES):
+            raise ValueError("latents must contain audio, text, and visual")
+        reference = latents[MODALITIES[0]]
+        if reference.ndim != 3 or reference.shape[-1] != self.latent_dim:
+            raise ValueError("Student latents must have shape [L, B, latent_dim]")
+        length, batch = reference.shape[:2]
+        expected_shape = (length, batch, self.latent_dim)
+        if any(latents[name].shape != expected_shape for name in MODALITIES):
+            raise ValueError("all Student latents must have the same shape")
+        if availability.shape != (length, batch, 3):
+            raise ValueError("availability must have shape [L, B, 3]")
+        if umask.shape != (batch, length):
+            raise ValueError("umask must have shape [B, L]")
+
+        availability_value = availability.to(dtype=reference.dtype)
+        slots = [
+            latents[name] * availability_value[..., index : index + 1]
+            for index, name in enumerate(MODALITIES)
+        ]
+        fusion_input = torch.cat([*slots, availability_value], dim=-1)
+        residual = reference.new_zeros(length, batch, self.context_dim)
+        valid = umask.T.bool()
+        if bool(valid.any()):
+            residual[valid] = self.fusion(fusion_input[valid])
+        return residual
+
+
 class DualGateTopKMMoE(nn.Module):
     def __init__(
         self,
@@ -419,7 +476,12 @@ class MissingM3GraphModel(GraphModel):
         projector_dropout=0.1,
         predictor_dropout=0.1,
         fusion_type="mean",
+        local_context_residual=False,
+        local_fusion_hidden_dim=256,
+        local_fusion_dropout=0.2,
     ) -> None:
+        if local_context_residual and fusion_type != "slot":
+            raise ValueError("local_context_residual requires fusion_type='slot'")
         super().__init__(
             base_model,
             adim,
@@ -478,6 +540,14 @@ class MissingM3GraphModel(GraphModel):
             dropout=predictor_dropout,
         )
         self.ema_step = 0
+        self.local_context_residual = bool(local_context_residual)
+        if self.local_context_residual:
+            self.local_context_fusion = LocalContextResidualFusion(
+                latent_dim,
+                hidden_dim,
+                hidden_dim=local_fusion_hidden_dim,
+                dropout=local_fusion_dropout,
+            )
 
     @staticmethod
     def _feature_tensor(inputfeats) -> torch.Tensor:
@@ -498,14 +568,19 @@ class MissingM3GraphModel(GraphModel):
     ):
         features = self._feature_tensor(inputfeats)
         node, latents = self.observed_set(features, availability, umask)
-        hidden = self.encode_hidden([node], qmask, umask, seq_lengths)
-        logits = self.smax_fc(hidden)
+        graph_hidden = self.encode_hidden([node], qmask, umask, seq_lengths)
         predictions = (
-            self.missing_predictor(latents, hidden, availability, umask)
+            self.missing_predictor(latents, graph_hidden, availability, umask)
             if predict_missing
             else None
         )
-        return logits, hidden, latents, predictions
+        classification_hidden = graph_hidden
+        if self.local_context_residual:
+            classification_hidden = graph_hidden + self.local_context_fusion(
+                latents, availability, umask
+            )
+        logits = self.smax_fc(classification_hidden)
+        return logits, classification_hidden, latents, predictions
 
     @torch.no_grad()
     def encode_teacher_targets(self, complete_features) -> Dict[str, torch.Tensor]:

@@ -1,8 +1,11 @@
 import copy
+import json
+from dataclasses import asdict
 
 import pytest
 import torch
 
+import gcnet_missing_m3.train_gcnet as train_gcnet
 from gcnet_missing_m3.loss import missing_m3_loss
 from gcnet_missing_m3.mixed_rate import (
     MISSING_RATES,
@@ -12,11 +15,13 @@ from gcnet_missing_m3.mixed_rate import (
 )
 from gcnet_missing_m3.model import (
     ContextualM3Predictor,
+    LocalContextResidualFusion,
     MissingM3GraphModel,
     ObservedSetEncoder,
     RawResidualObservedEncoder,
 )
 from gcnet_missing_m3.train_gcnet import (
+    TrainConfig,
     _dataset_shape,
     _metrics,
     _task_loss,
@@ -294,6 +299,288 @@ def _model_arguments():
         top_k=1,
         predictor_dropout=0.0,
     )
+
+
+def _model_inputs():
+    features = torch.randn(3, 2, 9)
+    availability = torch.tensor(
+        [
+            [[1, 0, 0], [0, 1, 1]],
+            [[1, 1, 0], [0, 0, 1]],
+            [[1, 1, 1], [0, 0, 0]],
+        ],
+        dtype=torch.float32,
+    )
+    qmask = torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]])
+    umask = torch.tensor([[1.0, 1.0, 1.0], [1.0, 1.0, 0.0]])
+    return features, availability, qmask, umask, [3, 2]
+
+
+def test_local_context_residual_has_expected_shape_zero_padding_and_no_missing_leakage():
+    torch.manual_seed(41)
+    fusion = LocalContextResidualFusion(
+        latent_dim=4, context_dim=6, hidden_dim=7, dropout=0.0
+    ).eval()
+    with torch.no_grad():
+        torch.nn.init.normal_(fusion.fusion[-1].weight)
+        torch.nn.init.normal_(fusion.fusion[-1].bias)
+    availability = torch.tensor(
+        [
+            [[1, 0, 1], [0, 1, 0]],
+            [[1, 1, 0], [0, 0, 0]],
+        ],
+        dtype=torch.float32,
+    )
+    umask = torch.tensor([[1.0, 1.0], [1.0, 0.0]])
+    latents = {
+        name: torch.randn(2, 2, 4)
+        for name in ("audio", "text", "visual")
+    }
+    changed = {name: value.clone() for name, value in latents.items()}
+    for index, name in enumerate(("audio", "text", "visual")):
+        changed[name][~availability[..., index].bool()] += 10_000.0
+
+    first = fusion(latents, availability, umask)
+    second = fusion(changed, availability, umask)
+
+    assert first.shape == (2, 2, 6)
+    ASSERT_CLOSE(first, second, rtol=0, atol=0)
+    assert torch.count_nonzero(first[~umask.T.bool()]) == 0
+
+
+def test_local_context_residual_preserves_same_seed_shared_state_and_zero_init_outputs():
+    torch.manual_seed(43)
+    base = MissingM3GraphModel(
+        **_model_arguments(), fusion_type="slot"
+    ).eval()
+    torch.manual_seed(43)
+    local = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        local_context_residual=True,
+        local_fusion_hidden_dim=12,
+        local_fusion_dropout=0.0,
+    ).eval()
+
+    base_state = base.state_dict()
+    local_state = local.state_dict()
+    assert set(base_state).issubset(local_state)
+    for key, value in base_state.items():
+        ASSERT_CLOSE(value, local_state[key], rtol=0, atol=0)
+
+    torch.manual_seed(47)
+    inputs = _model_inputs()
+    base_outputs = base([inputs[0]], *inputs[1:], predict_missing=True)
+    local_outputs = local([inputs[0]], *inputs[1:], predict_missing=True)
+
+    for base_value, local_value in zip(base_outputs[:3], local_outputs[:3]):
+        if isinstance(base_value, dict):
+            for name in base_value:
+                ASSERT_CLOSE(base_value[name], local_value[name], rtol=0, atol=0)
+        else:
+            ASSERT_CLOSE(base_value, local_value, rtol=0, atol=0)
+    assert base_outputs[3] is not None and local_outputs[3] is not None
+    for field in ("reg_predictions", "cl_predictions", "target_mask", "source_counts"):
+        ASSERT_CLOSE(
+            getattr(base_outputs[3], field),
+            getattr(local_outputs[3], field),
+            rtol=0,
+            atol=0,
+        )
+
+
+def test_local_context_residual_preserves_train_mode_rng_and_zero_init_outputs():
+    arguments = _model_arguments()
+    arguments["predictor_dropout"] = 0.4
+    torch.manual_seed(67)
+    base = MissingM3GraphModel(
+        **arguments, fusion_type="slot"
+    ).train()
+    torch.manual_seed(67)
+    local = MissingM3GraphModel(
+        **arguments,
+        fusion_type="slot",
+        local_context_residual=True,
+        local_fusion_hidden_dim=12,
+        local_fusion_dropout=0.5,
+    ).train()
+    torch.manual_seed(71)
+    inputs = _model_inputs()
+    forward_rng = torch.random.get_rng_state()
+
+    torch.random.set_rng_state(forward_rng)
+    base_outputs = base([inputs[0]], *inputs[1:], predict_missing=True)
+    torch.random.set_rng_state(forward_rng)
+    local_outputs = local([inputs[0]], *inputs[1:], predict_missing=True)
+
+    ASSERT_CLOSE(base_outputs[0], local_outputs[0], rtol=0, atol=0)
+    ASSERT_CLOSE(base_outputs[1], local_outputs[1], rtol=0, atol=0)
+    assert base_outputs[3] is not None and local_outputs[3] is not None
+    for field in ("reg_predictions", "cl_predictions", "target_mask", "source_counts"):
+        ASSERT_CLOSE(
+            getattr(base_outputs[3], field),
+            getattr(local_outputs[3], field),
+            rtol=0,
+            atol=0,
+        )
+
+
+def test_local_context_residual_keeps_missing_predictor_on_graph_hidden(monkeypatch):
+    torch.manual_seed(53)
+    model = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        local_context_residual=True,
+        local_fusion_hidden_dim=12,
+        local_fusion_dropout=0.0,
+    ).eval()
+    with torch.no_grad():
+        model.local_context_fusion.fusion[-1].bias.fill_(1.0)
+    captured = {}
+
+    def capture_predictor(latents, hidden, availability, umask):
+        captured["hidden"] = hidden.detach().clone()
+        return None
+
+    monkeypatch.setattr(model.missing_predictor, "forward", capture_predictor)
+    torch.manual_seed(59)
+    inputs = _model_inputs()
+    _, classification_hidden, _, _ = model(
+        [inputs[0]], *inputs[1:], predict_missing=True
+    )
+
+    valid = inputs[3].T.bool()
+    ASSERT_CLOSE(
+        captured["hidden"][valid] + 1.0,
+        classification_hidden.detach()[valid],
+        rtol=0,
+        atol=0,
+    )
+
+
+def test_local_context_residual_disabled_has_no_parameters_and_rejects_non_slot():
+    disabled = MissingM3GraphModel(
+        **_model_arguments(), fusion_type="slot", local_context_residual=False
+    )
+
+    assert not any(
+        name.startswith("local_context_fusion.")
+        for name, _ in disabled.named_parameters()
+    )
+    assert not hasattr(disabled, "local_context_fusion")
+    for fusion_type in ("mean", "raw-residual"):
+        with pytest.raises(ValueError, match="local_context_residual.*slot"):
+            MissingM3GraphModel(
+                **_model_arguments(),
+                fusion_type=fusion_type,
+                local_context_residual=True,
+            )
+
+
+def test_local_context_residual_cli_and_config_route_all_options():
+    args = build_parser().parse_args(
+        [
+            "--audio-feature",
+            "a",
+            "--text-feature",
+            "t",
+            "--video-feature",
+            "v",
+            "--output-dir",
+            "out",
+            "--fusion-type",
+            "slot",
+            "--local-context-residual",
+            "--local-fusion-hidden-dim",
+            "96",
+            "--local-fusion-dropout",
+            "0.15",
+        ]
+    )
+    config = TrainConfig(
+        fusion_type=args.fusion_type,
+        local_context_residual=args.local_context_residual,
+        local_fusion_hidden_dim=args.local_fusion_hidden_dim,
+        local_fusion_dropout=args.local_fusion_dropout,
+    )
+
+    assert {
+        key: asdict(config)[key]
+        for key in (
+            "local_context_residual",
+            "local_fusion_hidden_dim",
+            "local_fusion_dropout",
+        )
+    } == {
+        "local_context_residual": True,
+        "local_fusion_hidden_dim": 96,
+        "local_fusion_dropout": 0.15,
+    }
+
+
+def test_local_context_residual_persists_in_config_json_and_checkpoint(tmp_path):
+    config = TrainConfig(
+        fusion_type="slot",
+        local_context_residual=True,
+        local_fusion_hidden_dim=96,
+        local_fusion_dropout=0.15,
+    )
+    config_path = tmp_path / "config.json"
+    checkpoint_path = tmp_path / "best.pt"
+
+    train_gcnet._write_run_config(config_path, config)
+    train_gcnet._save_best_checkpoint(
+        checkpoint_path,
+        model_state={"weight": torch.tensor([1.0])},
+        config_value=config,
+        epoch=3,
+        validation_mean_weighted_f1=0.75,
+    )
+
+    json_config = json.loads(config_path.read_text(encoding="utf-8"))
+    checkpoint_config = torch.load(checkpoint_path, map_location="cpu")["config"]
+    expected = {
+        "local_context_residual": True,
+        "local_fusion_hidden_dim": 96,
+        "local_fusion_dropout": 0.15,
+    }
+    assert {key: json_config[key] for key in expected} == expected
+    assert {key: checkpoint_config[key] for key in expected} == expected
+
+
+def test_local_context_residual_backward_reaches_all_training_paths():
+    torch.manual_seed(61)
+    model = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        local_context_residual=True,
+        local_fusion_hidden_dim=12,
+        local_fusion_dropout=0.0,
+    ).train()
+    inputs = _model_inputs()
+
+    logits, _, _, predictions = model(
+        [inputs[0]], *inputs[1:], predict_missing=True
+    )
+    assert predictions is not None and bool(predictions.target_mask.any())
+    predicted = predictions.reg_predictions[predictions.target_mask]
+    (logits.square().mean() + predicted.square().mean()).backward()
+
+    parameter_groups = {
+        "student": model.observed_set.projectors.parameters(),
+        "local": model.local_context_fusion.parameters(),
+        "graph": model.graph_net_temporal.parameters(),
+        "predictor": model.missing_predictor.parameters(),
+    }
+    for name, parameters in parameter_groups.items():
+        gradients = [
+            parameter.grad
+            for parameter in parameters
+            if parameter.grad is not None
+        ]
+        assert gradients, name
+        assert all(torch.isfinite(gradient).all() for gradient in gradients), name
+        assert any(torch.count_nonzero(gradient) > 0 for gradient in gradients), name
 
 
 def test_raw_residual_model_keeps_original_recurrent_width_and_cli():
