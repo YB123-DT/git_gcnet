@@ -6,7 +6,7 @@ import pytest
 import torch
 
 import gcnet_missing_m3.train_gcnet as train_gcnet
-from gcnet_missing_m3.loss import missing_m3_loss
+from gcnet_missing_m3.loss import MissingM3Loss, missing_m3_loss
 from gcnet_missing_m3.mixed_rate import (
     MISSING_RATES,
     BalancedBatchRateSchedule,
@@ -696,6 +696,306 @@ def test_balanced_rate_schedule_covers_all_rates_and_rotates_by_epoch():
     assert first == MISSING_RATES
     assert second == MISSING_RATES[1:] + MISSING_RATES[:1]
     assert set(first) == set(MISSING_RATES)
+
+
+class _CountingOptimizer:
+    def __init__(self, parameter):
+        self.parameter = parameter
+        self.zero_grad_calls = 0
+        self.step_gradients = []
+
+    def zero_grad(self, set_to_none=False):
+        self.zero_grad_calls += 1
+        if set_to_none:
+            self.parameter.grad = None
+        elif self.parameter.grad is not None:
+            self.parameter.grad.zero_()
+
+    def step(self):
+        self.step_gradients.append(self.parameter.grad.detach().clone())
+
+
+class _LifecycleModel(torch.nn.Module):
+    def __init__(self, events=None):
+        super().__init__()
+        self.weight = torch.nn.Parameter(torch.tensor(1.0))
+        self.forward_rates = []
+        self.teacher_calls = 0
+        self.ema_calls = 0
+        self.events = events
+
+    def forward(
+        self,
+        features,
+        availability,
+        qmask,
+        umask,
+        lengths,
+        predict_missing,
+    ):
+        del features, qmask, umask, lengths
+        assert predict_missing is True
+        rate_index = int(availability.item())
+        rate = MISSING_RATES[rate_index]
+        self.forward_rates.append(rate)
+        if self.events is not None:
+            self.events.append(("forward", rate))
+        logits = (self.weight * (rate_index + 1)).reshape(1, 1, 1)
+        return logits, None, None, logits
+
+    def encode_teacher_targets(self, complete):
+        self.teacher_calls += 1
+        return {"complete": complete[0]}
+
+    def update_teacher(self, tau):
+        assert tau == pytest.approx(0.996)
+        self.ema_calls += 1
+
+
+def _install_train_epoch_lifecycle_fakes(monkeypatch):
+    prepared_rates = []
+    clipped_gradients = []
+    events = []
+
+    def prepare_view(data, schedule, epoch, dimensions):
+        del data, epoch, dimensions
+        rate_index = MISSING_RATES.index(schedule)
+        prepared_rates.append(schedule)
+        events.append(("prepare", schedule))
+        return {
+            "complete": torch.ones(1, 1, 1),
+            "incomplete": torch.ones(1, 1, 1),
+            "availability": torch.tensor(float(rate_index)),
+            "qmask": torch.ones(1, 1),
+            "umask": torch.ones(1, 1),
+            "labels": torch.zeros(1, 1),
+            "lengths": [1],
+        }
+
+    def jepa_loss(predictions, teacher, temperature):
+        assert teacher.keys() == {"complete"}
+        assert temperature == pytest.approx(0.03)
+        rate_index = int(predictions.detach().item()) - 1
+        zero = predictions.sum() * 0.0
+        return MissingM3Loss(
+            total=zero,
+            regression=zero,
+            contrastive=zero,
+            target_count=int(rate_index > 0),
+        )
+
+    def clip_grad_norm(parameters, max_norm):
+        assert max_norm == pytest.approx(1.0)
+        gradients = [
+            parameter.grad.detach().clone()
+            for parameter in parameters
+            if parameter.grad is not None
+        ]
+        assert gradients and all(torch.isfinite(value).all() for value in gradients)
+        clipped_gradients.append(gradients)
+
+    monkeypatch.setattr(train_gcnet, "_move_batch", lambda raw, device: raw)
+    monkeypatch.setattr(train_gcnet, "_prepare_view", prepare_view)
+    monkeypatch.setattr(
+        train_gcnet, "_task_loss", lambda dataset, logits, labels, umask: logits.sum()
+    )
+    monkeypatch.setattr(train_gcnet, "missing_m3_loss", jepa_loss)
+    monkeypatch.setattr(
+        train_gcnet,
+        "_collect_predictions",
+        lambda dataset, logits, labels, umask: (
+            train_gcnet.np.array([0.0]),
+            train_gcnet.np.array([0.0]),
+        ),
+    )
+    monkeypatch.setattr(
+        train_gcnet,
+        "_metrics",
+        lambda dataset, labels, predictions: {"weighted_f1": 1.0},
+    )
+    monkeypatch.setattr(torch.nn.utils, "clip_grad_norm_", clip_grad_norm)
+    return prepared_rates, clipped_gradients, events
+
+
+def test_all_train_rate_mode_averages_eight_views_with_one_update_per_batch(monkeypatch):
+    prepared_rates, clipped_gradients, events = _install_train_epoch_lifecycle_fakes(
+        monkeypatch
+    )
+    model = _LifecycleModel(events)
+    optimizer = _CountingOptimizer(model.weight)
+    config = TrainConfig(train_rate_mode="all")
+
+    metrics = train_gcnet.train_epoch(
+        model=model,
+        loader=[["first"], ["second"]],
+        optimizer=optimizer,
+        config=config,
+        schedules={rate: rate for rate in MISSING_RATES},
+        epoch=0,
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+    )
+
+    assert prepared_rates == list(MISSING_RATES) * 2
+    assert model.forward_rates == list(MISSING_RATES) * 2
+    assert events == [
+        event
+        for _ in range(2)
+        for rate in MISSING_RATES
+        for event in (("prepare", rate), ("forward", rate))
+    ]
+    assert model.teacher_calls == 2
+    assert optimizer.zero_grad_calls == 2
+    assert len(clipped_gradients) == 2
+    assert len(optimizer.step_gradients) == 2
+    assert all(torch.isfinite(value) for value in optimizer.step_gradients)
+    assert all(value.item() == pytest.approx(4.5) for value in optimizer.step_gradients)
+    assert model.ema_calls == 2
+    assert metrics["loss"] == pytest.approx(4.5)
+    assert metrics["classification_loss"] == pytest.approx(4.5)
+    assert metrics["jepa_target_count"] == 14
+    assert metrics["optimizer_steps"] == 2
+    assert metrics["rate_batch_counts"] == {str(rate): 2 for rate in MISSING_RATES}
+
+
+def test_default_train_rate_mode_preserves_single_cyclic_view(monkeypatch):
+    prepared_rates, clipped_gradients, events = _install_train_epoch_lifecycle_fakes(
+        monkeypatch
+    )
+    model = _LifecycleModel(events)
+    optimizer = _CountingOptimizer(model.weight)
+    config = TrainConfig()
+
+    metrics = train_gcnet.train_epoch(
+        model=model,
+        loader=[["only"]],
+        optimizer=optimizer,
+        config=config,
+        schedules={rate: rate for rate in MISSING_RATES},
+        epoch=2,
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+    )
+
+    assert config.train_rate_mode == "cyclic"
+    assert prepared_rates == [0.2]
+    assert model.forward_rates == [0.2]
+    assert events == [("prepare", 0.2), ("forward", 0.2)]
+    assert model.teacher_calls == 1
+    assert optimizer.zero_grad_calls == 1
+    assert len(clipped_gradients) == 1
+    assert len(optimizer.step_gradients) == 1
+    assert optimizer.step_gradients[0].item() == pytest.approx(3.0)
+    assert model.ema_calls == 1
+    assert metrics["loss"] == pytest.approx(3.0)
+    assert metrics["optimizer_steps"] == 1
+    assert sum(metrics["rate_batch_counts"].values()) == 1
+    assert metrics["rate_batch_counts"]["0.2"] == 1
+
+
+def test_train_rate_mode_cli_defaults_and_persists_in_run_artifacts(tmp_path):
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+    parser = build_parser()
+    assert parser.parse_args(required).train_rate_mode == "cyclic"
+    args = parser.parse_args(required + ["--train-rate-mode", "all"])
+    config = TrainConfig(train_rate_mode=args.train_rate_mode)
+    config_path = tmp_path / "config.json"
+    checkpoint_path = tmp_path / "best.pt"
+
+    train_gcnet._write_run_config(config_path, config)
+    train_gcnet._save_best_checkpoint(
+        checkpoint_path,
+        model_state={"weight": torch.tensor([1.0])},
+        config_value=config,
+        epoch=3,
+        validation_mean_weighted_f1=0.75,
+    )
+
+    assert json.loads(config_path.read_text(encoding="utf-8"))["train_rate_mode"] == "all"
+    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    assert checkpoint["config"]["train_rate_mode"] == "all"
+    with pytest.raises(SystemExit):
+        parser.parse_args(required + ["--train-rate-mode", "invalid"])
+
+
+def test_train_rate_mode_preserves_legacy_positional_config_order():
+    legacy_field_names = (
+        "dataset",
+        "fold",
+        "seed",
+        "base_model",
+        "window_past",
+        "window_future",
+        "hidden",
+        "dropout",
+        "batch_size",
+        "epochs",
+        "learning_rate",
+        "weight_decay",
+        "latent_dim",
+        "num_experts",
+        "top_k",
+        "projector_dropout",
+        "predictor_dropout",
+        "fusion_type",
+        "local_context_residual",
+        "local_fusion_hidden_dim",
+        "local_fusion_dropout",
+        "jepa_weight",
+        "temperature",
+        "ema_tau",
+        "gradient_clip_norm",
+        "time_attention",
+        "evaluation_protocol",
+        "validation_fraction",
+        "device",
+    )
+    legacy_values = (
+        "CMUMOSI",
+        1,
+        77,
+        "GRU",
+        -1,
+        3,
+        128,
+        0.2,
+        16,
+        12,
+        2e-3,
+        3e-5,
+        64,
+        3,
+        1,
+        0.05,
+        0.06,
+        "slot",
+        True,
+        96,
+        0.15,
+        0.2,
+        0.07,
+        0.99,
+        0.5,
+        True,
+        "strict",
+        0.2,
+        "cpu",
+    )
+
+    config = TrainConfig(*legacy_values)
+
+    serialized = asdict(config)
+    assert tuple(serialized[name] for name in legacy_field_names) == legacy_values
+    assert config.train_rate_mode == "cyclic"
 
 
 def test_checkpoint_score_is_equal_mean_of_eight_validation_rates():

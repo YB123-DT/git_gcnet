@@ -67,6 +67,7 @@ class TrainConfig:
     evaluation_protocol: str = "official"
     validation_fraction: float = 0.1
     device: str = "cuda"
+    train_rate_mode: str = "cyclic"
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -316,48 +317,70 @@ def train_epoch(
     all_labels: list[np.ndarray] = []
     rate_counts = {rate: 0 for rate in MISSING_RATES}
     target_count = 0
+    optimizer_steps = 0
     for batch_index, raw in enumerate(loader):
-        rate = rate_schedule.rate_for(epoch, batch_index)
-        rate_counts[rate] += 1
         data = _move_batch(raw, device)
-        view = _prepare_view(data, schedules[rate], epoch, dimensions)
-        optimizer.zero_grad(set_to_none=True)
-        logits, _, _, predictions = model(
-            [view["incomplete"]],
-            view["availability"],
-            view["qmask"],
-            view["umask"],
-            view["lengths"],
-            predict_missing=True,
-        )
-        cls = _task_loss(
-            config.dataset, logits, view["labels"], view["umask"]
-        )
-        with torch.no_grad():
-            teacher = model.encode_teacher_targets([view["complete"]])
-        jepa: MissingM3Loss = missing_m3_loss(
-            predictions, teacher, temperature=config.temperature
-        )
-        loss = cls + config.jepa_weight * jepa.total
-        if not bool(torch.isfinite(loss.detach())):
-            raise ValueError("training loss must be finite")
-        loss.backward()
+        if config.train_rate_mode == "all":
+            rates = MISSING_RATES
+            optimizer.zero_grad(set_to_none=True)
+            rate_views = (
+                (rate, _prepare_view(data, schedules[rate], epoch, dimensions))
+                for rate in rates
+            )
+        elif config.train_rate_mode == "cyclic":
+            rate = rate_schedule.rate_for(epoch, batch_index)
+            view = _prepare_view(data, schedules[rate], epoch, dimensions)
+            optimizer.zero_grad(set_to_none=True)
+            rate_views = ((rate, view),)
+        else:
+            raise ValueError("train_rate_mode must be 'cyclic' or 'all'")
+        teacher = None
+        for rate, view in rate_views:
+            rate_counts[rate] += 1
+            if config.train_rate_mode == "all" and teacher is None:
+                with torch.no_grad():
+                    teacher = model.encode_teacher_targets([view["complete"]])
+            logits, _, _, predictions = model(
+                [view["incomplete"]],
+                view["availability"],
+                view["qmask"],
+                view["umask"],
+                view["lengths"],
+                predict_missing=True,
+            )
+            cls = _task_loss(
+                config.dataset, logits, view["labels"], view["umask"]
+            )
+            if teacher is None:
+                with torch.no_grad():
+                    teacher = model.encode_teacher_targets([view["complete"]])
+            jepa: MissingM3Loss = missing_m3_loss(
+                predictions, teacher, temperature=config.temperature
+            )
+            loss = cls + config.jepa_weight * jepa.total
+            if not bool(torch.isfinite(loss.detach())):
+                raise ValueError("training loss must be finite")
+            if config.train_rate_mode == "all":
+                (loss / len(MISSING_RATES)).backward()
+            else:
+                loss.backward()
+            predicted, expected = _collect_predictions(
+                config.dataset, logits, view["labels"], view["umask"]
+            )
+            all_predictions.append(predicted)
+            all_labels.append(expected)
+            losses.append(float(loss.detach()))
+            cls_losses.append(float(cls.detach()))
+            jepa_losses.append(float(jepa.total.detach()))
+            target_count += jepa.target_count
         if config.gradient_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(
                 (parameter for parameter in model.parameters() if parameter.requires_grad),
                 config.gradient_clip_norm,
             )
         optimizer.step()
+        optimizer_steps += 1
         model.update_teacher(config.ema_tau)
-        predicted, expected = _collect_predictions(
-            config.dataset, logits, view["labels"], view["umask"]
-        )
-        all_predictions.append(predicted)
-        all_labels.append(expected)
-        losses.append(float(loss.detach()))
-        cls_losses.append(float(cls.detach()))
-        jepa_losses.append(float(jepa.total.detach()))
-        target_count += jepa.target_count
     metrics = _metrics(
         config.dataset,
         np.concatenate(all_labels),
@@ -370,6 +393,7 @@ def train_epoch(
         "jepa_loss": float(np.mean(jepa_losses)),
         "jepa_target_count": int(target_count),
         "rate_batch_counts": {str(rate): count for rate, count in rate_counts.items()},
+        "optimizer_steps": optimizer_steps,
     }
 
 
@@ -616,6 +640,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fold", type=int, default=5)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument(
+        "--train-rate-mode", choices=("cyclic", "all"), default="cyclic"
+    )
     parser.add_argument("--hidden", type=int, default=200)
     parser.add_argument("--latent-dim", type=int, default=256)
     parser.add_argument("--num-experts", type=int, default=4)
@@ -657,6 +684,7 @@ def main() -> None:
         hidden=args.hidden,
         dropout=args.dropout,
         batch_size=args.batch_size,
+        train_rate_mode=args.train_rate_mode,
         epochs=args.epochs,
         learning_rate=args.lr,
         weight_decay=args.l2,
