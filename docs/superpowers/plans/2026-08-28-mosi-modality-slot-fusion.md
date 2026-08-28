@@ -8,6 +8,8 @@
 
 **技术栈：** Python、PyTorch、pytest、GCNet、远程 V100、JSON/NPZ 实验制品。
 
+**执行状态：** 已完成。实现提交为 `fd3db39`；五种子结果、配对审计与结论记录于 `experiments/missing_m3_mosi_slot_20260828/EXPERIMENT.md`。结果为温和正向但未达到 MOSI miss=0 均值 88 的目标。
+
 ---
 
 ## 文件职责
@@ -135,4 +137,3 @@ pytest -q tests/test_missing_m3.py
 - [ ] **步骤 3：完整验证并提交推送**
 
 运行单元测试、结果完整性检查与 `git diff --check`。使用 Lore commit message 提交代码和结果，然后推送 `feature/m3-jepa-gcnet`。
-

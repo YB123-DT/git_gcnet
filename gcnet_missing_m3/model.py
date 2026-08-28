@@ -124,8 +124,12 @@ class ObservedSetEncoder(nn.Module):
         valid = self._validate(features, availability, umask)
         latent_shape = (*features.shape[:2], self.latent_dim)
         latents: Dict[str, torch.Tensor] = {}
-        evidence = features.new_zeros(latent_shape)
-        slots = []
+        evidence = (
+            features.new_zeros(latent_shape)
+            if self.fusion_type == "mean"
+            else None
+        )
+        slots = [] if self.fusion_type == "slot" else None
         start = 0
         for index, (name, width) in enumerate(zip(MODALITIES, self.dimensions)):
             block = features[..., start : start + width]
@@ -134,10 +138,14 @@ class ObservedSetEncoder(nn.Module):
             if bool(selected.any()):
                 projected = self.projectors[name](block[selected])
                 latent[selected] = projected
-                evidence[selected] += projected + self.modality_embedding.weight[index]
-            slot = latent.clone()
-            slot[selected] += self.modality_embedding.weight[index]
-            slots.append(slot)
+                if evidence is not None:
+                    evidence[selected] += (
+                        projected + self.modality_embedding.weight[index]
+                    )
+            if slots is not None:
+                slot = latent.clone()
+                slot[selected] += self.modality_embedding.weight[index]
+                slots.append(slot)
             latents[name] = latent
             start += width
 
@@ -149,8 +157,10 @@ class ObservedSetEncoder(nn.Module):
         )
         pattern = self.pattern_embedding(pattern_id)
         if self.fusion_type == "mean":
+            assert evidence is not None
             fusion_input = evidence / count + pattern
         else:
+            assert slots is not None
             fusion_input = torch.cat([*slots, pattern], dim=-1)
         node = features.new_zeros(latent_shape)
         node[valid] = self.fusion(fusion_input[valid])
