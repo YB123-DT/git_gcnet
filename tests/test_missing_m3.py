@@ -8,6 +8,7 @@ from gcnet_missing_m3.mixed_rate import (
     MISSING_RATES,
     BalancedBatchRateSchedule,
     mean_validation_weighted_f1,
+    select_best_epoch,
 )
 from gcnet_missing_m3.model import (
     ContextualM3Predictor,
@@ -213,3 +214,19 @@ def test_checkpoint_score_is_equal_mean_of_eight_validation_rates():
     assert mean_validation_weighted_f1(metrics) == pytest.approx(3.5)
     with pytest.raises(ValueError, match="all eight"):
         mean_validation_weighted_f1(dict(list(metrics.items())[:-1]))
+
+
+def test_best_epoch_uses_mixed_validation_mean_not_any_single_rate_peak():
+    first = {
+        rate: {"weighted_f1": 0.8 if rate == 0.0 else 0.4}
+        for rate in MISSING_RATES
+    }
+    second = {
+        rate: {"weighted_f1": 0.5}
+        for rate in MISSING_RATES
+    }
+
+    assert select_best_epoch([
+        {"epoch": 1, "validation": first},
+        {"epoch": 2, "validation": second},
+    ]) == 2

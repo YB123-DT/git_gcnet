@@ -35,3 +35,13 @@ def mean_validation_weighted_f1(
     return sum(
         float(metrics_by_rate[rate]["weighted_f1"]) for rate in MISSING_RATES
     ) / len(MISSING_RATES)
+
+
+def select_best_epoch(history: Sequence[Mapping[str, object]]) -> int:
+    if not history:
+        raise ValueError("history must not be empty")
+    best = max(
+        history,
+        key=lambda record: mean_validation_weighted_f1(record["validation"]),
+    )
+    return int(best["epoch"])
