@@ -1,0 +1,26 @@
+{
+  "dataset": "IEMOCAPSix",
+  "fold": 5,
+  "seeds": [66, 67, 68, 69, 70],
+  "training_protocol": "one balanced mixed-rate checkpoint per seed",
+  "checkpoint_metric": "equal mean validation weighted F1 over eight rates",
+  "best_epochs": {"66": 89, "67": 88, "68": 100, "69": 84, "70": 97},
+  "weighted_f1_percent": {
+    "0.0": {"values": [64.47, 64.36, 63.64, 66.10, 66.47], "mean": 65.01, "sd": 1.22},
+    "0.1": {"values": [65.86, 64.28, 62.36, 65.65, 66.12], "mean": 64.85, "sd": 1.56},
+    "0.2": {"values": [63.65, 62.19, 63.74, 66.43, 65.07], "mean": 64.22, "sd": 1.60},
+    "0.3": {"values": [62.18, 64.56, 60.87, 64.60, 64.70], "mean": 63.38, "sd": 1.76},
+    "0.4": {"values": [63.05, 62.06, 60.44, 62.83, 63.77], "mean": 62.43, "sd": 1.27},
+    "0.5": {"values": [61.20, 59.66, 61.44, 61.49, 62.25], "mean": 61.21, "sd": 0.95},
+    "0.6": {"values": [61.38, 60.40, 58.63, 60.99, 60.60], "mean": 60.40, "sd": 1.06},
+    "0.7": {"values": [60.05, 57.76, 59.53, 60.35, 57.53], "mean": 59.04, "sd": 1.31}
+  },
+  "verification": {
+    "utterances_per_rate": 1623,
+    "all_six_classes_predicted": true,
+    "prediction_metrics_recomputed": true,
+    "unique_mask_hash_per_rate": true,
+    "failed_runs": 0
+  },
+  "comparison_warning": "Historical Original used rate-specific training and a different mask generator; differences are not a strict paired M3 ablation."
+}
