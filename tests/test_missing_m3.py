@@ -14,6 +14,7 @@ from gcnet_missing_m3.model import (
     ContextualM3Predictor,
     MissingM3GraphModel,
     ObservedSetEncoder,
+    RawResidualObservedEncoder,
 )
 from gcnet_missing_m3.train_gcnet import (
     _dataset_shape,
@@ -163,6 +164,51 @@ def test_fusion_type_is_validated_and_exposed_by_cli():
     assert args.fusion_type == "slot"
 
 
+def test_raw_residual_encoder_starts_as_exact_masked_raw_input():
+    torch.manual_seed(29)
+    encoder = RawResidualObservedEncoder(
+        (2, 3, 4), latent_dim=8, dropout=0.0
+    ).eval()
+    availability = _all_patterns()
+    umask = torch.ones(1, 7)
+    features = torch.randn(7, 1, 9)
+    expanded = torch.repeat_interleave(
+        availability, torch.tensor((2, 3, 4)), dim=-1
+    )
+
+    output, latents = encoder(features, availability, umask)
+
+    ASSERT_CLOSE(output, features * expanded, rtol=0, atol=0)
+    assert set(latents) == {"audio", "text", "visual"}
+    assert all(value.shape == (7, 1, 8) for value in latents.values())
+
+
+def test_raw_residual_encoder_ignores_missing_values_and_zeros_padding():
+    torch.manual_seed(31)
+    encoder = RawResidualObservedEncoder(
+        (2, 3, 4), latent_dim=8, dropout=0.0
+    ).eval()
+    availability = torch.cat(
+        [_all_patterns(), torch.zeros(1, 1, 3)], dim=0
+    )
+    umask = torch.tensor([[1.0] * 7 + [0.0]])
+    features = torch.randn(8, 1, 9)
+    changed = features.clone()
+    expanded = torch.repeat_interleave(
+        availability, torch.tensor((2, 3, 4)), dim=-1
+    )
+    changed[expanded == 0] += 10_000.0
+
+    first_output, first_latents = encoder(features, availability, umask)
+    second_output, second_latents = encoder(changed, availability, umask)
+
+    ASSERT_CLOSE(first_output, second_output, rtol=0, atol=0)
+    for name in ("audio", "text", "visual"):
+        ASSERT_CLOSE(first_latents[name], second_latents[name], rtol=0, atol=0)
+        assert torch.count_nonzero(first_latents[name][-1]) == 0
+    assert torch.count_nonzero(first_output[-1]) == 0
+
+
 def test_contextual_m3_selects_true_missing_targets_and_averages_two_sources(monkeypatch):
     predictor = ContextualM3Predictor(
         latent_dim=4,
@@ -248,6 +294,74 @@ def _model_arguments():
         top_k=1,
         predictor_dropout=0.0,
     )
+
+
+def test_raw_residual_model_keeps_original_recurrent_width_and_cli():
+    raw = MissingM3GraphModel(
+        **_model_arguments(), fusion_type="raw-residual"
+    )
+    slot = MissingM3GraphModel(**_model_arguments(), fusion_type="slot")
+
+    assert raw.lstm.input_size == 9
+    assert slot.lstm.input_size == 8
+
+    args = build_parser().parse_args(
+        [
+            "--audio-feature",
+            "a",
+            "--text-feature",
+            "t",
+            "--video-feature",
+            "v",
+            "--output-dir",
+            "out",
+            "--fusion-type",
+            "raw-residual",
+        ]
+    )
+    assert args.fusion_type == "raw-residual"
+
+
+def test_raw_residual_backward_reaches_online_encoder_graph_and_predictor():
+    torch.manual_seed(37)
+    model = MissingM3GraphModel(
+        **_model_arguments(), fusion_type="raw-residual"
+    ).train()
+    features = torch.randn(3, 2, 9)
+    availability = torch.tensor(
+        [
+            [[1, 0, 0], [0, 1, 1]],
+            [[1, 1, 0], [0, 0, 1]],
+            [[1, 1, 1], [0, 0, 0]],
+        ],
+        dtype=torch.float32,
+    )
+    qmask = torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]])
+    umask = torch.tensor([[1.0, 1.0, 1.0], [1.0, 1.0, 0.0]])
+
+    logits, _, _, predictions = model(
+        [features], availability, qmask, umask, [3, 2], predict_missing=True
+    )
+    assert predictions is not None and bool(predictions.target_mask.any())
+    predicted = predictions.reg_predictions[predictions.target_mask]
+    loss = logits.square().mean() + predicted.square().mean()
+    loss.backward()
+
+    parameter_groups = {
+        "student": model.observed_set.projectors.parameters(),
+        "adapter": model.observed_set.adapters.parameters(),
+        "graph": model.graph_net_temporal.parameters(),
+        "predictor": model.missing_predictor.parameters(),
+    }
+    for name, parameters in parameter_groups.items():
+        gradients = [
+            parameter.grad
+            for parameter in parameters
+            if parameter.grad is not None
+        ]
+        assert gradients, name
+        assert all(torch.isfinite(gradient).all() for gradient in gradients), name
+        assert any(torch.count_nonzero(gradient) > 0 for gradient in gradients), name
 
 
 def test_missing_m3_graph_model_uses_one_gcnet_forward_and_updates_teacher_exactly():

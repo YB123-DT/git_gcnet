@@ -16,6 +16,31 @@ from gcnet_modality_jepa.model import GraphModel
 MODALITIES = ("audio", "text", "visual")
 
 
+def _validate_observed_inputs(
+    features: torch.Tensor,
+    availability: torch.Tensor,
+    umask: torch.Tensor,
+    dimensions: Tuple[int, int, int],
+) -> torch.Tensor:
+    if features.ndim != 3 or features.shape[-1] != sum(dimensions):
+        raise ValueError("features must have shape [L, B, sumD]")
+    if availability.ndim != 3 or availability.shape[-1] != 3:
+        raise ValueError("availability must have shape [L, B, 3]")
+    if features.shape[:2] != availability.shape[:2]:
+        raise ValueError("features and availability leading dimensions differ")
+    length, batch = features.shape[:2]
+    if umask.shape != (batch, length):
+        raise ValueError("umask must have shape [B, L]")
+    if not bool(((availability == 0) | (availability == 1)).all()):
+        raise ValueError("availability must be binary")
+    valid = umask.T.bool()
+    if bool((availability[~valid] != 0).any()):
+        raise ValueError("padding availability must be zero")
+    if bool((availability[valid].sum(dim=-1) == 0).any()):
+        raise ValueError("valid utterances require at least one observed modality")
+    return valid
+
+
 class ModalityProjector(nn.Module):
     def __init__(self, input_dim: int, latent_dim: int, dropout: float) -> None:
         super().__init__()
@@ -97,23 +122,9 @@ class ObservedSetEncoder(nn.Module):
         availability: torch.Tensor,
         umask: torch.Tensor,
     ) -> torch.Tensor:
-        if features.ndim != 3 or features.shape[-1] != sum(self.dimensions):
-            raise ValueError("features must have shape [L, B, sumD]")
-        if availability.ndim != 3 or availability.shape[-1] != 3:
-            raise ValueError("availability must have shape [L, B, 3]")
-        if features.shape[:2] != availability.shape[:2]:
-            raise ValueError("features and availability leading dimensions differ")
-        length, batch = features.shape[:2]
-        if umask.shape != (batch, length):
-            raise ValueError("umask must have shape [B, L]")
-        if not bool(((availability == 0) | (availability == 1)).all()):
-            raise ValueError("availability must be binary")
-        valid = umask.T.bool()
-        if bool((availability[~valid] != 0).any()):
-            raise ValueError("padding availability must be zero")
-        if bool((availability[valid].sum(dim=-1) == 0).any()):
-            raise ValueError("valid utterances require at least one observed modality")
-        return valid
+        return _validate_observed_inputs(
+            features, availability, umask, self.dimensions
+        )
 
     def forward(
         self,
@@ -165,6 +176,69 @@ class ObservedSetEncoder(nn.Module):
         node = features.new_zeros(latent_shape)
         node[valid] = self.fusion(fusion_input[valid])
         return node, latents
+
+
+class RawResidualObservedEncoder(nn.Module):
+    """Preserve observed raw blocks while coupling Student latents by residuals."""
+
+    def __init__(
+        self,
+        dimensions: Tuple[int, int, int],
+        latent_dim: int,
+        dropout: float = 0.1,
+    ) -> None:
+        super().__init__()
+        if len(dimensions) != 3 or any(int(value) <= 0 for value in dimensions):
+            raise ValueError("dimensions must contain three positive integers")
+        self.dimensions = tuple(int(value) for value in dimensions)
+        self.latent_dim = int(latent_dim)
+        self.projectors = nn.ModuleDict(
+            {
+                name: ModalityProjector(width, latent_dim, dropout)
+                for name, width in zip(MODALITIES, self.dimensions)
+            }
+        )
+        self.adapters = nn.ModuleDict(
+            {
+                name: nn.Sequential(
+                    nn.LayerNorm(latent_dim),
+                    nn.Linear(latent_dim, width),
+                )
+                for name, width in zip(MODALITIES, self.dimensions)
+            }
+        )
+        for adapter in self.adapters.values():
+            nn.init.zeros_(adapter[-1].weight)
+            nn.init.zeros_(adapter[-1].bias)
+
+    def forward(
+        self,
+        features: torch.Tensor,
+        availability: torch.Tensor,
+        umask: torch.Tensor,
+    ) -> tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        valid = _validate_observed_inputs(
+            features, availability, umask, self.dimensions
+        )
+        latent_shape = (*features.shape[:2], self.latent_dim)
+        output = features.new_zeros(features.shape)
+        latents: Dict[str, torch.Tensor] = {}
+        start = 0
+        for index, (name, width) in enumerate(zip(MODALITIES, self.dimensions)):
+            stop = start + width
+            block = features[..., start:stop]
+            selected = valid & availability[..., index].bool()
+            latent = features.new_zeros(latent_shape)
+            if bool(selected.any()):
+                projected = self.projectors[name](block[selected])
+                latent[selected] = projected
+                output_block = output[..., start:stop]
+                output_block[selected] = (
+                    block[selected] + self.adapters[name](projected)
+                )
+            latents[name] = latent
+            start = stop
+        return output, latents
 
 
 class DualGateTopKMMoE(nn.Module):
@@ -364,29 +438,37 @@ class MissingM3GraphModel(GraphModel):
         )
         self.dimensions = (adim, tdim, vdim)
         self.latent_dim = int(latent_dim)
-        self.observed_set = ObservedSetEncoder(
-            self.dimensions,
-            latent_dim,
-            projector_dropout,
-            fusion_type=fusion_type,
-        )
+        if fusion_type == "raw-residual":
+            self.observed_set = RawResidualObservedEncoder(
+                self.dimensions,
+                latent_dim,
+                projector_dropout,
+            )
+        else:
+            self.observed_set = ObservedSetEncoder(
+                self.dimensions,
+                latent_dim,
+                projector_dropout,
+                fusion_type=fusion_type,
+            )
         self.teacher = EMATeacherProjectors(self.observed_set.projectors)
-        if base_model == "LSTM":
-            self.lstm = nn.LSTM(
-                input_size=latent_dim,
-                hidden_size=D_e,
-                num_layers=2,
-                bidirectional=True,
-                dropout=dropout,
-            )
-        elif base_model == "GRU":
-            self.gru = nn.GRU(
-                input_size=latent_dim,
-                hidden_size=D_e,
-                num_layers=2,
-                bidirectional=True,
-                dropout=dropout,
-            )
+        if fusion_type != "raw-residual":
+            if base_model == "LSTM":
+                self.lstm = nn.LSTM(
+                    input_size=latent_dim,
+                    hidden_size=D_e,
+                    num_layers=2,
+                    bidirectional=True,
+                    dropout=dropout,
+                )
+            elif base_model == "GRU":
+                self.gru = nn.GRU(
+                    input_size=latent_dim,
+                    hidden_size=D_e,
+                    num_layers=2,
+                    bidirectional=True,
+                    dropout=dropout,
+                )
         hidden_dim = 2 * D_e + graph_hidden_size
         self.missing_predictor = ContextualM3Predictor(
             latent_dim,

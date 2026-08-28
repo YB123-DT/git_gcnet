@@ -595,7 +595,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-experts", type=int, default=4)
     parser.add_argument("--top-k", type=int, default=2)
     parser.add_argument(
-        "--fusion-type", choices=("mean", "slot"), default="mean"
+        "--fusion-type",
+        choices=("mean", "slot", "raw-residual"),
+        default="mean",
     )
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--l2", type=float, default=1e-5)
