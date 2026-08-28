@@ -15,6 +15,11 @@ from gcnet_missing_m3.model import (
     MissingM3GraphModel,
     ObservedSetEncoder,
 )
+from gcnet_missing_m3.train_gcnet import (
+    _dataset_shape,
+    _metrics,
+    _task_loss,
+)
 
 
 ASSERT_CLOSE = getattr(torch.testing, "assert_close", torch.testing.assert_allclose)
@@ -230,3 +235,50 @@ def test_best_epoch_uses_mixed_validation_mean_not_any_single_rate_peak():
         {"epoch": 1, "validation": first},
         {"epoch": 2, "validation": second},
     ]) == 2
+
+
+@pytest.mark.parametrize(
+    "dataset,num_folds,num_classes,num_speakers,task",
+    [
+        ("IEMOCAPFour", 5, 4, 2, "classification"),
+        ("IEMOCAPSix", 5, 6, 2, "classification"),
+        ("CMUMOSI", 1, 1, 1, "regression"),
+        ("CMUMOSEI", 1, 1, 1, "regression"),
+    ],
+)
+def test_dataset_shape_matches_gcnet_task_contract(
+    dataset, num_folds, num_classes, num_speakers, task
+):
+    actual = _dataset_shape(dataset)
+    assert actual == {
+        "num_folds": num_folds,
+        "num_classes": num_classes,
+        "num_speakers": num_speakers,
+        "task": task,
+    }
+
+
+def test_task_loss_uses_cross_entropy_for_erc_and_mse_for_sentiment():
+    logits = torch.tensor([[[2.0, -1.0]], [[-1.0, 2.0]]])
+    labels = torch.tensor([[0, 1]])
+    umask = torch.ones(1, 2)
+    expected_ce = torch.nn.functional.cross_entropy(
+        logits.transpose(0, 1).reshape(-1, 2), labels.reshape(-1)
+    )
+    ASSERT_CLOSE(_task_loss("IEMOCAPFour", logits, labels, umask), expected_ce)
+
+    prediction = torch.tensor([[[0.5]], [[-1.0]]])
+    target = torch.tensor([[1.5, 1.0]])
+    expected_mse = torch.tensor(((0.5 - 1.5) ** 2 + (-1.0 - 1.0) ** 2) / 2)
+    ASSERT_CLOSE(_task_loss("CMUMOSI", prediction, target, umask), expected_mse)
+
+
+def test_sentiment_metrics_match_gcnet_binary_nonzero_protocol():
+    labels = torch.tensor([-2.0, -1.0, 0.0, 1.0, 2.0]).numpy()
+    predictions = torch.tensor([-1.0, 0.5, -3.0, 0.1, 2.0]).numpy()
+
+    result = _metrics("CMUMOSI", labels, predictions)
+
+    assert result["accuracy"] == pytest.approx(0.75)
+    assert result["weighted_f1"] == pytest.approx(0.7333333333333334)
+    assert result["mae"] == pytest.approx(1.28)

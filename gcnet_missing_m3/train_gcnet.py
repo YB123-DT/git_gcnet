@@ -65,6 +65,39 @@ class TrainConfig:
     device: str = "cuda"
 
 
+def _dataset_shape(dataset: str) -> Dict[str, object]:
+    contracts = {
+        "IEMOCAPFour": {
+            "num_folds": 5,
+            "num_classes": 4,
+            "num_speakers": 2,
+            "task": "classification",
+        },
+        "IEMOCAPSix": {
+            "num_folds": 5,
+            "num_classes": 6,
+            "num_speakers": 2,
+            "task": "classification",
+        },
+        "CMUMOSI": {
+            "num_folds": 1,
+            "num_classes": 1,
+            "num_speakers": 1,
+            "task": "regression",
+        },
+        "CMUMOSEI": {
+            "num_folds": 1,
+            "num_classes": 1,
+            "num_speakers": 1,
+            "task": "regression",
+        },
+    }
+    try:
+        return dict(contracts[dataset])
+    except KeyError:
+        raise ValueError("unsupported dataset: {}".format(dataset))
+
+
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -171,33 +204,66 @@ def _prepare_view(
     }
 
 
-def _classification_loss(
+def _task_loss(
+    dataset: str,
     logits: torch.Tensor,
     labels: torch.Tensor,
     umask: torch.Tensor,
 ) -> torch.Tensor:
-    flat_logits = logits.transpose(0, 1).reshape(-1, logits.shape[-1])
-    flat_labels = labels.reshape(-1).long()
     selected = umask.reshape(-1).bool()
-    return torch.nn.functional.cross_entropy(
-        flat_logits[selected], flat_labels[selected]
+    if _dataset_shape(dataset)["task"] == "classification":
+        flat_logits = logits.transpose(0, 1).reshape(-1, logits.shape[-1])
+        flat_labels = labels.reshape(-1).long()
+        return torch.nn.functional.cross_entropy(
+            flat_logits[selected], flat_labels[selected]
+        )
+    prediction = logits.transpose(0, 1).reshape(-1)
+    target = labels.reshape(-1).to(dtype=prediction.dtype)
+    return torch.nn.functional.mse_loss(prediction[selected], target[selected])
+
+
+def _metrics(
+    dataset: str,
+    labels: np.ndarray,
+    predictions: np.ndarray,
+) -> Dict[str, float]:
+    if _dataset_shape(dataset)["task"] == "classification":
+        return {
+            "weighted_f1": float(f1_score(labels, predictions, average="weighted")),
+            "macro_f1": float(f1_score(labels, predictions, average="macro")),
+            "accuracy": float(accuracy_score(labels, predictions)),
+        }
+    nonzero = labels != 0
+    binary_labels = labels[nonzero] > 0
+    binary_predictions = predictions[nonzero] > 0
+    correlation = (
+        float(np.corrcoef(labels, predictions)[0, 1])
+        if labels.size >= 2 and np.std(labels) > 0 and np.std(predictions) > 0
+        else 0.0
     )
-
-
-def _metrics(labels: np.ndarray, predictions: np.ndarray) -> Dict[str, float]:
     return {
-        "weighted_f1": float(f1_score(labels, predictions, average="weighted")),
-        "macro_f1": float(f1_score(labels, predictions, average="macro")),
-        "accuracy": float(accuracy_score(labels, predictions)),
+        "weighted_f1": float(
+            f1_score(binary_labels, binary_predictions, average="weighted")
+        ),
+        "macro_f1": float(
+            f1_score(binary_labels, binary_predictions, average="macro")
+        ),
+        "accuracy": float(accuracy_score(binary_labels, binary_predictions)),
+        "mae": float(np.mean(np.abs(labels - predictions))),
+        "correlation": correlation,
     }
 
 
 def _collect_predictions(
+    dataset: str,
     logits: torch.Tensor,
     labels: torch.Tensor,
     umask: torch.Tensor,
 ) -> tuple[np.ndarray, np.ndarray]:
-    predicted = logits.argmax(dim=-1).transpose(0, 1)
+    if _dataset_shape(dataset)["task"] == "classification":
+        predicted = logits.argmax(dim=-1).transpose(0, 1)
+    else:
+        predicted = logits.squeeze(-1).transpose(0, 1)
     selected = umask.bool()
     return (
         predicted[selected].detach().cpu().numpy(),
@@ -238,7 +304,9 @@ def train_epoch(
             view["lengths"],
             predict_missing=True,
         )
-        cls = _classification_loss(logits, view["labels"], view["umask"])
+        cls = _task_loss(
+            config.dataset, logits, view["labels"], view["umask"]
+        )
         with torch.no_grad():
             teacher = model.encode_teacher_targets([view["complete"]])
         jepa: MissingM3Loss = missing_m3_loss(
@@ -256,7 +324,7 @@ def train_epoch(
         optimizer.step()
         model.update_teacher(config.ema_tau)
         predicted, expected = _collect_predictions(
-            logits, view["labels"], view["umask"]
+            config.dataset, logits, view["labels"], view["umask"]
         )
         all_predictions.append(predicted)
         all_labels.append(expected)
@@ -264,7 +332,11 @@ def train_epoch(
         cls_losses.append(float(cls.detach()))
         jepa_losses.append(float(jepa.total.detach()))
         target_count += jepa.target_count
-    metrics = _metrics(np.concatenate(all_labels), np.concatenate(all_predictions))
+    metrics = _metrics(
+        config.dataset,
+        np.concatenate(all_labels),
+        np.concatenate(all_predictions),
+    )
     return {
         **metrics,
         "loss": float(np.mean(losses)),
@@ -280,6 +352,7 @@ def evaluate_rate(
     model: MissingM3GraphModel,
     loader: Iterable[Sequence[object]],
     schedule: ConversationMaskSchedule,
+    dataset: str,
     dimensions: tuple[int, int, int],
     device: torch.device,
     collect: bool,
@@ -302,9 +375,9 @@ def evaluate_rate(
         )
         if predictions is not None:
             raise RuntimeError("inference path must not return missing predictions")
-        loss = _classification_loss(logits, view["labels"], view["umask"])
+        loss = _task_loss(dataset, logits, view["labels"], view["umask"])
         predicted, expected = _collect_predictions(
-            logits, view["labels"], view["umask"]
+            dataset, logits, view["labels"], view["umask"]
         )
         all_predictions.append(predicted)
         all_labels.append(expected)
@@ -316,7 +389,7 @@ def evaluate_rate(
     predictions_array = np.concatenate(all_predictions)
     labels_array = np.concatenate(all_labels)
     metrics = {
-        **_metrics(labels_array, predictions_array),
+        **_metrics(dataset, labels_array, predictions_array),
         "loss": float(np.mean(losses)),
     }
     artifacts = None
@@ -340,10 +413,9 @@ def run_experiment(
     visual_root: str,
     output_dir: str | Path,
 ) -> Dict[str, object]:
-    if config_value.dataset != "IEMOCAPSix":
-        raise ValueError("the first experiment is locked to IEMOCAPSix")
-    if config_value.fold != 5:
-        raise ValueError("the first experiment is locked to fold 5")
+    shape = _dataset_shape(config_value.dataset)
+    if not 1 <= config_value.fold <= int(shape["num_folds"]):
+        raise ValueError("fold is outside the dataset fold range")
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
     _write_json(output / "config.json", asdict(config_value))
@@ -353,7 +425,7 @@ def run_experiment(
         audio_root=audio_root,
         text_root=text_root,
         video_root=visual_root,
-        num_folder=5,
+        num_folder=int(shape["num_folds"]),
         dataset=config_value.dataset,
         batch_size=config_value.batch_size,
         num_workers=0,
@@ -378,10 +450,10 @@ def run_experiment(
         vdim,
         config_value.hidden,
         config_value.hidden // 2,
-        n_speakers=2,
+        n_speakers=int(shape["num_speakers"]),
         window_past=config_value.window_past,
         window_future=config_value.window_future,
-        n_classes=6,
+        n_classes=int(shape["num_classes"]),
         dropout=config_value.dropout,
         time_attn=config_value.time_attention,
         no_cuda=device.type != "cuda",
@@ -423,6 +495,7 @@ def run_experiment(
                 model,
                 validation_loader,
                 validation_schedules[rate],
+                config_value.dataset,
                 dimensions,
                 device,
                 collect=False,
@@ -470,6 +543,7 @@ def run_experiment(
             model,
             test_loader,
             test_schedules[rate],
+            config_value.dataset,
             dimensions,
             device,
             collect=True,
@@ -500,10 +574,16 @@ def run_experiment(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--dataset",
+        choices=("IEMOCAPFour", "IEMOCAPSix", "CMUMOSI", "CMUMOSEI"),
+        default="IEMOCAPSix",
+    )
     parser.add_argument("--audio-feature", required=True)
     parser.add_argument("--text-feature", required=True)
     parser.add_argument("--video-feature", required=True)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--feature-root", default=None)
     parser.add_argument("--seed", type=int, default=66)
     parser.add_argument("--fold", type=int, default=5)
     parser.add_argument("--epochs", type=int, default=100)
@@ -533,6 +613,7 @@ def main() -> None:
     args = build_parser().parse_args()
     torch.set_num_threads(args.num_threads)
     config_value = TrainConfig(
+        dataset=args.dataset,
         fold=args.fold,
         seed=args.seed,
         window_past=args.windowp,
@@ -555,7 +636,7 @@ def main() -> None:
         validation_fraction=args.validation_fraction,
         device=args.device,
     )
-    feature_root = config.PATH_TO_FEATURES[config_value.dataset]
+    feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [
         os.path.join(feature_root, name)
         for name in (args.audio_feature, args.text_feature, args.video_feature)
