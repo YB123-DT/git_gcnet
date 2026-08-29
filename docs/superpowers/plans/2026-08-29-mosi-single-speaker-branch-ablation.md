@@ -97,7 +97,7 @@ git diff --check
 - 修改：`gcnet_missing_m3/model.py`
 - 修改：`gcnet_missing_m3/train_gcnet.py`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 要求 CLI 默认 `both` 并接受两个单分支值；`main()` 捕获的 `TrainConfig` 必须保存显式值。模型测试要求：
 
@@ -114,7 +114,7 @@ assert all(p.grad is None for p in model.graph_net_speaker.parameters())
 
 反向测试再对 `speaker-only` 对称执行。默认与显式 `both` 复制 state 后输出精确相同。
 
-- [ ] **步骤 2：验证 RED**
+- [x] **步骤 2：验证 RED**
 
 ```bash
 pytest -q tests/test_missing_m3.py -k graph_branch_mode
@@ -122,14 +122,14 @@ pytest -q tests/test_missing_m3.py -k graph_branch_mode
 
 预期：FAIL，Missing-M3/CLI 尚无该参数。
 
-- [ ] **步骤 3：最小透传**
+- [x] **步骤 3：最小透传**
 
 - `MissingM3GraphModel.__init__()` 末尾追加 `graph_branch_mode="both"` 并传入 `super()`；
 - `TrainConfig` 末尾追加 `graph_branch_mode: str = "both"`；
 - CLI 增加 `--graph-branch-mode`，choices 为三种模式；
 - `main()` 与 `run_experiment()` 透传该字段。
 
-- [ ] **步骤 4：完整验证**
+- [x] **步骤 4：完整验证**
 
 ```bash
 pytest -q tests/test_plci_model.py tests/test_missing_m3.py tests/test_mosi_text_lora.py

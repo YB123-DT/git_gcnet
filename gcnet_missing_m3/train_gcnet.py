@@ -69,6 +69,7 @@ class TrainConfig:
     device: str = "cuda"
     train_rate_mode: str = "cyclic"
     mosi_task_mode: str = "regression"
+    graph_branch_mode: str = "both"
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -584,6 +585,7 @@ def run_experiment(
         local_context_residual=config_value.local_context_residual,
         local_fusion_hidden_dim=config_value.local_fusion_hidden_dim,
         local_fusion_dropout=config_value.local_fusion_dropout,
+        graph_branch_mode=config_value.graph_branch_mode,
     ).to(device)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -706,6 +708,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("regression", "binary"),
         default="regression",
     )
+    parser.add_argument(
+        "--graph-branch-mode",
+        choices=("both", "temporal-only", "speaker-only"),
+        default="both",
+    )
     parser.add_argument("--audio-feature", required=True)
     parser.add_argument("--text-feature", required=True)
     parser.add_argument("--video-feature", required=True)
@@ -779,6 +786,7 @@ def main() -> None:
         validation_fraction=args.validation_fraction,
         device=args.device,
         mosi_task_mode=args.mosi_task_mode,
+        graph_branch_mode=args.graph_branch_mode,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [

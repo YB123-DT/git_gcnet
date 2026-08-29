@@ -479,6 +479,7 @@ class MissingM3GraphModel(GraphModel):
         local_context_residual=False,
         local_fusion_hidden_dim=256,
         local_fusion_dropout=0.2,
+        graph_branch_mode="both",
     ) -> None:
         if local_context_residual and fusion_type != "slot":
             raise ValueError("local_context_residual requires fusion_type='slot'")
@@ -497,6 +498,7 @@ class MissingM3GraphModel(GraphModel):
             time_attn,
             no_cuda,
             enable_reconstruction=False,
+            graph_branch_mode=graph_branch_mode,
         )
         self.dimensions = (adim, tdim, vdim)
         self.latent_dim = int(latent_dim)

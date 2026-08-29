@@ -317,6 +317,60 @@ def _model_inputs():
     return features, availability, qmask, umask, [3, 2]
 
 
+@pytest.mark.parametrize(
+    "mode,active_name,inactive_name",
+    [
+        ("temporal-only", "graph_net_temporal", "graph_net_speaker"),
+        ("speaker-only", "graph_net_speaker", "graph_net_temporal"),
+    ],
+)
+def test_graph_branch_mode_missing_m3_routes_gradients_only_to_active_branch(
+    mode, active_name, inactive_name
+):
+    torch.manual_seed(23)
+    model = MissingM3GraphModel(
+        **_model_arguments(), graph_branch_mode=mode
+    ).train()
+    features, availability, qmask, umask, lengths = _model_inputs()
+
+    logits, _, _, _ = model(
+        [features], availability, qmask, umask, lengths, predict_missing=False
+    )
+    logits.square().mean().backward()
+
+    active_gradients = [
+        parameter.grad for parameter in getattr(model, active_name).parameters()
+    ]
+    inactive_gradients = [
+        parameter.grad for parameter in getattr(model, inactive_name).parameters()
+    ]
+    assert any(
+        gradient is not None and torch.count_nonzero(gradient) > 0
+        for gradient in active_gradients
+    )
+    assert all(gradient is None for gradient in inactive_gradients)
+
+
+def test_graph_branch_mode_missing_m3_defaults_to_both():
+    torch.manual_seed(29)
+    default = MissingM3GraphModel(**_model_arguments()).eval()
+    torch.manual_seed(29)
+    explicit = MissingM3GraphModel(
+        **_model_arguments(), graph_branch_mode="both"
+    ).eval()
+    explicit.load_state_dict(default.state_dict(), strict=True)
+    inputs = _model_inputs()
+
+    default_output = default(
+        [inputs[0]], *inputs[1:4], inputs[4], predict_missing=False
+    )[0]
+    explicit_output = explicit(
+        [inputs[0]], *inputs[1:4], inputs[4], predict_missing=False
+    )[0]
+
+    ASSERT_CLOSE(default_output, explicit_output, rtol=0, atol=0)
+
+
 def test_local_context_residual_has_expected_shape_zero_padding_and_no_missing_leakage():
     torch.manual_seed(41)
     fusion = LocalContextResidualFusion(
@@ -1014,6 +1068,53 @@ def test_mosi_task_mode_main_passes_binary_to_run_experiment(monkeypatch):
         "features/v",
     )
     assert captured["output_dir"] == "out"
+
+
+def test_graph_branch_mode_cli_defaults_and_main_passthrough(monkeypatch):
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+    parser = build_parser()
+    assert parser.parse_args(required).graph_branch_mode == "both"
+    assert parser.parse_args(
+        required + ["--graph-branch-mode", "temporal-only"]
+    ).graph_branch_mode == "temporal-only"
+    assert parser.parse_args(
+        required + ["--graph-branch-mode", "speaker-only"]
+    ).graph_branch_mode == "speaker-only"
+
+    captured = {}
+
+    def run_experiment(config_value, *roots, output_dir):
+        del roots, output_dir
+        captured["config"] = config_value
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train_gcnet.py",
+            *required,
+            "--feature-root",
+            "features",
+            "--graph-branch-mode",
+            "speaker-only",
+        ],
+    )
+    monkeypatch.setattr(train_gcnet.torch, "set_num_threads", lambda _value: None)
+    monkeypatch.setattr(train_gcnet.os.path, "exists", lambda _path: True)
+    monkeypatch.setattr(train_gcnet, "run_experiment", run_experiment)
+
+    train_gcnet.main()
+
+    assert captured["config"].graph_branch_mode == "speaker-only"
 
 
 def test_mosi_task_mode_run_experiment_builds_one_or_two_output_classes(
