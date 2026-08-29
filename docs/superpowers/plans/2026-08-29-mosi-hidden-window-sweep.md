@@ -28,7 +28,7 @@
 - 修改：`tests/test_mosi_hidden_window_sweep.py`
 
 - [ ] 测试 dry-run manifest、完成任务跳过和独立日志路径。
-- [ ] 实现 manifest、并发子进程、状态文件与非零退出汇总。
+- [ ] 实现 manifest、每卡最多3任务的 wave 调度、状态文件与非零退出汇总。
 - [ ] 运行 runner 单测及现有 Missing-M3 CLI 相关测试。
 
 ### 任务 3：远程启动与核验
@@ -39,5 +39,5 @@
 - [ ] 同步 runner 到 `/data2/yb/paper/GCNet_TPAMI_single_view_dev`。
 - [ ] 在 biggpu dry-run 并验证36任务矩阵。
 - [ ] 以后台进程启动 GPU 0/1/2 的正式扫描。
-- [ ] 检查 runner、36个子进程、每卡显存和首批日志无即时异常。
+- [ ] 检查 runner、每卡最多3个子进程、显存和首批日志无即时异常。
 - [ ] 将启动证据写入实验账本。

@@ -5,6 +5,7 @@ from pathlib import Path
 from scripts.run_mosi_hidden_window_sweep import (
     build_command,
     build_jobs,
+    build_waves,
     pending_jobs,
     write_manifest,
 )
@@ -113,3 +114,19 @@ def test_matrix_generation_is_compatible_with_legacy_python_zip(
     monkeypatch.setattr(builtins, "zip", legacy_zip)
     jobs = build_jobs(seeds=(66,), gpus=(5,), output_root=tmp_path)
     assert len(jobs) == 12
+
+
+def test_retry_waves_limit_each_gpu_to_three_jobs(tmp_path):
+    jobs = build_jobs(
+        seeds=(66, 67, 68),
+        gpus=(5, 6, 7),
+        output_root=tmp_path,
+    )
+
+    waves = build_waves(jobs, max_concurrent_per_gpu=3)
+
+    assert len(waves) == 4
+    assert {job for wave in waves for job in wave} == set(jobs)
+    for wave in waves:
+        counts = Counter(job.gpu for job in wave)
+        assert counts == {5: 3, 6: 3, 7: 3}

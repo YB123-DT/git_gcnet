@@ -20,13 +20,16 @@ unrelated 24.8 GB processes, so the non-conflicting free GPUs 5, 6, and 7 were u
 | 6 | 67 | 12 |
 | 7 | 68 | 12 |
 
-Each task uses two Torch CPU threads. At steady startup the cards used approximately
-20.4, 24.9, and 22.3 GB respectively, confirming that twelve jobs fit on each V100.
+Each task uses two Torch CPU threads. Twelve jobs initially entered each V100, but
+later dynamic batches exposed seed-dependent peak memory: GPU5 reached about 30.8 GB,
+and multiple jobs exited with CUDA OOM or `CUDNN_STATUS_NOT_INITIALIZED`. Therefore
+startup memory was not a valid capacity test.
 
-One of 36 simultaneous cuDNN initializations returned
-`CUDNN_STATUS_NOT_INITIALIZED`; the other 35 jobs continued. A detached retry watcher
-will rerun every output directory lacking `metrics.json` after the first wave exits,
-without duplicating completed jobs.
+The surviving jobs continue without interruption. The original all-at-once retry
+watcher was removed. A tested replacement waits for the initial runner to exit, skips
+directories containing `metrics.json`, and reruns the remaining jobs in four waves
+with at most three concurrent jobs per GPU. This avoids duplicating successful jobs
+and prevents the observed peak-memory failure from repeating.
 
 Remote result root:
 

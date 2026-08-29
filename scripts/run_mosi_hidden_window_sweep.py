@@ -118,6 +118,33 @@ def pending_jobs(jobs: Sequence[SweepJob]) -> list[SweepJob]:
     return [job for job in jobs if not (job.output_dir / "metrics.json").is_file()]
 
 
+def build_waves(
+    jobs: Sequence[SweepJob], *, max_concurrent_per_gpu: int
+) -> list[list[SweepJob]]:
+    if max_concurrent_per_gpu < 1:
+        raise ValueError("max_concurrent_per_gpu must be positive")
+    grouped: dict[int, list[SweepJob]] = {}
+    for job in jobs:
+        grouped.setdefault(job.gpu, []).append(job)
+    wave_count = max(
+        (
+            (len(gpu_jobs) + max_concurrent_per_gpu - 1)
+            // max_concurrent_per_gpu
+            for gpu_jobs in grouped.values()
+        ),
+        default=0,
+    )
+    waves = []
+    for wave_index in range(wave_count):
+        start = wave_index * max_concurrent_per_gpu
+        stop = start + max_concurrent_per_gpu
+        wave = []
+        for gpu_jobs in grouped.values():
+            wave.extend(gpu_jobs[start:stop])
+        waves.append(wave)
+    return waves
+
+
 def _atomic_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -160,57 +187,67 @@ def run_jobs(
     *,
     python_executable: Path,
     repo_root: Path,
+    max_concurrent_per_gpu: int,
 ) -> int:
-    processes = []
-    for job in pending_jobs(jobs):
-        job.output_dir.mkdir(parents=True, exist_ok=True)
-        command = build_command(job, python_executable=python_executable)
-        log_handle = (job.output_dir / "train.log").open("a", encoding="utf-8")
-        environment = os.environ.copy()
-        environment.update(
-            {
-                "CUDA_VISIBLE_DEVICES": str(job.gpu),
-                "OMP_NUM_THREADS": "2",
-                "MKL_NUM_THREADS": "2",
-            }
-        )
-        started_at = time.time()
-        process = subprocess.Popen(
-            command,
-            cwd=repo_root,
-            env=environment,
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-        )
-        _atomic_json(
-            job.output_dir / "status.json",
-            {
-                "state": "running",
-                "pid": process.pid,
-                "started_at_unix": started_at,
-                "gpu": job.gpu,
-                "command": command,
-            },
-        )
-        processes.append((job, process, log_handle, started_at))
-
     failures = 0
-    for job, process, log_handle, started_at in processes:
-        returncode = process.wait()
-        log_handle.close()
-        if returncode != 0:
-            failures += 1
-        _atomic_json(
-            job.output_dir / "status.json",
-            {
-                "state": "complete" if returncode == 0 else "failed",
-                "pid": process.pid,
-                "returncode": returncode,
-                "started_at_unix": started_at,
-                "finished_at_unix": time.time(),
-                "gpu": job.gpu,
-            },
-        )
+    waves = build_waves(
+        pending_jobs(jobs),
+        max_concurrent_per_gpu=max_concurrent_per_gpu,
+    )
+    for wave_index, wave in enumerate(waves):
+        processes = []
+        for job in wave:
+            job.output_dir.mkdir(parents=True, exist_ok=True)
+            command = build_command(job, python_executable=python_executable)
+            log_handle = (job.output_dir / "train.log").open(
+                "a", encoding="utf-8"
+            )
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "CUDA_VISIBLE_DEVICES": str(job.gpu),
+                    "OMP_NUM_THREADS": "2",
+                    "MKL_NUM_THREADS": "2",
+                }
+            )
+            started_at = time.time()
+            process = subprocess.Popen(
+                command,
+                cwd=repo_root,
+                env=environment,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+            )
+            _atomic_json(
+                job.output_dir / "status.json",
+                {
+                    "state": "running",
+                    "pid": process.pid,
+                    "started_at_unix": started_at,
+                    "gpu": job.gpu,
+                    "wave": wave_index,
+                    "command": command,
+                },
+            )
+            processes.append((job, process, log_handle, started_at))
+
+        for job, process, log_handle, started_at in processes:
+            returncode = process.wait()
+            log_handle.close()
+            if returncode != 0:
+                failures += 1
+            _atomic_json(
+                job.output_dir / "status.json",
+                {
+                    "state": "complete" if returncode == 0 else "failed",
+                    "pid": process.pid,
+                    "returncode": returncode,
+                    "started_at_unix": started_at,
+                    "finished_at_unix": time.time(),
+                    "gpu": job.gpu,
+                    "wave": wave_index,
+                },
+            )
     return failures
 
 
@@ -232,6 +269,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("/data2/yb/reproduction_envs/gcnet-official/bin/python"),
     )
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--max-concurrent-per-gpu", type=int, default=3)
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -258,6 +296,7 @@ def main() -> int:
                         str(gpu): sum(job.gpu == gpu for job in jobs)
                         for gpu in args.gpus
                     },
+                    "max_concurrent_per_gpu": args.max_concurrent_per_gpu,
                 },
                 sort_keys=True,
             )
@@ -267,6 +306,7 @@ def main() -> int:
         jobs,
         python_executable=args.python_executable,
         repo_root=args.repo_root,
+        max_concurrent_per_gpu=args.max_concurrent_per_gpu,
     )
     _atomic_json(
         args.output_root / "runner_status.json",
