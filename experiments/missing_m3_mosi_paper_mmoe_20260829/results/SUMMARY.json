@@ -1,0 +1,80 @@
+{
+  "dataset": "CMUMOSI",
+  "variant": "paper-faithful-m3-mmoe",
+  "control": "dual-gate-m3-mmoe",
+  "seeds": [66, 67, 68, 69, 70],
+  "missing_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+  "best_epochs": {
+    "66": 46,
+    "67": 48,
+    "68": 44,
+    "69": 56,
+    "70": 47
+  },
+  "weighted_f1_percent_mean": {
+    "0.0": 85.6855,
+    "0.1": 83.1729,
+    "0.2": 80.3540,
+    "0.3": 78.8888,
+    "0.4": 75.8249,
+    "0.5": 74.6007,
+    "0.6": 73.6528,
+    "0.7": 71.7824
+  },
+  "control_weighted_f1_percent_mean": {
+    "0.0": 85.7582,
+    "0.1": 83.0512,
+    "0.2": 80.7926,
+    "0.3": 79.2040,
+    "0.4": 76.1963,
+    "0.5": 74.7999,
+    "0.6": 73.3027,
+    "0.7": 71.3668
+  },
+  "delta_percent_mean": {
+    "0.0": -0.0727,
+    "0.1": 0.1217,
+    "0.2": -0.4386,
+    "0.3": -0.3152,
+    "0.4": -0.3714,
+    "0.5": -0.1992,
+    "0.6": 0.3501,
+    "0.7": 0.4156
+  },
+  "positive_seeds_by_rate": {
+    "0.0": 2,
+    "0.1": 2,
+    "0.2": 2,
+    "0.3": 1,
+    "0.4": 3,
+    "0.5": 3,
+    "0.6": 3,
+    "0.7": 2
+  },
+  "aggregate_percent": {
+    "eight_rate_mean": 77.9953,
+    "control_eight_rate_mean": 78.0590,
+    "eight_rate_delta": -0.0637,
+    "nonzero_mean": 76.8967,
+    "control_nonzero_mean": 76.9591,
+    "nonzero_delta": -0.0624,
+    "high_missing_0p4_to_0p7_mean": 73.9652,
+    "control_high_missing_0p4_to_0p7_mean": 73.9164,
+    "high_missing_delta": 0.0488,
+    "positive_seeds_eight_rate": 3,
+    "positive_seeds_high_missing": 2
+  },
+  "routing_at_best_epoch": {
+    "regression_mean_entropy": 0.9128,
+    "regression_mean_usage": [0.2894, 0.3424, 0.1546, 0.2135],
+    "contrastive_mean_entropy": 0.7437,
+    "contrastive_mean_usage": [0.2684, 0.2103, 0.3930, 0.1283]
+  },
+  "parameter_count": 32091269,
+  "control_parameter_count": 32089733,
+  "parameter_delta": 1536,
+  "matching_mask_hash_pairs": 40,
+  "expected_mask_hash_pairs": 40,
+  "status": "five_seed_no_consistent_gain",
+  "conclusion": "MMoE fidelity correction is not the cause of the broad MOSI gap"
+}

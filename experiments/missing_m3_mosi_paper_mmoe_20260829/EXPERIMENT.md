@@ -37,7 +37,37 @@ hidden 200、window 2/2、time attention false、五个 seeds 66--70。
 
 ## 状态
 
-`RUNNING`。正式远程根目录：
+`COMPLETE — FAIL`。正式远程根目录：
 
 `/data2/yb/remote_experiments/missing_m3_mosi_paper_mmoe_20260829/formal`
 
+## 五种子结果
+
+| Miss | Paper-faithful | DualGate control | Delta | 正向 seeds |
+|---:|---:|---:|---:|---:|
+| 0.0 | 85.69 | 85.76 | -0.07 | 2/5 |
+| 0.1 | 83.17 | 83.05 | +0.12 | 2/5 |
+| 0.2 | 80.35 | 80.79 | -0.44 | 2/5 |
+| 0.3 | 78.89 | 79.20 | -0.32 | 1/5 |
+| 0.4 | 75.82 | 76.20 | -0.37 | 3/5 |
+| 0.5 | 74.60 | 74.80 | -0.20 | 3/5 |
+| 0.6 | 73.65 | 73.30 | +0.35 | 3/5 |
+| 0.7 | 71.78 | 71.37 | +0.42 | 2/5 |
+
+- 八-rate 均值：77.995，对照 78.059，delta=-0.064；
+- 非零-rate 均值：76.897，对照 76.959，delta=-0.062；
+- 0.4--0.7 均值：73.965，对照 73.916，delta=+0.049；
+- 总体正向 3/5 seeds，高缺失正向 2/5 seeds；
+- 40/40 treatment/control mask SHA256 配对一致；
+- 新增 1,536 参数，不能形成稳定收益。
+
+最佳 epoch 的平均 expert usage 均非零，但路由并不均衡：regression entropy 0.913，
+contrastive entropy 0.744，低于四专家均匀上限 `ln(4)=1.386`。这证明统计成功捕获了
+偏置，但没有证据支持在本轮追加 load-balancing loss；那将成为另一个优化变量。
+
+## 结论
+
+恢复 task embedding、branch norm/residual 和官方 Top-K 权重后，MOSI 八-rate 与高缺失
+均值均基本不变，而且逐 seed 波动明显。因此当前 MOSI 与 CaM-HG 的差距不能归因于
+MMoE 迁移不忠实。`paper-faithful` 保留为机制消融，当前 `dual-gate` 结果也不再被误称为
+官方 M3 的完全复现。
