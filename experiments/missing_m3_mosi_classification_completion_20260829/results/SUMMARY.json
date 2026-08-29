@@ -1,0 +1,84 @@
+{
+  "dataset": "CMUMOSI",
+  "variant": "classification-coupled-missing-latent",
+  "control": "training-only-dual-gate-missing-m3",
+  "seeds": [66, 67, 68, 69, 70],
+  "missing_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+  "best_epochs": {
+    "66": 38,
+    "67": 32,
+    "68": 62,
+    "69": 42,
+    "70": 43
+  },
+  "weighted_f1_percent_mean": {
+    "0.0": 84.9466,
+    "0.1": 82.6825,
+    "0.2": 80.0337,
+    "0.3": 78.8294,
+    "0.4": 75.9988,
+    "0.5": 74.2080,
+    "0.6": 72.1858,
+    "0.7": 71.7642
+  },
+  "control_weighted_f1_percent_mean": {
+    "0.0": 85.7582,
+    "0.1": 83.0512,
+    "0.2": 80.7926,
+    "0.3": 79.2040,
+    "0.4": 76.1963,
+    "0.5": 74.7999,
+    "0.6": 73.3027,
+    "0.7": 71.3668
+  },
+  "delta_percent_mean": {
+    "0.0": -0.8116,
+    "0.1": -0.3687,
+    "0.2": -0.7589,
+    "0.3": -0.3747,
+    "0.4": -0.1974,
+    "0.5": -0.5920,
+    "0.6": -1.1169,
+    "0.7": 0.3974
+  },
+  "positive_seeds_by_rate": {
+    "0.0": 1,
+    "0.1": 1,
+    "0.2": 2,
+    "0.3": 3,
+    "0.4": 2,
+    "0.5": 2,
+    "0.6": 1,
+    "0.7": 4
+  },
+  "aggregate_percent": {
+    "eight_rate_mean": 77.5811,
+    "control_eight_rate_mean": 78.0590,
+    "eight_rate_delta": -0.4778,
+    "nonzero_mean": 76.5289,
+    "control_nonzero_mean": 76.9591,
+    "nonzero_delta": -0.4302,
+    "high_missing_0p4_to_0p7_mean": 73.5392,
+    "control_high_missing_0p4_to_0p7_mean": 73.9164,
+    "high_missing_delta": -0.3772,
+    "positive_seeds_eight_rate": 2,
+    "positive_seeds_high_missing": 2
+  },
+  "weighted_f1_percent_sample_std": {
+    "0.0": 1.6917,
+    "0.1": 1.4950,
+    "0.2": 1.9635,
+    "0.3": 0.4352,
+    "0.4": 2.0176,
+    "0.5": 1.4183,
+    "0.6": 2.3669,
+    "0.7": 4.4398
+  },
+  "parameter_count": 32476769,
+  "control_parameter_count": 32089733,
+  "parameter_delta": 387036,
+  "matching_mask_hash_pairs": 40,
+  "expected_mask_hash_pairs": 40,
+  "status": "five_seed_failed",
+  "conclusion": "Direct test-time latent residual introduces unstable hallucination noise and does not close the MOSI gap"
+}
