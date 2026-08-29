@@ -178,6 +178,113 @@ class ObservedSetEncoder(nn.Module):
         return node, latents
 
 
+class ModalityTrackEncoder(nn.Module):
+    """Keep observed modality evidence in three fixed-width graph tracks."""
+
+    def __init__(
+        self,
+        dimensions: Tuple[int, int, int],
+        latent_dim: int,
+        dropout: float = 0.1,
+    ) -> None:
+        super().__init__()
+        if len(dimensions) != 3 or any(int(value) <= 0 for value in dimensions):
+            raise ValueError("dimensions must contain three positive integers")
+        self.dimensions = tuple(int(value) for value in dimensions)
+        self.latent_dim = int(latent_dim)
+        self.projectors = nn.ModuleDict(
+            {
+                name: ModalityProjector(width, latent_dim, dropout)
+                for name, width in zip(MODALITIES, self.dimensions)
+            }
+        )
+        self.modality_embedding = nn.Embedding(3, latent_dim)
+
+    def forward(
+        self,
+        features: torch.Tensor,
+        availability: torch.Tensor,
+        umask: torch.Tensor,
+    ) -> tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        valid = _validate_observed_inputs(
+            features, availability, umask, self.dimensions
+        )
+        latent_shape = (*features.shape[:2], self.latent_dim)
+        tracks: Dict[str, torch.Tensor] = {}
+        latents: Dict[str, torch.Tensor] = {}
+        start = 0
+        for index, (name, width) in enumerate(zip(MODALITIES, self.dimensions)):
+            block = features[..., start : start + width]
+            selected = valid & availability[..., index].bool()
+            latent = features.new_zeros(latent_shape)
+            if bool(selected.any()):
+                latent[selected] = self.projectors[name](block[selected])
+            track = latent.clone()
+            track[selected] += self.modality_embedding.weight[index]
+            latents[name] = latent
+            tracks[name] = track
+            start += width
+        return tracks, latents
+
+
+class PostGraphTrackFusion(nn.Module):
+    """Fuse availability-masked modality tracks after shared graph reasoning."""
+
+    def __init__(self, hidden_dim: int, dropout: float = 0.1) -> None:
+        super().__init__()
+        self.hidden_dim = int(hidden_dim)
+        self.pattern_embedding = nn.Embedding(
+            8, self.hidden_dim, padding_idx=0
+        )
+        self.fusion = nn.Sequential(
+            nn.LayerNorm(4 * self.hidden_dim),
+            nn.Linear(4 * self.hidden_dim, self.hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+    def forward(
+        self,
+        track_hidden: Mapping[str, torch.Tensor],
+        availability: torch.Tensor,
+        umask: torch.Tensor,
+    ) -> torch.Tensor:
+        if set(track_hidden) != set(MODALITIES):
+            raise ValueError("track_hidden must contain audio, text, and visual")
+        reference = track_hidden[MODALITIES[0]]
+        if reference.ndim != 3 or reference.shape[-1] != self.hidden_dim:
+            raise ValueError("each track must have shape [L, B, hidden_dim]")
+        length, batch = reference.shape[:2]
+        if availability.shape != (length, batch, 3):
+            raise ValueError("availability must have shape [L, B, 3]")
+        if umask.shape != (batch, length):
+            raise ValueError("umask must have shape [B, L]")
+        if not bool(((availability == 0) | (availability == 1)).all()):
+            raise ValueError("availability must be binary")
+        for value in track_hidden.values():
+            if value.shape != reference.shape:
+                raise ValueError("all modality tracks must share one shape")
+
+        valid = umask.T.bool()
+        if bool((availability[~valid] != 0).any()):
+            raise ValueError("padding availability must be zero")
+        slots = [
+            track_hidden[name] * availability[..., index : index + 1]
+            for index, name in enumerate(MODALITIES)
+        ]
+        pattern_id = (
+            availability[..., 0].long() * 4
+            + availability[..., 1].long() * 2
+            + availability[..., 2].long()
+        )
+        fusion_input = torch.cat(
+            [*slots, self.pattern_embedding(pattern_id)], dim=-1
+        )
+        output = reference.new_zeros(reference.shape)
+        output[valid] = self.fusion(fusion_input[valid])
+        return output
+
+
 class RawResidualObservedEncoder(nn.Module):
     """Preserve observed raw blocks while coupling Student latents by residuals."""
 
@@ -645,7 +752,20 @@ class MissingM3GraphModel(GraphModel):
         graph_branch_mode="both",
         mmoe_variant="dual-gate",
         classification_completion=False,
+        representation_type="slot",
     ) -> None:
+        if representation_type not in {"slot", "track"}:
+            raise ValueError("representation_type must be 'slot' or 'track'")
+        if representation_type == "track" and fusion_type != "slot":
+            raise ValueError("track representation requires fusion_type='slot'")
+        if representation_type == "track" and local_context_residual:
+            raise ValueError(
+                "track representation cannot use local_context_residual"
+            )
+        if representation_type == "track" and classification_completion:
+            raise ValueError(
+                "track representation cannot use classification_completion"
+            )
         if local_context_residual and fusion_type != "slot":
             raise ValueError("local_context_residual requires fusion_type='slot'")
         super().__init__(
@@ -667,7 +787,14 @@ class MissingM3GraphModel(GraphModel):
         )
         self.dimensions = (adim, tdim, vdim)
         self.latent_dim = int(latent_dim)
-        if fusion_type == "raw-residual":
+        self.representation_type = representation_type
+        if representation_type == "track":
+            self.observed_set = ModalityTrackEncoder(
+                self.dimensions,
+                latent_dim,
+                projector_dropout,
+            )
+        elif fusion_type == "raw-residual":
             self.observed_set = RawResidualObservedEncoder(
                 self.dimensions,
                 latent_dim,
@@ -699,6 +826,8 @@ class MissingM3GraphModel(GraphModel):
                     dropout=dropout,
                 )
         hidden_dim = 2 * D_e + graph_hidden_size
+        if representation_type == "track":
+            self.track_fusion = PostGraphTrackFusion(hidden_dim, dropout)
         self.missing_predictor = ContextualM3Predictor(
             latent_dim,
             hidden_dim,
@@ -740,8 +869,21 @@ class MissingM3GraphModel(GraphModel):
         predict_missing=False,
     ):
         features = self._feature_tensor(inputfeats)
-        node, latents = self.observed_set(features, availability, umask)
-        graph_hidden = self.encode_hidden([node], qmask, umask, seq_lengths)
+        encoded, latents = self.observed_set(features, availability, umask)
+        if self.representation_type == "track":
+            track_hidden = {
+                name: self.encode_hidden(
+                    [encoded[name]], qmask, umask, seq_lengths
+                )
+                for name in MODALITIES
+            }
+            graph_hidden = self.track_fusion(
+                track_hidden, availability, umask
+            )
+        else:
+            graph_hidden = self.encode_hidden(
+                [encoded], qmask, umask, seq_lengths
+            )
         internal_predictions = (
             self.missing_predictor(latents, graph_hidden, availability, umask)
             if predict_missing or self.classification_completion

@@ -72,6 +72,7 @@ class TrainConfig:
     graph_branch_mode: str = "both"
     mmoe_variant: str = "dual-gate"
     classification_completion: bool = False
+    representation_type: str = "slot"
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -610,6 +611,7 @@ def run_experiment(
         graph_branch_mode=config_value.graph_branch_mode,
         mmoe_variant=config_value.mmoe_variant,
         classification_completion=config_value.classification_completion,
+        representation_type=config_value.representation_type,
     ).to(device)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -760,6 +762,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--classification-completion", action="store_true")
     parser.add_argument(
+        "--representation-type",
+        choices=("slot", "track"),
+        default="slot",
+    )
+    parser.add_argument(
         "--fusion-type",
         choices=("mean", "slot", "raw-residual"),
         default="mean",
@@ -819,6 +826,7 @@ def main() -> None:
         graph_branch_mode=args.graph_branch_mode,
         mmoe_variant=args.mmoe_variant,
         classification_completion=args.classification_completion,
+        representation_type=args.representation_type,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [

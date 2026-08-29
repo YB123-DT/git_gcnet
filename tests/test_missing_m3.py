@@ -6,6 +6,7 @@ from dataclasses import asdict
 import pytest
 import torch
 
+import gcnet_missing_m3.model as missing_m3_model
 import gcnet_missing_m3.train_gcnet as train_gcnet
 from gcnet_missing_m3.loss import MissingM3Loss, missing_m3_loss
 from gcnet_missing_m3.mixed_rate import (
@@ -266,6 +267,78 @@ def test_observed_set_encoder_zeros_padding():
     assert all(torch.count_nonzero(value[2]) == 0 for value in latents.values())
 
 
+def test_modality_track_encoder_supports_seven_patterns_without_missing_leakage():
+    encoder_class = getattr(missing_m3_model, "ModalityTrackEncoder", None)
+    assert encoder_class is not None, "ModalityTrackEncoder is not implemented"
+    torch.manual_seed(101)
+    encoder = encoder_class((2, 3, 4), latent_dim=8, dropout=0.0).eval()
+    availability = _all_patterns()
+    umask = torch.ones(1, 7)
+    features = torch.randn(7, 1, 9)
+    changed = features.clone()
+    expanded = torch.repeat_interleave(
+        availability, torch.tensor((2, 3, 4)), dim=-1
+    )
+    changed[expanded == 0] += 10_000.0
+
+    first_tracks, first_latents = encoder(features, availability, umask)
+    second_tracks, second_latents = encoder(changed, availability, umask)
+
+    assert set(first_tracks) == {"audio", "text", "visual"}
+    assert set(first_latents) == {"audio", "text", "visual"}
+    for index, name in enumerate(("audio", "text", "visual")):
+        selected = availability[..., index].bool()
+        assert first_tracks[name].shape == (7, 1, 8)
+        ASSERT_CLOSE(first_tracks[name], second_tracks[name], rtol=0, atol=0)
+        ASSERT_CLOSE(first_latents[name], second_latents[name], rtol=0, atol=0)
+        assert torch.count_nonzero(first_tracks[name][~selected]) == 0
+        assert torch.count_nonzero(first_latents[name][~selected]) == 0
+
+
+def test_modality_track_encoder_zeros_every_track_at_padding():
+    encoder_class = getattr(missing_m3_model, "ModalityTrackEncoder", None)
+    assert encoder_class is not None, "ModalityTrackEncoder is not implemented"
+    encoder = encoder_class((2, 3, 4), latent_dim=8, dropout=0.0).eval()
+    availability = torch.tensor(
+        [[[1, 0, 1]], [[1, 1, 1]], [[0, 0, 0]]], dtype=torch.float32
+    )
+    umask = torch.tensor([[1.0, 1.0, 0.0]])
+
+    tracks, latents = encoder(torch.randn(3, 1, 9), availability, umask)
+
+    assert all(torch.count_nonzero(value[2]) == 0 for value in tracks.values())
+    assert all(torch.count_nonzero(value[2]) == 0 for value in latents.values())
+
+
+def test_post_graph_track_fusion_excludes_missing_tracks_and_zeros_padding():
+    fusion_class = getattr(missing_m3_model, "PostGraphTrackFusion", None)
+    assert fusion_class is not None, "PostGraphTrackFusion is not implemented"
+    torch.manual_seed(103)
+    fusion = fusion_class(hidden_dim=6, dropout=0.0).eval()
+    availability = torch.tensor(
+        [
+            [[1, 0, 1], [0, 1, 0]],
+            [[1, 1, 0], [0, 0, 0]],
+        ],
+        dtype=torch.float32,
+    )
+    umask = torch.tensor([[1.0, 1.0], [1.0, 0.0]])
+    tracks = {
+        name: torch.randn(2, 2, 6)
+        for name in ("audio", "text", "visual")
+    }
+    changed = {name: value.clone() for name, value in tracks.items()}
+    for index, name in enumerate(("audio", "text", "visual")):
+        changed[name][~availability[..., index].bool()] += 10_000.0
+
+    first = fusion(tracks, availability, umask)
+    second = fusion(changed, availability, umask)
+
+    assert first.shape == (2, 2, 6)
+    ASSERT_CLOSE(first, second, rtol=0, atol=0)
+    assert torch.count_nonzero(first[~umask.T.bool()]) == 0
+
+
 def test_slot_fusion_supports_seven_patterns_without_missing_value_leakage():
     torch.manual_seed(13)
     encoder = ObservedSetEncoder(
@@ -497,6 +570,155 @@ def _model_inputs():
     qmask = torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]])
     umask = torch.tensor([[1.0, 1.0, 1.0], [1.0, 1.0, 0.0]])
     return features, availability, qmask, umask, [3, 2]
+
+
+def test_track_representation_reuses_one_graph_core_for_three_modalities(
+    monkeypatch,
+):
+    model = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        representation_type="track",
+    ).eval()
+    calls = []
+
+    def fake_encode_hidden(inputfeats, qmask, umask, seq_lengths):
+        calls.append(inputfeats[0].detach().clone())
+        padding = inputfeats[0].new_zeros(*inputfeats[0].shape[:2], 2)
+        return torch.cat([inputfeats[0], padding], dim=-1)
+
+    monkeypatch.setattr(model, "encode_hidden", fake_encode_hidden)
+    features, availability, qmask, umask, lengths = _model_inputs()
+
+    logits, hidden, latents, _ = model(
+        [features], availability, qmask, umask, lengths
+    )
+
+    assert len(calls) == 3
+    assert logits.shape == (3, 2, 6)
+    assert hidden.shape == (3, 2, 10)
+    assert set(latents) == {"audio", "text", "visual"}
+    graph_prefixes = {
+        name.split(".", 1)[0]
+        for name, _ in model.named_parameters()
+        if name.startswith("graph_net_")
+    }
+    assert graph_prefixes == {"graph_net_temporal", "graph_net_speaker"}
+
+
+def test_default_representation_preserves_state_keys_and_single_graph_call(
+    monkeypatch,
+):
+    torch.manual_seed(107)
+    default = MissingM3GraphModel(
+        **_model_arguments(), fusion_type="slot"
+    ).eval()
+    torch.manual_seed(107)
+    explicit = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        representation_type="slot",
+    ).eval()
+    assert default.state_dict().keys() == explicit.state_dict().keys()
+    for key, value in default.state_dict().items():
+        ASSERT_CLOSE(value, explicit.state_dict()[key], rtol=0, atol=0)
+
+    calls = []
+    original = explicit.encode_hidden
+
+    def counted_encode_hidden(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(explicit, "encode_hidden", counted_encode_hidden)
+    explicit([_model_inputs()[0]], *_model_inputs()[1:])
+    assert len(calls) == 1
+
+
+def test_track_representation_rejects_conflicting_fusion_paths():
+    with pytest.raises(ValueError, match="track.*fusion_type='slot'"):
+        MissingM3GraphModel(
+            **_model_arguments(),
+            fusion_type="mean",
+            representation_type="track",
+        )
+    with pytest.raises(ValueError, match="track.*local_context_residual"):
+        MissingM3GraphModel(
+            **_model_arguments(),
+            fusion_type="slot",
+            representation_type="track",
+            local_context_residual=True,
+        )
+    with pytest.raises(ValueError, match="track.*classification_completion"):
+        MissingM3GraphModel(
+            **_model_arguments(),
+            fusion_type="slot",
+            representation_type="track",
+            classification_completion=True,
+        )
+
+
+def test_representation_type_is_exposed_by_cli_and_config():
+    args = build_parser().parse_args(
+        [
+            "--audio-feature",
+            "a",
+            "--text-feature",
+            "t",
+            "--video-feature",
+            "v",
+            "--output-dir",
+            "out",
+            "--fusion-type",
+            "slot",
+            "--representation-type",
+            "track",
+        ]
+    )
+    config = TrainConfig(
+        fusion_type=args.fusion_type,
+        representation_type=args.representation_type,
+    )
+
+    assert args.representation_type == "track"
+    assert asdict(config)["representation_type"] == "track"
+
+
+def test_track_representation_backward_reaches_projectors_graph_fusion_and_predictor():
+    torch.manual_seed(109)
+    model = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        representation_type="track",
+    ).train()
+    features, availability, qmask, umask, lengths = _model_inputs()
+
+    logits, _, _, predictions = model(
+        [features],
+        availability,
+        qmask,
+        umask,
+        lengths,
+        predict_missing=True,
+    )
+    assert predictions is not None
+    (logits.square().mean() + predictions.reg_predictions.square().mean()).backward()
+
+    groups = {
+        "projectors": model.observed_set.projectors.parameters(),
+        "temporal_graph": model.graph_net_temporal.parameters(),
+        "speaker_graph": model.graph_net_speaker.parameters(),
+        "track_fusion": model.track_fusion.parameters(),
+        "predictor": model.missing_predictor.parameters(),
+    }
+    for name, parameters in groups.items():
+        gradients = [parameter.grad for parameter in parameters]
+        assert any(
+            gradient is not None
+            and torch.isfinite(gradient).all()
+            and torch.count_nonzero(gradient) > 0
+            for gradient in gradients
+        ), f"no finite non-zero gradient reached {name}"
 
 
 @pytest.mark.parametrize(
