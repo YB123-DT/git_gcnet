@@ -1,4 +1,4 @@
-# CMU-MOSI Binary Task Alignment（seed 66）
+# CMU-MOSI Binary Task Alignment（5 seeds）
 
 ## 目的
 
@@ -36,19 +36,44 @@ Binary 最佳 epoch 为 48，validation 八-rate 平均 W-F1 为 77.15%。
 | 0.7 | 71.82 | 72.69 | -0.87 |
 | Nonzero mean | 76.84 | 78.31 | -1.47 |
 
-Gate 结论：**FAIL**。miss0 的绝对值、miss0 delta 和 nonzero mean delta 三项均未通过，因此不扩展 seeds 67--70。
+Gate 结论：**FAIL**。miss0 的绝对值、miss0 delta 和 nonzero mean delta 三项均未通过。按原预注册规则本应停止；随后根据用户的明确要求，补充 seeds 67--70 作为 post-gate 稳定性分析，不改变 seed 66 gate 的判定。
+
+## 五种子补充结果
+
+| Seed | Binary miss0 | Regression miss0 | Delta | Binary nonzero mean | Regression nonzero mean | Delta |
+|---:|---:|---:|---:|---:|---:|---:|
+| 66 | 85.80 | 86.56 | -0.77 | 76.84 | 78.31 | -1.47 |
+| 67 | 84.51 | 83.45 | +1.06 | 75.27 | 76.53 | -1.25 |
+| 68 | 85.07 | 86.61 | -1.55 | 77.02 | 76.10 | +0.92 |
+| 69 | 86.40 | 86.19 | +0.21 | 78.05 | 77.22 | +0.83 |
+| 70 | 85.47 | 85.97 | -0.50 | 77.38 | 76.64 | +0.74 |
+| Mean | **85.45** | **85.76** | **-0.31** | **76.91** | **76.96** | **-0.05** |
+
+五种子逐 rate 汇总：
+
+| Missing rate | Binary mean ± sample std | Regression mean | Mean delta |
+|---:|---:|---:|---:|
+| 0.0 | 85.45 ± 0.72 | 85.76 | -0.31 |
+| 0.1 | 83.29 ± 1.09 | 83.05 | +0.24 |
+| 0.2 | 79.43 ± 0.90 | 80.79 | -1.36 |
+| 0.3 | 79.19 ± 1.33 | 79.20 | -0.02 |
+| 0.4 | 76.77 ± 2.33 | 76.20 | +0.57 |
+| 0.5 | 73.51 ± 0.98 | 74.80 | -1.29 |
+| 0.6 | 74.21 ± 2.47 | 73.30 | +0.90 |
+| 0.7 | 71.98 ± 1.15 | 71.37 | +0.62 |
+
+Binary miss0 的五种子均值为 85.45 ± 0.72；每个 seed 的 nonzero-rate 平均再跨 seed 统计为 76.91 ± 1.03。总体上 Binary 与 Regression 基本持平，但没有形成稳定提升：miss0 平均低 0.31，nonzero mean 平均低 0.05。
 
 ## 审计
 
-- history 恰好 100 epochs；EMA update 200 次；
-- 8/8 prediction NPZ 已从数组重算，结果与 `metrics.json` 一致；
+- 五个 history 均恰好 100 epochs；每个 seed 的 EMA update 均为 200 次；
+- 40/40 prediction NPZ 已从数组重算，结果与各自 `metrics.json` 一致；
 - 每个 rate 有 656 个 nonzero test utterances，`continuous_labels` 中零值数量为 0；
 - 八个 rate 均同时预测两个类别，无单类别坍塌；
-- 8/8 full-valid mask SHA256 与 paired regression control 完全一致；
+- 40/40 full-valid mask SHA256 与各 seed 的 paired regression control 完全一致；
 - Binary 参数量 32,090,234，Regression 参数量 32,089,733，差值 501，恰好是分类头新增的一行权重与一个 bias；
 - Regression、IEMOCAP 和 MOSEI 的旧 prediction NPZ key 集保持不变；Binary 额外保存原连续标签用于审计。
 
 ## 结论
 
-在严格配对条件下，纯二分类 CE 没有弥补 MOSI 差距，反而降低 miss0 和非零 missing-rate 总体表现。因此当前不足不能归因于“GCNet 使用回归 MSE 而其他方法使用二分类 CE”这一单一因素。后续不继续调 CE 权重、类别权重或阈值；按预注册路线，下一项应检查 MOSI 单说话人条件下 Speaker branch 的退化与冗余。
-
+五种子严格配对结果确认：纯二分类 CE 与 Regression 总体近似持平，但没有弥补 MOSI 差距，也没有提供稳定正增益。因此当前不足不能归因于“GCNet 使用回归 MSE 而其他方法使用二分类 CE”这一单一因素。后续不继续调 CE 权重、类别权重或阈值；下一项应检查 MOSI 单说话人条件下 Speaker branch 的退化与冗余。
