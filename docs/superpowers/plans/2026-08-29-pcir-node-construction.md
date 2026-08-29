@@ -16,10 +16,10 @@
 - 修改：`tests/test_missing_m3.py`
 - 修改：`gcnet_missing_m3/model.py`
 
-- [ ] 编写失败测试，覆盖七 pattern、padding、missing leakage、单/双/三模态 pair 激活和初始化零输出。
-- [ ] 远程运行 focused tests，确认只因 `PatternConditionedInteractionResidual` 不存在而失败。
-- [ ] 实现 `PatternConditionedInteractionResidual(latent_dim=256, pair_embedding_dim=32, pair_rank=64, residual_hidden_dim=128)`。
-- [ ] 运行 focused tests 至绿灯。
+- [x] 编写失败测试，覆盖七 pattern、padding、missing leakage、单/双/三模态 pair 激活和初始化零输出。
+- [x] 远程运行 focused tests，确认只因 `PatternConditionedInteractionResidual` 不存在而失败。
+- [x] 实现 `PatternConditionedInteractionResidual(latent_dim=256, pair_embedding_dim=32, pair_rank=64, residual_hidden_dim=128)`。
+- [x] 运行 focused tests 至绿灯。
 
 ### 任务 2：接入模型并锁定兼容性
 
@@ -27,10 +27,10 @@
 - 修改：`tests/test_missing_m3.py`
 - 修改：`gcnet_missing_m3/model.py`
 
-- [ ] 编写失败测试：default state/output/RNG 不变、shared initialization 相同、初始 treatment 输出等于 Control、完整 backward。
-- [ ] 在 `MissingM3GraphModel` 末尾新增 `node_interaction_residual=False`；只在开启时实例化 PCIR。
-- [ ] 在 Slot node 与 `encode_hidden` 之间加入 residual；对冲突 variant 显式报错。
-- [ ] 运行 focused tests 至绿灯。
+- [x] 编写失败测试：default state/output/RNG 不变、shared initialization 相同、初始 treatment 输出等于 Control、完整 backward。
+- [x] 在 `MissingM3GraphModel` 末尾新增 `node_interaction_residual=False`；只在开启时实例化 PCIR。
+- [x] 在 Slot node 与 `encode_hidden` 之间加入 residual；对冲突 variant 显式报错。
+- [x] 运行 focused tests 至绿灯。
 
 ### 任务 3：CLI/config 与完整验证
 
@@ -38,10 +38,10 @@
 - 修改：`tests/test_missing_m3.py`
 - 修改：`gcnet_missing_m3/train_gcnet.py`
 
-- [ ] 先写 `--node-interaction-residual` CLI/config 红灯测试。
-- [ ] 在 `TrainConfig` 尾部追加字段并透传模型；默认关闭。
-- [ ] 运行 Missing-M3、text-LoRA、PLCI 完整远程测试；预期全部通过。
-- [ ] 运行一次真实 GPU forward/backward smoke，记录参数量；不运行重复 1-epoch 保存测试。
+- [x] 先写 `--node-interaction-residual` CLI/config 红灯测试。
+- [x] 在 `TrainConfig` 尾部追加字段并透传模型；默认关闭。
+- [x] 运行 Missing-M3、text-LoRA、PLCI 相关远程测试；190 passed。仓库全量收集另有既有 fixed-mask-bank 接口错误，与 PCIR 无关且未在本单变量实验中修改。
+- [x] 运行一次真实 GPU forward/backward smoke，记录参数量；不运行重复 1-epoch 保存测试。
 
 ### 任务 4：MOSI 五种子正式 A/B
 
@@ -49,8 +49,8 @@
 - 创建：`experiments/missing_m3_mosi_pcir_node_20260829/EXPERIMENT.md`
 - 创建：`experiments/missing_m3_mosi_pcir_node_20260829/results/SUMMARY.json`
 
-- [ ] GPU 0/1/2/3/5 并行运行 seeds66--70、`lr=5e-4`、8 rates、100 epochs。
-- [ ] 继承相同 seeds/rates 的 Slot `5e-4` Control，不重跑。
-- [ ] 独立重算 40 个 NPZ W-F1，核验 40 个 mask SHA。
-- [ ] 按预注册门槛判断 PASS/FAIL，不追加救援模块。
+- [x] 可用 GPU 并行运行 seeds66--70、`lr=5e-4`、8 rates、100 epochs；GPU0/2/3 被占用，实际使用 1/5/6/7，未用 GPU4。
+- [x] 继承相同 seeds/rates 的 Slot `5e-4` Control，不重跑。
+- [x] 独立重算 40 个 NPZ W-F1，核验 40 个 mask SHA。
+- [x] 按预注册门槛判断为 FAIL，不追加救援模块。
 - [ ] 按 Lore protocol 提交并推送 `github feature/m3-jepa-gcnet`。
