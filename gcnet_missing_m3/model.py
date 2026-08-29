@@ -41,6 +41,133 @@ def _validate_observed_inputs(
     return valid
 
 
+class AvailabilityConditionedLowRankReadout(nn.Module):
+    """Low-rank output residual selected by explicit modality availability."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        rank: int = 8,
+        route_type: str = "availability-low-rank",
+    ) -> None:
+        super().__init__()
+        if int(input_dim) <= 0 or int(output_dim) <= 0:
+            raise ValueError("input_dim and output_dim must be positive")
+        if int(rank) <= 0:
+            raise ValueError("rank must be positive")
+        if route_type not in {
+            "availability-low-rank",
+            "shared-low-rank-parammatch",
+        }:
+            raise ValueError("unsupported route_type")
+        self.input_dim = int(input_dim)
+        self.output_dim = int(output_dim)
+        self.rank = int(rank)
+        self.route_type = route_type
+        self.input_norm = nn.LayerNorm(
+            self.input_dim,
+            elementwise_affine=False,
+        )
+        self.basis = nn.Linear(self.input_dim, self.rank, bias=False)
+        self.pattern_factor = nn.Parameter(
+            torch.zeros(7, self.rank, self.output_dim)
+        )
+        self.pattern_bias = nn.Parameter(torch.zeros(7, self.output_dim))
+
+    def forward(
+        self,
+        hidden: torch.Tensor,
+        availability: torch.Tensor,
+        umask: torch.Tensor,
+    ) -> torch.Tensor:
+        if hidden.ndim != 3 or hidden.shape[-1] != self.input_dim:
+            raise ValueError("hidden must have shape [L, B, input_dim]")
+        length, batch = hidden.shape[:2]
+        if availability.shape != (length, batch, 3):
+            raise ValueError("availability must have shape [L, B, 3]")
+        if umask.shape != (batch, length):
+            raise ValueError("umask must have shape [B, L]")
+        if not bool(((availability == 0) | (availability == 1)).all()):
+            raise ValueError("availability must be binary")
+        valid = umask.T.bool()
+        if bool((availability[~valid] != 0).any()):
+            raise ValueError("padding availability must be zero")
+        if bool((availability[valid].sum(dim=-1) == 0).any()):
+            raise ValueError("valid utterances require a nonempty pattern")
+
+        residual = hidden.new_zeros(length, batch, self.output_dim)
+        if not bool(valid.any()):
+            return residual
+        pattern_id = (
+            availability[..., 0].long() * 4
+            + availability[..., 1].long() * 2
+            + availability[..., 2].long()
+        )
+        basis = self.basis(self.input_norm(hidden[valid]))
+        if self.route_type == "availability-low-rank":
+            row = pattern_id[valid] - 1
+            factor = self.pattern_factor[row]
+            bias = self.pattern_bias[row]
+        else:
+            factor = self.pattern_factor.mean(dim=0).expand(
+                basis.shape[0], -1, -1
+            )
+            bias = self.pattern_bias.mean(dim=0).expand(basis.shape[0], -1)
+        residual[valid] = torch.einsum("nr,nro->no", basis, factor) + bias
+        return residual
+
+
+class AvailabilityConditionedAffineReadout(nn.Module):
+    """Pattern-specific affine residual before the unchanged shared head."""
+
+    def __init__(self, hidden_dim: int) -> None:
+        super().__init__()
+        if int(hidden_dim) <= 0:
+            raise ValueError("hidden_dim must be positive")
+        self.hidden_dim = int(hidden_dim)
+        self.input_norm = nn.LayerNorm(
+            self.hidden_dim,
+            elementwise_affine=False,
+        )
+        self.gamma = nn.Parameter(torch.zeros(7, self.hidden_dim))
+        self.beta = nn.Parameter(torch.zeros(7, self.hidden_dim))
+
+    def forward(
+        self,
+        hidden: torch.Tensor,
+        availability: torch.Tensor,
+        umask: torch.Tensor,
+    ) -> torch.Tensor:
+        if hidden.ndim != 3 or hidden.shape[-1] != self.hidden_dim:
+            raise ValueError("hidden must have shape [L, B, hidden_dim]")
+        length, batch = hidden.shape[:2]
+        if availability.shape != (length, batch, 3):
+            raise ValueError("availability must have shape [L, B, 3]")
+        if umask.shape != (batch, length):
+            raise ValueError("umask must have shape [B, L]")
+        if not bool(((availability == 0) | (availability == 1)).all()):
+            raise ValueError("availability must be binary")
+        valid = umask.T.bool()
+        if bool((availability[~valid] != 0).any()):
+            raise ValueError("padding availability must be zero")
+        if bool((availability[valid].sum(dim=-1) == 0).any()):
+            raise ValueError("valid utterances require a nonempty pattern")
+
+        residual = hidden.new_zeros(hidden.shape)
+        if not bool(valid.any()):
+            return residual
+        pattern_id = (
+            availability[..., 0].long() * 4
+            + availability[..., 1].long() * 2
+            + availability[..., 2].long()
+        )
+        row = pattern_id[valid] - 1
+        normalized = self.input_norm(hidden[valid])
+        residual[valid] = self.gamma[row] * normalized + self.beta[row]
+        return residual
+
+
 class ModalityProjector(nn.Module):
     def __init__(self, input_dim: int, latent_dim: int, dropout: float) -> None:
         super().__init__()
@@ -892,7 +1019,21 @@ class MissingM3GraphModel(GraphModel):
         classification_completion=False,
         representation_type="slot",
         node_interaction_residual=False,
+        readout_type="shared",
+        readout_rank=8,
+        recurrent_padding_mode="legacy",
+        postgraph_sequence_mode="independent",
+        graph_message_calibration="none",
     ) -> None:
+        if readout_type not in {
+            "shared",
+            "availability-low-rank",
+            "shared-low-rank-parammatch",
+            "availability-affine",
+        }:
+            raise ValueError("unsupported readout_type")
+        if int(readout_rank) <= 0:
+            raise ValueError("readout_rank must be positive")
         if representation_type not in {"slot", "track"}:
             raise ValueError("representation_type must be 'slot' or 'track'")
         if representation_type == "track" and fusion_type != "slot":
@@ -939,6 +1080,9 @@ class MissingM3GraphModel(GraphModel):
             no_cuda,
             enable_reconstruction=False,
             graph_branch_mode=graph_branch_mode,
+            recurrent_padding_mode=recurrent_padding_mode,
+            postgraph_sequence_mode=postgraph_sequence_mode,
+            graph_message_calibration=graph_message_calibration,
         )
         self.dimensions = (adim, tdim, vdim)
         self.latent_dim = int(latent_dim)
@@ -1012,6 +1156,23 @@ class MissingM3GraphModel(GraphModel):
             self.node_interaction = PatternConditionedInteractionResidual(
                 latent_dim
             )
+        self.readout_type = readout_type
+        self.readout_rank = int(readout_rank)
+        if self.readout_type in {
+            "availability-low-rank",
+            "shared-low-rank-parammatch",
+        }:
+            with torch.random.fork_rng(devices=[]):
+                self.conditioned_readout = AvailabilityConditionedLowRankReadout(
+                    hidden_dim,
+                    n_classes,
+                    rank=self.readout_rank,
+                    route_type=self.readout_type,
+                )
+        elif self.readout_type == "availability-affine":
+            self.affine_readout = AvailabilityConditionedAffineReadout(
+                hidden_dim
+            )
 
     @staticmethod
     def _feature_tensor(inputfeats) -> torch.Tensor:
@@ -1066,7 +1227,23 @@ class MissingM3GraphModel(GraphModel):
                 internal_predictions.target_mask,
                 umask,
             )
-        logits = self.smax_fc(classification_hidden)
+        readout_hidden = classification_hidden
+        if self.readout_type == "availability-affine":
+            readout_hidden = readout_hidden + self.affine_readout(
+                classification_hidden,
+                availability,
+                umask,
+            )
+        logits = self.smax_fc(readout_hidden)
+        if self.readout_type in {
+            "availability-low-rank",
+            "shared-low-rank-parammatch",
+        }:
+            logits = logits + self.conditioned_readout(
+                classification_hidden,
+                availability,
+                umask,
+            )
         returned_predictions = internal_predictions if predict_missing else None
         return logits, classification_hidden, latents, returned_predictions
 

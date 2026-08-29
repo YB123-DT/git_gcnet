@@ -1,0 +1,107 @@
+{
+  "condition": {
+    "dataset": "CMUMOSI",
+    "feature_root": "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features",
+    "features": [
+      "wav2vec-large-c-UTT",
+      "deberta-large-4-UTT",
+      "manet_UTT"
+    ],
+    "hidden": 100,
+    "jepa_regression_aggregation": "target",
+    "jepa_weight": 0.1,
+    "learning_rate": 0.0005,
+    "python_hash_seed": "0",
+    "recurrent_padding_mode": "packed",
+    "relation_mapping": {
+      "speaker": {
+        "00": 0,
+        "01": 1,
+        "10": 2,
+        "11": 3
+      },
+      "temporal": {
+        "future": 2,
+        "now": 1,
+        "past": 0
+      }
+    },
+    "selection": "validation_8rate_mean_weighted_f1",
+    "test_policy": "not-computed-before-gate",
+    "time_attention": false,
+    "train_rate_mode": "all",
+    "weight_decay": 1e-05,
+    "window_future": 1,
+    "window_past": 1
+  },
+  "control": {
+    "configuration": "deterministic-legacy",
+    "policy": "fresh-deterministic-paired",
+    "root": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/deterministic-legacy",
+    "runner_sha256": "a769088f0d25bf6dac0075525a9be260031402543bcfe1438a90f7907fc503e5"
+  },
+  "jobs": [
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/packed-recurrent/seed_66",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "packed",
+      "seed": 66
+    },
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/packed-recurrent/seed_67",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "packed",
+      "seed": 67
+    },
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/packed-recurrent/seed_68",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "packed",
+      "seed": 68
+    },
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/deterministic-legacy/seed_66",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "legacy",
+      "seed": 66
+    },
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/deterministic-legacy/seed_67",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "legacy",
+      "seed": 67
+    },
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/deterministic-legacy/seed_68",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "legacy",
+      "seed": 68
+    }
+  ],
+  "source_sha256": {
+    "gcnet_missing_m3/loss.py": "ed404a33be1098a8154da9e6ddc3fae60cab36cf96427acc1416aedefddb279c",
+    "gcnet_missing_m3/model.py": "ca0345662887a3df0a9fe3d0e45bb37c588e1c79d954647b9b4a7f1706ae3fd4",
+    "gcnet_missing_m3/train_gcnet.py": "2a86a49dfa5e4d20fb8f132c8c401cedfcbac7cfa3daeb3d9c81f45b30ee310f",
+    "gcnet_modality_jepa/graph.py": "9609f2d4b429293dce406cd78fbd120e78c1101926227a3b8616c9f6e463f3e9",
+    "gcnet_modality_jepa/model.py": "a2ae6c0885fa65c6b15744d56f3279bd7d94fa1eb72735e5519e944801a534c6",
+    "scripts/run_mosi_conditioned_readout.py": "e039f5574d98b383330503200c5ff29452b97afa55538c389976349a9ecb3132"
+  }
+}

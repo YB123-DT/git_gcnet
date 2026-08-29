@@ -1,5 +1,7 @@
 import copy
 import json
+import os
+import subprocess
 import sys
 from dataclasses import asdict
 
@@ -8,6 +10,7 @@ import torch
 
 import gcnet_missing_m3.model as missing_m3_model
 import gcnet_missing_m3.train_gcnet as train_gcnet
+import gcnet_modality_jepa.model as base_graph_model
 from gcnet_missing_m3.loss import MissingM3Loss, missing_m3_loss
 from gcnet_missing_m3.mixed_rate import (
     MISSING_RATES,
@@ -34,6 +37,32 @@ from gcnet_missing_m3.train_gcnet import (
 
 
 ASSERT_CLOSE = getattr(torch.testing, "assert_close", torch.testing.assert_allclose)
+
+
+def test_graph_relation_ids_do_not_depend_on_python_hash_seed():
+    script = (
+        "import json,torch;"
+        "from gcnet_modality_jepa.graph import batch_graphify;"
+        "f=torch.zeros(2,1,1,3);q=torch.zeros(1,2);"
+        "t=batch_graphify(f,q,[2],2,1,1,'temporal',True)[3];"
+        "s=batch_graphify(f,q,[2],2,1,1,'speaker',True)[3];"
+        "print(json.dumps({'temporal':t,'speaker':s},sort_keys=True))"
+    )
+    expected = {
+        "temporal": {"past": 0, "now": 1, "future": 2},
+        "speaker": {"00": 0, "01": 1, "10": 2, "11": 3},
+    }
+    for hash_seed in ("0", "1", "3", "6"):
+        environment = os.environ.copy()
+        environment["PYTHONHASHSEED"] = hash_seed
+        environment["PYTHONPATH"] = os.pathsep.join(sys.path)
+        output = subprocess.check_output(
+            [sys.executable, "-c", script],
+            cwd=os.getcwd(),
+            env=environment,
+            text=True,
+        )
+        assert json.loads(output) == expected
 
 
 def test_paper_faithful_mmoe_adds_only_branch_specific_parameters():
@@ -613,6 +642,119 @@ def test_missing_m3_loss_is_zero_for_complete_atv_and_finite_for_missing_targets
     assert hidden.grad is not None and torch.isfinite(hidden.grad).all()
 
 
+def _synthetic_missing_predictions(target_mask, values):
+    target_mask = torch.tensor(target_mask, dtype=torch.bool).view(-1, 1, 3)
+    reg_predictions = torch.tensor(values, dtype=torch.float32).view(
+        target_mask.shape[0], 1, 3, 1
+    )
+    reg_predictions.requires_grad_()
+    return missing_m3_model.MissingM3Predictions(
+        reg_predictions=reg_predictions,
+        cl_predictions=reg_predictions,
+        target_mask=target_mask,
+        source_counts=target_mask.long(),
+    )
+
+
+def test_utterance_balanced_regression_differs_only_when_target_counts_differ():
+    predictions = _synthetic_missing_predictions(
+        [[1, 0, 0], [0, 1, 1]],
+        [0.0, 0.0, 0.0, 0.0, 1.0, 1.0],
+    )
+    teacher = {
+        name: torch.zeros(2, 1, 1)
+        for name in ("audio", "text", "visual")
+    }
+
+    legacy = missing_m3_loss(
+        predictions,
+        teacher,
+        temperature=0.1,
+        regression_aggregation="target",
+    )
+    balanced = missing_m3_loss(
+        predictions,
+        teacher,
+        temperature=0.1,
+        regression_aggregation="utterance",
+    )
+
+    ASSERT_CLOSE(legacy.regression, torch.tensor(1.0 / 3.0))
+    ASSERT_CLOSE(balanced.regression, torch.tensor(0.25))
+
+
+def test_utterance_balanced_regression_is_invariant_to_duplicate_target_error():
+    one_target = _synthetic_missing_predictions(
+        [[1, 0, 0]],
+        [1.0, 0.0, 0.0],
+    )
+    duplicated_target = _synthetic_missing_predictions(
+        [[1, 1, 0]],
+        [1.0, 1.0, 0.0],
+    )
+    teacher = {
+        name: torch.zeros(1, 1, 1)
+        for name in ("audio", "text", "visual")
+    }
+
+    first = missing_m3_loss(
+        one_target,
+        teacher,
+        regression_aggregation="utterance",
+    )
+    second = missing_m3_loss(
+        duplicated_target,
+        teacher,
+        regression_aggregation="utterance",
+    )
+
+    ASSERT_CLOSE(first.regression, second.regression, rtol=0, atol=0)
+
+
+def test_target_aggregation_default_remains_exactly_legacy():
+    predictions = _synthetic_missing_predictions(
+        [[1, 0, 0], [0, 1, 1]],
+        [0.2, 0.0, 0.0, 0.0, 0.5, -0.7],
+    )
+    teacher = {
+        name: torch.zeros(2, 1, 1)
+        for name in ("audio", "text", "visual")
+    }
+
+    implicit = missing_m3_loss(predictions, teacher)
+    explicit = missing_m3_loss(
+        predictions,
+        teacher,
+        regression_aggregation="target",
+    )
+
+    ASSERT_CLOSE(implicit.total, explicit.total, rtol=0, atol=0)
+    ASSERT_CLOSE(implicit.regression, explicit.regression, rtol=0, atol=0)
+    ASSERT_CLOSE(implicit.contrastive, explicit.contrastive, rtol=0, atol=0)
+
+
+def test_utterance_balanced_zero_target_loss_has_finite_backward():
+    predictions = _synthetic_missing_predictions(
+        [[0, 0, 0]],
+        [0.0, 0.0, 0.0],
+    )
+    teacher = {
+        name: torch.zeros(1, 1, 1)
+        for name in ("audio", "text", "visual")
+    }
+
+    result = missing_m3_loss(
+        predictions,
+        teacher,
+        regression_aggregation="utterance",
+    )
+    result.total.backward()
+
+    assert result.target_count == 0
+    assert result.total.item() == 0.0
+    assert torch.isfinite(predictions.reg_predictions.grad).all()
+
+
 def _model_arguments():
     return dict(
         base_model="LSTM",
@@ -648,6 +790,499 @@ def _model_inputs():
     qmask = torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]])
     umask = torch.tensor([[1.0, 1.0, 1.0], [1.0, 1.0, 0.0]])
     return features, availability, qmask, umask, [3, 2]
+
+
+def _single_conversation_inputs(valid_features, total_length):
+    valid_length = valid_features.shape[0]
+    padding = valid_features.new_zeros(
+        total_length - valid_length, 1, valid_features.shape[-1]
+    )
+    features = torch.cat([valid_features, padding], dim=0)
+    availability = features.new_zeros(total_length, 1, 3)
+    availability[:valid_length] = 1
+    qmask = features.new_zeros(1, total_length)
+    umask = features.new_zeros(1, total_length)
+    umask[:, :valid_length] = 1
+    return features, availability, qmask, umask, [valid_length]
+
+
+def test_packed_recurrent_preserves_parameters_rng_and_equal_length_outputs():
+    torch.manual_seed(1559)
+    default = MissingM3GraphModel(**_model_arguments()).eval()
+    default_rng = torch.get_rng_state()
+    torch.manual_seed(1559)
+    legacy = MissingM3GraphModel(
+        **_model_arguments(), recurrent_padding_mode="legacy"
+    ).eval()
+    legacy_rng = torch.get_rng_state()
+    torch.manual_seed(1559)
+    packed = MissingM3GraphModel(
+        **_model_arguments(), recurrent_padding_mode="packed"
+    ).eval()
+    packed_rng = torch.get_rng_state()
+
+    assert default.state_dict().keys() == legacy.state_dict().keys()
+    assert legacy.state_dict().keys() == packed.state_dict().keys()
+    for name, value in default.state_dict().items():
+        ASSERT_CLOSE(value, legacy.state_dict()[name], rtol=0, atol=0)
+        ASSERT_CLOSE(value, packed.state_dict()[name], rtol=0, atol=0)
+    ASSERT_CLOSE(default_rng, legacy_rng, rtol=0, atol=0)
+    ASSERT_CLOSE(legacy_rng, packed_rng, rtol=0, atol=0)
+    legacy.load_state_dict(default.state_dict(), strict=True)
+
+    valid_features = torch.randn(3, 1, 9)
+    inputs = _single_conversation_inputs(valid_features, total_length=3)
+    legacy_outputs = legacy([inputs[0]], *inputs[1:])
+    packed_outputs = packed([inputs[0]], *inputs[1:])
+    ASSERT_CLOSE(legacy_outputs[0], packed_outputs[0], rtol=1e-6, atol=1e-6)
+    ASSERT_CLOSE(legacy_outputs[1], packed_outputs[1], rtol=1e-6, atol=1e-6)
+
+
+def test_packed_mode_reaches_pregraph_and_both_postgraph_recurrents(monkeypatch):
+    calls = []
+    original = base_graph_model._run_recurrent
+
+    def recording_run(recurrent, *args, **kwargs):
+        calls.append(recurrent)
+        return original(recurrent, *args, **kwargs)
+
+    monkeypatch.setattr(base_graph_model, "_run_recurrent", recording_run)
+    model = MissingM3GraphModel(
+        **_model_arguments(), recurrent_padding_mode="packed"
+    ).eval()
+    valid_features = torch.randn(3, 1, 9)
+    inputs = _single_conversation_inputs(valid_features, total_length=3)
+
+    model([inputs[0]], *inputs[1:])
+
+    assert calls == [
+        model.lstm,
+        model.graph_net_temporal.grufusion,
+        model.graph_net_speaker.grufusion,
+    ]
+
+
+def test_packed_mode_rejects_nonprefix_or_inconsistent_validity_mask():
+    model = MissingM3GraphModel(
+        **_model_arguments(), recurrent_padding_mode="packed"
+    ).eval()
+    valid_features = torch.randn(3, 1, 9)
+    inputs = list(_single_conversation_inputs(valid_features, total_length=3))
+    inputs[3] = torch.tensor([[1.0, 0.0, 1.0]])
+    inputs[1][1] = 0
+
+    with pytest.raises(ValueError, match="same contiguous prefix"):
+        model([inputs[0]], *inputs[1:])
+
+
+def test_packed_recurrent_valid_outputs_ignore_suffix_padding_and_backward_is_finite():
+    torch.manual_seed(1561)
+    model = MissingM3GraphModel(
+        **_model_arguments(), recurrent_padding_mode="packed"
+    ).eval()
+    valid_features = torch.randn(2, 1, 9)
+    short = _single_conversation_inputs(valid_features, total_length=2)
+    padded_short = _single_conversation_inputs(valid_features, total_length=7)
+    companion_features = torch.randn(7, 1, 9)
+    companion = _single_conversation_inputs(
+        companion_features, total_length=7
+    )
+    mixed = (
+        torch.cat([padded_short[0], companion[0]], dim=1),
+        torch.cat([padded_short[1], companion[1]], dim=1),
+        torch.cat([padded_short[2], companion[2]], dim=0),
+        torch.cat([padded_short[3], companion[3]], dim=0),
+        [2, 7],
+    )
+
+    short_outputs = model([short[0]], *short[1:])
+    mixed_outputs = model([mixed[0]], *mixed[1:])
+
+    ASSERT_CLOSE(
+        short_outputs[0][:, 0], mixed_outputs[0][:2, 0], rtol=1e-6, atol=1e-6
+    )
+    ASSERT_CLOSE(
+        short_outputs[1][:, 0], mixed_outputs[1][:2, 0], rtol=1e-6, atol=1e-6
+    )
+    ASSERT_CLOSE(
+        mixed_outputs[1][2:, 0],
+        torch.zeros_like(mixed_outputs[1][2:, 0]),
+        rtol=0,
+        atol=0,
+    )
+
+    model.train()
+    logits, hidden, _, _ = model([mixed[0]], *mixed[1:])
+    (logits[:2, 0].sum() + hidden[:2, 0].square().mean()).backward()
+    recurrent_gradients = [
+        parameter.grad
+        for name, parameter in model.named_parameters()
+        if "lstm" in name or "grufusion" in name
+    ]
+    assert any(
+        gradient is not None and bool(torch.count_nonzero(gradient))
+        for gradient in recurrent_gradients
+    )
+    assert all(
+        gradient is None or bool(torch.isfinite(gradient).all())
+        for gradient in recurrent_gradients
+    )
+
+
+def test_packed_recurrent_is_an_explicit_cli_switch_with_legacy_default():
+    parser = build_parser()
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+
+    assert parser.parse_args(required).recurrent_padding_mode == "legacy"
+    assert (
+        parser.parse_args(
+            [*required, "--recurrent-padding-mode", "packed"]
+        ).recurrent_padding_mode
+        == "packed"
+    )
+    assert TrainConfig().recurrent_padding_mode == "legacy"
+
+
+def test_postgraph_sequence_default_and_explicit_independent_are_exact():
+    torch.manual_seed(1601)
+    default = MissingM3GraphModel(**_model_arguments()).eval()
+    default_rng = torch.get_rng_state()
+    torch.manual_seed(1601)
+    explicit = MissingM3GraphModel(
+        **_model_arguments(), postgraph_sequence_mode="independent"
+    ).eval()
+    explicit_rng = torch.get_rng_state()
+
+    assert default.state_dict().keys() == explicit.state_dict().keys()
+    for name, value in default.state_dict().items():
+        ASSERT_CLOSE(value, explicit.state_dict()[name], rtol=0, atol=0)
+    ASSERT_CLOSE(default_rng, explicit_rng, rtol=0, atol=0)
+
+    inputs = _model_inputs()
+    default_outputs = default([inputs[0]], *inputs[1:])
+    explicit_outputs = explicit([inputs[0]], *inputs[1:])
+    for default_value, explicit_value in zip(
+        default_outputs[:3], explicit_outputs[:3]
+    ):
+        if isinstance(default_value, dict):
+            for key in default_value:
+                ASSERT_CLOSE(
+                    default_value[key], explicit_value[key], rtol=0, atol=0
+                )
+        else:
+            ASSERT_CLOSE(default_value, explicit_value, rtol=0, atol=0)
+
+
+def test_independent_postgraph_preserves_legacy_speaker_call_signature(monkeypatch):
+    model = MissingM3GraphModel(**_model_arguments()).eval()
+    original_forward = model.graph_net_speaker.forward
+    calls = []
+
+    def legacy_forward(features, edge_index, edge_type, seq_lengths, umask):
+        calls.append(1)
+        return original_forward(
+            features, edge_index, edge_type, seq_lengths, umask
+        )
+
+    monkeypatch.setattr(model.graph_net_speaker, "forward", legacy_forward)
+    inputs = _model_inputs()
+    model([inputs[0]], *inputs[1:])
+
+    assert calls == [1]
+
+
+def test_shared_postgraph_bilstm_reuses_temporal_recurrent_for_both_branches(
+    monkeypatch,
+):
+    torch.manual_seed(1603)
+    control = MissingM3GraphModel(**_model_arguments()).eval()
+    control_state = control.state_dict()
+    control_parameter_count = sum(
+        parameter.numel() for parameter in control.parameters()
+    )
+    control_trainable_count = sum(
+        parameter.numel()
+        for parameter in control.parameters()
+        if parameter.requires_grad
+    )
+
+    torch.manual_seed(1603)
+    model = MissingM3GraphModel(
+        **_model_arguments(), postgraph_sequence_mode="shared-bilstm"
+    ).train()
+    model_rng = torch.get_rng_state()
+    assert model.state_dict().keys() == control_state.keys()
+    model.load_state_dict(control_state, strict=True)
+    assert model.graph_net_temporal.conv1 is not model.graph_net_speaker.conv1
+    assert model.graph_net_temporal.conv2 is not model.graph_net_speaker.conv2
+    assert model.graph_net_temporal.linear is not model.graph_net_speaker.linear
+    assert model.graph_net_temporal.grufusion is not model.graph_net_speaker.grufusion
+    assert all(
+        not parameter.requires_grad
+        for parameter in model.graph_net_speaker.grufusion.parameters()
+    )
+    assert sum(parameter.numel() for parameter in model.parameters()) == (
+        control_parameter_count
+    )
+    frozen_count = sum(
+        parameter.numel()
+        for parameter in model.graph_net_speaker.grufusion.parameters()
+    )
+    assert sum(
+        parameter.numel()
+        for parameter in model.parameters()
+        if parameter.requires_grad
+    ) == control_trainable_count - frozen_count
+    ASSERT_CLOSE(model_rng, torch.get_rng_state(), rtol=0, atol=0)
+
+    recurrent_outputs = []
+    original_forward = model.graph_net_temporal.grufusion.forward
+
+    def recording_forward(*args, **kwargs):
+        result = original_forward(*args, **kwargs)
+        result[0].retain_grad()
+        recurrent_outputs.append(result[0])
+        return result
+
+    monkeypatch.setattr(
+        model.graph_net_temporal.grufusion,
+        "forward",
+        recording_forward,
+    )
+    inputs = _model_inputs()
+    logits, hidden, _, _ = model([inputs[0]], *inputs[1:])
+    (logits.square().mean() + hidden.square().mean()).backward()
+
+    assert len(recurrent_outputs) == 2
+    assert all(
+        output.grad is not None
+        and torch.isfinite(output.grad).all()
+        and torch.count_nonzero(output.grad) > 0
+        for output in recurrent_outputs
+    )
+    assert any(
+        parameter.grad is not None
+        and torch.isfinite(parameter.grad).all()
+        and torch.count_nonzero(parameter.grad) > 0
+        for parameter in model.graph_net_temporal.grufusion.parameters()
+    )
+    assert all(
+        parameter.grad is None
+        for parameter in model.graph_net_speaker.grufusion.parameters()
+    )
+
+
+def test_shared_postgraph_bilstm_ignores_frozen_copy_but_keeps_speaker_linear():
+    torch.manual_seed(1605)
+    model = MissingM3GraphModel(
+        **_model_arguments(), postgraph_sequence_mode="shared-bilstm"
+    ).eval()
+    inputs = _model_inputs()
+    before = model([inputs[0]], *inputs[1:])[1]
+
+    with torch.no_grad():
+        for parameter in model.graph_net_speaker.grufusion.parameters():
+            parameter.add_(100.0)
+    after_frozen_change = model([inputs[0]], *inputs[1:])[1]
+    ASSERT_CLOSE(before, after_frozen_change, rtol=0, atol=0)
+
+    with torch.no_grad():
+        model.graph_net_speaker.linear.bias.add_(10.0)
+    after_linear_change = model([inputs[0]], *inputs[1:])[1]
+    assert not torch.equal(before, after_linear_change)
+
+
+def test_shared_postgraph_bilstm_preserves_forward_rng_budget_and_formal_count():
+    arguments = {**_model_arguments(), "dropout": 0.2}
+    torch.manual_seed(1607)
+    control = MissingM3GraphModel(**arguments).train()
+    torch.manual_seed(1607)
+    candidate = MissingM3GraphModel(
+        **arguments, postgraph_sequence_mode="shared-bilstm"
+    ).train()
+    candidate.load_state_dict(control.state_dict(), strict=True)
+    inputs = _model_inputs()
+
+    torch.manual_seed(1609)
+    control([inputs[0]], *inputs[1:])
+    control_rng = torch.get_rng_state()
+    torch.manual_seed(1609)
+    candidate([inputs[0]], *inputs[1:])
+    candidate_rng = torch.get_rng_state()
+
+    ASSERT_CLOSE(control_rng, candidate_rng, rtol=0, atol=0)
+
+    formal = MissingM3GraphModel(
+        base_model="LSTM",
+        adim=512,
+        tdim=1024,
+        vdim=1024,
+        D_e=100,
+        graph_hidden_size=50,
+        n_speakers=1,
+        window_past=1,
+        window_future=1,
+        n_classes=1,
+        dropout=0.5,
+        time_attn=False,
+        no_cuda=True,
+        latent_dim=256,
+        fusion_type="slot",
+        postgraph_sequence_mode="shared-bilstm",
+    )
+    assert sum(
+        parameter.numel()
+        for parameter in formal.graph_net_speaker.grufusion.parameters()
+    ) == 2_508_000
+
+
+def test_shared_postgraph_bilstm_requires_both_graph_branches():
+    with pytest.raises(ValueError, match="requires graph_branch_mode='both'"):
+        MissingM3GraphModel(
+            **_model_arguments(),
+            graph_branch_mode="temporal-only",
+            postgraph_sequence_mode="shared-bilstm",
+        )
+
+
+def test_graph_message_calibration_default_is_exactly_none():
+    torch.manual_seed(131)
+    default = MissingM3GraphModel(**_model_arguments()).eval()
+    torch.manual_seed(131)
+    explicit = MissingM3GraphModel(
+        **_model_arguments(), graph_message_calibration="none"
+    ).eval()
+
+    assert default.state_dict().keys() == explicit.state_dict().keys()
+    for key, value in default.state_dict().items():
+        ASSERT_CLOSE(value, explicit.state_dict()[key], rtol=0, atol=0)
+    inputs = _model_inputs()
+    ASSERT_CLOSE(
+        default(*inputs)[:3],
+        explicit(*inputs)[:3],
+        rtol=0,
+        atol=0,
+    )
+
+
+def test_branch_graph_message_calibration_matches_the_bounded_formula():
+    network = base_graph_model.GraphNetwork(
+        num_features=4,
+        num_relations=3,
+        time_attn=False,
+        hidden_size=3,
+        dropout=0.0,
+        no_cuda=True,
+        graph_message_calibration="branch-layernorm-residual",
+    )
+    message = torch.tensor(
+        [[1.0, 2.0, 4.0], [-2.0, 1.0, 3.0]], requires_grad=True
+    )
+
+    initial = network._calibrate_graph_message(message)
+    ASSERT_CLOSE(initial, message, rtol=0, atol=0)
+
+    with torch.no_grad():
+        network.message_calibration_alpha.copy_(
+            torch.tensor([0.2, -0.3, 0.4])
+        )
+    normalized = torch.nn.functional.layer_norm(message, (3,))
+    expected = message + torch.tanh(network.message_calibration_alpha) * (
+        normalized - message
+    )
+    actual = network._calibrate_graph_message(message)
+    ASSERT_CLOSE(actual, expected)
+
+    probe = torch.tensor([[1.0, -0.5, 0.25], [-0.7, 0.3, 1.1]])
+    (actual * probe).sum().backward()
+    gradient = network.message_calibration_alpha.grad
+    assert gradient is not None
+    assert torch.isfinite(gradient).all()
+    assert torch.count_nonzero(gradient) == gradient.numel()
+
+
+def test_graph_message_calibration_is_branch_specific_and_adds_only_2dg():
+    torch.manual_seed(137)
+    control = MissingM3GraphModel(**_model_arguments())
+    torch.manual_seed(137)
+    treatment = MissingM3GraphModel(
+        **_model_arguments(),
+        graph_message_calibration="branch-layernorm-residual",
+    )
+
+    extra_keys = set(treatment.state_dict()) - set(control.state_dict())
+    assert extra_keys == {
+        "graph_net_temporal.message_calibration_alpha",
+        "graph_net_speaker.message_calibration_alpha",
+    }
+    for key, value in control.state_dict().items():
+        ASSERT_CLOSE(value, treatment.state_dict()[key], rtol=0, atol=0)
+    temporal = treatment.graph_net_temporal.message_calibration_alpha
+    speaker = treatment.graph_net_speaker.message_calibration_alpha
+    assert temporal is not speaker
+    assert temporal.data_ptr() != speaker.data_ptr()
+    parameter_delta = sum(p.numel() for p in treatment.parameters()) - sum(
+        p.numel() for p in control.parameters()
+    )
+    assert parameter_delta == 2 * treatment.graph_net_temporal.hidden_size
+
+
+def test_postgraph_sequence_mode_is_an_explicit_cli_switch():
+    parser = build_parser()
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+
+    assert parser.parse_args(required).postgraph_sequence_mode == "independent"
+    assert (
+        parser.parse_args(
+            [*required, "--postgraph-sequence-mode", "shared-bilstm"]
+        ).postgraph_sequence_mode
+        == "shared-bilstm"
+    )
+    assert TrainConfig().postgraph_sequence_mode == "independent"
+
+
+def test_graph_message_calibration_is_an_explicit_cli_switch():
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+    parser = build_parser()
+    defaults = parser.parse_args(required)
+    candidate = parser.parse_args(
+        [
+            *required,
+            "--graph-message-calibration",
+            "branch-layernorm-residual",
+        ]
+    )
+
+    assert defaults.graph_message_calibration == "none"
+    assert TrainConfig().graph_message_calibration == "none"
+    assert candidate.graph_message_calibration == "branch-layernorm-residual"
 
 
 def test_track_representation_reuses_one_graph_core_for_three_modalities(
@@ -1513,7 +2148,7 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
     monkeypatch.setattr(
         train_gcnet,
         "_task_loss",
-        lambda dataset, logits, labels, umask, mosi_task_mode: logits.sum(),
+        lambda dataset, logits, labels, umask, mosi_task_mode, *args: logits.sum(),
     )
     monkeypatch.setattr(train_gcnet, "missing_m3_loss", jepa_loss)
     monkeypatch.setattr(
@@ -1573,6 +2208,76 @@ def test_all_train_rate_mode_averages_eight_views_with_one_update_per_batch(monk
     assert metrics["jepa_target_count"] == 14
     assert metrics["optimizer_steps"] == 2
     assert metrics["rate_batch_counts"] == {str(rate): 2 for rate in MISSING_RATES}
+
+
+def test_sparsity_jepa_weights_preserve_the_active_rate_budget():
+    uniform = [
+        train_gcnet._jepa_rate_weight(rate, "uniform")
+        for rate in MISSING_RATES
+    ]
+    weighted = [
+        train_gcnet._jepa_rate_weight(rate, "sparsity-budget")
+        for rate in MISSING_RATES
+    ]
+
+    assert uniform == pytest.approx([1.0] * len(MISSING_RATES))
+    assert weighted == sorted(weighted)
+    assert sum(weighted[1:]) / len(weighted[1:]) == pytest.approx(1.0)
+    assert weighted[1] < 1.0 < weighted[-1]
+    with pytest.raises(ValueError, match="jepa_rate_weighting"):
+        train_gcnet._jepa_rate_weight(0.5, "unknown")
+
+
+def test_sparsity_jepa_weighting_changes_only_the_jepa_gradient(monkeypatch):
+    _install_train_epoch_lifecycle_fakes(monkeypatch)
+
+    def jepa_loss(predictions, teacher, temperature):
+        del teacher
+        assert temperature == pytest.approx(0.03)
+        rate_index = int(predictions.detach().item()) - 1
+        active = float(rate_index > 0)
+        total = predictions.sum() * active
+        zero = predictions.sum() * 0.0
+        return MissingM3Loss(
+            total=total,
+            regression=total,
+            contrastive=zero,
+            target_count=int(active),
+        )
+
+    monkeypatch.setattr(train_gcnet, "missing_m3_loss", jepa_loss)
+    model = _LifecycleModel()
+    optimizer = _CountingOptimizer(model.weight)
+    config = TrainConfig(
+        train_rate_mode="all",
+        jepa_weight=0.1,
+        jepa_rate_weighting="sparsity-budget",
+    )
+
+    train_gcnet.train_epoch(
+        model=model,
+        loader=[["only"]],
+        optimizer=optimizer,
+        config=config,
+        schedules={rate: rate for rate in MISSING_RATES},
+        epoch=0,
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+    )
+
+    expected = sum(
+        (index + 1)
+        * (
+            1.0
+            + (
+                0.1 * train_gcnet._jepa_rate_weight(rate, "sparsity-budget")
+                if rate > 0
+                else 0.0
+            )
+        )
+        for index, rate in enumerate(MISSING_RATES)
+    ) / len(MISSING_RATES)
+    assert optimizer.step_gradients[0].item() == pytest.approx(expected)
 
 
 def test_default_train_rate_mode_preserves_single_cyclic_view(monkeypatch):
@@ -2090,6 +2795,167 @@ def test_default_and_explicit_regression_helpers_are_equivalent():
         mosi_task_mode="regression",
     )
     assert default_metrics == explicit_metrics
+
+
+def test_task_smooth_l1_is_robust_regression_and_keeps_zero_labels():
+    logits = torch.tensor([[[3.0]], [[2.0]], [[-4.0]], [[99.0]]])
+    labels = torch.tensor([[0.0, 1.5, -1.0, -99.0]])
+    umask = torch.tensor([[1.0, 1.0, 1.0, 0.0]])
+
+    actual = _task_loss(
+        "CMUMOSI",
+        logits,
+        labels,
+        umask,
+        task_regression_loss="smooth-l1",
+        task_smooth_l1_beta=1.0,
+    )
+    expected = torch.nn.functional.smooth_l1_loss(
+        torch.tensor([3.0, 2.0, -4.0]),
+        torch.tensor([0.0, 1.5, -1.0]),
+        beta=1.0,
+    )
+
+    ASSERT_CLOSE(actual, expected, rtol=0, atol=0)
+    assert actual < _task_loss("CMUMOSI", logits, labels, umask)
+
+
+def test_task_regression_loss_defaults_to_exact_mse_and_validates_beta():
+    logits = torch.tensor([[[0.5]], [[-1.0]]])
+    labels = torch.tensor([[1.5, 1.0]])
+    umask = torch.ones(1, 2)
+
+    default = _task_loss("CMUMOSI", logits, labels, umask)
+    explicit = _task_loss(
+        "CMUMOSI",
+        logits,
+        labels,
+        umask,
+        task_regression_loss="mse",
+        task_smooth_l1_beta=1.0,
+    )
+    ASSERT_CLOSE(default, explicit, rtol=0, atol=0)
+
+    with pytest.raises(ValueError, match="task_regression_loss"):
+        _task_loss(
+            "CMUMOSI",
+            logits,
+            labels,
+            umask,
+            task_regression_loss="unknown",
+        )
+    with pytest.raises(ValueError, match="beta"):
+        _task_loss(
+            "CMUMOSI",
+            logits,
+            labels,
+            umask,
+            task_regression_loss="smooth-l1",
+            task_smooth_l1_beta=0.0,
+        )
+
+
+def test_task_regression_loss_preserves_mse_gradients_and_bounds_smooth_l1():
+    default_logits = torch.tensor([[[0.0]], [[3.0]]], requires_grad=True)
+    explicit_logits = default_logits.detach().clone().requires_grad_(True)
+    robust_logits = default_logits.detach().clone().requires_grad_(True)
+    labels = torch.tensor([[0.5, -2.0]])
+    umask = torch.ones(1, 2)
+
+    default = _task_loss("CMUMOSI", default_logits, labels, umask)
+    explicit = _task_loss(
+        "CMUMOSI",
+        explicit_logits,
+        labels,
+        umask,
+        task_regression_loss="mse",
+    )
+    robust = _task_loss(
+        "CMUMOSI",
+        robust_logits,
+        labels,
+        umask,
+        task_regression_loss="smooth-l1",
+        task_smooth_l1_beta=1.0,
+    )
+    default.backward()
+    explicit.backward()
+    robust.backward()
+
+    ASSERT_CLOSE(default, explicit, rtol=0, atol=0)
+    ASSERT_CLOSE(default_logits.grad, explicit_logits.grad, rtol=0, atol=0)
+    assert torch.isfinite(robust_logits.grad).all()
+    assert robust_logits.grad.abs().max() <= 0.5
+
+
+def test_classification_rejects_irrelevant_smooth_l1_task_configuration():
+    logits = torch.tensor([[[2.0, -1.0]]])
+    labels = torch.tensor([[0]])
+    umask = torch.ones(1, 1)
+
+    with pytest.raises(ValueError, match="continuous regression"):
+        _task_loss(
+            "IEMOCAPFour",
+            logits,
+            labels,
+            umask,
+            task_regression_loss="smooth-l1",
+        )
+
+
+def test_task_regression_loss_cli_and_config_defaults_are_explicit():
+    parser = build_parser()
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+
+    defaults = parser.parse_args(required)
+    candidate = parser.parse_args(
+        [
+            *required,
+            "--task-regression-loss",
+            "smooth-l1",
+            "--task-smooth-l1-beta",
+            "1.0",
+        ]
+    )
+
+    assert defaults.task_regression_loss == "mse"
+    assert defaults.task_smooth_l1_beta == pytest.approx(1.0)
+    assert TrainConfig().task_regression_loss == "mse"
+    assert TrainConfig().task_smooth_l1_beta == pytest.approx(1.0)
+    assert candidate.task_regression_loss == "smooth-l1"
+    assert candidate.task_smooth_l1_beta == pytest.approx(1.0)
+
+
+def test_jepa_rate_weighting_cli_and_config_defaults_are_explicit():
+    parser = build_parser()
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+
+    defaults = parser.parse_args(required)
+    candidate = parser.parse_args(
+        [*required, "--jepa-rate-weighting", "sparsity-budget"]
+    )
+
+    assert defaults.jepa_rate_weighting == "uniform"
+    assert TrainConfig().jepa_rate_weighting == "uniform"
+    assert candidate.jepa_rate_weighting == "sparsity-budget"
 
 
 def test_binary_evaluation_filters_artifacts_but_hashes_full_valid_mask(monkeypatch):

@@ -1,0 +1,60 @@
+{
+  "condition": {
+    "dataset": "CMUMOSI",
+    "feature_root": "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features",
+    "features": [
+      "wav2vec-large-c-UTT",
+      "deberta-large-4-UTT",
+      "manet_UTT"
+    ],
+    "hidden": 100,
+    "jepa_regression_aggregation": "utterance",
+    "jepa_weight": 0.1,
+    "learning_rate": 0.0005,
+    "selection": "validation_8rate_mean_weighted_f1",
+    "test_policy": "not-computed-before-gate",
+    "time_attention": false,
+    "train_rate_mode": "all",
+    "weight_decay": 1e-05,
+    "window_future": 1,
+    "window_past": 1
+  },
+  "control": {
+    "configuration": "hidden_100_window_1",
+    "policy": "inherit-no-retrain",
+    "root": "/data2/yb/remote_experiments/missing_m3_mosi_hidden_window_sweep_20260829",
+    "runner_sha256": "a769088f0d25bf6dac0075525a9be260031402543bcfe1438a90f7907fc503e5"
+  },
+  "jobs": [
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "utterance",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/utterance-balanced-jepa/seed_66",
+      "rank": 8,
+      "readout_type": "shared",
+      "seed": 66
+    },
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "utterance",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/utterance-balanced-jepa/seed_67",
+      "rank": 8,
+      "readout_type": "shared",
+      "seed": 67
+    },
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "utterance",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/utterance-balanced-jepa/seed_68",
+      "rank": 8,
+      "readout_type": "shared",
+      "seed": 68
+    }
+  ],
+  "source_sha256": {
+    "gcnet_missing_m3/loss.py": "ed404a33be1098a8154da9e6ddc3fae60cab36cf96427acc1416aedefddb279c",
+    "gcnet_missing_m3/model.py": "cc7a0970812d6a3c9fb0c27ec8c9b0cc30f2eeecb5f727920c03a245dc498056",
+    "gcnet_missing_m3/train_gcnet.py": "319456c7376a563201cf7cd31ce9f893235d50c32c688e6ece8b35596c200b45",
+    "scripts/run_mosi_conditioned_readout.py": "9a8bb04a8c1322f35b28e8deda5981490f438673ad2751f0342a3c1f926ee019"
+  }
+}

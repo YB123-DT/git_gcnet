@@ -1,0 +1,106 @@
+{
+  "artifact_sha256": {
+    "branch-graph-message-calibration": {
+      "66": {
+        "candidate_config": "fd1e3224597b1ab8c5a8e216774d962e5760f5d32401846e87decf4087cde276",
+        "candidate_history": "199c29a9873a9b648f3bd2fb952417079c9fdd7ba0d15dc29c308d80668d70a3",
+        "control_config": "ddb364eb4a85e7a8cb7cee9d2bb5bd7a8154d9a39d0152236f59f51d2a341d7d",
+        "control_history": "21dd5fe8b0d577482a29e20e102b2cb4effe96392bc02f029b173e7357757d03"
+      },
+      "67": {
+        "candidate_config": "d60c1aea30d503834a8fee16b9609b712f45692b2c4c0f7ac80bbe1ab8a2b015",
+        "candidate_history": "9e17b935ded06fd46cc40e47b754c83f5648790b1619245f9230cee3fd20b96e",
+        "control_config": "57581692ad68ec6c1df0190b5dd2bf64e1eccce815154e3b81055e2c335b9530",
+        "control_history": "17c71e5d1cfef3553f32d27c81de8ca3e8843b55d570830d9f2e2266c956218d"
+      },
+      "68": {
+        "candidate_config": "92c9e4028e27b7284ff98d8f3f30cf207c02b67442c0c61311f20228badd913d",
+        "candidate_history": "babb88e132022e71ba699169dee6c33326f7da1147a9165e339bdce90029f245",
+        "control_config": "0183200be70b2ac28a5228263ee165ce1c61d335d7bcb40a6d0c0c8ea39212cc",
+        "control_history": "8069971acca4f2ad912f6bc876b690e5d0464afc0ad21f3eeefb75758f78507f"
+      }
+    },
+    "sparsity-weighted-jepa": {
+      "66": {
+        "candidate_config": "5019a1a7d5b8cf4cf28a2949a85c30170ac6bf5fd06b5ef431636330dbc567bd",
+        "candidate_history": "b1dc67e0b62d300e8363451b6d7b5b8ce0f67ee81a688299d2051b2733a85ce5",
+        "control_config": "ddb364eb4a85e7a8cb7cee9d2bb5bd7a8154d9a39d0152236f59f51d2a341d7d",
+        "control_history": "21dd5fe8b0d577482a29e20e102b2cb4effe96392bc02f029b173e7357757d03"
+      },
+      "67": {
+        "candidate_config": "db5c6f9bc2345e12edebb8766925205223ec4ab2022b78d63208dfa77da12bad",
+        "candidate_history": "1aea2764b2f63e8eb6357ddae0367f35d2fe8de3fa7e91ef32030263250208b8",
+        "control_config": "57581692ad68ec6c1df0190b5dd2bf64e1eccce815154e3b81055e2c335b9530",
+        "control_history": "17c71e5d1cfef3553f32d27c81de8ca3e8843b55d570830d9f2e2266c956218d"
+      },
+      "68": {
+        "candidate_config": "0f7cd451a3d821b083f08ba64ecf207227c7a92b751f50040bf582b192b15aba",
+        "candidate_history": "19cdd1a4b0d97adb0da3d897b9a051f556f9a422c677226ec0bfaff1ceaec2ce",
+        "control_config": "0183200be70b2ac28a5228263ee165ce1c61d335d7bcb40a6d0c0c8ea39212cc",
+        "control_history": "8069971acca4f2ad912f6bc876b690e5d0464afc0ad21f3eeefb75758f78507f"
+      }
+    }
+  },
+  "branch_calibration_best_checkpoint_diagnostics": {
+    "66": {
+      "speaker_alpha_l2": 0.0438652933,
+      "speaker_alpha_mean_abs": 0.0046761204,
+      "temporal_alpha_l2": 0.0436222665,
+      "temporal_alpha_mean_abs": 0.00465773
+    },
+    "67": {
+      "speaker_alpha_l2": 0.0396471918,
+      "speaker_alpha_mean_abs": 0.0044346647,
+      "temporal_alpha_l2": 0.0627524704,
+      "temporal_alpha_mean_abs": 0.006821767
+    },
+    "68": {
+      "speaker_alpha_l2": 0.038487073,
+      "speaker_alpha_mean_abs": 0.0038045014,
+      "temporal_alpha_l2": 0.0471439771,
+      "temporal_alpha_mean_abs": 0.0054375897
+    }
+  },
+  "config_audit": {
+    "branch-graph-message-calibration": {
+      "control_default": "none",
+      "matching_non_treatment_fields": 37,
+      "treatment_field": "graph_message_calibration",
+      "treatment_value": "branch-layernorm-residual"
+    },
+    "sparsity-weighted-jepa": {
+      "control_default": "uniform",
+      "matching_non_treatment_fields": 37,
+      "treatment_field": "jepa_rate_weighting",
+      "treatment_value": "sparsity-budget"
+    }
+  },
+  "relation_mapping_correction": {
+    "affected_manifest_globs": [
+      "results/packed-recurrent/MANIFEST.json",
+      "results/smooth-l1-task_beta1/MANIFEST.json",
+      "results/shared-postgraph-bilstm/MANIFEST.json",
+      "results/shared-postgraph-bilstm/CONFIRMATION_MANIFEST.json",
+      "results/sparsity-weighted-jepa/MANIFEST.json",
+      "results/branch-graph-message-calibration/MANIFEST.json"
+    ],
+    "actual_mosi_speaker_mapping": {
+      "00": 0
+    },
+    "numeric_impact": "none; CMU-MOSI used n_speakers=1 and both paired paths executed only relation 00",
+    "recorded_mapping_was": {
+      "00": 0,
+      "01": 1,
+      "10": 2,
+      "11": 3
+    },
+    "runner_status": "fixed for future manifests; completed immutable manifests are accompanied by this correction"
+  },
+  "schedule_provenance": {
+    "graph_py_sha256": "9609f2d4b429293dce406cd78fbd120e78c1101926227a3b8616c9f6e463f3e9",
+    "mask_schedule_py_sha256": "947fbd523cdd09871f4619d89d1b9ba0d56ce067fb908dc08ac4be14c21cc636",
+    "protocol_py_sha256": "29916fd89442e7a845fde6c4270a6d9aa40cf3a6ac0654cf33bda5c6cf34644d",
+    "validation_mask_tensor_sha256": "not-recorded; deterministic generation is supported by identical seed/rate/config and source provenance, but no retroactive tensor hash is claimed"
+  },
+  "scope": "post-run provenance supplement for validation-only Options G and H"
+}

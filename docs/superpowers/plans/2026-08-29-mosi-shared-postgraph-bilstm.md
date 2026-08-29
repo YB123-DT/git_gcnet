@@ -18,13 +18,13 @@
 - 修改：`gcnet_modality_jepa/model.py`
 - 修改：`gcnet_missing_m3/model.py`
 
-- [ ] **步骤 1：编写默认兼容与共享行为红灯测试**
+- [x] **步骤 1：编写默认兼容与共享行为红灯测试**
 
 测试必须断言默认/显式 independent 精确等价、候选只复用 Temporal
 `grufusion`、两套 graph conv/linear 保持独立、Speaker `grufusion` 冻结且不影响
 输出。
 
-- [ ] **步骤 2：运行聚焦测试并确认因缺少开关而失败**
+- [x] **步骤 2：运行聚焦测试并确认因缺少开关而失败**
 
 运行：
 
@@ -34,13 +34,13 @@ scripts/remote_missing_m3.sh test -q tests/test_missing_m3.py -k postgraph_seque
 
 预期：测试因 `postgraph_sequence_mode` 尚未实现而失败。
 
-- [ ] **步骤 3：实现最小模型开关**
+- [x] **步骤 3：实现最小模型开关**
 
 在 `GraphNetwork.forward()` 中加入非注册的 recurrent override；在
 `GraphModel.encode_hidden()` 的 Speaker 分支按模式传入 Temporal `grufusion`；在
 构造结束后冻结保留的 Speaker `grufusion`。
 
-- [ ] **步骤 4：运行聚焦测试并确认通过**
+- [x] **步骤 4：运行聚焦测试并确认通过**
 
 运行同一步骤 2 的命令，预期全部 PASS。
 
@@ -51,17 +51,17 @@ scripts/remote_missing_m3.sh test -q tests/test_missing_m3.py -k postgraph_seque
 - 修改：`tests/test_missing_m3.py`
 - 修改：`gcnet_missing_m3/train_gcnet.py`
 
-- [ ] **步骤 1：编写梯度与参数红灯测试**
+- [x] **步骤 1：编写梯度与参数红灯测试**
 
 覆盖 Temporal 共享 BiLSTM 双路梯度、Speaker BiLSTM `grad=None`、可训练参数减少
 2,508,000、state keys 不变、strict loading，以及 CPU FP32 finite backward。
 
-- [ ] **步骤 2：添加 TrainConfig 与 CLI 传递**
+- [x] **步骤 2：添加 TrainConfig 与 CLI 传递**
 
 新增 `--postgraph-sequence-mode {independent,shared-bilstm}`，默认
 `independent`。在 config、checkpoint 和 metrics 中记录该值。
 
-- [ ] **步骤 3：运行完整模型测试**
+- [x] **步骤 3：运行完整模型测试**
 
 ```bash
 scripts/remote_missing_m3.sh test -q tests/test_missing_m3.py
@@ -76,17 +76,17 @@ scripts/remote_missing_m3.sh test -q tests/test_missing_m3.py
 - 修改：`scripts/run_mosi_conditioned_readout.py`
 - 修改：`tests/test_mosi_conditioned_readout_runner.py`
 
-- [ ] **步骤 1：编写 runner 红灯测试**
+- [x] **步骤 1：编写 runner 红灯测试**
 
 断言独立目录 `shared-postgraph-bilstm/seed_*`、唯一 treatment command、resume
 字段、manifest 字段，以及与任何 readout/JEPA/Packed/SmoothL1 组合时拒绝。
 
-- [ ] **步骤 2：强制 direct deterministic control**
+- [x] **步骤 2：强制 direct deterministic control**
 
 候选若未指向包含 `seed_*/config.json` 的 deterministic Legacy 根目录，则在训练
 前失败；禁止回退旧 hidden/window controls。
 
-- [ ] **步骤 3：实现最小 runner 传递并运行测试**
+- [x] **步骤 3：实现最小 runner 传递并运行测试**
 
 ```bash
 scripts/remote_missing_m3.sh test -q tests/test_mosi_conditioned_readout_runner.py
@@ -101,7 +101,7 @@ scripts/remote_missing_m3.sh test -q tests/test_mosi_conditioned_readout_runner.
 - 更新：`experiments/missing_m3_mosi_conditioned_readout_20260829/EXPERIMENT.md`
 - 生成：`experiments/missing_m3_mosi_conditioned_readout_20260829/results/shared-postgraph-bilstm/`
 
-- [ ] **步骤 1：运行完整回归、diff-check 和编译检查**
+- [x] **步骤 1：运行完整回归、diff-check 和编译检查**
 
 ```bash
 scripts/remote_missing_m3.sh test -q \
@@ -115,19 +115,27 @@ python -m py_compile gcnet_modality_jepa/model.py gcnet_missing_m3/model.py \
 
 预期：测试、diff-check 和编译全部通过。
 
-- [ ] **步骤 2：运行短 CUDA FP32 forward/backward**
+- [x] **步骤 2：运行短 CUDA FP32 forward/backward**
 
 使用 GPU7 或当时空闲且非 GPU4 的卡；确认参数数量、共享梯度和 finite 输出。
 
-- [ ] **步骤 3：启动三种子 validation-only screen**
+- [x] **步骤 3：启动三种子 validation-only screen**
 
 三个 seeds 并发运行；显式传入 deterministic Legacy direct control，且不启动新
 control。
 
-- [ ] **步骤 4：同步并审计结果**
+- [x] **步骤 4：同步并审计结果**
 
 核验 100 epochs、无 test NPZ、三组 config audit、source/control SHA、gate 和逐
 seed/per-rate delta。失败则关闭路线；通过才扩 seeds 69、70。
+
+结果：三种子均值 `+0.5344` point，`2/3` seeds 为正，high-missing
+`+0.6239` point，miss-0 `+0.7642` point，无坍塌，正式通过 screen。现进入
+seeds 69、70 的五种子确认；此前三组候选与 controls 均不重跑。
+
+五种子确认最终失败：总体 `-0.1785` point，仅 `2/5` seeds 为正，high-missing
+`-0.6508` point，miss-0 `+0.5693` point。未读取 test；按设计关闭 hard/partial
+post-graph sharing 同族路线。
 
 ### 任务 5：提交与同步
 
@@ -146,4 +154,3 @@ seed/per-rate delta。失败则关闭路线；通过才扩 seeds 69、70。
 - [ ] **步骤 3：推送 GitHub 分支**
 
 推送到 `github/feature/m3-jepa-gcnet`，只在候选结果完整后进行。
-

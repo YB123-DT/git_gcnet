@@ -10,11 +10,58 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from torch.nn.utils.rnn import pad_sequence
+from torch.nn.utils.rnn import (
+    pack_padded_sequence,
+    pad_packed_sequence,
+    pad_sequence,
+)
 from torch_geometric.nn import RGCNConv, GraphConv
 
 from .module import *
 from .graph import batch_graphify
+
+
+def _run_recurrent(
+    recurrent,
+    values,
+    seq_lengths,
+    padding_mode,
+    umask=None,
+):
+    """Run a sequence encoder with explicit conversation-length semantics."""
+    if padding_mode == "legacy":
+        return recurrent(values)[0]
+    if padding_mode != "packed":
+        raise ValueError("padding_mode must be 'legacy' or 'packed'")
+    lengths = [int(length) for length in seq_lengths]
+    if len(lengths) != values.shape[1]:
+        raise ValueError("seq_lengths must contain one length per batch item")
+    if any(length <= 0 or length > values.shape[0] for length in lengths):
+        raise ValueError("seq_lengths must be within [1, sequence length]")
+    if umask is None or umask.shape != (values.shape[1], values.shape[0]):
+        raise ValueError("packed recurrent requires umask with shape [B, L]")
+    if not bool(((umask == 0) | (umask == 1)).all()):
+        raise ValueError("umask must be binary")
+    length_tensor = torch.tensor(lengths, device=umask.device)
+    expected_mask = (
+        torch.arange(values.shape[0], device=umask.device).unsqueeze(0)
+        < length_tensor.unsqueeze(1)
+    )
+    if not torch.equal(umask.bool(), expected_mask):
+        raise ValueError(
+            "seq_lengths and umask must define the same contiguous prefix"
+        )
+    packed = pack_padded_sequence(
+        values,
+        lengths,
+        enforce_sorted=False,
+    )
+    packed_output = recurrent(packed)[0]
+    output, _ = pad_packed_sequence(
+        packed_output,
+        total_length=values.shape[0],
+    )
+    return output
 
 
 class ModalityPredictions:
@@ -54,7 +101,10 @@ class ModalityPredictor(nn.Module):
 
 
 class GraphNetwork(torch.nn.Module):
-    def __init__(self, num_features, num_relations, time_attn, hidden_size=64, dropout=0.5, no_cuda=False):
+    def __init__(self, num_features, num_relations, time_attn, hidden_size=64,
+                 dropout=0.5, no_cuda=False,
+                 recurrent_padding_mode="legacy",
+                 graph_message_calibration="none"):
         """
         The Speaker-level context encoder in the form of a 2 layer GCN.
         """
@@ -62,10 +112,25 @@ class GraphNetwork(torch.nn.Module):
         self.no_cuda = no_cuda 
         self.time_attn = time_attn
         self.hidden_size = hidden_size
+        if recurrent_padding_mode not in {"legacy", "packed"}:
+            raise ValueError(
+                "recurrent_padding_mode must be 'legacy' or 'packed'"
+            )
+        self.recurrent_padding_mode = recurrent_padding_mode
+        if graph_message_calibration not in {
+            "none",
+            "branch-layernorm-residual",
+        }:
+            raise ValueError("unsupported graph_message_calibration")
+        self.graph_message_calibration = graph_message_calibration
 
         ## graph modeling
         self.conv1 = RGCNConv(num_features, hidden_size, num_relations)
         self.conv2 = GraphConv(hidden_size, hidden_size)
+        if self.graph_message_calibration == "branch-layernorm-residual":
+            self.message_calibration_alpha = nn.Parameter(
+                torch.zeros(hidden_size)
+            )
 
         ## nodal attention
         D_h = num_features+hidden_size
@@ -78,8 +143,23 @@ class GraphNetwork(torch.nn.Module):
         self.last_pre_activation = None
         self.last_hidden = None
 
+    def _calibrate_graph_message(self, message):
+        if self.graph_message_calibration == "none":
+            return message
+        normalized = F.layer_norm(message, (message.shape[-1],))
+        blend = torch.tanh(self.message_calibration_alpha)
+        return message + blend * (normalized - message)
 
-    def forward(self, features, edge_index, edge_type, seq_lengths, umask):
+
+    def forward(
+        self,
+        features,
+        edge_index,
+        edge_type,
+        seq_lengths,
+        umask,
+        postgraph_recurrent=None,
+    ):
         '''
         features: input node features: [num_nodes, in_channels]
         edge_index: [2, edge_num]
@@ -89,6 +169,7 @@ class GraphNetwork(torch.nn.Module):
         ## graph model: graph => outputs
         out = self.conv1(features, edge_index, edge_type) # [num_features -> hidden_size]
         out = self.conv2(out, edge_index) # [hidden_size -> hidden_size]
+        out = self._calibrate_graph_message(out)
         outputs = torch.cat([features, out], dim=-1) # [num_nodes, num_features(16)+hidden_size(8)]
 
         ## change utterance to conversation: (outputs->outputs)
@@ -100,7 +181,18 @@ class GraphNetwork(torch.nn.Module):
         seqlen = outputs.size(0)
         batch = outputs.size(1)
         outputs = torch.reshape(outputs, (seqlen, batch, -1)) # [seqlen, batch, dim]
-        outputs = self.grufusion(outputs)[0] # [seqlen, batch, dim]
+        recurrent = (
+            self.grufusion
+            if postgraph_recurrent is None
+            else postgraph_recurrent
+        )
+        outputs = _run_recurrent(
+            recurrent,
+            outputs,
+            seq_lengths,
+            self.recurrent_padding_mode,
+            umask,
+        ) # [seqlen, batch, dim]
 
         ## outputs -> hidden:
         ## sequence attention => [seqlen, batch, d_h]
@@ -118,6 +210,9 @@ class GraphNetwork(torch.nn.Module):
             alpha = []
             pre_activation = self.linear(outputs)
         hidden = F.relu(pre_activation) # [seqlen, batch, D_h]
+        if self.recurrent_padding_mode == "packed":
+            valid = umask[:, : hidden.shape[0]].T.unsqueeze(-1)
+            hidden = hidden * valid.to(hidden.dtype)
         if self.record_activation_diagnostics:
             self.last_pre_activation = pre_activation.detach()
             self.last_hidden = hidden.detach()
@@ -140,7 +235,10 @@ class GraphModel(nn.Module):
                  n_classes ,dropout=0.5, time_attn=True, no_cuda=False,
                  enable_reconstruction=True,
                  enable_stability_reconstruction=False,
-                 graph_branch_mode="both"):
+                 graph_branch_mode="both",
+                 recurrent_padding_mode="legacy",
+                 postgraph_sequence_mode="independent",
+                 graph_message_calibration="none"):
         
         super(GraphModel, self).__init__()
 
@@ -152,6 +250,30 @@ class GraphModel(nn.Module):
                 "'speaker-only'"
             )
         self.graph_branch_mode = graph_branch_mode
+        if postgraph_sequence_mode not in {"independent", "shared-bilstm"}:
+            raise ValueError(
+                "postgraph_sequence_mode must be 'independent' or "
+                "'shared-bilstm'"
+            )
+        if (
+            postgraph_sequence_mode == "shared-bilstm"
+            and graph_branch_mode != "both"
+        ):
+            raise ValueError(
+                "shared-bilstm requires graph_branch_mode='both'"
+            )
+        self.postgraph_sequence_mode = postgraph_sequence_mode
+        if graph_message_calibration not in {
+            "none",
+            "branch-layernorm-residual",
+        }:
+            raise ValueError("unsupported graph_message_calibration")
+        self.graph_message_calibration = graph_message_calibration
+        if recurrent_padding_mode not in {"legacy", "packed"}:
+            raise ValueError(
+                "recurrent_padding_mode must be 'legacy' or 'packed'"
+            )
+        self.recurrent_padding_mode = recurrent_padding_mode
 
         # The base model is the sequential context encoder.
         # Change input features => 2*D_e
@@ -167,9 +289,20 @@ class GraphModel(nn.Module):
 
         ## gain graph models for 'temporal' and 'speaker'
         n_relations = 3
-        self.graph_net_temporal = GraphNetwork(2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout, self.no_cuda)
+        self.graph_net_temporal = GraphNetwork(
+            2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
+            self.no_cuda, self.recurrent_padding_mode,
+            self.graph_message_calibration
+        )
         n_relations = n_speakers ** 2
-        self.graph_net_speaker = GraphNetwork(2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout, self.no_cuda)
+        self.graph_net_speaker = GraphNetwork(
+            2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
+            self.no_cuda, self.recurrent_padding_mode,
+            self.graph_message_calibration
+        )
+        if self.postgraph_sequence_mode == "shared-bilstm":
+            for parameter in self.graph_net_speaker.grufusion.parameters():
+                parameter.requires_grad_(False)
 
         ## classification and reconstruction
         D_h = 2*D_e + graph_hidden_size
@@ -202,9 +335,21 @@ class GraphModel(nn.Module):
     ):
         """Run the Original recurrent and graph path."""
         if self.base_model == 'LSTM':
-            outputs, _ = self.lstm(inputfeats[0])
+            outputs = _run_recurrent(
+                self.lstm,
+                inputfeats[0],
+                seq_lengths,
+                self.recurrent_padding_mode,
+                umask,
+            )
         elif self.base_model == 'GRU':
-            outputs, _ = self.gru(inputfeats[0])
+            outputs = _run_recurrent(
+                self.gru,
+                inputfeats[0],
+                seq_lengths,
+                self.recurrent_padding_mode,
+                umask,
+            )
         else:
             raise ValueError("base_model must be LSTM or GRU")
 
@@ -227,7 +372,19 @@ class GraphModel(nn.Module):
             features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers,
                                                                  self.window_past, self.window_future, 'speaker', self.no_cuda)
             assert len(edge_type_mapping) == self.n_speakers ** 2
-            hidden2 = self.graph_net_speaker(features, edge_index, edge_type, seq_lengths, umask)
+            if self.postgraph_sequence_mode == "shared-bilstm":
+                hidden2 = self.graph_net_speaker(
+                    features,
+                    edge_index,
+                    edge_type,
+                    seq_lengths,
+                    umask,
+                    postgraph_recurrent=self.graph_net_temporal.grufusion,
+                )
+            else:
+                hidden2 = self.graph_net_speaker(
+                    features, edge_index, edge_type, seq_lengths, umask
+                )
         if self.graph_branch_mode == "both":
             return hidden1 + hidden2
         if self.graph_branch_mode == "temporal-only":

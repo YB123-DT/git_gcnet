@@ -1,0 +1,117 @@
+{
+  "condition": {
+    "binary_metric_zero_label_policy": "exclude",
+    "dataset": "CMUMOSI",
+    "feature_root": "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features",
+    "features": [
+      "wav2vec-large-c-UTT",
+      "deberta-large-4-UTT",
+      "manet_UTT"
+    ],
+    "graph_message_calibration": "branch-layernorm-residual",
+    "hidden": 100,
+    "jepa_rate_weighting": "uniform",
+    "jepa_regression_aggregation": "target",
+    "jepa_weight": 0.1,
+    "learning_rate": 0.0005,
+    "postgraph_sequence_mode": "independent",
+    "python_hash_seed": "0",
+    "recurrent_padding_mode": "legacy",
+    "relation_mapping": {
+      "speaker": {
+        "00": 0,
+        "01": 1,
+        "10": 2,
+        "11": 3
+      },
+      "temporal": {
+        "future": 2,
+        "now": 1,
+        "past": 0
+      }
+    },
+    "selection": "validation_8rate_mean_weighted_f1",
+    "task_loss_reduction": "mean_valid_utterances",
+    "task_regression_loss": "mse",
+    "task_smooth_l1_beta": 1.0,
+    "test_policy": "not-computed-before-gate",
+    "time_attention": false,
+    "train_rate_mode": "all",
+    "weight_decay": 1e-05,
+    "window_future": 1,
+    "window_past": 1,
+    "zero_label_training_policy": "include"
+  },
+  "control": {
+    "artifact_sha256": {
+      "66": {
+        "config.json": "ddb364eb4a85e7a8cb7cee9d2bb5bd7a8154d9a39d0152236f59f51d2a341d7d",
+        "history.json": "21dd5fe8b0d577482a29e20e102b2cb4effe96392bc02f029b173e7357757d03"
+      },
+      "67": {
+        "config.json": "57581692ad68ec6c1df0190b5dd2bf64e1eccce815154e3b81055e2c335b9530",
+        "history.json": "17c71e5d1cfef3553f32d27c81de8ca3e8843b55d570830d9f2e2266c956218d"
+      },
+      "68": {
+        "config.json": "0183200be70b2ac28a5228263ee165ce1c61d335d7bcb40a6d0c0c8ea39212cc",
+        "history.json": "8069971acca4f2ad912f6bc876b690e5d0464afc0ad21f3eeefb75758f78507f"
+      }
+    },
+    "configuration": "deterministic-legacy",
+    "policy": "inherit-no-retrain",
+    "root": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/deterministic-legacy",
+    "runner_sha256": "e039f5574d98b383330503200c5ff29452b97afa55538c389976349a9ecb3132"
+  },
+  "jobs": [
+    {
+      "gpu": 7,
+      "graph_message_calibration": "branch-layernorm-residual",
+      "jepa_rate_weighting": "uniform",
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/branch-graph-message-calibration/seed_66",
+      "postgraph_sequence_mode": "independent",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "legacy",
+      "seed": 66,
+      "task_regression_loss": "mse",
+      "task_smooth_l1_beta": 1.0
+    },
+    {
+      "gpu": 7,
+      "graph_message_calibration": "branch-layernorm-residual",
+      "jepa_rate_weighting": "uniform",
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/branch-graph-message-calibration/seed_67",
+      "postgraph_sequence_mode": "independent",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "legacy",
+      "seed": 67,
+      "task_regression_loss": "mse",
+      "task_smooth_l1_beta": 1.0
+    },
+    {
+      "gpu": 7,
+      "graph_message_calibration": "branch-layernorm-residual",
+      "jepa_rate_weighting": "uniform",
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/branch-graph-message-calibration/seed_68",
+      "postgraph_sequence_mode": "independent",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "legacy",
+      "seed": 68,
+      "task_regression_loss": "mse",
+      "task_smooth_l1_beta": 1.0
+    }
+  ],
+  "source_sha256": {
+    "gcnet_missing_m3/loss.py": "ed404a33be1098a8154da9e6ddc3fae60cab36cf96427acc1416aedefddb279c",
+    "gcnet_missing_m3/model.py": "c85f2d6264631a797b3a6b316dd13b5c77ffe92fe2d863b1ac05759439d5554d",
+    "gcnet_missing_m3/train_gcnet.py": "b51f31e84aa33e07818c3def964629e5ceba7a23f4c96f7e833ec6fa6244acbd",
+    "gcnet_modality_jepa/graph.py": "9609f2d4b429293dce406cd78fbd120e78c1101926227a3b8616c9f6e463f3e9",
+    "gcnet_modality_jepa/model.py": "0c660eda209b8dd45f04f7337df9108b73c7dc5e5195ae7eee3aa31f923eedd0",
+    "scripts/run_mosi_conditioned_readout.py": "17b7115614a2f779d5ee9241f6a03b1a9296abab18244d4f9924882501ee64eb"
+  }
+}

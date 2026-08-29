@@ -1,0 +1,109 @@
+{
+  "condition": {
+    "binary_metric_zero_label_policy": "exclude",
+    "dataset": "CMUMOSI",
+    "feature_root": "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features",
+    "features": [
+      "wav2vec-large-c-UTT",
+      "deberta-large-4-UTT",
+      "manet_UTT"
+    ],
+    "hidden": 100,
+    "jepa_regression_aggregation": "target",
+    "jepa_weight": 0.1,
+    "learning_rate": 0.0005,
+    "postgraph_sequence_mode": "shared-bilstm",
+    "python_hash_seed": "0",
+    "recurrent_padding_mode": "legacy",
+    "relation_mapping": {
+      "speaker": {
+        "00": 0,
+        "01": 1,
+        "10": 2,
+        "11": 3
+      },
+      "temporal": {
+        "future": 2,
+        "now": 1,
+        "past": 0
+      }
+    },
+    "selection": "validation_8rate_mean_weighted_f1",
+    "task_loss_reduction": "mean_valid_utterances",
+    "task_regression_loss": "mse",
+    "task_smooth_l1_beta": 1.0,
+    "test_policy": "not-computed-before-gate",
+    "time_attention": false,
+    "train_rate_mode": "all",
+    "weight_decay": 1e-05,
+    "window_future": 1,
+    "window_past": 1,
+    "zero_label_training_policy": "include"
+  },
+  "control": {
+    "artifact_sha256": {
+      "66": {
+        "config.json": "ddb364eb4a85e7a8cb7cee9d2bb5bd7a8154d9a39d0152236f59f51d2a341d7d",
+        "history.json": "21dd5fe8b0d577482a29e20e102b2cb4effe96392bc02f029b173e7357757d03"
+      },
+      "67": {
+        "config.json": "57581692ad68ec6c1df0190b5dd2bf64e1eccce815154e3b81055e2c335b9530",
+        "history.json": "17c71e5d1cfef3553f32d27c81de8ca3e8843b55d570830d9f2e2266c956218d"
+      },
+      "68": {
+        "config.json": "0183200be70b2ac28a5228263ee165ce1c61d335d7bcb40a6d0c0c8ea39212cc",
+        "history.json": "8069971acca4f2ad912f6bc876b690e5d0464afc0ad21f3eeefb75758f78507f"
+      }
+    },
+    "configuration": "deterministic-legacy",
+    "policy": "inherit-no-retrain",
+    "root": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/deterministic-legacy",
+    "runner_sha256": "e039f5574d98b383330503200c5ff29452b97afa55538c389976349a9ecb3132"
+  },
+  "jobs": [
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/shared-postgraph-bilstm/seed_66",
+      "postgraph_sequence_mode": "shared-bilstm",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "legacy",
+      "seed": 66,
+      "task_regression_loss": "mse",
+      "task_smooth_l1_beta": 1.0
+    },
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/shared-postgraph-bilstm/seed_67",
+      "postgraph_sequence_mode": "shared-bilstm",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "legacy",
+      "seed": 67,
+      "task_regression_loss": "mse",
+      "task_smooth_l1_beta": 1.0
+    },
+    {
+      "gpu": 7,
+      "jepa_regression_aggregation": "target",
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/shared-postgraph-bilstm/seed_68",
+      "postgraph_sequence_mode": "shared-bilstm",
+      "rank": 8,
+      "readout_type": "shared",
+      "recurrent_padding_mode": "legacy",
+      "seed": 68,
+      "task_regression_loss": "mse",
+      "task_smooth_l1_beta": 1.0
+    }
+  ],
+  "source_sha256": {
+    "gcnet_missing_m3/loss.py": "ed404a33be1098a8154da9e6ddc3fae60cab36cf96427acc1416aedefddb279c",
+    "gcnet_missing_m3/model.py": "cc43a4ae295633b1df0645e16013566f19ce7b22676f81a934a0f4af41868d45",
+    "gcnet_missing_m3/train_gcnet.py": "b313e9fdd0539a4c2fc8450e83f351805cd479f78a517e1352b24252f09f3561",
+    "gcnet_modality_jepa/graph.py": "9609f2d4b429293dce406cd78fbd120e78c1101926227a3b8616c9f6e463f3e9",
+    "gcnet_modality_jepa/model.py": "f12ae85977cde83d46734c927a2947f6d22e387b7003112ff89844835a6f35b4",
+    "scripts/run_mosi_conditioned_readout.py": "3ba82b487ebe296dc82a855ba5b192b309194225462d78048d30c74aeada7425"
+  }
+}

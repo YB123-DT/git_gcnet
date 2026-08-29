@@ -1,0 +1,55 @@
+{
+  "condition": {
+    "dataset": "CMUMOSI",
+    "feature_root": "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features",
+    "features": [
+      "wav2vec-large-c-UTT",
+      "deberta-large-4-UTT",
+      "manet_UTT"
+    ],
+    "hidden": 100,
+    "jepa_weight": 0.1,
+    "learning_rate": 0.0005,
+    "selection": "validation_8rate_mean_weighted_f1",
+    "test_policy": "not-computed-before-gate",
+    "time_attention": false,
+    "train_rate_mode": "all",
+    "weight_decay": 1e-05,
+    "window_future": 1,
+    "window_past": 1
+  },
+  "control": {
+    "configuration": "hidden_100_window_1",
+    "policy": "inherit-no-retrain",
+    "root": "/data2/yb/remote_experiments/missing_m3_mosi_hidden_window_sweep_20260829",
+    "runner_sha256": "a769088f0d25bf6dac0075525a9be260031402543bcfe1438a90f7907fc503e5"
+  },
+  "jobs": [
+    {
+      "gpu": 7,
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/availability-low-rank_rank8/seed_66",
+      "rank": 8,
+      "readout_type": "availability-low-rank",
+      "seed": 66
+    },
+    {
+      "gpu": 7,
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/availability-low-rank_rank8/seed_67",
+      "rank": 8,
+      "readout_type": "availability-low-rank",
+      "seed": 67
+    },
+    {
+      "gpu": 7,
+      "output_dir": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/availability-low-rank_rank8/seed_68",
+      "rank": 8,
+      "readout_type": "availability-low-rank",
+      "seed": 68
+    }
+  ],
+  "source_sha256": {
+    "gcnet_missing_m3/model.py": "1182c54b41c82f8723520683373331960453d60012f3683d6f438cec11f4ca89",
+    "gcnet_missing_m3/train_gcnet.py": "c5539c3c6bdb07d66ef5f0e4a96c1abb9f4a03329bdd12b98e92cd57336a4ada",
+    "scripts/run_mosi_conditioned_readout.py": "3c0354b42a7b0448abee74563ce9f9fa97bc6730c899ab09f74e63bcefa16168"
+  }
+}

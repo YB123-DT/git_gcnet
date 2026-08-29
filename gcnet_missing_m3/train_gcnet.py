@@ -74,6 +74,16 @@ class TrainConfig:
     classification_completion: bool = False
     representation_type: str = "slot"
     node_interaction_residual: bool = False
+    readout_type: str = "shared"
+    readout_rank: int = 8
+    evaluate_test: bool = True
+    jepa_regression_aggregation: str = "target"
+    recurrent_padding_mode: str = "legacy"
+    task_regression_loss: str = "mse"
+    task_smooth_l1_beta: float = 1.0
+    postgraph_sequence_mode: str = "independent"
+    jepa_rate_weighting: str = "uniform"
+    graph_message_calibration: str = "none"
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -155,6 +165,21 @@ def _state_to_cpu(model: torch.nn.Module) -> Dict[str, torch.Tensor]:
     return {
         name: value.detach().cpu().clone()
         for name, value in model.state_dict().items()
+    }
+
+
+def _readout_provenance(model: MissingM3GraphModel) -> Dict[str, object]:
+    module = getattr(model, "conditioned_readout", None)
+    if module is None:
+        module = getattr(model, "affine_readout", None)
+    return {
+        "readout_type": model.readout_type,
+        "readout_rank": model.readout_rank,
+        "readout_parameter_count": (
+            0
+            if module is None
+            else sum(parameter.numel() for parameter in module.parameters())
+        ),
     }
 
 
@@ -254,10 +279,22 @@ def _task_loss(
     labels: torch.Tensor,
     umask: torch.Tensor,
     mosi_task_mode: str = "regression",
+    task_regression_loss: str = "mse",
+    task_smooth_l1_beta: float = 1.0,
 ) -> torch.Tensor:
+    if task_regression_loss not in {"mse", "smooth-l1"}:
+        raise ValueError("task_regression_loss must be 'mse' or 'smooth-l1'")
+    if task_regression_loss == "smooth-l1" and (
+        not math.isfinite(task_smooth_l1_beta) or task_smooth_l1_beta <= 0
+    ):
+        raise ValueError("task SmoothL1 beta must be finite and positive")
     selected = umask.reshape(-1).bool()
     task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
     if task in ("classification", "binary"):
+        if task_regression_loss != "mse":
+            raise ValueError(
+                "task SmoothL1 is only valid for continuous regression"
+            )
         flat_logits = logits.transpose(0, 1).reshape(-1, logits.shape[-1])
         flat_labels = labels.reshape(-1).long()
         if task == "binary":
@@ -271,7 +308,27 @@ def _task_loss(
         )
     prediction = logits.transpose(0, 1).reshape(-1)
     target = labels.reshape(-1).to(dtype=prediction.dtype)
-    return torch.nn.functional.mse_loss(prediction[selected], target[selected])
+    if task_regression_loss == "mse":
+        return torch.nn.functional.mse_loss(
+            prediction[selected], target[selected]
+        )
+    return torch.nn.functional.smooth_l1_loss(
+        prediction[selected],
+        target[selected],
+        beta=task_smooth_l1_beta,
+    )
+
+
+def _jepa_rate_weight(rate: float, mode: str) -> float:
+    if mode == "uniform":
+        return 1.0
+    if mode == "sparsity-budget":
+        active_rates = tuple(value for value in MISSING_RATES if value > 0)
+        normalizer = sum(1.0 + value for value in active_rates) / len(
+            active_rates
+        )
+        return (1.0 + float(rate)) / normalizer
+    raise ValueError("unsupported jepa_rate_weighting: {}".format(mode))
 
 
 def _metrics(
@@ -305,6 +362,8 @@ def _metrics(
         "accuracy": float(accuracy_score(binary_labels, binary_predictions)),
         "mae": float(np.mean(np.abs(labels - predictions))),
         "correlation": correlation,
+        "prediction_std": float(np.std(predictions)),
+        "predicted_sign_count": int(np.unique(binary_predictions).size),
     }
 
 
@@ -393,14 +452,32 @@ def train_epoch(
                 view["labels"],
                 view["umask"],
                 config.mosi_task_mode,
+                config.task_regression_loss,
+                config.task_smooth_l1_beta,
             )
             if teacher is None:
                 with torch.no_grad():
                     teacher = model.encode_teacher_targets([view["complete"]])
-            jepa: MissingM3Loss = missing_m3_loss(
-                predictions, teacher, temperature=config.temperature
+            if config.jepa_regression_aggregation == "target":
+                jepa: MissingM3Loss = missing_m3_loss(
+                    predictions,
+                    teacher,
+                    temperature=config.temperature,
+                )
+            else:
+                jepa = missing_m3_loss(
+                    predictions,
+                    teacher,
+                    temperature=config.temperature,
+                    regression_aggregation=config.jepa_regression_aggregation,
+                )
+            jepa_rate_weight = _jepa_rate_weight(
+                rate, config.jepa_rate_weighting
             )
-            loss = cls + config.jepa_weight * jepa.total
+            loss = (
+                cls
+                + config.jepa_weight * jepa_rate_weight * jepa.total
+            )
             if not bool(torch.isfinite(loss.detach())):
                 raise ValueError("training loss must be finite")
             if config.train_rate_mode == "all":
@@ -471,6 +548,8 @@ def evaluate_rate(
     device: torch.device,
     collect: bool,
     mosi_task_mode: str = "regression",
+    task_regression_loss: str = "mse",
+    task_smooth_l1_beta: float = 1.0,
 ) -> tuple[Dict[str, float], Dict[str, np.ndarray] | None]:
     model.eval()
     task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
@@ -499,6 +578,8 @@ def evaluate_rate(
             view["labels"],
             view["umask"],
             mosi_task_mode,
+            task_regression_loss,
+            task_smooth_l1_beta,
         )
         predicted, expected, continuous = _collect_predictions(
             dataset,
@@ -516,12 +597,12 @@ def evaluate_rate(
             all_full_availability.append(
                 view["availability"][valid].cpu().numpy()
             )
+            metric_availability = view["availability"].transpose(0, 1)
+            selected = view["umask"].bool()
             if task == "binary":
-                selected = valid & view["labels"].T.ne(0)
-            else:
-                selected = valid
+                selected = selected & view["labels"].ne(0)
             all_availability.append(
-                view["availability"][selected].cpu().numpy()
+                metric_availability[selected].cpu().numpy()
             )
     predictions_array = np.concatenate(all_predictions)
     labels_array = np.concatenate(all_labels)
@@ -614,6 +695,11 @@ def run_experiment(
         classification_completion=config_value.classification_completion,
         representation_type=config_value.representation_type,
         node_interaction_residual=config_value.node_interaction_residual,
+        readout_type=config_value.readout_type,
+        readout_rank=config_value.readout_rank,
+        recurrent_padding_mode=config_value.recurrent_padding_mode,
+        postgraph_sequence_mode=config_value.postgraph_sequence_mode,
+        graph_message_calibration=config_value.graph_message_calibration,
     ).to(device)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -652,6 +738,8 @@ def run_experiment(
                 device,
                 collect=False,
                 mosi_task_mode=config_value.mosi_task_mode,
+                task_regression_loss=config_value.task_regression_loss,
+                task_smooth_l1_beta=config_value.task_smooth_l1_beta,
             )
         validation_mean = mean_validation_weighted_f1(validation)
         record = {
@@ -689,26 +777,30 @@ def run_experiment(
     model.to(device)
     test_metrics: Dict[str, Dict[str, float]] = {}
     mask_hashes: Dict[str, str] = {}
-    for rate in MISSING_RATES:
-        metrics, artifacts = evaluate_rate(
-            model,
-            test_loader,
-            test_schedules[rate],
-            config_value.dataset,
-            dimensions,
-            device,
-            collect=True,
-            mosi_task_mode=config_value.mosi_task_mode,
-        )
-        if artifacts is None:
-            raise RuntimeError("test artifacts were not collected")
-        rate_key = format(rate, ".1f")
-        test_metrics[rate_key] = metrics
-        mask_hashes[rate_key] = str(metrics["mask_sha256"])
-        np.savez_compressed(
-            output / ("predictions_miss_" + rate_key.replace(".", "p") + ".npz"),
-            **artifacts,
-        )
+    if config_value.evaluate_test:
+        for rate in MISSING_RATES:
+            metrics, artifacts = evaluate_rate(
+                model,
+                test_loader,
+                test_schedules[rate],
+                config_value.dataset,
+                dimensions,
+                device,
+                collect=True,
+                mosi_task_mode=config_value.mosi_task_mode,
+                task_regression_loss=config_value.task_regression_loss,
+                task_smooth_l1_beta=config_value.task_smooth_l1_beta,
+            )
+            if artifacts is None:
+                raise RuntimeError("test artifacts were not collected")
+            rate_key = format(rate, ".1f")
+            test_metrics[rate_key] = metrics
+            mask_hashes[rate_key] = str(metrics["mask_sha256"])
+            np.savez_compressed(
+                output
+                / ("predictions_miss_" + rate_key.replace(".", "p") + ".npz"),
+                **artifacts,
+            )
     result: Dict[str, object] = {
         "best_epoch": best_epoch,
         "best_validation_mean_weighted_f1": best_score,
@@ -719,6 +811,21 @@ def run_experiment(
             parameter.numel() for parameter in model.parameters() if parameter.requires_grad
         ),
         "ema_steps": model.ema_step,
+        "evaluation_stage": (
+            "train-validation-test"
+            if config_value.evaluate_test
+            else "train-validation-only"
+        ),
+        "jepa_regression_aggregation": (
+            config_value.jepa_regression_aggregation
+        ),
+        "recurrent_padding_mode": config_value.recurrent_padding_mode,
+        "task_regression_loss": config_value.task_regression_loss,
+        "task_smooth_l1_beta": config_value.task_smooth_l1_beta,
+        "postgraph_sequence_mode": config_value.postgraph_sequence_mode,
+        "jepa_rate_weighting": config_value.jepa_rate_weighting,
+        "graph_message_calibration": config_value.graph_message_calibration,
+        **_readout_provenance(model),
     }
     _write_json(output / "metrics.json", result)
     return result
@@ -770,6 +877,44 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--node-interaction-residual", action="store_true")
     parser.add_argument(
+        "--readout-type",
+        choices=(
+            "shared",
+            "availability-low-rank",
+            "shared-low-rank-parammatch",
+            "availability-affine",
+        ),
+        default="shared",
+    )
+    parser.add_argument("--readout-rank", type=int, default=8)
+    parser.add_argument(
+        "--recurrent-padding-mode",
+        choices=("legacy", "packed"),
+        default="legacy",
+    )
+    parser.add_argument(
+        "--task-regression-loss",
+        choices=("mse", "smooth-l1"),
+        default="mse",
+    )
+    parser.add_argument("--task-smooth-l1-beta", type=float, default=1.0)
+    parser.add_argument(
+        "--postgraph-sequence-mode",
+        choices=("independent", "shared-bilstm"),
+        default="independent",
+    )
+    parser.add_argument(
+        "--jepa-rate-weighting",
+        choices=("uniform", "sparsity-budget"),
+        default="uniform",
+    )
+    parser.add_argument(
+        "--graph-message-calibration",
+        choices=("none", "branch-layernorm-residual"),
+        default="none",
+    )
+    parser.add_argument("--skip-test-evaluation", action="store_true")
+    parser.add_argument(
         "--fusion-type",
         choices=("mean", "slot", "raw-residual"),
         default="mean",
@@ -782,6 +927,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dropout", type=float, default=0.5)
     parser.add_argument("--jepa-weight", type=float, default=0.1)
     parser.add_argument("--temperature", type=float, default=0.03)
+    parser.add_argument(
+        "--jepa-regression-aggregation",
+        choices=("target", "utterance"),
+        default="target",
+    )
     parser.add_argument("--ema-tau", type=float, default=0.996)
     parser.add_argument("--gradient-clip-norm", type=float, default=1.0)
     parser.add_argument("--windowp", type=int, default=2)
@@ -819,6 +969,7 @@ def main() -> None:
         local_fusion_dropout=args.local_fusion_dropout,
         jepa_weight=args.jepa_weight,
         temperature=args.temperature,
+        jepa_regression_aggregation=args.jepa_regression_aggregation,
         ema_tau=args.ema_tau,
         gradient_clip_norm=args.gradient_clip_norm,
         time_attention=args.time_attn,
@@ -831,6 +982,15 @@ def main() -> None:
         classification_completion=args.classification_completion,
         representation_type=args.representation_type,
         node_interaction_residual=args.node_interaction_residual,
+        readout_type=args.readout_type,
+        readout_rank=args.readout_rank,
+        evaluate_test=not args.skip_test_evaluation,
+        recurrent_padding_mode=args.recurrent_padding_mode,
+        task_regression_loss=args.task_regression_loss,
+        task_smooth_l1_beta=args.task_smooth_l1_beta,
+        postgraph_sequence_mode=args.postgraph_sequence_mode,
+        jepa_rate_weighting=args.jepa_rate_weighting,
+        graph_message_calibration=args.graph_message_calibration,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [
