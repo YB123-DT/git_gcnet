@@ -84,7 +84,7 @@ CLI 增加 `--mosi-task-mode`，choices 为 `regression/binary`，默认 `regres
 - 修改：`tests/test_missing_m3.py`
 - 修改：`gcnet_missing_m3/train_gcnet.py`
 
-- [ ] **步骤 1：编写失败的 loss/collection 测试**
+- [x] **步骤 1：编写失败的 loss/collection 测试**
 
 ```python
 def test_binary_mosi_ce_excludes_zero_and_padding_but_keeps_finite_graph_loss():
@@ -118,7 +118,7 @@ assert binary.tolist() == [0, 1]
 assert continuous.tolist() == [-1.0, 2.0]
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 ```bash
 /data2/yb/reproduction_envs/s0/bin/python -m pytest -q \
@@ -127,7 +127,7 @@ assert continuous.tolist() == [-1.0, 2.0]
 
 预期：FAIL，helper 尚不接受 task mode 或返回三元素。
 
-- [ ] **步骤 3：实现 task-mode-aware helper**
+- [x] **步骤 3：实现 task-mode-aware helper**
 
 `_task_loss(..., mosi_task_mode="regression")` 的 binary 分支：
 
@@ -145,7 +145,7 @@ return torch.nn.functional.cross_entropy(flat_logits[selected], targets)
 
 `_metrics(..., mosi_task_mode="regression")` 的 binary 输入已是 0/1，直接计算 accuracy、weighted F1、macro F1，不计算 MAE/correlation。
 
-- [ ] **步骤 4：更新 train/eval 调用点与 artifact**
+- [x] **步骤 4：更新 train/eval 调用点与 artifact**
 
 `train_epoch`、`evaluate_rate` 传入 task mode。Binary NPZ 保存：
 
@@ -160,7 +160,7 @@ return torch.nn.functional.cross_entropy(flat_logits[selected], targets)
 
 artifact availability 与 supervised items 等长；`mask_sha256` 仍基于全部有效 utterance availability，以便与 regression control 配对。
 
-- [ ] **步骤 5：运行测试验证通过**
+- [x] **步骤 5：运行测试验证通过**
 
 重复步骤 2；预期 PASS。
 

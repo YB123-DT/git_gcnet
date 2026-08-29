@@ -798,13 +798,16 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
     monkeypatch.setattr(train_gcnet, "_move_batch", lambda raw, device: raw)
     monkeypatch.setattr(train_gcnet, "_prepare_view", prepare_view)
     monkeypatch.setattr(
-        train_gcnet, "_task_loss", lambda dataset, logits, labels, umask: logits.sum()
+        train_gcnet,
+        "_task_loss",
+        lambda dataset, logits, labels, umask, mosi_task_mode: logits.sum(),
     )
     monkeypatch.setattr(train_gcnet, "missing_m3_loss", jepa_loss)
     monkeypatch.setattr(
         train_gcnet,
         "_collect_predictions",
-        lambda dataset, logits, labels, umask: (
+        lambda dataset, logits, labels, umask, mosi_task_mode: (
+            train_gcnet.np.array([0.0]),
             train_gcnet.np.array([0.0]),
             train_gcnet.np.array([0.0]),
         ),
@@ -812,7 +815,7 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
     monkeypatch.setattr(
         train_gcnet,
         "_metrics",
-        lambda dataset, labels, predictions: {"weighted_f1": 1.0},
+        lambda dataset, labels, predictions, mosi_task_mode: {"weighted_f1": 1.0},
     )
     monkeypatch.setattr(torch.nn.utils, "clip_grad_norm_", clip_grad_norm)
     return prepared_rates, clipped_gradients, events
@@ -1145,6 +1148,236 @@ def test_task_loss_uses_cross_entropy_for_erc_and_mse_for_sentiment():
     target = torch.tensor([[1.5, 1.0]])
     expected_mse = torch.tensor(((0.5 - 1.5) ** 2 + (-1.0 - 1.0) ** 2) / 2)
     ASSERT_CLOSE(_task_loss("CMUMOSI", prediction, target, umask), expected_mse)
+
+
+def test_mosi_binary_task_loss_excludes_zero_labels_and_padding():
+    logits = torch.tensor(
+        [
+            [[3.0, -1.0]],
+            [[-4.0, 4.0]],
+            [[-2.0, 2.0]],
+            [[5.0, -5.0]],
+        ]
+    )
+    labels = torch.tensor([[-2.0, 0.0, 1.5, -3.0]])
+    umask = torch.tensor([[1.0, 1.0, 1.0, 0.0]])
+    expected = torch.nn.functional.cross_entropy(
+        logits[[0, 2], 0], torch.tensor([0, 1])
+    )
+
+    actual = _task_loss(
+        "CMUMOSI", logits, labels, umask, mosi_task_mode="binary"
+    )
+
+    ASSERT_CLOSE(actual, expected)
+
+
+def test_mosi_binary_empty_selection_returns_connected_zero_loss():
+    logits = torch.randn(3, 1, 2, requires_grad=True)
+    labels = torch.tensor([[0.0, 0.0, -1.0]])
+    umask = torch.tensor([[1.0, 1.0, 0.0]])
+
+    loss = _task_loss(
+        "CMUMOSI", logits, labels, umask, mosi_task_mode="binary"
+    )
+    loss.backward()
+
+    assert loss.item() == 0.0
+    assert loss.requires_grad
+    assert logits.grad is not None
+    assert torch.count_nonzero(logits.grad) == 0
+
+
+def test_mosi_binary_connected_zero_loss_allows_auxiliary_gradient():
+    logits = torch.randn(3, 1, 2, requires_grad=True)
+    labels = torch.zeros(1, 3)
+    umask = torch.ones(1, 3)
+    classification = _task_loss(
+        "CMUMOSI", logits, labels, umask, mosi_task_mode="binary"
+    )
+    auxiliary = logits.square().mean()
+
+    total = classification + auxiliary
+    total.backward()
+
+    assert torch.isfinite(total)
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all()
+    assert torch.count_nonzero(logits.grad) > 0
+
+
+def test_mosi_binary_prediction_collection_excludes_zero_and_padding():
+    logits = torch.tensor(
+        [
+            [[3.0, -1.0]],
+            [[-4.0, 4.0]],
+            [[-2.0, 2.0]],
+            [[5.0, -5.0]],
+        ]
+    )
+    labels = torch.tensor([[-2.0, 0.0, 1.5, -3.0]])
+    umask = torch.tensor([[1.0, 1.0, 1.0, 0.0]])
+
+    predictions, metric_labels, continuous_labels = (
+        train_gcnet._collect_predictions(
+            "CMUMOSI", logits, labels, umask, mosi_task_mode="binary"
+        )
+    )
+
+    assert predictions.tolist() == [0, 1]
+    assert metric_labels.tolist() == [0, 1]
+    assert continuous_labels.tolist() == [-2.0, 1.5]
+
+
+def test_mosi_binary_metrics_use_direct_class_arrays_without_regression_fields():
+    labels = torch.tensor([0, 0, 1, 1]).numpy()
+    predictions = torch.tensor([0, 1, 1, 1]).numpy()
+
+    result = _metrics(
+        "CMUMOSI", labels, predictions, mosi_task_mode="binary"
+    )
+
+    assert set(result) == {"accuracy", "weighted_f1", "macro_f1"}
+    assert result["accuracy"] == pytest.approx(0.75)
+    assert result["weighted_f1"] == pytest.approx(0.7333333333333334)
+    assert result["macro_f1"] == pytest.approx(0.7333333333333334)
+
+
+def test_default_and_explicit_regression_helpers_are_equivalent():
+    logits = torch.tensor([[[0.5]], [[-1.0]], [[2.0]]])
+    labels = torch.tensor([[1.5, 0.0, -2.0]])
+    umask = torch.tensor([[1.0, 1.0, 0.0]])
+
+    ASSERT_CLOSE(
+        _task_loss("CMUMOSI", logits, labels, umask),
+        _task_loss(
+            "CMUMOSI", logits, labels, umask, mosi_task_mode="regression"
+        ),
+        rtol=0,
+        atol=0,
+    )
+    default_collection = train_gcnet._collect_predictions(
+        "CMUMOSI", logits, labels, umask
+    )
+    explicit_collection = train_gcnet._collect_predictions(
+        "CMUMOSI", logits, labels, umask, mosi_task_mode="regression"
+    )
+    assert len(default_collection) == len(explicit_collection) == 3
+    for default, explicit in zip(default_collection, explicit_collection):
+        assert default.tolist() == explicit.tolist()
+    default_metrics = _metrics(
+        "CMUMOSI", default_collection[1], default_collection[0]
+    )
+    explicit_metrics = _metrics(
+        "CMUMOSI",
+        explicit_collection[1],
+        explicit_collection[0],
+        mosi_task_mode="regression",
+    )
+    assert default_metrics == explicit_metrics
+
+
+def test_binary_evaluation_filters_artifacts_but_hashes_full_valid_mask(monkeypatch):
+    availability = torch.tensor(
+        [
+            [[1.0, 0.0, 1.0]],
+            [[0.0, 1.0, 1.0]],
+            [[1.0, 1.0, 0.0]],
+        ]
+    )
+    labels = torch.tensor([[-1.0, 0.0, 2.0]])
+    umask = torch.ones(1, 3)
+    view = {
+        "complete": torch.zeros(3, 1, 1),
+        "incomplete": torch.zeros(3, 1, 1),
+        "availability": availability,
+        "qmask": torch.ones(3, 1, 1),
+        "umask": umask,
+        "labels": labels,
+        "lengths": [3],
+    }
+
+    class BinaryEvaluationModel:
+        def eval(self):
+            return self
+
+        def __call__(self, *args, **kwargs):
+            del args, kwargs
+            logits = torch.tensor(
+                [[[4.0, -1.0]], [[-2.0, 2.0]], [[-3.0, 3.0]]]
+            )
+            return logits, None, None, None
+
+    monkeypatch.setattr(train_gcnet, "_move_batch", lambda raw, device: raw)
+    monkeypatch.setattr(
+        train_gcnet,
+        "_prepare_view",
+        lambda data, schedule, epoch, dimensions: view,
+    )
+
+    metrics, artifacts = train_gcnet.evaluate_rate(
+        model=BinaryEvaluationModel(),
+        loader=[["batch"]],
+        schedule=object(),
+        dataset="CMUMOSI",
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+        collect=True,
+        mosi_task_mode="binary",
+    )
+
+    assert artifacts is not None
+    assert artifacts["predictions"].tolist() == [0, 1]
+    assert artifacts["labels"].tolist() == [0, 1]
+    assert artifacts["continuous_labels"].tolist() == [-1.0, 2.0]
+    assert artifacts["availability"].tolist() == [
+        [1.0, 0.0, 1.0],
+        [1.0, 1.0, 0.0],
+    ]
+    assert metrics["mask_sha256"] == train_gcnet._sha256_tensor(availability)
+
+
+def test_regression_evaluation_preserves_legacy_artifact_key_set(monkeypatch):
+    availability = torch.tensor(
+        [[[1.0, 0.0, 1.0]], [[0.0, 1.0, 1.0]]]
+    )
+    view = {
+        "complete": torch.zeros(2, 1, 1),
+        "incomplete": torch.zeros(2, 1, 1),
+        "availability": availability,
+        "qmask": torch.ones(2, 1, 1),
+        "umask": torch.ones(1, 2),
+        "labels": torch.tensor([[-1.0, 0.0]]),
+        "lengths": [2],
+    }
+
+    class RegressionEvaluationModel:
+        def eval(self):
+            return self
+
+        def __call__(self, *args, **kwargs):
+            del args, kwargs
+            return torch.tensor([[[-0.5]], [[0.25]]]), None, None, None
+
+    monkeypatch.setattr(train_gcnet, "_move_batch", lambda raw, device: raw)
+    monkeypatch.setattr(
+        train_gcnet,
+        "_prepare_view",
+        lambda data, schedule, epoch, dimensions: view,
+    )
+
+    _, artifacts = train_gcnet.evaluate_rate(
+        model=RegressionEvaluationModel(),
+        loader=[["batch"]],
+        schedule=object(),
+        dataset="CMUMOSI",
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+        collect=True,
+    )
+
+    assert artifacts is not None
+    assert set(artifacts) == {"predictions", "labels", "availability"}
 
 
 def test_sentiment_metrics_match_gcnet_binary_nonzero_protocol():

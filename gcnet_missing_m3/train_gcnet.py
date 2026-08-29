@@ -248,11 +248,19 @@ def _task_loss(
     logits: torch.Tensor,
     labels: torch.Tensor,
     umask: torch.Tensor,
+    mosi_task_mode: str = "regression",
 ) -> torch.Tensor:
     selected = umask.reshape(-1).bool()
-    if _dataset_shape(dataset)["task"] == "classification":
+    task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
+    if task in ("classification", "binary"):
         flat_logits = logits.transpose(0, 1).reshape(-1, logits.shape[-1])
         flat_labels = labels.reshape(-1).long()
+        if task == "binary":
+            continuous_labels = labels.reshape(-1)
+            selected = selected & continuous_labels.ne(0)
+            if not bool(selected.any()):
+                return flat_logits.sum() * 0.0
+            flat_labels = continuous_labels.gt(0).long()
         return torch.nn.functional.cross_entropy(
             flat_logits[selected], flat_labels[selected]
         )
@@ -265,8 +273,10 @@ def _metrics(
     dataset: str,
     labels: np.ndarray,
     predictions: np.ndarray,
+    mosi_task_mode: str = "regression",
 ) -> Dict[str, float]:
-    if _dataset_shape(dataset)["task"] == "classification":
+    task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
+    if task in ("classification", "binary"):
         return {
             "weighted_f1": float(f1_score(labels, predictions, average="weighted")),
             "macro_f1": float(f1_score(labels, predictions, average="macro")),
@@ -298,14 +308,22 @@ def _collect_predictions(
     logits: torch.Tensor,
     labels: torch.Tensor,
     umask: torch.Tensor,
-) -> tuple[np.ndarray, np.ndarray]:
-    if _dataset_shape(dataset)["task"] == "classification":
+    mosi_task_mode: str = "regression",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
+    if task in ("classification", "binary"):
         predicted = logits.argmax(dim=-1).transpose(0, 1)
     else:
         predicted = logits.squeeze(-1).transpose(0, 1)
     selected = umask.bool()
+    if task == "binary":
+        selected = selected & labels.ne(0)
+        metric_labels = labels.gt(0).long()
+    else:
+        metric_labels = labels
     return (
         predicted[selected].detach().cpu().numpy(),
+        metric_labels[selected].detach().cpu().numpy(),
         labels[selected].detach().cpu().numpy(),
     )
 
@@ -361,7 +379,11 @@ def train_epoch(
                 predict_missing=True,
             )
             cls = _task_loss(
-                config.dataset, logits, view["labels"], view["umask"]
+                config.dataset,
+                logits,
+                view["labels"],
+                view["umask"],
+                config.mosi_task_mode,
             )
             if teacher is None:
                 with torch.no_grad():
@@ -376,8 +398,12 @@ def train_epoch(
                 (loss / len(MISSING_RATES)).backward()
             else:
                 loss.backward()
-            predicted, expected = _collect_predictions(
-                config.dataset, logits, view["labels"], view["umask"]
+            predicted, expected, _ = _collect_predictions(
+                config.dataset,
+                logits,
+                view["labels"],
+                view["umask"],
+                config.mosi_task_mode,
             )
             all_predictions.append(predicted)
             all_labels.append(expected)
@@ -397,6 +423,7 @@ def train_epoch(
         config.dataset,
         np.concatenate(all_labels),
         np.concatenate(all_predictions),
+        config.mosi_task_mode,
     )
     return {
         **metrics,
@@ -418,12 +445,16 @@ def evaluate_rate(
     dimensions: tuple[int, int, int],
     device: torch.device,
     collect: bool,
+    mosi_task_mode: str = "regression",
 ) -> tuple[Dict[str, float], Dict[str, np.ndarray] | None]:
     model.eval()
+    task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
     losses: list[float] = []
     all_predictions: list[np.ndarray] = []
     all_labels: list[np.ndarray] = []
+    all_continuous_labels: list[np.ndarray] = []
     all_availability: list[np.ndarray] = []
+    all_full_availability: list[np.ndarray] = []
     for raw in loader:
         data = _move_batch(raw, device)
         view = _prepare_view(data, schedule, epoch=0, dimensions=dimensions)
@@ -437,21 +468,41 @@ def evaluate_rate(
         )
         if predictions is not None:
             raise RuntimeError("inference path must not return missing predictions")
-        loss = _task_loss(dataset, logits, view["labels"], view["umask"])
-        predicted, expected = _collect_predictions(
-            dataset, logits, view["labels"], view["umask"]
+        loss = _task_loss(
+            dataset,
+            logits,
+            view["labels"],
+            view["umask"],
+            mosi_task_mode,
+        )
+        predicted, expected, continuous = _collect_predictions(
+            dataset,
+            logits,
+            view["labels"],
+            view["umask"],
+            mosi_task_mode,
         )
         all_predictions.append(predicted)
         all_labels.append(expected)
+        all_continuous_labels.append(continuous)
         losses.append(float(loss))
         if collect:
+            valid = view["umask"].T.bool()
+            all_full_availability.append(
+                view["availability"][valid].cpu().numpy()
+            )
+            if task == "binary":
+                selected = valid & view["labels"].T.ne(0)
+            else:
+                selected = valid
             all_availability.append(
-                view["availability"][view["umask"].T.bool()].cpu().numpy()
+                view["availability"][selected].cpu().numpy()
             )
     predictions_array = np.concatenate(all_predictions)
     labels_array = np.concatenate(all_labels)
+    continuous_labels_array = np.concatenate(all_continuous_labels)
     metrics = {
-        **_metrics(dataset, labels_array, predictions_array),
+        **_metrics(dataset, labels_array, predictions_array, mosi_task_mode),
         "loss": float(np.mean(losses)),
     }
     artifacts = None
@@ -462,8 +513,11 @@ def evaluate_rate(
             "labels": labels_array,
             "availability": availability_array,
         }
+        if task == "binary":
+            artifacts["continuous_labels"] = continuous_labels_array
+        full_availability_array = np.concatenate(all_full_availability)
         metrics["mask_sha256"] = _sha256_tensor(
-            torch.from_numpy(availability_array)
+            torch.from_numpy(full_availability_array)
         )
     return metrics, artifacts
 
@@ -565,6 +619,7 @@ def run_experiment(
                 dimensions,
                 device,
                 collect=False,
+                mosi_task_mode=config_value.mosi_task_mode,
             )
         validation_mean = mean_validation_weighted_f1(validation)
         record = {
@@ -611,6 +666,7 @@ def run_experiment(
             dimensions,
             device,
             collect=True,
+            mosi_task_mode=config_value.mosi_task_mode,
         )
         if artifacts is None:
             raise RuntimeError("test artifacts were not collected")
