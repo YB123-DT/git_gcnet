@@ -144,11 +144,11 @@ git diff --check
 **文件：**
 - 创建：`experiments/missing_m3_mosi_graph_branch_ablation_20260829/results/formal/`
 
-- [ ] **步骤 1：同步与远程测试**
+- [x] **步骤 1：同步与远程测试**
 
 只同步三个 source 与两个 test 文件到 `/data2/yb/paper/GCNet_TPAMI_single_view_dev`。在 biggpu `s0` 环境运行 branch-focused tests；在 official 环境运行三种 mode 的真实 forward/backward。
 
-- [ ] **步骤 2：正式运行**
+- [x] **步骤 2：正式运行**
 
 共十个任务：
 
@@ -159,7 +159,7 @@ speaker-only  × seeds 66,67,68,69,70
 
 每个任务使用：CMUMOSI、Regression、Slot、hidden 200、window 2/2、100 epochs、train-rate-mode all。并行使用除 GPU4 外的空闲 GPU；一个任务结束后自动接续同卡下一个任务。
 
-- [ ] **步骤 3：结果审计**
+- [x] **步骤 3：结果审计**
 
 每个任务要求：history=100、8 NPZ 可重算、8 mask SHA 与同 seed Original 相同、无 NaN/坍塌、参数量与 Original 完全相同、无 checkpoint 进入 Git。
 
@@ -169,14 +169,14 @@ speaker-only  × seeds 66,67,68,69,70
 - 创建：`experiments/missing_m3_mosi_graph_branch_ablation_20260829/EXPERIMENT.md`
 - 创建：`experiments/missing_m3_mosi_graph_branch_ablation_20260829/results/SUMMARY.json`
 
-- [ ] **步骤 1：计算五种子统计**
+- [x] **步骤 1：计算五种子统计**
 
 逐 rate 计算 mean、sample std、相对 Original paired delta；同时汇总 miss0 和 nonzero-rate mean。
 
-- [ ] **步骤 2：按设计判读**
+- [x] **步骤 2：按设计判读**
 
 只允许三种结论：Speaker 干扰、直接相加问题、或双分支互补。不得根据结果新增权重、阈值或第三种模型。
 
-- [ ] **步骤 3：完成前验证与上传**
+- [x] **步骤 3：完成前验证与上传**
 
 重新运行完整测试、10×8 NPZ 审计和 80/80 mask 配对；Lore commit 后推送 `github/feature/m3-jepa-gcnet`，核对远端 SHA。
