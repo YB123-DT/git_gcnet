@@ -53,4 +53,4 @@
 - [x] 继承相同 seeds/rates 的 Slot `5e-4` Control，不重跑。
 - [x] 独立重算 40 个 NPZ W-F1，核验 40 个 mask SHA。
 - [x] 按预注册门槛判断为 FAIL，不追加救援模块。
-- [ ] 按 Lore protocol 提交并推送 `github feature/m3-jepa-gcnet`。
+- [x] 按 Lore protocol 提交并推送 `github feature/m3-jepa-gcnet`。
