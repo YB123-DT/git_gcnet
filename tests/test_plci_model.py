@@ -101,6 +101,82 @@ def mask_features(features, availability, dimensions=(2, 3, 4)):
     return features * mask
 
 
+def test_graph_branch_mode_preserves_parameters_and_decomposes_both_output():
+    torch.manual_seed(5)
+    both = GraphModel(**model_arguments(), graph_branch_mode="both").eval()
+    temporal = GraphModel(
+        **model_arguments(), graph_branch_mode="temporal-only"
+    ).eval()
+    speaker = GraphModel(
+        **model_arguments(), graph_branch_mode="speaker-only"
+    ).eval()
+    temporal.load_state_dict(both.state_dict(), strict=True)
+    speaker.load_state_dict(both.state_dict(), strict=True)
+    inputfeats, qmask, umask, lengths = inputs()
+
+    both_hidden = both.encode_hidden(inputfeats, qmask, umask, lengths)
+    temporal_hidden = temporal.encode_hidden(inputfeats, qmask, umask, lengths)
+    speaker_hidden = speaker.encode_hidden(inputfeats, qmask, umask, lengths)
+
+    assert set(both.state_dict()) == set(temporal.state_dict()) == set(
+        speaker.state_dict()
+    )
+    assert sum(p.numel() for p in both.parameters()) == sum(
+        p.numel() for p in temporal.parameters()
+    ) == sum(p.numel() for p in speaker.parameters())
+    ASSERT_CLOSE(
+        both_hidden,
+        temporal_hidden + speaker_hidden,
+        rtol=0,
+        atol=0,
+    )
+
+
+def test_graph_branch_mode_skips_the_inactive_branch():
+    inputfeats, qmask, umask, lengths = inputs()
+
+    temporal = GraphModel(
+        **model_arguments(), graph_branch_mode="temporal-only"
+    ).eval()
+    temporal.graph_net_speaker.register_forward_pre_hook(
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("speaker branch must not run")
+        )
+    )
+    temporal.encode_hidden(inputfeats, qmask, umask, lengths)
+
+    speaker = GraphModel(
+        **model_arguments(), graph_branch_mode="speaker-only"
+    ).eval()
+    speaker.graph_net_temporal.register_forward_pre_hook(
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("temporal branch must not run")
+        )
+    )
+    speaker.encode_hidden(inputfeats, qmask, umask, lengths)
+
+
+def test_graph_branch_mode_defaults_to_both_and_rejects_invalid_value():
+    torch.manual_seed(17)
+    default = GraphModel(**model_arguments()).eval()
+    rng_after_default = torch.get_rng_state().clone()
+    torch.manual_seed(17)
+    explicit = GraphModel(**model_arguments(), graph_branch_mode="both").eval()
+    rng_after_explicit = torch.get_rng_state().clone()
+    explicit.load_state_dict(default.state_dict(), strict=True)
+    inputfeats, qmask, umask, lengths = inputs()
+
+    ASSERT_CLOSE(
+        default.encode_hidden(inputfeats, qmask, umask, lengths),
+        explicit.encode_hidden(inputfeats, qmask, umask, lengths),
+        rtol=0,
+        atol=0,
+    )
+    assert torch.equal(rng_after_default, rng_after_explicit)
+    with pytest.raises(ValueError, match="graph_branch_mode"):
+        GraphModel(**model_arguments(), graph_branch_mode="invalid")
+
+
 def test_original_forward_is_unchanged_after_encode_hidden_extraction():
     torch.manual_seed(7)
     model = GraphModel(**model_arguments()).eval()

@@ -25,7 +25,7 @@
 - 修改：`tests/test_plci_model.py`
 - 修改：`gcnet_modality_jepa/model.py`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 构造三个相同 state dict 的 `GraphModel`，要求：
 
@@ -47,7 +47,7 @@ torch.testing.assert_close(
 
 为未选分支注册会抛错的 pre-hook，确认其不执行；非法 mode 必须抛出 `ValueError`。
 
-- [ ] **步骤 2：验证 RED**
+- [x] **步骤 2：验证 RED**
 
 ```bash
 pytest -q tests/test_plci_model.py -k graph_branch_mode
@@ -55,7 +55,7 @@ pytest -q tests/test_plci_model.py -k graph_branch_mode
 
 预期：FAIL，构造函数尚不接受 `graph_branch_mode`。
 
-- [ ] **步骤 3：最小实现**
+- [x] **步骤 3：最小实现**
 
 在 `GraphModel.__init__()` 末尾增加：
 
@@ -81,7 +81,7 @@ return hidden_speaker
 
 两个 graph modules 的构造顺序保持不变。
 
-- [ ] **步骤 4：验证 GREEN 与共享回归**
+- [x] **步骤 4：验证 GREEN 与共享回归**
 
 ```bash
 pytest -q tests/test_plci_model.py

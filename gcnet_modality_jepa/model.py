@@ -139,12 +139,19 @@ class GraphModel(nn.Module):
     def __init__(self, base_model, adim, tdim, vdim, D_e, graph_hidden_size, n_speakers, window_past, window_future,
                  n_classes ,dropout=0.5, time_attn=True, no_cuda=False,
                  enable_reconstruction=True,
-                 enable_stability_reconstruction=False):
+                 enable_stability_reconstruction=False,
+                 graph_branch_mode="both"):
         
         super(GraphModel, self).__init__()
 
         self.no_cuda = no_cuda
         self.base_model = base_model
+        if graph_branch_mode not in {"both", "temporal-only", "speaker-only"}:
+            raise ValueError(
+                "graph_branch_mode must be 'both', 'temporal-only', or "
+                "'speaker-only'"
+            )
+        self.graph_branch_mode = graph_branch_mode
 
         # The base model is the sequential context encoder.
         # Change input features => 2*D_e
@@ -209,15 +216,23 @@ class GraphModel(nn.Module):
             outputs = outputs + pre_graph_residual
         outputs = outputs.unsqueeze(2)
 
-        features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers,
-                                                             self.window_past, self.window_future, 'temporal', self.no_cuda)
-        assert len(edge_type_mapping) == 3
-        hidden1 = self.graph_net_temporal(features, edge_index, edge_type, seq_lengths, umask)
-        features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers,
-                                                             self.window_past, self.window_future, 'speaker', self.no_cuda)
-        assert len(edge_type_mapping) == self.n_speakers ** 2
-        hidden2 = self.graph_net_speaker(features, edge_index, edge_type, seq_lengths, umask)
-        return hidden1 + hidden2
+        hidden1 = None
+        if self.graph_branch_mode in {"both", "temporal-only"}:
+            features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers,
+                                                                 self.window_past, self.window_future, 'temporal', self.no_cuda)
+            assert len(edge_type_mapping) == 3
+            hidden1 = self.graph_net_temporal(features, edge_index, edge_type, seq_lengths, umask)
+        hidden2 = None
+        if self.graph_branch_mode in {"both", "speaker-only"}:
+            features, edge_index, edge_type, edge_type_mapping = batch_graphify(outputs, qmask, seq_lengths, self.n_speakers,
+                                                                 self.window_past, self.window_future, 'speaker', self.no_cuda)
+            assert len(edge_type_mapping) == self.n_speakers ** 2
+            hidden2 = self.graph_net_speaker(features, edge_index, edge_type, seq_lengths, umask)
+        if self.graph_branch_mode == "both":
+            return hidden1 + hidden2
+        if self.graph_branch_mode == "temporal-only":
+            return hidden1
+        return hidden2
 
     def forward(self, inputfeats, qmask, umask, seq_lengths):
         """
