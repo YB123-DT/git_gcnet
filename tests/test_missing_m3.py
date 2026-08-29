@@ -18,6 +18,7 @@ from gcnet_missing_m3.model import (
     ContextualM3Predictor,
     DualGateTopKMMoE,
     LocalContextResidualFusion,
+    MissingLatentResidualFusion,
     MissingM3GraphModel,
     ObservedSetEncoder,
     RawResidualObservedEncoder,
@@ -121,6 +122,97 @@ def test_paper_faithful_mmoe_variant_is_exposed_by_cli():
     )
 
     assert args.mmoe_variant == "paper-faithful"
+
+
+def test_missing_latent_residual_averages_only_real_missing_targets_and_zeros_padding():
+    class Scale(torch.nn.Module):
+        def __init__(self, value):
+            super().__init__()
+            self.value = value
+
+        def forward(self, latent):
+            return latent * self.value
+
+    fusion = MissingLatentResidualFusion(latent_dim=2, hidden_dim=2)
+    fusion.target_projections = torch.nn.ModuleList(
+        [Scale(1.0), Scale(2.0), Scale(3.0)]
+    )
+    predictions = torch.tensor(
+        [
+            [[[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]],
+            [[[2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]],
+            [[[5.0, 5.0], [6.0, 6.0], [7.0, 7.0]]],
+        ]
+    )
+    target_mask = torch.tensor(
+        [[[0, 1, 1]], [[0, 0, 0]], [[1, 1, 0]]], dtype=torch.bool
+    )
+    umask = torch.tensor([[1.0, 1.0, 0.0]])
+
+    residual = fusion(predictions, target_mask, umask)
+
+    expected = (
+        torch.tanh(torch.tensor([0.0, 2.0]))
+        + torch.tanh(torch.tensor([3.0, 3.0]))
+    ) / 2.0
+    ASSERT_CLOSE(residual[0, 0], expected)
+    assert torch.count_nonzero(residual[1]) == 0
+    assert torch.count_nonzero(residual[2]) == 0
+
+
+def test_classification_completion_executes_predictor_at_inference_without_returning_it(
+    monkeypatch,
+):
+    model = MissingM3GraphModel(
+        **_model_arguments(), classification_completion=True
+    ).eval()
+    inputs = _model_inputs()
+    fixed_graph_hidden = torch.randn(3, 2, 10)
+    monkeypatch.setattr(
+        model, "encode_hidden", lambda *_args, **_kwargs: fixed_graph_hidden
+    )
+    calls = []
+    original = model.missing_predictor.forward
+
+    def capture(*args, **kwargs):
+        calls.append(True)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(model.missing_predictor, "forward", capture)
+    _, graph_hidden, _, returned_predictions = model(
+        [inputs[0]], *inputs[1:], predict_missing=False
+    )
+
+    assert calls == [True]
+    assert returned_predictions is None
+    ASSERT_CLOSE(graph_hidden, fixed_graph_hidden, rtol=0, atol=0)
+
+
+def test_classification_completion_is_opt_in_and_exposed_by_cli():
+    default = MissingM3GraphModel(**_model_arguments())
+    enabled = MissingM3GraphModel(
+        **_model_arguments(), classification_completion=True
+    )
+    assert not hasattr(default, "missing_latent_fusion")
+    assert any(
+        name.startswith("missing_latent_fusion.")
+        for name, _ in enabled.named_parameters()
+    )
+
+    args = build_parser().parse_args(
+        [
+            "--audio-feature",
+            "a",
+            "--text-feature",
+            "t",
+            "--video-feature",
+            "v",
+            "--output-dir",
+            "out",
+            "--classification-completion",
+        ]
+    )
+    assert args.classification_completion is True
 
 
 def _all_patterns():

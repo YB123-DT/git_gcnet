@@ -472,6 +472,61 @@ class MissingM3Predictions:
     source_counts: torch.Tensor
 
 
+class MissingLatentResidualFusion(nn.Module):
+    """Map predicted missing target latents into the emotion hidden space."""
+
+    def __init__(self, latent_dim: int, hidden_dim: int) -> None:
+        super().__init__()
+        self.latent_dim = int(latent_dim)
+        self.hidden_dim = int(hidden_dim)
+        self.target_projections = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.LayerNorm(latent_dim),
+                    nn.Linear(latent_dim, hidden_dim),
+                )
+                for _ in MODALITIES
+            ]
+        )
+        for projection in self.target_projections:
+            nn.init.zeros_(projection[-1].weight)
+            nn.init.zeros_(projection[-1].bias)
+
+    def forward(
+        self,
+        reg_predictions: torch.Tensor,
+        target_mask: torch.Tensor,
+        umask: torch.Tensor,
+    ) -> torch.Tensor:
+        if reg_predictions.ndim != 4 or reg_predictions.shape[2:] != (
+            len(MODALITIES),
+            self.latent_dim,
+        ):
+            raise ValueError(
+                "reg_predictions must have shape [L, B, 3, latent_dim]"
+            )
+        length, batch = reg_predictions.shape[:2]
+        if target_mask.shape != (length, batch, len(MODALITIES)):
+            raise ValueError("target_mask must have shape [L, B, 3]")
+        if umask.shape != (batch, length):
+            raise ValueError("umask must have shape [B, L]")
+
+        projected = torch.stack(
+            [
+                projection(reg_predictions[:, :, target_index])
+                for target_index, projection in enumerate(self.target_projections)
+            ],
+            dim=2,
+        )
+        valid_targets = target_mask.bool() & umask.T.bool().unsqueeze(-1)
+        weights = valid_targets.to(dtype=reg_predictions.dtype).unsqueeze(-1)
+        residual = (torch.tanh(projected) * weights).sum(dim=2)
+        divisor = valid_targets.sum(dim=2).clamp_min(1).to(
+            dtype=reg_predictions.dtype
+        )
+        return residual / divisor.unsqueeze(-1)
+
+
 class ContextualM3Predictor(nn.Module):
     """Vectorized six-direction M3 predictor conditioned on GCNet context."""
 
@@ -589,6 +644,7 @@ class MissingM3GraphModel(GraphModel):
         local_fusion_dropout=0.2,
         graph_branch_mode="both",
         mmoe_variant="dual-gate",
+        classification_completion=False,
     ) -> None:
         if local_context_residual and fusion_type != "slot":
             raise ValueError("local_context_residual requires fusion_type='slot'")
@@ -651,6 +707,11 @@ class MissingM3GraphModel(GraphModel):
             dropout=predictor_dropout,
             mmoe_variant=mmoe_variant,
         )
+        self.classification_completion = bool(classification_completion)
+        if self.classification_completion:
+            self.missing_latent_fusion = MissingLatentResidualFusion(
+                latent_dim, hidden_dim
+            )
         self.ema_step = 0
         self.local_context_residual = bool(local_context_residual)
         if self.local_context_residual:
@@ -681,9 +742,9 @@ class MissingM3GraphModel(GraphModel):
         features = self._feature_tensor(inputfeats)
         node, latents = self.observed_set(features, availability, umask)
         graph_hidden = self.encode_hidden([node], qmask, umask, seq_lengths)
-        predictions = (
+        internal_predictions = (
             self.missing_predictor(latents, graph_hidden, availability, umask)
-            if predict_missing
+            if predict_missing or self.classification_completion
             else None
         )
         classification_hidden = graph_hidden
@@ -691,8 +752,15 @@ class MissingM3GraphModel(GraphModel):
             classification_hidden = graph_hidden + self.local_context_fusion(
                 latents, availability, umask
             )
+        if self.classification_completion:
+            classification_hidden = classification_hidden + self.missing_latent_fusion(
+                internal_predictions.reg_predictions,
+                internal_predictions.target_mask,
+                umask,
+            )
         logits = self.smax_fc(classification_hidden)
-        return logits, classification_hidden, latents, predictions
+        returned_predictions = internal_predictions if predict_missing else None
+        return logits, classification_hidden, latents, returned_predictions
 
     @torch.no_grad()
     def encode_teacher_targets(self, complete_features) -> Dict[str, torch.Tensor]:

@@ -71,6 +71,7 @@ class TrainConfig:
     mosi_task_mode: str = "regression"
     graph_branch_mode: str = "both"
     mmoe_variant: str = "dual-gate"
+    classification_completion: bool = False
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -608,6 +609,7 @@ def run_experiment(
         local_fusion_dropout=config_value.local_fusion_dropout,
         graph_branch_mode=config_value.graph_branch_mode,
         mmoe_variant=config_value.mmoe_variant,
+        classification_completion=config_value.classification_completion,
     ).to(device)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -756,6 +758,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("dual-gate", "paper-faithful"),
         default="dual-gate",
     )
+    parser.add_argument("--classification-completion", action="store_true")
     parser.add_argument(
         "--fusion-type",
         choices=("mean", "slot", "raw-residual"),
@@ -815,6 +818,7 @@ def main() -> None:
         mosi_task_mode=args.mosi_task_mode,
         graph_branch_mode=args.graph_branch_mode,
         mmoe_variant=args.mmoe_variant,
+        classification_completion=args.classification_completion,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [
