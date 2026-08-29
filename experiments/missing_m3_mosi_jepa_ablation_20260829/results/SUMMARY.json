@@ -1,0 +1,136 @@
+{
+  "audit": {
+    "histories_with_100_epochs": 5,
+    "mask_hash_matches_control": 40,
+    "mask_hash_matches_metrics": 40,
+    "npz_metric_matches": 40,
+    "prediction_npz_files": 40
+  },
+  "dataset": "CMUMOSI",
+  "fold": 1,
+  "gate": {
+    "high_missing_contribution_positive": true,
+    "high_missing_positive_seeds_at_least_3": true,
+    "overall_contribution_positive": true,
+    "overall_positive_seeds_at_least_3": true,
+    "passed": true
+  },
+  "high_missing_0p4_to_0p7": {
+    "jepa_contribution_percent_points": 0.659349,
+    "no_jepa_mean_weighted_f1_percent": 74.461384,
+    "positive_seeds": 4,
+    "with_jepa_mean_weighted_f1_percent": 75.120733
+  },
+  "interpretation": {
+    "mean_correlation_change_with_jepa": 0.003852,
+    "mean_mae_change_with_jepa": 0.009080,
+    "primary_effect": "improved polarity separability and high-missing generalization rather than absolute regression calibration"
+  },
+  "method": "Slot Missing-M3 JEPA loss contribution ablation",
+  "overall": {
+    "jepa_contribution_percent_points": 0.455873,
+    "no_jepa_mean_weighted_f1_percent": 78.412119,
+    "paired_contribution_sample_std_percent_points": 0.989319,
+    "positive_seeds": 4,
+    "with_jepa_mean_weighted_f1_percent": 78.867992
+  },
+  "per_rate": {
+    "jepa_contribution_percent_points": [
+      0.173810,
+      0.067133,
+      0.153433,
+      0.615209,
+      1.137282,
+      -0.181467,
+      1.217291,
+      0.464291
+    ],
+    "missing_rates": [
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7
+    ],
+    "no_jepa_mean_weighted_f1_percent": [
+      85.442524,
+      83.477135,
+      80.931072,
+      79.600690,
+      76.256029,
+      75.490979,
+      73.689514,
+      72.409012
+    ],
+    "no_jepa_sample_std_percent": [
+      0.663732,
+      1.025907,
+      0.962226,
+      1.024924,
+      1.720534,
+      1.348022,
+      1.834049,
+      2.655740
+    ],
+    "positive_seeds": [3, 3, 3, 4, 3, 2, 4, 3],
+    "with_jepa_mean_weighted_f1_percent": [
+      85.616334,
+      83.544268,
+      81.084505,
+      80.215899,
+      77.393311,
+      75.309511,
+      74.906805,
+      72.873304
+    ]
+  },
+  "per_seed": {
+    "66": {
+      "high_missing_contribution_percent_points": 2.306108,
+      "miss0_contribution_percent_points": 0.802285,
+      "no_jepa_best_epoch": 54,
+      "no_jepa_best_validation_mean_weighted_f1_percent": 77.730142,
+      "overall_contribution_percent_points": 1.831202
+    },
+    "67": {
+      "high_missing_contribution_percent_points": 0.411524,
+      "miss0_contribution_percent_points": 0.840639,
+      "no_jepa_best_epoch": 36,
+      "no_jepa_best_validation_mean_weighted_f1_percent": 77.911756,
+      "overall_contribution_percent_points": 0.638395
+    },
+    "68": {
+      "high_missing_contribution_percent_points": 0.378308,
+      "miss0_contribution_percent_points": -0.093240,
+      "no_jepa_best_epoch": 48,
+      "no_jepa_best_validation_mean_weighted_f1_percent": 77.218231,
+      "overall_contribution_percent_points": 0.123146
+    },
+    "69": {
+      "high_missing_contribution_percent_points": 0.522153,
+      "miss0_contribution_percent_points": 0.155526,
+      "no_jepa_best_epoch": 41,
+      "no_jepa_best_validation_mean_weighted_f1_percent": 77.582026,
+      "overall_contribution_percent_points": 0.594640
+    },
+    "70": {
+      "high_missing_contribution_percent_points": -0.321347,
+      "miss0_contribution_percent_points": -0.836161,
+      "no_jepa_best_epoch": 44,
+      "no_jepa_best_validation_mean_weighted_f1_percent": 77.660179,
+      "overall_contribution_percent_points": -0.908019
+    }
+  },
+  "protocol": {
+    "epochs": 100,
+    "learning_rate": 0.0005,
+    "no_jepa_weight": 0.0,
+    "seeds": [66, 67, 68, 69, 70],
+    "train_rate_mode": "all",
+    "with_jepa_weight": 0.1
+  },
+  "status": "COMPLETE_PASS"
+}
