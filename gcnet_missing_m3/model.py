@@ -188,17 +188,16 @@ class ModalityTrackEncoder(nn.Module):
         dropout: float = 0.1,
     ) -> None:
         super().__init__()
-        if len(dimensions) != 3 or any(int(value) <= 0 for value in dimensions):
-            raise ValueError("dimensions must contain three positive integers")
-        self.dimensions = tuple(int(value) for value in dimensions)
-        self.latent_dim = int(latent_dim)
-        self.projectors = nn.ModuleDict(
-            {
-                name: ModalityProjector(width, latent_dim, dropout)
-                for name, width in zip(MODALITIES, self.dimensions)
-            }
+        reference_encoder = ObservedSetEncoder(
+            dimensions,
+            latent_dim,
+            dropout,
+            fusion_type="slot",
         )
-        self.modality_embedding = nn.Embedding(3, latent_dim)
+        self.dimensions = reference_encoder.dimensions
+        self.latent_dim = reference_encoder.latent_dim
+        self.projectors = reference_encoder.projectors
+        self.modality_embedding = reference_encoder.modality_embedding
 
     def forward(
         self,
@@ -826,8 +825,6 @@ class MissingM3GraphModel(GraphModel):
                     dropout=dropout,
                 )
         hidden_dim = 2 * D_e + graph_hidden_size
-        if representation_type == "track":
-            self.track_fusion = PostGraphTrackFusion(hidden_dim, dropout)
         self.missing_predictor = ContextualM3Predictor(
             latent_dim,
             hidden_dim,
@@ -836,6 +833,10 @@ class MissingM3GraphModel(GraphModel):
             dropout=predictor_dropout,
             mmoe_variant=mmoe_variant,
         )
+        if representation_type == "track":
+            self.track_fusion = PostGraphTrackFusion(
+                hidden_dim, projector_dropout
+            )
         self.classification_completion = bool(classification_completion)
         if self.classification_completion:
             self.missing_latent_fusion = MissingLatentResidualFusion(

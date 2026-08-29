@@ -635,6 +635,31 @@ def test_default_representation_preserves_state_keys_and_single_graph_call(
     assert len(calls) == 1
 
 
+def test_track_representation_pairs_shared_initialization_and_fusion_dropout():
+    torch.manual_seed(113)
+    control = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        projector_dropout=0.17,
+        representation_type="slot",
+    )
+    torch.manual_seed(113)
+    treatment = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        projector_dropout=0.17,
+        representation_type="track",
+    )
+
+    control_state = control.state_dict()
+    treatment_state = treatment.state_dict()
+    shared_keys = set(control_state).intersection(treatment_state)
+    assert shared_keys
+    for key in shared_keys:
+        ASSERT_CLOSE(control_state[key], treatment_state[key], rtol=0, atol=0)
+    assert treatment.track_fusion.fusion[-1].p == pytest.approx(0.17)
+
+
 def test_track_representation_rejects_conflicting_fusion_paths():
     with pytest.raises(ValueError, match="track.*fusion_type='slot'"):
         MissingM3GraphModel(
@@ -706,6 +731,7 @@ def test_track_representation_backward_reaches_projectors_graph_fusion_and_predi
 
     groups = {
         "projectors": model.observed_set.projectors.parameters(),
+        "modality_embedding": model.observed_set.modality_embedding.parameters(),
         "temporal_graph": model.graph_net_temporal.parameters(),
         "speaker_graph": model.graph_net_speaker.parameters(),
         "track_fusion": model.track_fusion.parameters(),
@@ -719,6 +745,29 @@ def test_track_representation_backward_reaches_projectors_graph_fusion_and_predi
             and torch.count_nonzero(gradient) > 0
             for gradient in gradients
         ), f"no finite non-zero gradient reached {name}"
+
+
+def test_track_representation_logits_ignore_raw_values_in_missing_blocks():
+    torch.manual_seed(127)
+    model = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        representation_type="track",
+    ).eval()
+    features, availability, qmask, umask, lengths = _model_inputs()
+    changed = features.clone()
+    expanded = torch.repeat_interleave(
+        availability, torch.tensor((2, 3, 4)), dim=-1
+    )
+    changed[expanded == 0] += 10_000.0
+
+    first = model([features], availability, qmask, umask, lengths)
+    second = model([changed], availability, qmask, umask, lengths)
+
+    ASSERT_CLOSE(first[0], second[0], rtol=0, atol=0)
+    ASSERT_CLOSE(first[1], second[1], rtol=0, atol=0)
+    for name in first[2]:
+        ASSERT_CLOSE(first[2][name], second[2][name], rtol=0, atol=0)
 
 
 @pytest.mark.parametrize(
