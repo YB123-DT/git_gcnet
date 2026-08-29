@@ -23,7 +23,7 @@
 - 修改：`tests/test_missing_m3.py`
 - 修改：`gcnet_missing_m3/train_gcnet.py`
 
-- [ ] **步骤 1：编写失败的配置与 CLI 测试**
+- [x] **步骤 1：编写失败的配置与 CLI 测试**
 
 新增测试，要求默认回归、显式 binary 可解析，且非 MOSI 数据集拒绝 binary：
 
@@ -41,7 +41,7 @@ def test_mosi_task_mode_defaults_to_regression_and_validates_binary_scope():
         train_gcnet._resolve_task_contract("IEMOCAPSix", "binary")
 ```
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 ```bash
 /data2/yb/reproduction_envs/s0/bin/python -m pytest -q \
@@ -50,7 +50,7 @@ def test_mosi_task_mode_defaults_to_regression_and_validates_binary_scope():
 
 预期：FAIL，缺少 `mosi_task_mode` 或 `_resolve_task_contract`。
 
-- [ ] **步骤 3：实现最小任务 contract**
+- [x] **步骤 3：实现最小任务 contract**
 
 在 `TrainConfig` 末尾追加字段，保持旧 positional 顺序：
 
@@ -74,7 +74,7 @@ def _resolve_task_contract(dataset: str, mosi_task_mode: str) -> Dict[str, objec
 
 CLI 增加 `--mosi-task-mode`，choices 为 `regression/binary`，默认 `regression`；将值写入 `TrainConfig`、config JSON 和 checkpoint config。
 
-- [ ] **步骤 4：运行测试验证通过**
+- [x] **步骤 4：运行测试验证通过**
 
 重复步骤 2；预期 PASS。
 

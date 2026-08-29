@@ -1,5 +1,6 @@
 import copy
 import json
+import sys
 from dataclasses import asdict
 
 import pytest
@@ -925,6 +926,91 @@ def test_train_rate_mode_cli_defaults_and_persists_in_run_artifacts(tmp_path):
     assert checkpoint["config"]["train_rate_mode"] == "all"
     with pytest.raises(SystemExit):
         parser.parse_args(required + ["--train-rate-mode", "invalid"])
+
+
+def test_mosi_task_mode_cli_defaults_to_regression_and_accepts_binary_for_mosi():
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+    parser = build_parser()
+
+    assert parser.parse_args(required).mosi_task_mode == "regression"
+    args = parser.parse_args(
+        required + ["--dataset", "CMUMOSI", "--mosi-task-mode", "binary"]
+    )
+    assert args.dataset == "CMUMOSI"
+    assert args.mosi_task_mode == "binary"
+
+
+def test_mosi_task_mode_binary_contract_is_restricted_to_cmumosi():
+    with pytest.raises(ValueError, match="CMUMOSI"):
+        train_gcnet._resolve_task_contract("IEMOCAPSix", "binary")
+
+
+def test_mosi_task_mode_contract_selects_regression_or_binary_shape():
+    regression = train_gcnet._resolve_task_contract("CMUMOSI", "regression")
+    binary = train_gcnet._resolve_task_contract("CMUMOSI", "binary")
+
+    assert regression["task"] == "regression"
+    assert regression["num_classes"] == 1
+    assert binary["task"] == "binary"
+    assert binary["num_classes"] == 2
+
+
+def test_mosi_task_mode_contract_rejects_invalid_mode():
+    with pytest.raises(ValueError, match="unsupported MOSI task mode"):
+        train_gcnet._resolve_task_contract("CMUMOSI", "multiclass")
+
+
+def test_mosi_task_mode_main_passes_binary_to_run_experiment(monkeypatch):
+    captured = {}
+
+    def run_experiment(config_value, *roots, output_dir):
+        captured["config"] = config_value
+        captured["roots"] = roots
+        captured["output_dir"] = output_dir
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train_gcnet.py",
+            "--dataset",
+            "CMUMOSI",
+            "--mosi-task-mode",
+            "binary",
+            "--audio-feature",
+            "a",
+            "--text-feature",
+            "t",
+            "--video-feature",
+            "v",
+            "--feature-root",
+            "features",
+            "--output-dir",
+            "out",
+        ],
+    )
+    monkeypatch.setattr(train_gcnet.torch, "set_num_threads", lambda _value: None)
+    monkeypatch.setattr(train_gcnet.os.path, "exists", lambda _path: True)
+    monkeypatch.setattr(train_gcnet, "run_experiment", run_experiment)
+
+    train_gcnet.main()
+
+    assert captured["config"].mosi_task_mode == "binary"
+    assert captured["roots"] == (
+        "features/a",
+        "features/t",
+        "features/v",
+    )
+    assert captured["output_dir"] == "out"
 
 
 def test_train_rate_mode_preserves_legacy_positional_config_order():

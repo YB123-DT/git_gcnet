@@ -68,6 +68,7 @@ class TrainConfig:
     validation_fraction: float = 0.1
     device: str = "cuda"
     train_rate_mode: str = "cyclic"
+    mosi_task_mode: str = "regression"
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -101,6 +102,17 @@ def _dataset_shape(dataset: str) -> Dict[str, object]:
         return dict(contracts[dataset])
     except KeyError:
         raise ValueError("unsupported dataset: {}".format(dataset))
+
+
+def _resolve_task_contract(dataset: str, mode: str) -> Dict[str, object]:
+    if mode not in ("regression", "binary"):
+        raise ValueError("unsupported MOSI task mode: {}".format(mode))
+    contract = _dataset_shape(dataset)
+    if mode == "binary":
+        if dataset != "CMUMOSI":
+            raise ValueError("binary task mode is only supported for CMUMOSI")
+        contract.update(task="binary", num_classes=2)
+    return contract
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -631,6 +643,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("IEMOCAPFour", "IEMOCAPSix", "CMUMOSI", "CMUMOSEI"),
         default="IEMOCAPSix",
     )
+    parser.add_argument(
+        "--mosi-task-mode",
+        choices=("regression", "binary"),
+        default="regression",
+    )
     parser.add_argument("--audio-feature", required=True)
     parser.add_argument("--text-feature", required=True)
     parser.add_argument("--video-feature", required=True)
@@ -703,6 +720,7 @@ def main() -> None:
         evaluation_protocol=args.evaluation_protocol,
         validation_fraction=args.validation_fraction,
         device=args.device,
+        mosi_task_mode=args.mosi_task_mode,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [
