@@ -224,11 +224,11 @@ git diff --check
 - 创建：`experiments/missing_m3_mosi_binary_task_20260829/EXPERIMENT.md`
 - 创建：`experiments/missing_m3_mosi_binary_task_20260829/results/formal/seed_66/`
 
-- [ ] **步骤 1：同步并运行真实集成**
+- [x] **步骤 1：同步并运行真实集成**
 
 只同步修改的 source/test 到 `/data2/yb/paper/GCNet_TPAMI_single_view_dev`。在 biggpu 的 `s0` 环境运行 focused tests；随后在 GCNet official 环境用真实 MOSI batch 验证 binary logits `[L,B,2]`、CE finite、zero exclusion 和 backward。
 
-- [ ] **步骤 2：运行正式 seed66**
+- [x] **步骤 2：运行正式 seed66**
 
 使用 GPU5/6/7 中空闲且非 GPU4 的一张卡：
 
@@ -247,11 +247,11 @@ git diff --check
   --mosi-task-mode binary --device cuda
 ```
 
-- [ ] **步骤 3：审计结果**
+- [x] **步骤 3：审计结果**
 
 检查 history=100、validation-only checkpoint、8 NPZ 重算、continuous labels 无零、8 full mask SHA 与 paired regression 相同、parameter delta 只来自 classifier 新增一行、无单类别坍塌。
 
-- [ ] **步骤 4：应用预注册 gate**
+- [x] **步骤 4：应用预注册 gate**
 
 ```text
 miss0 >= 87.5
@@ -261,6 +261,6 @@ nonzero mean delta vs regression >= -0.5
 
 PASS 才创建 seeds 67--70；FAIL 则下一问题锁定为 MOSI 单说话人 Speaker branch，不修改 loss 或阈值。
 
-- [ ] **步骤 5：记录、Lore commit 与推送**
+- [x] **步骤 5：记录、Lore commit 与推送**
 
 报告明确这是 task-protocol alignment，不是结构贡献。提交记录实际测试、NPZ 审计和未扩展边界；推送 `feature/m3-jepa-gcnet` 到 GitHub。
