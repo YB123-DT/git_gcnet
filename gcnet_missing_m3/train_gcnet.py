@@ -73,6 +73,7 @@ class TrainConfig:
     mmoe_variant: str = "dual-gate"
     classification_completion: bool = False
     representation_type: str = "slot"
+    node_interaction_residual: bool = False
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -612,6 +613,7 @@ def run_experiment(
         mmoe_variant=config_value.mmoe_variant,
         classification_completion=config_value.classification_completion,
         representation_type=config_value.representation_type,
+        node_interaction_residual=config_value.node_interaction_residual,
     ).to(device)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -766,6 +768,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("slot", "track"),
         default="slot",
     )
+    parser.add_argument("--node-interaction-residual", action="store_true")
     parser.add_argument(
         "--fusion-type",
         choices=("mean", "slot", "raw-residual"),
@@ -827,6 +830,7 @@ def main() -> None:
         mmoe_variant=args.mmoe_variant,
         classification_completion=args.classification_completion,
         representation_type=args.representation_type,
+        node_interaction_residual=args.node_interaction_residual,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [

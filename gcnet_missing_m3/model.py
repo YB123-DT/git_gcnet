@@ -284,6 +284,145 @@ class PostGraphTrackFusion(nn.Module):
         return output
 
 
+class PatternConditionedInteractionResidual(nn.Module):
+    """Refine a Slot node using observed-only unary and pair evidence."""
+
+    PAIRS = ((0, 1), (0, 2), (1, 2))
+
+    def __init__(
+        self,
+        latent_dim: int,
+        pair_embedding_dim: int = 32,
+        pair_rank: int = 64,
+        residual_hidden_dim: int = 128,
+    ) -> None:
+        super().__init__()
+        values = (
+            latent_dim,
+            pair_embedding_dim,
+            pair_rank,
+            residual_hidden_dim,
+        )
+        if any(int(value) <= 0 for value in values):
+            raise ValueError("PCIR dimensions must be positive")
+        self.latent_dim = int(latent_dim)
+        self.scale_shift = nn.Embedding(
+            8, 3 * 2 * self.latent_dim, padding_idx=0
+        )
+        self.pair_embedding = nn.Embedding(3, int(pair_embedding_dim))
+        pair_input_dim = 4 * self.latent_dim + int(pair_embedding_dim)
+        self.pair_mlp = nn.Sequential(
+            nn.LayerNorm(pair_input_dim),
+            nn.Linear(pair_input_dim, int(pair_rank)),
+            nn.GELU(),
+            nn.Linear(int(pair_rank), self.latent_dim),
+        )
+        self.pattern_embedding = nn.Embedding(
+            8, int(pair_embedding_dim), padding_idx=0
+        )
+        residual_input_dim = 2 * self.latent_dim + int(pair_embedding_dim)
+        self.residual_mlp = nn.Sequential(
+            nn.LayerNorm(residual_input_dim),
+            nn.Linear(residual_input_dim, int(residual_hidden_dim)),
+            nn.GELU(),
+            nn.Linear(int(residual_hidden_dim), self.latent_dim),
+        )
+        nn.init.zeros_(self.scale_shift.weight)
+        nn.init.zeros_(self.residual_mlp[-1].weight)
+        nn.init.zeros_(self.residual_mlp[-1].bias)
+
+    @staticmethod
+    def active_pair_mask(availability: torch.Tensor) -> torch.Tensor:
+        if availability.ndim != 3 or availability.shape[-1] != 3:
+            raise ValueError("availability must have shape [L, B, 3]")
+        observed = availability.bool()
+        return torch.stack(
+            (
+                observed[..., 0] & observed[..., 1],
+                observed[..., 0] & observed[..., 2],
+                observed[..., 1] & observed[..., 2],
+            ),
+            dim=-1,
+        )
+
+    def forward(
+        self,
+        latents: Mapping[str, torch.Tensor],
+        availability: torch.Tensor,
+        umask: torch.Tensor,
+    ) -> torch.Tensor:
+        if set(latents) != set(MODALITIES):
+            raise ValueError("latents must contain audio, text, and visual")
+        reference = latents[MODALITIES[0]]
+        if reference.ndim != 3 or reference.shape[-1] != self.latent_dim:
+            raise ValueError("each latent must have shape [L, B, latent_dim]")
+        length, batch = reference.shape[:2]
+        if availability.shape != (length, batch, 3):
+            raise ValueError("availability must have shape [L, B, 3]")
+        if umask.shape != (batch, length):
+            raise ValueError("umask must have shape [B, L]")
+        for value in latents.values():
+            if value.shape != reference.shape:
+                raise ValueError("all modality latents must share one shape")
+        availability = availability.to(device=reference.device)
+        if not bool(((availability == 0) | (availability == 1)).all()):
+            raise ValueError("availability must be binary")
+        valid = umask.to(device=reference.device).T.bool()
+        if bool((availability[~valid] != 0).any()):
+            raise ValueError("padding availability must be zero")
+        if bool((availability[valid].sum(dim=-1) == 0).any()):
+            raise ValueError("valid utterances require an observed modality")
+
+        pattern_id = (
+            availability[..., 0].long() * 4
+            + availability[..., 1].long() * 2
+            + availability[..., 2].long()
+        )
+        parameters = self.scale_shift(pattern_id).reshape(
+            length, batch, 3, 2, self.latent_dim
+        )
+        scale = parameters[..., 0, :]
+        shift = parameters[..., 1, :]
+        stacked = torch.stack([latents[name] for name in MODALITIES], dim=2)
+        observed = availability.unsqueeze(-1).to(reference.dtype)
+        corrected = ((1.0 + scale) * stacked + shift) * observed
+        observed_count = observed.sum(dim=2).clamp_min(1.0)
+        observed_summary = corrected.sum(dim=2) / observed_count
+
+        pair_mask = self.active_pair_mask(availability)
+        pair_values = []
+        for pair_index, (left_index, right_index) in enumerate(self.PAIRS):
+            left = corrected[..., left_index, :]
+            right = corrected[..., right_index, :]
+            pair_identity = self.pair_embedding.weight[pair_index].view(
+                1, 1, -1
+            ).expand(length, batch, -1)
+            pair_input = torch.cat(
+                (left, right, left * right, (left - right).abs(), pair_identity),
+                dim=-1,
+            )
+            pair_value = self.pair_mlp(pair_input)
+            pair_values.append(
+                pair_value
+                * pair_mask[..., pair_index : pair_index + 1].to(
+                    reference.dtype
+                )
+            )
+        pair_stack = torch.stack(pair_values, dim=2)
+        pair_count = pair_mask.sum(dim=-1, keepdim=True).clamp_min(1)
+        pair_summary = pair_stack.sum(dim=2) / pair_count.to(reference.dtype)
+        residual_input = torch.cat(
+            (
+                observed_summary,
+                pair_summary,
+                self.pattern_embedding(pattern_id),
+            ),
+            dim=-1,
+        )
+        residual = self.residual_mlp(residual_input)
+        return residual * valid.unsqueeze(-1).to(reference.dtype)
+
+
 class RawResidualObservedEncoder(nn.Module):
     """Preserve observed raw blocks while coupling Student latents by residuals."""
 
@@ -752,6 +891,7 @@ class MissingM3GraphModel(GraphModel):
         mmoe_variant="dual-gate",
         classification_completion=False,
         representation_type="slot",
+        node_interaction_residual=False,
     ) -> None:
         if representation_type not in {"slot", "track"}:
             raise ValueError("representation_type must be 'slot' or 'track'")
@@ -767,6 +907,22 @@ class MissingM3GraphModel(GraphModel):
             )
         if local_context_residual and fusion_type != "slot":
             raise ValueError("local_context_residual requires fusion_type='slot'")
+        if node_interaction_residual and fusion_type != "slot":
+            raise ValueError(
+                "node_interaction_residual requires fusion_type='slot'"
+            )
+        if node_interaction_residual and representation_type == "track":
+            raise ValueError(
+                "node_interaction_residual cannot use track representation"
+            )
+        if node_interaction_residual and local_context_residual:
+            raise ValueError(
+                "node_interaction_residual cannot use local_context_residual"
+            )
+        if node_interaction_residual and classification_completion:
+            raise ValueError(
+                "node_interaction_residual cannot use classification_completion"
+            )
         super().__init__(
             base_model,
             adim,
@@ -851,6 +1007,11 @@ class MissingM3GraphModel(GraphModel):
                 hidden_dim=local_fusion_hidden_dim,
                 dropout=local_fusion_dropout,
             )
+        self.node_interaction_residual = bool(node_interaction_residual)
+        if self.node_interaction_residual:
+            self.node_interaction = PatternConditionedInteractionResidual(
+                latent_dim
+            )
 
     @staticmethod
     def _feature_tensor(inputfeats) -> torch.Tensor:
@@ -871,6 +1032,10 @@ class MissingM3GraphModel(GraphModel):
     ):
         features = self._feature_tensor(inputfeats)
         encoded, latents = self.observed_set(features, availability, umask)
+        if self.node_interaction_residual:
+            encoded = encoded + self.node_interaction(
+                latents, availability, umask
+            )
         if self.representation_type == "track":
             track_hidden = {
                 name: self.encode_hidden(

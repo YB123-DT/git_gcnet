@@ -339,6 +339,84 @@ def test_post_graph_track_fusion_excludes_missing_tracks_and_zeros_padding():
     assert torch.count_nonzero(first[~umask.T.bool()]) == 0
 
 
+def test_pcir_initially_returns_zero_for_seven_patterns_and_padding():
+    residual_class = getattr(
+        missing_m3_model, "PatternConditionedInteractionResidual", None
+    )
+    assert residual_class is not None, "PCIR is not implemented"
+    module = residual_class(
+        latent_dim=8,
+        pair_embedding_dim=4,
+        pair_rank=5,
+        residual_hidden_dim=6,
+    ).eval()
+    availability = torch.cat(
+        [_all_patterns(), torch.zeros(1, 1, 3)], dim=0
+    )
+    umask = torch.tensor([[1.0] * 7 + [0.0]])
+    latents = {
+        name: torch.randn(8, 1, 8)
+        for name in ("audio", "text", "visual")
+    }
+
+    residual = module(latents, availability, umask)
+
+    assert residual.shape == (8, 1, 8)
+    ASSERT_CLOSE(residual, torch.zeros_like(residual), rtol=0, atol=0)
+
+
+def test_pcir_ignores_missing_latents_after_residual_is_enabled():
+    residual_class = getattr(
+        missing_m3_model, "PatternConditionedInteractionResidual", None
+    )
+    assert residual_class is not None, "PCIR is not implemented"
+    torch.manual_seed(131)
+    module = residual_class(
+        latent_dim=8,
+        pair_embedding_dim=4,
+        pair_rank=5,
+        residual_hidden_dim=6,
+    ).eval()
+    with torch.no_grad():
+        torch.nn.init.normal_(module.residual_mlp[-1].weight)
+        torch.nn.init.normal_(module.residual_mlp[-1].bias)
+    availability = _all_patterns()
+    umask = torch.ones(1, 7)
+    latents = {
+        name: torch.randn(7, 1, 8)
+        for name in ("audio", "text", "visual")
+    }
+    changed = {name: value.clone() for name, value in latents.items()}
+    for index, name in enumerate(("audio", "text", "visual")):
+        changed[name][~availability[..., index].bool()] += 10_000.0
+
+    first = module(latents, availability, umask)
+    second = module(changed, availability, umask)
+
+    ASSERT_CLOSE(first, second, rtol=0, atol=0)
+
+
+def test_pcir_pair_mask_activates_only_observed_pairs():
+    residual_class = getattr(
+        missing_m3_model, "PatternConditionedInteractionResidual", None
+    )
+    assert residual_class is not None, "PCIR is not implemented"
+    availability = _all_patterns()
+
+    pair_mask = residual_class.active_pair_mask(availability)
+
+    assert pair_mask.shape == (7, 1, 3)
+    assert pair_mask.squeeze(1).tolist() == [
+        [False, False, False],
+        [False, False, False],
+        [False, False, False],
+        [True, False, False],
+        [False, True, False],
+        [False, False, True],
+        [True, True, True],
+    ]
+
+
 def test_slot_fusion_supports_seven_patterns_without_missing_value_leakage():
     torch.manual_seed(13)
     encoder = ObservedSetEncoder(
@@ -709,6 +787,31 @@ def test_representation_type_is_exposed_by_cli_and_config():
     assert asdict(config)["representation_type"] == "track"
 
 
+def test_node_interaction_residual_is_exposed_by_cli_and_config():
+    args = build_parser().parse_args(
+        [
+            "--audio-feature",
+            "a",
+            "--text-feature",
+            "t",
+            "--video-feature",
+            "v",
+            "--output-dir",
+            "out",
+            "--fusion-type",
+            "slot",
+            "--node-interaction-residual",
+        ]
+    )
+    config = TrainConfig(
+        fusion_type=args.fusion_type,
+        node_interaction_residual=args.node_interaction_residual,
+    )
+
+    assert args.node_interaction_residual is True
+    assert asdict(config)["node_interaction_residual"] is True
+
+
 def test_track_representation_backward_reaches_projectors_graph_fusion_and_predictor():
     torch.manual_seed(109)
     model = MissingM3GraphModel(
@@ -768,6 +871,109 @@ def test_track_representation_logits_ignore_raw_values_in_missing_blocks():
     ASSERT_CLOSE(first[1], second[1], rtol=0, atol=0)
     for name in first[2]:
         ASSERT_CLOSE(first[2][name], second[2][name], rtol=0, atol=0)
+
+
+def test_node_interaction_residual_preserves_shared_initialization_and_initial_output():
+    torch.manual_seed(137)
+    control = MissingM3GraphModel(
+        **_model_arguments(), fusion_type="slot"
+    ).eval()
+    torch.manual_seed(137)
+    treatment = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        node_interaction_residual=True,
+    ).eval()
+
+    control_state = control.state_dict()
+    treatment_state = treatment.state_dict()
+    assert set(control_state).issubset(treatment_state)
+    for key, value in control_state.items():
+        ASSERT_CLOSE(value, treatment_state[key], rtol=0, atol=0)
+    assert any(key.startswith("node_interaction.") for key in treatment_state)
+
+    inputs = _model_inputs()
+    control_outputs = control([inputs[0]], *inputs[1:], predict_missing=True)
+    treatment_outputs = treatment(
+        [inputs[0]], *inputs[1:], predict_missing=True
+    )
+    for control_value, treatment_value in zip(
+        control_outputs[:3], treatment_outputs[:3]
+    ):
+        if isinstance(control_value, dict):
+            for name in control_value:
+                ASSERT_CLOSE(
+                    control_value[name], treatment_value[name], rtol=0, atol=0
+                )
+        else:
+            ASSERT_CLOSE(control_value, treatment_value, rtol=0, atol=0)
+    for field in (
+        "reg_predictions",
+        "cl_predictions",
+        "target_mask",
+        "source_counts",
+    ):
+        ASSERT_CLOSE(
+            getattr(control_outputs[3], field),
+            getattr(treatment_outputs[3], field),
+            rtol=0,
+            atol=0,
+        )
+
+
+def test_node_interaction_residual_backward_reaches_new_and_shared_modules():
+    torch.manual_seed(139)
+    model = MissingM3GraphModel(
+        **_model_arguments(),
+        fusion_type="slot",
+        node_interaction_residual=True,
+    ).train()
+    with torch.no_grad():
+        torch.nn.init.normal_(model.node_interaction.residual_mlp[-1].weight)
+    features, availability, qmask, umask, lengths = _model_inputs()
+
+    logits, _, _, predictions = model(
+        [features],
+        availability,
+        qmask,
+        umask,
+        lengths,
+        predict_missing=True,
+    )
+    assert predictions is not None
+    (logits.square().mean() + predictions.reg_predictions.square().mean()).backward()
+
+    groups = {
+        "scale_shift": model.node_interaction.scale_shift.parameters(),
+        "pair_mlp": model.node_interaction.pair_mlp.parameters(),
+        "residual_mlp": model.node_interaction.residual_mlp.parameters(),
+        "projectors": model.observed_set.projectors.parameters(),
+        "temporal_graph": model.graph_net_temporal.parameters(),
+        "speaker_graph": model.graph_net_speaker.parameters(),
+    }
+    for name, parameters in groups.items():
+        assert any(
+            parameter.grad is not None
+            and torch.isfinite(parameter.grad).all()
+            and torch.count_nonzero(parameter.grad) > 0
+            for parameter in parameters
+        ), f"no finite non-zero gradient reached {name}"
+
+
+def test_node_interaction_residual_rejects_conflicting_paths():
+    with pytest.raises(ValueError, match="node_interaction_residual.*slot"):
+        MissingM3GraphModel(
+            **_model_arguments(),
+            fusion_type="mean",
+            node_interaction_residual=True,
+        )
+    with pytest.raises(ValueError, match="node_interaction_residual.*track"):
+        MissingM3GraphModel(
+            **_model_arguments(),
+            fusion_type="slot",
+            representation_type="track",
+            node_interaction_residual=True,
+        )
 
 
 @pytest.mark.parametrize(
