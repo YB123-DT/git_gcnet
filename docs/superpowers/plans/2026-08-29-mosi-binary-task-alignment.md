@@ -170,7 +170,7 @@ artifact availability 与 supervised items 等长；`mask_sha256` 仍基于全�
 - 修改：`tests/test_missing_m3.py`
 - 修改：`gcnet_missing_m3/train_gcnet.py`
 
-- [ ] **步骤 1：编写模型构造与回归兼容测试**
+- [x] **步骤 1：编写模型构造与回归兼容测试**
 
 ```python
 def test_binary_mode_builds_two_class_head_and_regression_keeps_one_class():
@@ -180,7 +180,7 @@ def test_binary_mode_builds_two_class_head_and_regression_keeps_one_class():
 
 扩展已有 regression tests，明确默认参数与显式 `regression` 的 loss、metrics、predictions 完全相同；旧 positional `TrainConfig` 仍得到 `regression`。
 
-- [ ] **步骤 2：运行测试验证失败**
+- [x] **步骤 2：运行测试验证失败**
 
 ```bash
 /data2/yb/reproduction_envs/s0/bin/python -m pytest -q \
@@ -189,7 +189,7 @@ def test_binary_mode_builds_two_class_head_and_regression_keeps_one_class():
 
 预期：新 binary assertion FAIL，旧回归测试保持 PASS。
 
-- [ ] **步骤 3：让 run_experiment 使用 task contract**
+- [x] **步骤 3：让 run_experiment 使用 task contract**
 
 ```python
 shape = _resolve_task_contract(
@@ -199,7 +199,7 @@ shape = _resolve_task_contract(
 
 模型继续从 `shape["num_classes"]` 获取输出维度。IEMOCAP 与默认 regression 的初始化顺序不改变。
 
-- [ ] **步骤 4：运行完整回归测试**
+- [x] **步骤 4：运行完整回归测试**
 
 ```bash
 /data2/yb/reproduction_envs/s0/bin/python -m pytest -q \
@@ -208,7 +208,7 @@ shape = _resolve_task_contract(
 
 预期：全部 PASS，原 41 tests 不减少。
 
-- [ ] **步骤 5：运行静态验证**
+- [x] **步骤 5：运行静态验证**
 
 ```bash
 /data2/yb/reproduction_envs/s0/bin/python -m py_compile \

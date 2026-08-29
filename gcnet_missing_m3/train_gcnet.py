@@ -529,7 +529,9 @@ def run_experiment(
     visual_root: str,
     output_dir: str | Path,
 ) -> Dict[str, object]:
-    shape = _dataset_shape(config_value.dataset)
+    shape = _resolve_task_contract(
+        config_value.dataset, config_value.mosi_task_mode
+    )
     if not 1 <= config_value.fold <= int(shape["num_folds"]):
         raise ValueError("fold is outside the dataset fold range")
     output = Path(output_dir)

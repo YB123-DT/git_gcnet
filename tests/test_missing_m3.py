@@ -1016,6 +1016,61 @@ def test_mosi_task_mode_main_passes_binary_to_run_experiment(monkeypatch):
     assert captured["output_dir"] == "out"
 
 
+def test_mosi_task_mode_run_experiment_builds_one_or_two_output_classes(
+    monkeypatch, tmp_path
+):
+    captured_classes = []
+
+    class CapturingModel(torch.nn.Module):
+        def __init__(self, *args, n_classes, **kwargs):
+            super().__init__()
+            del args, kwargs
+            captured_classes.append(n_classes)
+            self.dummy = torch.nn.Parameter(torch.zeros(()))
+
+    empty_loaders = ([[]], [[]], [[]], 1, 1, 1)
+    monkeypatch.setattr(train_gcnet, "MissingM3GraphModel", CapturingModel)
+    monkeypatch.setattr(train_gcnet, "get_loaders", lambda **_kwargs: empty_loaders)
+    monkeypatch.setattr(train_gcnet, "_schedules", lambda *_args: {})
+
+    for mode in ("regression", "binary"):
+        with pytest.raises(RuntimeError, match="no best checkpoint"):
+            train_gcnet.run_experiment(
+                TrainConfig(
+                    dataset="CMUMOSI",
+                    fold=1,
+                    epochs=0,
+                    device="cpu",
+                    mosi_task_mode=mode,
+                ),
+                "audio",
+                "text",
+                "visual",
+                tmp_path / mode,
+            )
+
+    assert captured_classes == [1, 2]
+
+
+def test_mosi_task_mode_binary_collection_aligns_multiple_batches_and_steps():
+    logits = torch.tensor(
+        [
+            [[4.0, -1.0], [-3.0, 2.0]],
+            [[-2.0, 3.0], [5.0, -4.0]],
+        ]
+    )
+    labels = torch.tensor([[-1.0, 2.0], [3.0, 0.0]])
+    umask = torch.ones(2, 2)
+
+    predicted, binary, continuous = train_gcnet._collect_predictions(
+        "CMUMOSI", logits, labels, umask, mosi_task_mode="binary"
+    )
+
+    assert predicted.tolist() == [0, 1, 1]
+    assert binary.tolist() == [0, 1, 1]
+    assert continuous.tolist() == [-1.0, 2.0, 3.0]
+
+
 def test_train_rate_mode_preserves_legacy_positional_config_order():
     legacy_field_names = (
         "dataset",
