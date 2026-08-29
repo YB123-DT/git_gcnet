@@ -16,6 +16,7 @@ from gcnet_missing_m3.mixed_rate import (
 )
 from gcnet_missing_m3.model import (
     ContextualM3Predictor,
+    DualGateTopKMMoE,
     LocalContextResidualFusion,
     MissingM3GraphModel,
     ObservedSetEncoder,
@@ -31,6 +32,95 @@ from gcnet_missing_m3.train_gcnet import (
 
 
 ASSERT_CLOSE = getattr(torch.testing, "assert_close", torch.testing.assert_allclose)
+
+
+def test_paper_faithful_mmoe_adds_only_branch_specific_parameters():
+    legacy = DualGateTopKMMoE(4, num_experts=2, top_k=1, dropout=0.0)
+    explicit_legacy = DualGateTopKMMoE(
+        4, num_experts=2, top_k=1, dropout=0.0, variant="dual-gate"
+    )
+    paper = DualGateTopKMMoE(
+        4, num_experts=2, top_k=1, dropout=0.0, variant="paper-faithful"
+    )
+
+    assert legacy.state_dict().keys() == explicit_legacy.state_dict().keys()
+    assert "reg_task_embedding" not in legacy.state_dict()
+    assert "cl_task_embedding" not in legacy.state_dict()
+    assert paper.reg_gate is not paper.cl_gate
+    assert "reg_task_embedding" in paper.state_dict()
+    assert "cl_task_embedding" in paper.state_dict()
+    assert "reg_norm.weight" in paper.state_dict()
+    assert "cl_norm.weight" in paper.state_dict()
+
+
+def test_paper_faithful_mmoe_preserves_each_task_input_with_residual():
+    class ZeroExpert(torch.nn.Module):
+        def forward(self, value):
+            return torch.zeros_like(value)
+
+    mmoe = DualGateTopKMMoE(
+        3, num_experts=2, top_k=1, dropout=0.0, variant="paper-faithful"
+    ).eval()
+    mmoe.experts = torch.nn.ModuleList([ZeroExpert(), ZeroExpert()])
+    with torch.no_grad():
+        mmoe.source_embedding.weight.zero_()
+        mmoe.target_embedding.weight.zero_()
+        mmoe.reg_task_embedding.copy_(torch.tensor([0.1, 0.2, 0.3]))
+        mmoe.cl_task_embedding.copy_(torch.tensor([-0.3, -0.2, -0.1]))
+        for head in (*mmoe.reg_heads, *mmoe.cl_heads):
+            head.weight.copy_(torch.eye(3))
+            head.bias.zero_()
+
+    value = torch.tensor([[1.0, 2.0, 3.0], [-1.0, 0.0, 1.0]])
+    reg, cl = mmoe(value, source_index=0, target_index=1)
+
+    ASSERT_CLOSE(reg, value + mmoe.reg_task_embedding, rtol=0, atol=1e-7)
+    ASSERT_CLOSE(cl, value + mmoe.cl_task_embedding, rtol=0, atol=1e-7)
+
+
+def test_paper_faithful_routing_uses_full_softmax_and_exposes_statistics():
+    mmoe = DualGateTopKMMoE(
+        4, num_experts=2, top_k=1, dropout=0.0, variant="paper-faithful"
+    )
+    with torch.no_grad():
+        mmoe.reg_gate.weight.zero_()
+        mmoe.reg_gate.bias.copy_(torch.tensor([0.0, torch.log(torch.tensor(3.0))]))
+
+    route = mmoe._route(
+        torch.zeros(2, 4), mmoe.reg_gate, branch_index=0
+    )
+    expected = torch.tensor([[0.0, 0.75], [0.0, 0.75]])
+    ASSERT_CLOSE(route, expected, rtol=0, atol=1e-7)
+
+    statistics = mmoe.routing_statistics()
+    ASSERT_CLOSE(
+        statistics["selection_count"][0],
+        torch.tensor([0.0, 2.0], dtype=torch.float64),
+    )
+    ASSERT_CLOSE(
+        statistics["probability_mass"][0],
+        torch.tensor([0.0, 1.5], dtype=torch.float64),
+    )
+    assert torch.isfinite(statistics["entropy"]).all()
+
+
+def test_paper_faithful_mmoe_variant_is_exposed_by_cli():
+    args = build_parser().parse_args(
+        [
+            "--audio-feature",
+            "a",
+            "--text-feature",
+            "t",
+            "--video-feature",
+            "v",
+            "--output-dir",
+            "out",
+            "--mmoe-variant",
+            "paper-faithful",
+        ]
+    )
+
+    assert args.mmoe_variant == "paper-faithful"
 
 
 def _all_patterns():

@@ -70,6 +70,7 @@ class TrainConfig:
     train_rate_mode: str = "cyclic"
     mosi_task_mode: str = "regression"
     graph_branch_mode: str = "both"
+    mmoe_variant: str = "dual-gate"
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -340,6 +341,10 @@ def train_epoch(
     device: torch.device,
 ) -> Dict[str, float]:
     model.train()
+    predictor = getattr(model, "missing_predictor", None)
+    mmoe = getattr(predictor, "mmoe", None)
+    if mmoe is not None:
+        mmoe.reset_routing_statistics()
     rate_schedule = BalancedBatchRateSchedule()
     losses: list[float] = []
     cls_losses: list[float] = []
@@ -426,6 +431,21 @@ def train_epoch(
         np.concatenate(all_predictions),
         config.mosi_task_mode,
     )
+    routing_record = {}
+    if mmoe is not None:
+        routing = mmoe.routing_statistics()
+        for branch_index, branch_name in enumerate(("regression", "contrastive")):
+            routing_record[branch_name] = {
+                "selection_count": routing["selection_count"][branch_index]
+                .cpu()
+                .tolist(),
+                "probability_mass": routing["probability_mass"][branch_index]
+                .cpu()
+                .tolist(),
+                "usage": routing["usage"][branch_index].cpu().tolist(),
+                "entropy": float(routing["entropy"][branch_index].cpu()),
+                "token_count": int(routing["token_count"][branch_index].cpu()),
+            }
     return {
         **metrics,
         "loss": float(np.mean(losses)),
@@ -434,6 +454,7 @@ def train_epoch(
         "jepa_target_count": int(target_count),
         "rate_batch_counts": {str(rate): count for rate, count in rate_counts.items()},
         "optimizer_steps": optimizer_steps,
+        "routing": routing_record,
     }
 
 
@@ -586,6 +607,7 @@ def run_experiment(
         local_fusion_hidden_dim=config_value.local_fusion_hidden_dim,
         local_fusion_dropout=config_value.local_fusion_dropout,
         graph_branch_mode=config_value.graph_branch_mode,
+        mmoe_variant=config_value.mmoe_variant,
     ).to(device)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -730,6 +752,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-experts", type=int, default=4)
     parser.add_argument("--top-k", type=int, default=2)
     parser.add_argument(
+        "--mmoe-variant",
+        choices=("dual-gate", "paper-faithful"),
+        default="dual-gate",
+    )
+    parser.add_argument(
         "--fusion-type",
         choices=("mean", "slot", "raw-residual"),
         default="mean",
@@ -787,6 +814,7 @@ def main() -> None:
         device=args.device,
         mosi_task_mode=args.mosi_task_mode,
         graph_branch_mode=args.graph_branch_mode,
+        mmoe_variant=args.mmoe_variant,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [

@@ -305,11 +305,16 @@ class DualGateTopKMMoE(nn.Module):
         num_experts: int,
         top_k: int,
         dropout: float,
+        variant: str = "dual-gate",
     ) -> None:
         super().__init__()
         if not 1 <= top_k <= num_experts:
             raise ValueError("top_k must be between one and num_experts")
+        if variant not in {"dual-gate", "paper-faithful"}:
+            raise ValueError("variant must be 'dual-gate' or 'paper-faithful'")
         self.top_k = int(top_k)
+        self.variant = variant
+        self.num_experts = int(num_experts)
         self.source_embedding = nn.Embedding(3, latent_dim)
         self.target_embedding = nn.Embedding(3, latent_dim)
         self.experts = nn.ModuleList(
@@ -331,13 +336,95 @@ class DualGateTopKMMoE(nn.Module):
         self.cl_heads = nn.ModuleList(
             [nn.Linear(latent_dim, latent_dim) for _ in MODALITIES]
         )
+        if self.variant == "paper-faithful":
+            self.reg_task_embedding = nn.Parameter(torch.empty(latent_dim))
+            self.cl_task_embedding = nn.Parameter(torch.empty(latent_dim))
+            self.reg_norm = nn.LayerNorm(latent_dim)
+            self.cl_norm = nn.LayerNorm(latent_dim)
+            nn.init.kaiming_uniform_(
+                self.reg_task_embedding.view(1, -1), nonlinearity="relu"
+            )
+            nn.init.kaiming_uniform_(
+                self.cl_task_embedding.view(1, -1), nonlinearity="relu"
+            )
+        self.register_buffer(
+            "_routing_selection_count",
+            torch.zeros(2, num_experts, dtype=torch.float64),
+            persistent=False,
+        )
+        self.register_buffer(
+            "_routing_probability_mass",
+            torch.zeros(2, num_experts, dtype=torch.float64),
+            persistent=False,
+        )
+        self.register_buffer(
+            "_routing_token_count",
+            torch.zeros(2, dtype=torch.float64),
+            persistent=False,
+        )
 
-    def _route(self, value: torch.Tensor, gate: nn.Linear) -> torch.Tensor:
+    def _route(
+        self, value: torch.Tensor, gate: nn.Linear, branch_index: int
+    ) -> torch.Tensor:
         logits = gate(value)
-        top_values, top_indices = logits.topk(self.top_k, dim=-1)
-        top_weights = top_values.softmax(dim=-1)
+        if self.variant == "paper-faithful":
+            top_weights, top_indices = logits.softmax(dim=-1).topk(
+                self.top_k, dim=-1
+            )
+        else:
+            top_values, top_indices = logits.topk(self.top_k, dim=-1)
+            top_weights = top_values.softmax(dim=-1)
         route = torch.zeros_like(logits)
-        return route.scatter(-1, top_indices, top_weights)
+        route = route.scatter(-1, top_indices, top_weights)
+        with torch.no_grad():
+            selected = torch.zeros_like(logits).scatter(
+                -1, top_indices, torch.ones_like(top_weights)
+            )
+            self._routing_selection_count[branch_index].add_(
+                selected.sum(dim=0).to(torch.float64)
+            )
+            self._routing_probability_mass[branch_index].add_(
+                route.sum(dim=0).to(torch.float64)
+            )
+            self._routing_token_count[branch_index].add_(float(value.shape[0]))
+        return route
+
+    @torch.no_grad()
+    def reset_routing_statistics(self) -> None:
+        self._routing_selection_count.zero_()
+        self._routing_probability_mass.zero_()
+        self._routing_token_count.zero_()
+
+    @torch.no_grad()
+    def routing_statistics(self) -> dict[str, torch.Tensor]:
+        mass_total = self._routing_probability_mass.sum(dim=-1, keepdim=True)
+        distribution = self._routing_probability_mass / mass_total.clamp_min(1e-12)
+        entropy = -(
+            distribution * distribution.clamp_min(1e-12).log()
+        ).sum(dim=-1)
+        return {
+            "selection_count": self._routing_selection_count.clone(),
+            "probability_mass": self._routing_probability_mass.clone(),
+            "token_count": self._routing_token_count.clone(),
+            "usage": self._routing_selection_count
+            / self._routing_selection_count.sum(dim=-1, keepdim=True).clamp_min(1.0),
+            "entropy": entropy,
+        }
+
+    def _paper_branch(
+        self,
+        value: torch.Tensor,
+        gate: nn.Linear,
+        norm: nn.LayerNorm,
+        branch_index: int,
+    ) -> torch.Tensor:
+        experts = torch.stack([expert(value) for expert in self.experts], dim=1)
+        hidden = torch.einsum(
+            "ne,ned->nd",
+            self._route(value, gate, branch_index=branch_index),
+            experts,
+        )
+        return value + F.gelu(norm(hidden))
 
     def forward(
         self, value: torch.Tensor, source_index: int, target_index: int
@@ -347,13 +434,33 @@ class DualGateTopKMMoE(nn.Module):
             + self.source_embedding.weight[source_index]
             + self.target_embedding.weight[target_index]
         )
-        experts = torch.stack([expert(conditioned) for expert in self.experts], dim=1)
-        reg_hidden = torch.einsum(
-            "ne,ned->nd", self._route(conditioned, self.reg_gate), experts
-        )
-        cl_hidden = torch.einsum(
-            "ne,ned->nd", self._route(conditioned, self.cl_gate), experts
-        )
+        if self.variant == "paper-faithful":
+            reg_hidden = self._paper_branch(
+                conditioned + self.reg_task_embedding,
+                self.reg_gate,
+                self.reg_norm,
+                branch_index=0,
+            )
+            cl_hidden = self._paper_branch(
+                conditioned + self.cl_task_embedding,
+                self.cl_gate,
+                self.cl_norm,
+                branch_index=1,
+            )
+        else:
+            experts = torch.stack(
+                [expert(conditioned) for expert in self.experts], dim=1
+            )
+            reg_hidden = torch.einsum(
+                "ne,ned->nd",
+                self._route(conditioned, self.reg_gate, branch_index=0),
+                experts,
+            )
+            cl_hidden = torch.einsum(
+                "ne,ned->nd",
+                self._route(conditioned, self.cl_gate, branch_index=1),
+                experts,
+            )
         return self.reg_heads[target_index](reg_hidden), self.cl_heads[target_index](cl_hidden)
 
 
@@ -375,13 +482,14 @@ class ContextualM3Predictor(nn.Module):
         num_experts: int = 4,
         top_k: int = 2,
         dropout: float = 0.1,
+        mmoe_variant: str = "dual-gate",
     ) -> None:
         super().__init__()
         self.latent_dim = int(latent_dim)
         self.context_projection = nn.Linear(context_dim, latent_dim)
         self.input_norm = nn.LayerNorm(latent_dim)
         self.mmoe = DualGateTopKMMoE(
-            latent_dim, num_experts, top_k, dropout
+            latent_dim, num_experts, top_k, dropout, variant=mmoe_variant
         )
 
     def direction_forward(
@@ -480,6 +588,7 @@ class MissingM3GraphModel(GraphModel):
         local_fusion_hidden_dim=256,
         local_fusion_dropout=0.2,
         graph_branch_mode="both",
+        mmoe_variant="dual-gate",
     ) -> None:
         if local_context_residual and fusion_type != "slot":
             raise ValueError("local_context_residual requires fusion_type='slot'")
@@ -540,6 +649,7 @@ class MissingM3GraphModel(GraphModel):
             num_experts=num_experts,
             top_k=top_k,
             dropout=predictor_dropout,
+            mmoe_variant=mmoe_variant,
         )
         self.ema_step = 0
         self.local_context_residual = bool(local_context_residual)
