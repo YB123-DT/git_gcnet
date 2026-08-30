@@ -84,7 +84,7 @@ assert not torch.allclose(hidden[0, 0], hidden_changed[0, 0])
 运行：
 
 ```bash
-/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest \
+/data2/yb/reproduction_envs/s0/bin/python -m pytest \
   gcnet_missing_m3_sdt_backbone/tests/test_model.py -q
 ```
 
@@ -153,14 +153,11 @@ class SDTStyleConversationBackbone(nn.Module):
         )
         self.input_dropout = nn.Dropout(dropout)
         self.layers = nn.ModuleList(
-            nn.TransformerEncoderLayer(
+            PreNormTransformerLayer(
                 d_model=d_model,
-                nhead=num_heads,
-                dim_feedforward=ff_dim,
+                num_heads=num_heads,
+                ff_dim=ff_dim,
                 dropout=dropout,
-                activation="gelu",
-                norm_first=True,
-                batch_first=False,
             )
             for _ in range(num_layers)
         )
@@ -168,21 +165,39 @@ class SDTStyleConversationBackbone(nn.Module):
         self.output_projection = nn.Linear(d_model, output_dim)
 ```
 
-实现要求：
+正式训练环境使用 PyTorch 1.8，因此不调用较新版本的 `norm_first` 或 `batch_first`
+构造参数。先实现兼容的 Pre-LN layer：
 
 ```python
-self.layers = nn.ModuleList(
-    nn.TransformerEncoderLayer(
-        d_model=d_model,
-        nhead=num_heads,
-        dim_feedforward=ff_dim,
-        dropout=dropout,
-        activation="gelu",
-        norm_first=True,
-        batch_first=False,
-    )
-    for _ in range(num_layers)
-)
+class PreNormTransformerLayer(nn.Module):
+    def __init__(self, d_model, num_heads, ff_dim, dropout):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(d_model)
+        self.self_attn = nn.MultiheadAttention(
+            d_model, num_heads, dropout=dropout
+        )
+        self.attn_dropout = nn.Dropout(dropout)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.linear1 = nn.Linear(d_model, ff_dim)
+        self.ff_dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(ff_dim, d_model)
+        self.output_dropout = nn.Dropout(dropout)
+
+    def forward(self, values, key_padding_mask):
+        normalized = self.norm1(values)
+        attended, _ = self.self_attn(
+            normalized,
+            normalized,
+            normalized,
+            key_padding_mask=key_padding_mask,
+            need_weights=False,
+        )
+        values = values + self.attn_dropout(attended)
+        normalized = self.norm2(values)
+        feed_forward = self.linear2(
+            self.ff_dropout(F.gelu(self.linear1(normalized)))
+        )
+        return values + self.output_dropout(feed_forward)
 ```
 
 前向只向各层传 `src_key_padding_mask=~umask.bool()`，不传 causal mask。最终执行
@@ -284,7 +299,7 @@ assert abs(active - 5_864_700) / 5_864_700 < 0.002
 运行：
 
 ```bash
-/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest \
+/data2/yb/reproduction_envs/s0/bin/python -m pytest \
   gcnet_missing_m3_sdt_backbone/tests/test_model.py -q
 ```
 
@@ -374,7 +389,7 @@ from gcnet_missing_m3.train_gcnet import (
 运行：
 
 ```bash
-/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest \
+/data2/yb/reproduction_envs/s0/bin/python -m pytest \
   gcnet_missing_m3_sdt_backbone/tests/test_train_gcnet.py -q
 ```
 
@@ -429,7 +444,7 @@ manifest 先写 `.tmp` 再 `os.replace()`；半写结果不得继承。异常子
 运行：
 
 ```bash
-/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest \
+/data2/yb/reproduction_envs/s0/bin/python -m pytest \
   gcnet_missing_m3_sdt_backbone/tests/test_runner.py -q
 /data2/yb/reproduction_envs/gcnet-official/bin/python \
   -m gcnet_missing_m3_sdt_backbone.run_mosi --dry-run
@@ -465,9 +480,9 @@ Commit 记录任务分配、resume 完整性条件和 GitHub 文件边界。
 - [ ] **步骤 2：运行目标与相关回归测试**
 
 ```bash
-/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest \
+/data2/yb/reproduction_envs/s0/bin/python -m pytest \
   gcnet_missing_m3_sdt_backbone/tests -q
-/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest \
+/data2/yb/reproduction_envs/s0/bin/python -m pytest \
   tests/test_missing_m3.py tests/test_trainer_protocol_integration.py -q
 ```
 
