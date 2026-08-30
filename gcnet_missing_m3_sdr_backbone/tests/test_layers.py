@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from gcnet_missing_m3_sdr_backbone.layers import (
@@ -56,6 +57,35 @@ def test_nodes_to_conversation_restores_values_and_zero_padding():
     assert restored.shape == values.shape
     assert torch.equal(restored[valid], values[valid])
     assert torch.count_nonzero(restored[~valid]).item() == 0
+
+
+def test_all_zero_lengths_round_trip_preserves_zero_gradient_paths():
+    values = torch.randn(3, 2, 4, requires_grad=True)
+    lengths = torch.tensor([0, 0])
+
+    nodes = conversation_to_nodes(values, lengths)
+
+    assert nodes.shape == (0, 4)
+    assert nodes.requires_grad
+    nodes.retain_grad()
+    restored = nodes_to_conversation(nodes, lengths, max_length=3)
+    assert restored.shape == values.shape
+    assert torch.count_nonzero(restored).item() == 0
+    restored.sum().backward()
+    assert nodes.grad is not None
+    assert torch.equal(nodes.grad, torch.zeros_like(nodes))
+    assert values.grad is not None
+    assert torch.equal(values.grad, torch.zeros_like(values))
+
+
+def test_empty_nodes_restore_keeps_zero_gradient_dependency():
+    nodes = torch.empty((0, 4), requires_grad=True)
+
+    restored = nodes_to_conversation(nodes, [0, 0], max_length=3)
+
+    restored.sum().backward()
+    assert nodes.grad is not None
+    assert torch.equal(nodes.grad, torch.zeros_like(nodes))
 
 
 def test_graphify_has_deterministic_conversation_source_target_order():
@@ -137,6 +167,55 @@ def test_graphify_never_connects_different_conversations():
         (source >= 3) & (target < 3)
     )
     assert not crosses_boundary.any().item()
+
+
+@pytest.mark.parametrize(
+    ("window_past", "window_future", "expected_edges"),
+    [
+        (
+            0,
+            0,
+            [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]],
+        ),
+        (
+            -1,
+            0,
+            [
+                [0, 1, 1, 2, 3, 3, 4, 4, 4],
+                [0, 0, 1, 2, 2, 3, 2, 3, 4],
+            ],
+        ),
+        (
+            0,
+            -1,
+            [
+                [0, 0, 1, 2, 2, 2, 3, 3, 4],
+                [0, 1, 1, 2, 3, 4, 3, 4, 4],
+            ],
+        ),
+    ],
+)
+def test_graphify_windows_have_exact_edges_with_zero_length_conversation(
+    window_past,
+    window_future,
+    expected_edges,
+):
+    values = torch.arange(9.0).reshape(3, 3, 1)
+    speakers = torch.zeros((3, 3), dtype=torch.long)
+    lengths = torch.tensor([2, 0, 3])
+
+    graph = graphify(
+        values,
+        speakers,
+        lengths,
+        n_speakers=1,
+        window_past=window_past,
+        window_future=window_future,
+        relation="temporal",
+    )
+
+    assert graph.node_features.shape == (5, 1)
+    assert torch.equal(graph.edge_index, torch.tensor(expected_edges))
 
 
 def test_hypergraph_conv_matches_two_stage_incidence_normalization():
@@ -223,3 +302,41 @@ def test_frequency_aware_conv_single_node_self_loop_is_finite():
     assert torch.isfinite(output).all().item()
     output.sum().backward()
     assert torch.isfinite(features.grad).all().item()
+
+
+def test_frequency_aware_conv_empty_edges_keep_gate_gradient_paths():
+    features = torch.randn(2, 3, requires_grad=True)
+    edge_index = torch.empty((2, 0), dtype=torch.long)
+    degree_norm = torch.empty(0)
+    layer = FrequencyAwareConv(feature_dim=3)
+
+    output = layer(features, edge_index, degree_norm=degree_norm)
+
+    assert torch.equal(output, torch.zeros_like(features))
+    output.sum().backward()
+    assert features.grad is not None
+    assert torch.equal(features.grad, torch.zeros_like(features))
+    assert layer.gate.weight.grad is not None
+    assert torch.equal(layer.gate.weight.grad, torch.zeros_like(layer.gate.weight))
+    assert layer.gate.bias.grad is not None
+    assert torch.equal(layer.gate.bias.grad, torch.zeros_like(layer.gate.bias))
+
+
+def test_frequency_aware_conv_empty_edges_reject_nonempty_degree_norm():
+    features = torch.randn(2, 3)
+    edge_index = torch.empty((2, 0), dtype=torch.long)
+    layer = FrequencyAwareConv(feature_dim=3)
+
+    with pytest.raises(ValueError, match="one scalar per edge"):
+        layer(features, edge_index, degree_norm=torch.ones(1))
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
+def test_frequency_aware_conv_empty_edges_reject_cross_device_degree_norm():
+    features = torch.randn(2, 3)
+    edge_index = torch.empty((2, 0), dtype=torch.long)
+    degree_norm = torch.empty(0, device="cuda")
+    layer = FrequencyAwareConv(feature_dim=3)
+
+    with pytest.raises(ValueError, match="share a device"):
+        layer(features, edge_index, degree_norm=degree_norm)

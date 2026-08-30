@@ -67,7 +67,7 @@ def conversation_to_nodes(values, lengths):
         if length > 0
     ]
     if not valid_conversations:
-        return values.new_empty((0, feature_dim))
+        return values.reshape(-1, feature_dim)[:0]
     return torch.cat(valid_conversations, dim=0)
 
 
@@ -97,6 +97,8 @@ def nodes_to_conversation(nodes, lengths, max_length=None):
         if length:
             restored[:length, batch_index] = nodes[offset : offset + length]
         offset += length
+    if nodes.size(0) == 0:
+        restored = restored + nodes.sum() * 0.0
     return restored
 
 
@@ -321,8 +323,6 @@ class FrequencyAwareConv(nn.Module):
             raise ValueError("features and edge_index must share a device")
         source = edge_index[0].long()
         target = edge_index[1].long()
-        if source.numel() == 0:
-            return features * 0.0
         if (
             torch.any(source < 0).item()
             or torch.any(source >= features.size(0)).item()
