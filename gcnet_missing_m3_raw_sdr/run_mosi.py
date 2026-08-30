@@ -4,18 +4,29 @@
 from __future__ import annotations
 
 import argparse
+import copy
+import fcntl
 import json
 import os
 import shlex
+import socket
 import subprocess
 import time
+from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass
+from functools import lru_cache
 from pathlib import Path
 from statistics import mean
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
+import torch
+
+from gcnet_missing_m3 import train_gcnet as base_train
 from gcnet_missing_m3_raw_sdr.train_gcnet import RawSDRTrainConfig
+from gcnet_modality_jepa.mask_schedule import ConversationMaskSchedule
+from gcnet_modality_jepa.protocol import SeedBundle
 from gcnet_missing_m3_sdr_backbone.run_mosi import (
+    EXPECTED_PARAMETER_COUNTS as LEGACY_SDR_PARAMETER_COUNTS,
     PredictionInspection,
     _atomic_json,
     _canonical_json_sha256,
@@ -35,6 +46,7 @@ from gcnet_missing_m3_sdr_backbone.run_mosi import (
     _validated_history,
     reset_incomplete_output,
 )
+from gcnet_missing_m3_sdr_backbone.train_gcnet import SDRTrainConfig
 
 
 VARIANT = "raw-residual-sdr-public"
@@ -52,11 +64,15 @@ DEFAULT_PYTHON = Path("/data2/yb/reproduction_envs/gcnet-official/bin/python")
 TRAINING_MODULE = "gcnet_missing_m3_raw_sdr.train_gcnet"
 TREATMENT = "missing-m3-raw-residual-sdr-public"
 PRODUCER_PROVENANCE_NAME = "producer_provenance.json"
+MASK_AUDIT_NAME = "validation_mask_audit.json"
+LOCK_NAME = ".formal_run.lock"
 SOURCE_FILES = (
     "gcnet_missing_m3/model.py",
     "gcnet_missing_m3/loss.py",
     "gcnet_missing_m3/mixed_rate.py",
     "gcnet_missing_m3/train_gcnet.py",
+    "gcnet_modality_jepa/mask_schedule.py",
+    "gcnet_modality_jepa/protocol.py",
     "gcnet_missing_m3_sdr_backbone/layers.py",
     "gcnet_missing_m3_sdr_backbone/model.py",
     "gcnet_missing_m3_sdr_backbone/train_gcnet.py",
@@ -160,12 +176,82 @@ def _validate_job(job: RawSDRJob) -> None:
         )
 
 
+def resolve_feature_root(value) -> Path:
+    """Resolve and validate the one immutable formal feature tree."""
+
+    try:
+        root = Path(value).expanduser().resolve(strict=True)
+    except (TypeError, OSError, RuntimeError, ValueError) as error:
+        raise ValueError("feature_root is invalid: {}".format(error))
+    if not root.is_dir():
+        raise ValueError("feature_root must be a directory")
+    for name in (
+        "wav2vec-large-c-UTT",
+        "deberta-large-4-UTT",
+        "manet_UTT",
+    ):
+        if not (root / name).is_dir():
+            raise ValueError("feature_root is missing {}".format(name))
+    return root
+
+
+def protocol_fields(config: Mapping) -> Dict[str, object]:
+    """Return only fields that determine the validation protocol identity."""
+
+    if not isinstance(config, Mapping):
+        raise ValueError("protocol config must contain an object")
+    required = (
+        "dataset",
+        "seed",
+        "fold",
+        "evaluation_protocol",
+        "validation_fraction",
+    )
+    if any(name not in config for name in required):
+        raise ValueError("protocol config is missing immutable fields")
+    fields = {name: config[name] for name in required}
+    if (
+        fields["dataset"] != "CMUMOSI"
+        or fields["evaluation_protocol"] != "official"
+        or fields["fold"] != 1
+        or fields["seed"] not in SEEDS
+        or not _same_float(fields["validation_fraction"], 0.1)
+    ):
+        raise ValueError("protocol config does not match the locked MOSI protocol")
+    return fields
+
+
+def validation_schedule_identity(config: Mapping) -> Dict[str, object]:
+    """Describe validation schedule configuration, not realized masks."""
+
+    fields = protocol_fields(config)
+    mask_seed = SeedBundle(int(fields["seed"])).derive("missing_mask")
+    rates = {}
+    for rate in MISSING_RATES:
+        schedule = ConversationMaskSchedule(
+            dataset=str(fields["dataset"]),
+            split="validation",
+            fold=int(fields["fold"]),
+            requested_missing_rate=rate,
+            mask_seed=mask_seed,
+            freeze_evaluation=True,
+        )
+        rates[format(rate, ".1f")] = schedule.config_hash
+    return {
+        "kind": "schedule-config-hash-not-realized-mask",
+        "split": "validation",
+        "mask_seed": mask_seed,
+        "rates": rates,
+    }
+
+
 def build_command(
     job: RawSDRJob,
     *,
     feature_root: Path = FEATURE_ROOT,
 ) -> List[str]:
     _validate_job(job)
+    feature_root = resolve_feature_root(feature_root)
     return [
         str(DEFAULT_PYTHON),
         "-m",
@@ -227,6 +313,15 @@ def _read_producer_provenance(job: RawSDRJob):
         return None, error
     if not isinstance(payload, Mapping):
         return None, "producer provenance must contain an object"
+    features = payload.get("features")
+    if not isinstance(features, Mapping):
+        return None, "producer provenance features must contain an object"
+    try:
+        feature_root = resolve_feature_root(features.get("root"))
+    except ValueError as error_value:
+        return None, str(error_value)
+    if dict(features) != _resolved_feature_paths(feature_root):
+        return None, "producer provenance feature paths are inconsistent"
     if (
         payload.get("schema_version") != 1
         or payload.get("treatment") != TREATMENT
@@ -235,11 +330,12 @@ def _read_producer_provenance(job: RawSDRJob):
         or payload.get("seed") != job.seed
         or not _is_sha256(payload.get("canonical_config_sha256"))
         or not _is_sha256_mapping(payload.get("source_files_sha256"), SOURCE_FILES)
-        or not isinstance(payload.get("features"), Mapping)
         or not isinstance(payload.get("training_runtime"), Mapping)
+        or payload.get("validation_schedule_identity")
+        != validation_schedule_identity(asdict(RawSDRTrainConfig(seed=job.seed)))
         or payload.get("command") != build_command(
             job,
-            feature_root=Path(payload.get("features", {}).get("root", "")),
+            feature_root=feature_root,
         )
     ):
         return None, "producer provenance has invalid or mismatched fields"
@@ -280,6 +376,7 @@ def _producer_provenance(
 ) -> Dict[str, object]:
     _validate_job(job)
     source_commit = _validate_source_commit(source_commit)
+    feature_root = resolve_feature_root(feature_root)
     repo_root = Path(repo_root).expanduser().resolve()
     return {
         "schema_version": 1,
@@ -297,8 +394,162 @@ def _producer_provenance(
         "canonical_config_sha256": _canonical_json_sha256(
             asdict(RawSDRTrainConfig(seed=job.seed))
         ),
+        "validation_schedule_identity": validation_schedule_identity(
+            asdict(RawSDRTrainConfig(seed=job.seed))
+        ),
         "command": build_command(job, feature_root=feature_root),
     }
+
+
+def _validate_mask_audit(payload: object, config: Mapping):
+    if not isinstance(payload, Mapping):
+        return None, "mask audit must contain an object"
+    expected_protocol = protocol_fields(config)
+    if (
+        payload.get("schema_version") != 1
+        or payload.get("domain")
+        != "deterministic-realized-availability-replay"
+        or payload.get("protocol") != expected_protocol
+        or payload.get("validation_schedule_identity")
+        != validation_schedule_identity(config)
+        or not _is_sha256_mapping(
+            payload.get("validation_mask_sha256"), MISSING_RATE_KEYS
+        )
+        or not _is_sha256_mapping(
+            payload.get("test_mask_sha256"), MISSING_RATE_KEYS
+        )
+    ):
+        return None, "mask audit has invalid or mismatched fields"
+    return dict(payload), None
+
+
+def _read_mask_audit(result_dir: Path, config: Mapping):
+    payload, error = _read_json(Path(result_dir) / MASK_AUDIT_NAME)
+    if error is not None:
+        return None, error
+    return _validate_mask_audit(payload, config)
+
+
+def _write_mask_audit_once(
+    result_dir: Path,
+    config: Mapping,
+    expected: Mapping,
+) -> None:
+    validated, error = _validate_mask_audit(expected, config)
+    if error is not None:
+        raise ValueError(error)
+    path = Path(result_dir) / MASK_AUDIT_NAME
+    existing, existing_error = _read_mask_audit(result_dir, config)
+    if existing_error is None:
+        if existing != validated:
+            raise ValueError("mask audit mismatch; refusing relabel")
+        return
+    if path.exists():
+        raise ValueError("mask audit is unreadable: {}".format(existing_error))
+    _atomic_json(path, validated)
+
+
+def _replay_loader_hashes(loader, schedules, dimensions):
+    hashes = {}
+    for rate in MISSING_RATES:
+        availability = []
+        for raw in loader:
+            view = base_train._prepare_view(
+                raw,
+                schedules[rate],
+                epoch=0,
+                dimensions=dimensions,
+            )
+            valid = view["umask"].transpose(0, 1).bool()
+            availability.append(view["availability"][valid].cpu())
+        if not availability:
+            raise ValueError("mask replay loader is empty")
+        hashes[format(rate, ".1f")] = base_train._sha256_tensor(
+            torch.cat(availability, dim=0)
+        )
+    return hashes
+
+
+@lru_cache(maxsize=32)
+def _replay_mask_audit_cached(
+    feature_root: str,
+    dataset: str,
+    seed: int,
+    fold: int,
+    evaluation_protocol: str,
+    validation_fraction: float,
+):
+    roots = _resolved_feature_paths(Path(feature_root))
+    loaders = base_train.get_loaders(
+        audio_root=roots["audio"],
+        text_root=roots["text"],
+        video_root=roots["video"],
+        num_folder=1,
+        dataset=dataset,
+        batch_size=32,
+        num_workers=0,
+        seed=seed,
+        validation_fraction=validation_fraction,
+        evaluation_protocol=evaluation_protocol,
+    )
+    _, validation_loaders, test_loaders, adim, tdim, vdim = loaders
+    config = {
+        "dataset": dataset,
+        "seed": seed,
+        "fold": fold,
+        "evaluation_protocol": evaluation_protocol,
+        "validation_fraction": validation_fraction,
+    }
+    validation_schedules = {
+        rate: ConversationMaskSchedule(
+            dataset=dataset,
+            split="validation",
+            fold=fold,
+            requested_missing_rate=rate,
+            mask_seed=SeedBundle(seed).derive("missing_mask"),
+            freeze_evaluation=True,
+        )
+        for rate in MISSING_RATES
+    }
+    test_schedules = {
+        rate: ConversationMaskSchedule(
+            dataset=dataset,
+            split="test",
+            fold=fold,
+            requested_missing_rate=rate,
+            mask_seed=SeedBundle(seed).derive("missing_mask"),
+            freeze_evaluation=True,
+        )
+        for rate in MISSING_RATES
+    }
+    dimensions = (adim, tdim, vdim)
+    return {
+        "schema_version": 1,
+        "domain": "deterministic-realized-availability-replay",
+        "protocol": protocol_fields(config),
+        "validation_schedule_identity": validation_schedule_identity(config),
+        "validation_mask_sha256": _replay_loader_hashes(
+            validation_loaders[fold - 1], validation_schedules, dimensions
+        ),
+        "test_mask_sha256": _replay_loader_hashes(
+            test_loaders[fold - 1], test_schedules, dimensions
+        ),
+    }
+
+
+def replay_mask_audit(config: Mapping, feature_root: Path):
+    fields = protocol_fields(config)
+    root = resolve_feature_root(feature_root)
+    return copy.deepcopy(
+        _replay_mask_audit_cached(
+            str(root),
+            str(fields["dataset"]),
+            int(fields["seed"]),
+            int(fields["fold"]),
+            str(fields["evaluation_protocol"]),
+            float(fields["validation_fraction"]),
+        )
+    )
 
 
 def inspect_result(
@@ -306,6 +557,7 @@ def inspect_result(
     *,
     expected_parameter_counts: Optional[Mapping[str, int]] = None,
     expected_provenance: Optional[Mapping] = None,
+    expected_mask_audit: Optional[Mapping] = None,
 ) -> ResultInspection:
     """Recompute formal completion from durable artifacts."""
 
@@ -325,6 +577,11 @@ def inspect_result(
     config, error = _read_json(job.output_dir / "config.json")
     if error is not None or not _config_matches(config, job):
         return ResultInspection(False, error or "config.json does not match locked job")
+    mask_audit, error = _read_mask_audit(job.output_dir, config)
+    if error is not None:
+        return ResultInspection(False, "validation mask audit: {}".format(error))
+    if expected_mask_audit is not None and mask_audit != dict(expected_mask_audit):
+        return ResultInspection(False, "validation mask audit mismatch")
     history, error = _read_json(job.output_dir / "history.json")
     if error is not None:
         return ResultInspection(False, error)
@@ -399,10 +656,7 @@ def inspect_result(
         rate_metrics = test[rate]
         if not isinstance(rate_metrics, Mapping):
             return ResultInspection(False, "test rate metrics are invalid")
-        if (
-            selected_validation[rate].get("mask_sha256") != schedule_hashes[rate]
-            or rate_metrics.get("mask_sha256") != schedule_hashes[rate]
-        ):
+        if rate_metrics.get("mask_sha256") != schedule_hashes[rate]:
             return ResultInspection(False, "schedule mask SHA mismatch at {}".format(rate))
         if any(
             isinstance(value, (int, float))
@@ -438,6 +692,8 @@ def inspect_result(
             return ResultInspection(False, "prediction archive sign count mismatch")
         if prediction.collapsed:
             collapsed.append(rate)
+    if mask_audit["test_mask_sha256"] != dict(schedule_hashes):
+        return ResultInspection(False, "test mask replay sentinel mismatch")
     return ResultInspection(
         True,
         "complete-test-8-rates",
@@ -451,6 +707,7 @@ def pending_jobs(
     *,
     expected_parameter_counts: Optional[Mapping[str, int]] = None,
     expected_provenance: Optional[Mapping[Tuple[str, int], Mapping]] = None,
+    expected_mask_audits: Optional[Mapping[int, Mapping]] = None,
 ) -> List[RawSDRJob]:
     return [
         job
@@ -461,6 +718,11 @@ def pending_jobs(
             expected_provenance=(
                 expected_provenance.get((job.variant, job.seed))
                 if expected_provenance is not None
+                else None
+            ),
+            expected_mask_audit=(
+                expected_mask_audits.get(job.seed)
+                if expected_mask_audits is not None
                 else None
             ),
         ).complete
@@ -489,6 +751,46 @@ def _prune_checkpoint(output_dir: Path):
     return evidence
 
 
+@contextmanager
+def job_lock(job: RawSDRJob, producer_provenance: Mapping):
+    """Hold a kernel-released nonblocking lock for one formal job lifecycle."""
+
+    _validate_job(job)
+    job.output_dir.mkdir(parents=True, exist_ok=True)
+    path = job.output_dir / LOCK_NAME
+    handle = path.open("a+", encoding="utf-8")
+    try:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError(
+                "formal job seed {} is locked by another runner".format(job.seed)
+            )
+        metadata = {
+            "schema_version": 1,
+            "variant": VARIANT,
+            "seed": job.seed,
+            "gpu": job.gpu,
+            "owner_pid": os.getpid(),
+            "owner_host": socket.gethostname(),
+            "started_at_unix": time.time(),
+            "producer_provenance_sha256": _canonical_json_sha256(
+                dict(producer_provenance)
+            ),
+        }
+        handle.seek(0)
+        handle.truncate()
+        handle.write(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+        yield metadata
+    finally:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
+
+
 def run_jobs(
     jobs: Sequence[RawSDRJob],
     *,
@@ -498,6 +800,7 @@ def run_jobs(
     source_commit: str,
     expected_parameter_counts: Optional[Mapping[str, int]] = None,
     manifest_path: Optional[Path] = None,
+    mask_audit_builder=replay_mask_audit,
 ) -> int:
     """Launch at most one registered treatment on each healthy GPU."""
 
@@ -512,6 +815,13 @@ def run_jobs(
     if counts is None:
         raise ValueError("formal parameter counts are not locked")
     source_commit = _validate_source_commit(source_commit)
+    feature_root = resolve_feature_root(feature_root)
+    try:
+        repo_root = Path(repo_root).expanduser().resolve(strict=True)
+    except (TypeError, OSError, RuntimeError, ValueError) as error:
+        raise ValueError("repo_root is invalid: {}".format(error))
+    if not repo_root.is_dir():
+        raise ValueError("repo_root must be a directory")
     expected_provenance = {
         (job.variant, job.seed): _producer_provenance(
             job,
@@ -521,123 +831,152 @@ def run_jobs(
         )
         for job in all_jobs
     }
-    for job in all_jobs:
-        if (job.output_dir / PRODUCER_PROVENANCE_NAME).exists():
-            _write_producer_provenance_once(
-                job, expected_provenance[(job.variant, job.seed)]
-            )
-    pending = pending_jobs(
-        all_jobs,
-        expected_parameter_counts=counts,
-        expected_provenance=expected_provenance,
-    )
+    expected_mask_audits = {
+        job.seed: mask_audit_builder(
+            asdict(RawSDRTrainConfig(seed=job.seed)), feature_root
+        )
+        for job in all_jobs
+    }
     running = []
     handled = set()
     failures = 0
-    try:
-        for job in pending:
-            job.output_dir.mkdir(parents=True, exist_ok=True)
-            reset_incomplete_output(job.output_dir)
-            _write_producer_provenance_once(
-                job, expected_provenance[(job.variant, job.seed)]
+    with ExitStack() as lock_stack:
+        for job in all_jobs:
+            lock_stack.enter_context(
+                job_lock(job, expected_provenance[(job.variant, job.seed)])
             )
-            command = build_command(job, feature_root=feature_root)
-            log_path = job.output_dir / "train.log"
-            log_handle = log_path.open("w", encoding="utf-8")
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "CUDA_VISIBLE_DEVICES": str(job.gpu),
-                    "OMP_NUM_THREADS": "2",
-                    "MKL_NUM_THREADS": "2",
-                    "PYTHONHASHSEED": "0",
-                }
-            )
-            started_at = time.time()
-            try:
-                process = subprocess.Popen(
-                    command,
-                    cwd=Path(repo_root),
-                    env=environment,
-                    stdout=log_handle,
-                    stderr=subprocess.STDOUT,
-                    start_new_session=True,
+        for job in all_jobs:
+            if (job.output_dir / PRODUCER_PROVENANCE_NAME).exists():
+                _write_producer_provenance_once(
+                    job, expected_provenance[(job.variant, job.seed)]
                 )
-            except BaseException:
-                log_handle.close()
-                raise
-            _atomic_json(
-                job.output_dir / "status.json",
-                {
-                    "state": "running",
-                    "pid": process.pid,
-                    "variant": VARIANT,
-                    "seed": job.seed,
-                    "gpu": job.gpu,
-                    "command": command,
-                    "started_at_unix": started_at,
-                },
+            _write_mask_audit_once(
+                job.output_dir,
+                asdict(RawSDRTrainConfig(seed=job.seed)),
+                expected_mask_audits[job.seed],
             )
-            running.append((job, process, log_handle, command, started_at))
+        pending = pending_jobs(
+            all_jobs,
+            expected_parameter_counts=counts,
+            expected_provenance=expected_provenance,
+            expected_mask_audits=expected_mask_audits,
+        )
+        try:
+            for job in pending:
+                reset_incomplete_output(job.output_dir)
+                _write_producer_provenance_once(
+                    job, expected_provenance[(job.variant, job.seed)]
+                )
+                _write_mask_audit_once(
+                    job.output_dir,
+                    asdict(RawSDRTrainConfig(seed=job.seed)),
+                    expected_mask_audits[job.seed],
+                )
+                command = build_command(job, feature_root=feature_root)
+                log_path = job.output_dir / "train.log"
+                log_handle = log_path.open("w", encoding="utf-8")
+                environment = os.environ.copy()
+                environment.update(
+                    {
+                        "CUDA_VISIBLE_DEVICES": str(job.gpu),
+                        "OMP_NUM_THREADS": "2",
+                        "MKL_NUM_THREADS": "2",
+                        "PYTHONHASHSEED": "0",
+                    }
+                )
+                started_at = time.time()
+                try:
+                    process = subprocess.Popen(
+                        command,
+                        cwd=repo_root,
+                        env=environment,
+                        stdout=log_handle,
+                        stderr=subprocess.STDOUT,
+                        start_new_session=True,
+                    )
+                except BaseException:
+                    log_handle.close()
+                    raise
+                running.append(
+                    (job, process, log_handle, command, started_at)
+                )
+                _atomic_json(
+                    job.output_dir / "status.json",
+                    {
+                        "state": "running",
+                        "pid": process.pid,
+                        "variant": VARIANT,
+                        "seed": job.seed,
+                        "gpu": job.gpu,
+                        "command": command,
+                        "started_at_unix": started_at,
+                    },
+                )
 
-        for job, process, log_handle, command, started_at in running:
-            timed_out = False
-            returncode = None
-            try:
-                returncode = process.wait(
-                    timeout=max(0.0, started_at + timeout_seconds - time.time())
-                )
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                _terminate_process_tree(process)
-            finally:
-                log_handle.close()
-            handled.add(id(process))
-            inspection = inspect_result(
-                job,
-                expected_parameter_counts=counts,
-                expected_provenance=expected_provenance[(job.variant, job.seed)],
-            )
-            checkpoint = _prune_checkpoint(job.output_dir)
-            if inspection.complete:
-                state = "complete"
-            elif timed_out:
-                state = "timeout"
-                failures += 1
-            else:
-                state = "failed"
-                failures += 1
-            _atomic_json(
-                job.output_dir / "status.json",
-                {
-                    "state": state,
-                    "pid": process.pid,
-                    "variant": VARIANT,
-                    "seed": job.seed,
-                    "gpu": job.gpu,
-                    "command": command,
-                    "returncode": returncode,
-                    "completion_reason": inspection.reason,
-                    "checkpoint_evidence": checkpoint,
-                    "started_at_unix": started_at,
-                    "finished_at_unix": time.time(),
-                },
-            )
-            if manifest_path is not None:
-                write_manifest(
-                    manifest_path,
-                    all_jobs,
-                    source_commit=source_commit,
-                    feature_root=feature_root,
-                    repo_root=repo_root,
+            for job, process, log_handle, command, started_at in running:
+                timed_out = False
+                returncode = None
+                try:
+                    returncode = process.wait(
+                        timeout=max(
+                            0.0,
+                            started_at + timeout_seconds - time.time(),
+                        )
+                    )
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    _terminate_process_tree(process)
+                finally:
+                    log_handle.close()
+                handled.add(id(process))
+                inspection = inspect_result(
+                    job,
                     expected_parameter_counts=counts,
+                    expected_provenance=expected_provenance[
+                        (job.variant, job.seed)
+                    ],
+                    expected_mask_audit=expected_mask_audits[job.seed],
                 )
-    finally:
-        for _, process, log_handle, _, _ in running:
-            if id(process) not in handled:
-                _terminate_process_tree(process)
-            if not log_handle.closed:
-                log_handle.close()
+                checkpoint = _prune_checkpoint(job.output_dir)
+                if inspection.complete:
+                    state = "complete"
+                elif timed_out:
+                    state = "timeout"
+                    failures += 1
+                else:
+                    state = "failed"
+                    failures += 1
+                _atomic_json(
+                    job.output_dir / "status.json",
+                    {
+                        "state": state,
+                        "pid": process.pid,
+                        "variant": VARIANT,
+                        "seed": job.seed,
+                        "gpu": job.gpu,
+                        "command": command,
+                        "returncode": returncode,
+                        "completion_reason": inspection.reason,
+                        "checkpoint_evidence": checkpoint,
+                        "started_at_unix": started_at,
+                        "finished_at_unix": time.time(),
+                    },
+                )
+                if manifest_path is not None:
+                    write_manifest(
+                        manifest_path,
+                        all_jobs,
+                        source_commit=source_commit,
+                        feature_root=feature_root,
+                        repo_root=repo_root,
+                        expected_parameter_counts=counts,
+                    )
+        finally:
+            for _, process, log_handle, _, _ in running:
+                if id(process) not in handled:
+                    _terminate_process_tree(process)
+                if not log_handle.closed:
+                    log_handle.close()
     return failures
 
 
@@ -694,18 +1033,170 @@ def write_manifest(
     )
 
 
+def expected_control_config(seed: int) -> Dict[str, object]:
+    if seed not in SEEDS:
+        raise ValueError("control seed is outside the registered matrix")
+    return {
+        "base_model": "LSTM",
+        "batch_size": 32,
+        "classification_completion": False,
+        "dataset": "CMUMOSI",
+        "device": "cuda",
+        "dropout": 0.5,
+        "ema_tau": 0.996,
+        "epochs": 100,
+        "evaluation_protocol": "official",
+        "fold": 1,
+        "fusion_type": "slot",
+        "gradient_clip_norm": 1.0,
+        "graph_branch_mode": "both",
+        "hidden": 200,
+        "jepa_weight": 0.1,
+        "latent_dim": 256,
+        "learning_rate": 5e-4,
+        "local_context_residual": False,
+        "local_fusion_dropout": 0.2,
+        "local_fusion_hidden_dim": 256,
+        "mmoe_variant": "dual-gate",
+        "mosi_task_mode": "regression",
+        "num_experts": 4,
+        "predictor_dropout": 0.1,
+        "projector_dropout": 0.1,
+        "representation_type": "slot",
+        "seed": seed,
+        "temperature": 0.03,
+        "time_attention": False,
+        "top_k": 2,
+        "train_rate_mode": "all",
+        "validation_fraction": 0.1,
+        "weight_decay": 1e-5,
+        "window_future": 2,
+        "window_past": 2,
+    }
+
+
 def load_inherited_reference(
     result_dirs: Mapping[int, Path],
+    *,
+    reference_kind: str,
+    expected_dirs: Optional[Mapping[int, Path]] = None,
+    feature_root: Path = FEATURE_ROOT,
+    mask_audit_builder=replay_mask_audit,
 ) -> Dict[int, Mapping]:
-    normalized = {int(seed): Path(path) for seed, path in result_dirs.items()}
+    if reference_kind not in {"slot", "control"}:
+        raise ValueError("reference_kind must be slot or control")
+    normalized = {
+        int(seed): Path(path).expanduser().resolve()
+        for seed, path in result_dirs.items()
+    }
     if set(normalized) != set(SEEDS):
         raise ValueError("inherited reference must contain exactly five seeds")
+    if expected_dirs is None:
+        expected_dirs = (
+            SLOT_REFERENCE_DIRS
+            if reference_kind == "slot"
+            else CONTROL_REFERENCE_DIRS
+        )
+    expected_paths = {
+        int(seed): Path(path).expanduser().resolve()
+        for seed, path in expected_dirs.items()
+    }
+    if normalized != expected_paths:
+        raise ValueError("inherited reference path identity mismatch")
     result = {}
     for seed in SEEDS:
-        metrics, error = _read_json(normalized[seed] / "metrics.json")
-        if error is not None or not isinstance(metrics, Mapping):
-            raise ValueError(error or "reference metrics must contain an object")
-        result[seed] = dict(metrics)
+        root = normalized[seed]
+        config, config_error = _read_json(root / "config.json")
+        history, history_error = _read_json(root / "history.json")
+        metrics, metrics_error = _read_json(root / "metrics.json")
+        if config_error or history_error or metrics_error:
+            raise ValueError(config_error or history_error or metrics_error)
+        if not isinstance(config, Mapping) or not isinstance(metrics, Mapping):
+            raise ValueError("reference config and metrics must contain objects")
+        selected, selection_error = _validated_history(history)
+        if selection_error is not None:
+            raise ValueError(selection_error)
+        best_epoch, best_validation, best_mean = selected
+        if (
+            metrics.get("best_epoch") != best_epoch
+            or not _same_float(
+                metrics.get("best_validation_mean_weighted_f1"), best_mean
+            )
+        ):
+            raise ValueError("reference metrics are not validation-selected")
+
+        if reference_kind == "slot":
+            expected_config = asdict(
+                SDRTrainConfig(seed=seed, sdr_variant="sdr-public")
+            )
+            if dict(config) != expected_config:
+                raise ValueError("Slot reference config identity mismatch")
+            expected_counts = LEGACY_SDR_PARAMETER_COUNTS["sdr-public"]
+            if (
+                metrics.get("variant") != "sdr-public"
+                or metrics.get("sdr_variant") != "sdr-public"
+                or metrics.get("backbone") != "sdr-gnn-whole-backbone"
+                or any(
+                    metrics.get(name) != value
+                    for name, value in expected_counts.items()
+                )
+                or metrics.get("best_validation") != best_validation
+            ):
+                raise ValueError("Slot reference metrics identity mismatch")
+            metrics_identity = "slot-sdr-public"
+            source_lane = "formal-sdr-public"
+        else:
+            if dict(config) != expected_control_config(seed):
+                raise ValueError("Control reference config identity mismatch")
+            old_schema = {
+                "best_epoch",
+                "best_validation_mean_weighted_f1",
+                "ema_steps",
+                "mask_sha256",
+                "parameter_count",
+                "test",
+                "trainable_parameter_count",
+            }
+            if (
+                set(metrics) != old_schema
+                or metrics.get("parameter_count") != 32_089_733
+                or metrics.get("trainable_parameter_count") != 31_229_573
+            ):
+                raise ValueError("Control reference old metrics schema mismatch")
+            metrics_identity = "gcnet-control-old-schema"
+            source_lane = "screen-seed66" if seed == 66 else "formal"
+
+        test_hashes = metrics.get("mask_sha256")
+        test = metrics.get("test")
+        if (
+            not _is_sha256_mapping(test_hashes, MISSING_RATE_KEYS)
+            or not isinstance(test, Mapping)
+            or set(test) != set(MISSING_RATE_KEYS)
+            or any(
+                not isinstance(test[rate], Mapping)
+                or test[rate].get("mask_sha256") != test_hashes[rate]
+                for rate in MISSING_RATE_KEYS
+            )
+        ):
+            raise ValueError("reference test schedule hashes are invalid")
+        audit, audit_error = _read_mask_audit(root, config)
+        if audit_error is not None:
+            audit = mask_audit_builder(config, feature_root)
+            _write_mask_audit_once(root, config, audit)
+        if audit["test_mask_sha256"] != dict(test_hashes):
+            raise ValueError("reference test replay sentinel mismatch")
+        result[seed] = {
+            "source_path": str(root),
+            "source_lane": source_lane,
+            "metrics_identity": metrics_identity,
+            "protocol": protocol_fields(config),
+            "best_epoch": best_epoch,
+            "best_validation": best_validation,
+            "best_validation_mean_weighted_f1": best_mean,
+            "test": dict(test),
+            "test_schedule_sha256": dict(test_hashes),
+            "mask_audit": audit,
+        }
     return result
 
 
@@ -725,10 +1216,20 @@ def _reference_validation(reference: Mapping, name: str):
 
 
 def _validation_map(metrics: Mapping):
-    scores, hashes = _validation_rates_and_masks(metrics)
-    if scores is None or hashes is None:
-        raise ValueError("reference must contain eight scores and mask hashes")
-    return scores, hashes
+    validation = metrics.get("best_validation", metrics)
+    if not isinstance(validation, Mapping) or set(validation) != set(
+        MISSING_RATE_KEYS
+    ):
+        raise ValueError("reference must contain eight validation scores")
+    scores = {}
+    for rate in MISSING_RATE_KEYS:
+        value = validation[rate]
+        if not isinstance(value, Mapping) or not _finite_number(
+            value.get("weighted_f1")
+        ):
+            raise ValueError("reference validation score is invalid")
+        scores[rate] = float(value["weighted_f1"])
+    return scores
 
 
 def aggregate(
@@ -767,10 +1268,52 @@ def aggregate(
         metrics, error = _read_json(job.output_dir / "metrics.json")
         if error is not None or not isinstance(metrics, Mapping):
             raise ValueError(error or "metrics.json must contain an object")
-        candidate, candidate_hashes = _validation_map(metrics)
-        slot_scores, slot_hashes = _validation_map(slot[job.seed])
-        control_scores, control_hashes = _validation_map(control[job.seed])
-        paired = candidate_hashes == slot_hashes == control_hashes
+        config, config_error = _read_json(job.output_dir / "config.json")
+        if config_error is not None or not isinstance(config, Mapping):
+            raise ValueError(config_error or "config.json must contain an object")
+        candidate_audit, candidate_audit_error = _read_mask_audit(
+            job.output_dir, config
+        )
+        candidate = _validation_map(metrics)
+        slot_record = slot[job.seed]
+        control_record = control[job.seed]
+        slot_scores = _validation_map(slot_record)
+        control_scores = _validation_map(control_record)
+
+        try:
+            candidate_protocol = protocol_fields(config)
+        except ValueError:
+            candidate_protocol = None
+        protocols_match = (
+            candidate_protocol is not None
+            and candidate_protocol == slot_record.get("protocol")
+            and candidate_protocol == control_record.get("protocol")
+        )
+        validation_masks_match = (
+            candidate_audit_error is None
+            and candidate_audit.get("validation_mask_sha256")
+            == slot_record.get("mask_audit", {}).get(
+                "validation_mask_sha256"
+            )
+            == control_record.get("mask_audit", {}).get(
+                "validation_mask_sha256"
+            )
+        )
+        candidate_test_hashes = metrics.get("mask_sha256")
+        test_sentinels_match = (
+            candidate_audit_error is None
+            and candidate_audit.get("test_mask_sha256")
+            == candidate_test_hashes
+            == slot_record.get("mask_audit", {}).get("test_mask_sha256")
+            == slot_record.get("test_schedule_sha256")
+            == control_record.get("mask_audit", {}).get("test_mask_sha256")
+            == control_record.get("test_schedule_sha256")
+        )
+        paired = (
+            protocols_match
+            and validation_masks_match
+            and test_sentinels_match
+        )
         all_paired = all_paired and paired
         validation_mean = mean(candidate.values())
         high_mean = mean(candidate[rate] for rate in HIGH_MISSING_RATE_KEYS)
@@ -804,6 +1347,11 @@ def aggregate(
             "slot_high_missing_delta": slot_high_delta,
             "control_validation_delta": control_delta,
             "paired": paired,
+            "pairing_checks": {
+                "protocols_match": protocols_match,
+                "validation_masks_match": validation_masks_match,
+                "test_replay_sentinels_match": test_sentinels_match,
+            },
             "validation_collapse_rates": collapsed,
             "test_mean_descriptive": test_mean,
         }
@@ -840,6 +1388,13 @@ def aggregate(
     summary = {
         "selection_basis": "validation-only",
         "test_used_for_selection": False,
+        "pairing_evidence": {
+            "kind": "realized-validation-mask-replay",
+            "source": MASK_AUDIT_NAME,
+            "test_scores_used": False,
+            "test_hashes_used_as_replay_sentinel_only": True,
+            "all_five_seeds_paired": paired_complete,
+        },
         "seeds": seed_rows,
         "primary_gate": {
             "status": primary_status,
@@ -874,7 +1429,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--feature-root", type=Path, default=FEATURE_ROOT)
-    parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument(
+        "--repo-root", type=Path, default=Path(__file__).resolve().parents[1]
+    )
     parser.add_argument("--timeout-seconds", type=int, default=43_200)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--dry-run", action="store_true")
@@ -914,8 +1471,18 @@ def main() -> int:
     )
     incomplete = pending_jobs(jobs, expected_parameter_counts=counts)
     if not incomplete:
-        slot = load_inherited_reference(SLOT_REFERENCE_DIRS)
-        control = load_inherited_reference(CONTROL_REFERENCE_DIRS)
+        slot = load_inherited_reference(
+            SLOT_REFERENCE_DIRS,
+            reference_kind="slot",
+            expected_dirs=SLOT_REFERENCE_DIRS,
+            feature_root=args.feature_root,
+        )
+        control = load_inherited_reference(
+            CONTROL_REFERENCE_DIRS,
+            reference_kind="control",
+            expected_dirs=CONTROL_REFERENCE_DIRS,
+            feature_root=args.feature_root,
+        )
         aggregate(
             jobs,
             slot_reference=slot,
