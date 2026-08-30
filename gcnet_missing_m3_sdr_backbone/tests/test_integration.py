@@ -135,8 +135,8 @@ def test_default_slot_input_is_bitwise_equal_to_explicit_slot(variant):
         n_classes=1,
     )
     torch.manual_seed(700)
-    legacy = _candidate(variant, **arguments)
-    legacy_rng = torch.get_rng_state().clone()
+    implicit = _candidate(variant, **arguments)
+    implicit_rng = torch.get_rng_state().clone()
     torch.manual_seed(700)
     explicit = _candidate_class()(
         **arguments,
@@ -145,14 +145,14 @@ def test_default_slot_input_is_bitwise_equal_to_explicit_slot(variant):
     )
     explicit_rng = torch.get_rng_state().clone()
 
-    legacy_state = legacy.state_dict()
+    implicit_state = implicit.state_dict()
     explicit_state = explicit.state_dict()
-    assert tuple(legacy_state) == tuple(explicit_state)
-    for key, legacy_value in legacy_state.items():
-        assert torch.equal(legacy_value, explicit_state[key]), key
-    assert torch.equal(legacy_rng, explicit_rng)
-    assert legacy.sdr_input_type == explicit.sdr_input_type == "slot"
-    assert legacy.conversation_backbone.input_dim == 256
+    assert tuple(implicit_state) == tuple(explicit_state)
+    for key, implicit_value in implicit_state.items():
+        assert torch.equal(implicit_value, explicit_state[key]), key
+    assert torch.equal(implicit_rng, explicit_rng)
+    assert implicit.sdr_input_type == explicit.sdr_input_type == "slot"
+    assert implicit.conversation_backbone.input_dim == 256
     assert explicit.conversation_backbone.input_dim == 256
 
 
@@ -172,6 +172,56 @@ def test_raw_residual_input_uses_raw_encoder_and_full_width(variant):
     assert candidate.sdr_input_type == "raw-residual"
     assert isinstance(candidate.observed_set, RawResidualObservedEncoder)
     assert candidate.conversation_backbone.input_dim == 512 + 1024 + 1024
+
+
+def test_raw_residual_forward_sends_full_width_tensor_to_sdr():
+    torch.manual_seed(706)
+    candidate = _candidate_class()(
+        **_model_arguments(fusion_type="raw-residual"),
+        sdr_variant="sdr-public",
+        sdr_input_type="raw-residual",
+    ).eval()
+    features = torch.randn(3, 2, sum(candidate.dimensions))
+    umask = torch.tensor(
+        [[1, 1, 1], [1, 1, 0]],
+        dtype=torch.float32,
+    )
+    availability = torch.tensor(
+        [
+            [[1, 0, 1], [0, 1, 1]],
+            [[1, 1, 1], [1, 1, 0]],
+            [[0, 1, 0], [0, 0, 0]],
+        ],
+        dtype=torch.float32,
+    )
+    qmask = torch.tensor(
+        [[0, 1, 0], [1, 0, 0]],
+        dtype=torch.long,
+    )
+    observed_widths = []
+    handle = candidate.conversation_backbone.register_forward_pre_hook(
+        lambda _module, inputs: observed_widths.append(inputs[0].shape[-1])
+    )
+
+    try:
+        with torch.no_grad():
+            logits, hidden, _, predictions = candidate(
+                [features],
+                availability,
+                qmask,
+                umask,
+                [3, 2],
+                predict_missing=False,
+            )
+    finally:
+        handle.remove()
+
+    valid = umask.T.bool()
+    assert observed_widths == [sum(candidate.dimensions)]
+    assert predictions is None
+    assert torch.isfinite(logits).all().item()
+    assert torch.isfinite(hidden).all().item()
+    assert torch.equal(hidden[~valid], torch.zeros_like(hidden[~valid]))
 
 
 def test_candidate_rejects_unknown_sdr_input_type():
