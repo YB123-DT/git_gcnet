@@ -21,8 +21,8 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
+from sklearn.metrics import f1_score
 
-from gcnet_missing_m3 import train_gcnet as base_train
 from gcnet_missing_m3_sdr_backbone.train_gcnet import SDRTrainConfig
 
 
@@ -47,6 +47,7 @@ SOURCE_FILES = (
     "gcnet_missing_m3_sdr_backbone/train_gcnet.py",
     "gcnet_missing_m3_sdr_backbone/run_mosi.py",
 )
+PRODUCER_PROVENANCE_NAME = "producer_provenance.json"
 EXPECTED_PARAMETER_COUNTS = {
     "sdr-public": {
         "registered_parameters": 12_486_434,
@@ -262,6 +263,9 @@ def _test_metrics_are_semantically_complete(
 ) -> bool:
     test_metrics = metrics.get("test")
     mask_hashes = metrics.get("mask_sha256")
+    prediction_availability_hashes = metrics.get(
+        "prediction_availability_sha256"
+    )
     if not isinstance(test_metrics, Mapping) or not isinstance(
         mask_hashes, Mapping
     ):
@@ -269,6 +273,11 @@ def _test_metrics_are_semantically_complete(
     if set(test_metrics) != set(MISSING_RATE_KEYS):
         return False
     if set(mask_hashes) != set(MISSING_RATE_KEYS):
+        return False
+    if prediction_availability_hashes is not None and (
+        not isinstance(prediction_availability_hashes, Mapping)
+        or set(prediction_availability_hashes) != set(MISSING_RATE_KEYS)
+    ):
         return False
 
     for rate in MISSING_RATE_KEYS:
@@ -293,6 +302,20 @@ def _test_metrics_are_semantically_complete(
         ):
             return False
         if not _is_sha256(mask_sha256) or mask_hashes[rate] != mask_sha256:
+            return False
+        prediction_availability_sha256 = rate_metrics.get(
+            "prediction_availability_sha256"
+        )
+        if prediction_availability_hashes is not None and (
+            not _is_sha256(prediction_availability_sha256)
+            or prediction_availability_hashes[rate]
+            != prediction_availability_sha256
+        ):
+            return False
+        if (
+            prediction_availability_hashes is None
+            and prediction_availability_sha256 is not None
+        ):
             return False
         for name, value in rate_metrics.items():
             if name == "mask_sha256":
@@ -352,23 +375,27 @@ def _inspect_prediction_archive(path: Path):
     flattened_labels = labels.reshape(-1)
     if not np.any(flattened_labels != 0):
         return None, "MOSI W-F1 requires at least one nonzero label"
+    selected = flattened_labels != 0
+    binary_labels = flattened_labels[selected] > 0
+    binary_predictions = flattened_predictions[selected] > 0
     try:
-        recomputed = base_train._metrics(
-            "CMUMOSI",
-            flattened_labels,
-            flattened_predictions,
-            "regression",
+        weighted_f1 = float(
+            f1_score(
+                binary_labels,
+                binary_predictions,
+                average="weighted",
+                zero_division=0,
+            )
         )
     except (TypeError, ValueError) as error:
         return None, "MOSI metrics cannot be recomputed: {}".format(error)
-    availability_tensor = torch.from_numpy(
-        np.ascontiguousarray(availability)
-    )
-    mask_sha256 = base_train._sha256_tensor(availability_tensor)
-    prediction_std = float(recomputed["prediction_std"])
-    sign_count = int(recomputed["predicted_sign_count"])
+    mask_sha256 = hashlib.sha256(
+        np.ascontiguousarray(availability).tobytes()
+    ).hexdigest()
+    prediction_std = float(np.std(flattened_predictions))
+    sign_count = int(np.unique(binary_predictions).size)
     return PredictionInspection(
-        weighted_f1=float(recomputed["weighted_f1"]),
+        weighted_f1=weighted_f1,
         prediction_std=prediction_std,
         predicted_sign_count=sign_count,
         mask_sha256=mask_sha256,
@@ -376,8 +403,27 @@ def _inspect_prediction_archive(path: Path):
     ), None
 
 
-def inspect_result(job: SDRJob) -> ResultInspection:
+def inspect_result(
+    job: SDRJob,
+    *,
+    expected_provenance: Optional[Mapping] = None,
+) -> ResultInspection:
     """Recompute completion from durable files; never trust prior status."""
+
+    provenance_path = job.output_dir / PRODUCER_PROVENANCE_NAME
+    producer, producer_error = _read_producer_provenance(job)
+    if expected_provenance is not None:
+        if producer_error is not None:
+            return ResultInspection(
+                False,
+                "producer provenance is missing or invalid: {}".format(
+                    producer_error
+                ),
+            )
+        if producer != dict(expected_provenance):
+            return ResultInspection(False, "producer provenance mismatch")
+    elif provenance_path.exists() and producer_error is not None:
+        return ResultInspection(False, producer_error)
 
     for name in ("config.json", "history.json", "metrics.json", "train.log"):
         if not (job.output_dir / name).is_file():
@@ -485,9 +531,14 @@ def inspect_result(job: SDRJob) -> ResultInspection:
                     "recomputed sign count mismatch for rate {}"
                 ).format(rate),
             )
-        if (
-            rate_metrics.get("mask_sha256") != prediction.mask_sha256
-            or metrics["mask_sha256"].get(rate) != prediction.mask_sha256
+        prediction_availability_hashes = metrics.get(
+            "prediction_availability_sha256"
+        )
+        if prediction_availability_hashes is not None and (
+            rate_metrics.get("prediction_availability_sha256")
+            != prediction.mask_sha256
+            or prediction_availability_hashes.get(rate)
+            != prediction.mask_sha256
         ):
             return ResultInspection(
                 False,
@@ -506,8 +557,23 @@ def inspect_result(job: SDRJob) -> ResultInspection:
     )
 
 
-def pending_jobs(jobs: Sequence[SDRJob]) -> List[SDRJob]:
-    return [job for job in jobs if not inspect_result(job).complete]
+def pending_jobs(
+    jobs: Sequence[SDRJob],
+    *,
+    expected_provenance: Optional[Mapping[Tuple[str, int], Mapping]] = None,
+) -> List[SDRJob]:
+    return [
+        job
+        for job in jobs
+        if not inspect_result(
+            job,
+            expected_provenance=(
+                expected_provenance.get((job.variant, job.seed))
+                if expected_provenance is not None
+                else None
+            ),
+        ).complete
+    ]
 
 
 def build_waves(
@@ -573,6 +639,16 @@ def _sha256_file(path: Path) -> str:
 def _canonical_json_sha256(payload: object) -> str:
     encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _resolved_feature_paths(feature_root: Path) -> Dict[str, str]:
+    root = Path(feature_root).expanduser().resolve()
+    return {
+        "root": str(root),
+        "audio": str((root / "wav2vec-large-c-UTT").resolve()),
+        "text": str((root / "deberta-large-4-UTT").resolve()),
+        "video": str((root / "manet_UTT").resolve()),
+    }
 
 
 def _validate_source_commit(source_commit: str) -> str:
@@ -667,6 +743,117 @@ def _runtime_provenance() -> Dict[str, object]:
     }
 
 
+def _producer_provenance(
+    job: SDRJob,
+    *,
+    source_commit: str,
+    feature_root: Path,
+    repo_root: Path,
+) -> Dict[str, object]:
+    """Build the evidence that must exist before a child can produce output."""
+
+    source_commit = _validate_source_commit(source_commit)
+    repo_root = Path(repo_root).expanduser().resolve()
+    expected_config = asdict(
+        SDRTrainConfig(seed=job.seed, sdr_variant=job.variant)
+    )
+    return {
+        "schema_version": 1,
+        "treatment": TREATMENT,
+        "training_module": TRAINING_MODULE,
+        "variant": job.variant,
+        "seed": job.seed,
+        "source_commit": source_commit,
+        "source_files_sha256": {
+            relative_path: _sha256_file(repo_root / relative_path)
+            for relative_path in SOURCE_FILES
+        },
+        "features": _resolved_feature_paths(feature_root),
+        "training_runtime": dict(_query_training_runtime()),
+        "training_python_executable": str(DEFAULT_PYTHON),
+        "canonical_config_sha256": _canonical_json_sha256(expected_config),
+        "command": build_command(job, feature_root=feature_root),
+    }
+
+
+def _read_producer_provenance(job: SDRJob):
+    path = job.output_dir / PRODUCER_PROVENANCE_NAME
+    payload, error = _read_json(path)
+    if error is not None:
+        return None, error
+    if not isinstance(payload, Mapping):
+        return None, "producer provenance must contain an object"
+    if (
+        payload.get("schema_version") != 1
+        or payload.get("treatment") != TREATMENT
+        or payload.get("training_module") != TRAINING_MODULE
+        or payload.get("variant") != job.variant
+        or payload.get("seed") != job.seed
+        or not _is_sha256(payload.get("canonical_config_sha256"))
+        or not _is_sha256_mapping(payload.get("source_files_sha256"), SOURCE_FILES)
+        or not isinstance(payload.get("training_runtime"), Mapping)
+        or not isinstance(payload.get("features"), Mapping)
+    ):
+        return None, "producer provenance has invalid or mismatched fields"
+    try:
+        _validate_source_commit(str(payload.get("source_commit")))
+    except ValueError as error:
+        return None, str(error)
+    return dict(payload), None
+
+
+def _is_sha256_mapping(value: object, required_keys: Sequence[str]) -> bool:
+    return (
+        isinstance(value, Mapping)
+        and set(value) == set(required_keys)
+        and all(_is_sha256(item) for item in value.values())
+    )
+
+
+def _write_producer_provenance_once(job: SDRJob, expected: Mapping) -> None:
+    """Create producer evidence atomically, or verify the immutable prior copy."""
+
+    path = job.output_dir / PRODUCER_PROVENANCE_NAME
+    existing, error = _read_producer_provenance(job)
+    if error is None:
+        if existing != dict(expected):
+            raise ValueError(
+                "producer provenance mismatch for {} seed {}; refusing to "
+                "relabel or overwrite prior output".format(job.variant, job.seed)
+            )
+        return
+    if path.exists():
+        raise ValueError(
+            "producer provenance is unreadable for {} seed {}: {}".format(
+                job.variant, job.seed, error
+            )
+        )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(
+        ".{}.{}.tmp".format(PRODUCER_PROVENANCE_NAME, os.getpid())
+    )
+    encoded = json.dumps(dict(expected), indent=2, sort_keys=True) + "\n"
+    try:
+        with temporary.open("x", encoding="utf-8") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.link(str(temporary), str(path))
+            os.chmod(str(path), 0o444)
+        except FileExistsError:
+            existing, existing_error = _read_producer_provenance(job)
+            if existing_error is not None or existing != dict(expected):
+                raise ValueError(
+                    "producer provenance mismatch for {} seed {}; refusing "
+                    "concurrent overwrite".format(job.variant, job.seed)
+                )
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
 def _result_manifest_fields(job: SDRJob) -> Dict[str, object]:
     config_path = job.output_dir / "config.json"
     metrics_path = job.output_dir / "metrics.json"
@@ -679,6 +866,28 @@ def _result_manifest_fields(job: SDRJob) -> Dict[str, object]:
     expected_config = asdict(
         SDRTrainConfig(seed=job.seed, sdr_variant=job.variant)
     )
+    recorded_artifact_hashes = metrics.get(
+        "prediction_availability_sha256"
+    )
+    artifact_hashes = None
+    artifact_hash_source = None
+    if _is_sha256_mapping(recorded_artifact_hashes, MISSING_RATE_KEYS):
+        artifact_hashes = dict(recorded_artifact_hashes)
+        artifact_hash_source = "recorded-by-producer"
+    elif metrics:
+        derived = {}
+        for rate in MISSING_RATE_KEYS:
+            archive = job.output_dir / "predictions_miss_{}.npz".format(
+                rate.replace(".", "p")
+            )
+            prediction, prediction_error = _inspect_prediction_archive(archive)
+            if prediction_error is not None or prediction is None:
+                derived = {}
+                break
+            derived[rate] = prediction.mask_sha256
+        if set(derived) == set(MISSING_RATE_KEYS):
+            artifact_hashes = derived
+            artifact_hash_source = "derived-from-prediction-npz"
     return {
         "config_sha256": _canonical_json_sha256(expected_config),
         "config_file_sha256": (
@@ -688,6 +897,8 @@ def _result_manifest_fields(job: SDRJob) -> Dict[str, object]:
             _sha256_file(metrics_path) if metrics_path.is_file() else None
         ),
         "mask_sha256": metrics.get("mask_sha256"),
+        "prediction_availability_sha256": artifact_hashes,
+        "prediction_availability_sha256_source": artifact_hash_source,
         "parameter_counts": (
             {
                 name: metrics.get(name)
@@ -716,6 +927,25 @@ def write_manifest(
     }
     entries = []
     for job in jobs:
+        expected_producer = _producer_provenance(
+            job,
+            source_commit=source_commit,
+            feature_root=feature_root,
+            repo_root=repo_root,
+        )
+        producer_path = job.output_dir / PRODUCER_PROVENANCE_NAME
+        producer, producer_error = _read_producer_provenance(job)
+        if producer_path.exists() and producer_error is not None:
+            raise ValueError(
+                "producer provenance is invalid for {} seed {}: {}".format(
+                    job.variant, job.seed, producer_error
+                )
+            )
+        if producer is not None and producer != expected_producer:
+            raise ValueError(
+                "producer provenance mismatch for {} seed {}; manifest may "
+                "not relabel prior output".format(job.variant, job.seed)
+            )
         inspection = inspect_result(job)
         entries.append(
             {
@@ -729,10 +959,22 @@ def write_manifest(
                 "collapsed": inspection.collapsed,
                 "collapse_rates": list(inspection.collapse_rates),
                 "log_path": str(job.output_dir / "train.log"),
+                "producer_provenance_state": (
+                    "verified" if producer is not None else "not-recorded"
+                ),
+                "producer_provenance": producer,
+                "producer_provenance_sha256": (
+                    _canonical_json_sha256(producer)
+                    if producer is not None
+                    else None
+                ),
+                "expected_producer_provenance_sha256": (
+                    _canonical_json_sha256(expected_producer)
+                ),
                 **_result_manifest_fields(job),
             }
         )
-    feature_root = Path(feature_root)
+    feature_paths = _resolved_feature_paths(feature_root)
     seed_gpu = {}
     for job in jobs:
         seed_gpu.setdefault(str(job.seed), job.gpu)
@@ -747,12 +989,7 @@ def write_manifest(
             "source_commit": source_commit,
             "source_files_sha256": source_hashes,
             "runtime": _runtime_provenance(),
-            "features": {
-                "root": str(feature_root),
-                "audio": str(feature_root / "wav2vec-large-c-UTT"),
-                "text": str(feature_root / "deberta-large-4-UTT"),
-                "video": str(feature_root / "manet_UTT"),
-            },
+            "features": feature_paths,
             "variants": list(VARIANTS),
             "seeds": list(SEEDS),
             "seed_gpu_mapping": seed_gpu,
@@ -832,9 +1069,29 @@ def run_jobs(
         or timeout_seconds < 1
     ):
         raise ValueError("timeout_seconds must be positive")
+    if source_commit is None:
+        raise ValueError("source_commit is required for producer provenance")
+    source_commit = _validate_source_commit(source_commit)
     all_jobs = list(jobs)
+    expected_provenance = {
+        (job.variant, job.seed): _producer_provenance(
+            job,
+            source_commit=source_commit,
+            feature_root=feature_root,
+            repo_root=repo_root,
+        )
+        for job in all_jobs
+    }
+    for job in all_jobs:
+        if (job.output_dir / PRODUCER_PROVENANCE_NAME).exists():
+            _write_producer_provenance_once(
+                job, expected_provenance[(job.variant, job.seed)]
+            )
     failures = 0
-    waves = build_waves(pending_jobs(all_jobs), jobs_per_gpu=jobs_per_gpu)
+    waves = build_waves(
+        pending_jobs(all_jobs, expected_provenance=expected_provenance),
+        jobs_per_gpu=jobs_per_gpu,
+    )
 
     for wave_index, wave in enumerate(waves):
         running = []
@@ -843,6 +1100,9 @@ def run_jobs(
             for job in wave:
                 job.output_dir.mkdir(parents=True, exist_ok=True)
                 reset_incomplete_output(job.output_dir)
+                _write_producer_provenance_once(
+                    job, expected_provenance[(job.variant, job.seed)]
+                )
                 command = build_command(job, feature_root=feature_root)
                 log_path = job.output_dir / "train.log"
                 log_handle = log_path.open("w", encoding="utf-8")
@@ -912,7 +1172,12 @@ def run_jobs(
                     log_handle.close()
                 handled_processes.add(id(process))
 
-                inspection = inspect_result(job)
+                inspection = inspect_result(
+                    job,
+                    expected_provenance=expected_provenance[
+                        (job.variant, job.seed)
+                    ],
+                )
                 removed = _prune_checkpoint(job.output_dir)
                 if inspection.complete:
                     state = "complete"
@@ -992,22 +1257,60 @@ def _weighted_f1_map(value: Mapping) -> Dict[str, float]:
     }
 
 
-def _control_rates(
-    control_validation: Optional[Mapping],
-    seed: int,
-) -> Optional[Dict[str, float]]:
-    if control_validation is None:
-        return None
-    value = control_validation.get(seed)
-    if value is None:
-        value = control_validation.get(str(seed))
-    if not isinstance(value, Mapping):
-        return None
-    if "best_validation" in value:
+def _validation_rates_and_masks(value: object):
+    if isinstance(value, Mapping) and "best_validation" in value:
         value = value["best_validation"]
     if not isinstance(value, Mapping) or set(value) != set(MISSING_RATE_KEYS):
+        return None, None
+    rates = _weighted_f1_map(value)
+    hashes: Dict[str, str] = {}
+    for rate in MISSING_RATE_KEYS:
+        rate_value = value[rate]
+        if not isinstance(rate_value, Mapping):
+            return rates, None
+        mask_sha256 = rate_value.get("mask_sha256")
+        if not _is_sha256(mask_sha256):
+            return rates, None
+        hashes[rate] = str(mask_sha256)
+    return rates, hashes
+
+
+def _normalized_control(control_validation: Optional[Mapping]):
+    if control_validation is None:
         return None
-    return _weighted_f1_map(value)
+    if not isinstance(control_validation, Mapping):
+        raise ValueError("control validation must contain exactly seeds 66 through 70")
+    normalized = {}
+    for raw_seed, value in control_validation.items():
+        try:
+            seed = int(raw_seed)
+        except (TypeError, ValueError):
+            raise ValueError(
+                "control validation must contain exactly seeds 66 through 70"
+            )
+        if seed in normalized:
+            raise ValueError("control validation contains duplicate seed keys")
+        normalized[seed] = value
+    if set(normalized) != set(SEEDS):
+        raise ValueError("control validation must contain exactly seeds 66 through 70")
+    return normalized
+
+
+def _validation_collapse_rates(validation: Mapping):
+    collapse_rates = []
+    for rate in MISSING_RATE_KEYS:
+        rate_metrics = validation[rate]
+        if not isinstance(rate_metrics, Mapping):
+            return None
+        prediction_std = rate_metrics.get("prediction_std")
+        sign_count = rate_metrics.get("predicted_sign_count")
+        if not _finite_number(prediction_std) or (
+            isinstance(sign_count, bool) or not isinstance(sign_count, int)
+        ):
+            return None
+        if float(prediction_std) <= 0.0 or int(sign_count) < 2:
+            collapse_rates.append(rate)
+    return collapse_rates
 
 
 def aggregate(
@@ -1017,6 +1320,19 @@ def aggregate(
     output_path: Optional[Path] = None,
 ) -> Dict[str, object]:
     """Aggregate validation-selected runs without using test to rank variants."""
+
+    jobs = list(jobs)
+    identities = [(job.variant, job.seed) for job in jobs]
+    if len(set(identities)) != len(identities):
+        raise ValueError("aggregate job matrix contains duplicate variant/seed")
+    expected_identities = {
+        (variant, seed) for variant in VARIANTS for seed in SEEDS
+    }
+    if set(identities) != expected_identities or len(jobs) != len(
+        expected_identities
+    ):
+        raise ValueError("aggregate requires exactly 2 variants x 5 seeds")
+    control = _normalized_control(control_validation)
 
     by_variant: Dict[str, Dict[str, object]] = {}
     for variant in VARIANTS:
@@ -1032,7 +1348,11 @@ def aggregate(
             rate: [] for rate in MISSING_RATE_KEYS
         }
         positive_seeds = []
-        collapsed_seeds = []
+        paired_deltas = []
+        paired_high_deltas = []
+        test_collapsed_seeds = []
+        validation_collapsed_seeds = []
+        validation_collapse_unknown_seeds = []
         for job in variant_jobs:
             inspection = inspect_result(job)
             if not inspection.complete:
@@ -1052,24 +1372,68 @@ def aggregate(
                 validation[rate] for rate in HIGH_MISSING_RATE_KEYS
             )
             test_high = mean(test[rate] for rate in HIGH_MISSING_RATE_KEYS)
-            reference = _control_rates(control_validation, job.seed)
+            candidate_rates, candidate_hashes = _validation_rates_and_masks(
+                metrics["best_validation"]
+            )
+            assert candidate_rates is not None
             paired_delta = None
             paired_high_delta = None
-            if reference is not None:
+            pairing = {
+                "status": "non-paired",
+                "reason": "control validation was not provided",
+            }
+            reference = None
+            reference_hashes = None
+            if control is not None:
+                reference, reference_hashes = _validation_rates_and_masks(
+                    control[job.seed]
+                )
+                if reference is None:
+                    raise ValueError(
+                        "control seed {} must contain exactly 8 validation rates".format(
+                            job.seed
+                        )
+                    )
+                if candidate_hashes is None:
+                    pairing["reason"] = (
+                        "candidate validation mask SHA is missing"
+                    )
+                elif reference_hashes is None:
+                    pairing["reason"] = "control validation mask SHA is missing"
+                elif candidate_hashes != reference_hashes:
+                    mismatched_rates = [
+                        rate
+                        for rate in MISSING_RATE_KEYS
+                        if candidate_hashes[rate] != reference_hashes[rate]
+                    ]
+                    pairing["reason"] = (
+                        "candidate/control validation mask SHA mismatch at {}"
+                    ).format(",".join(mismatched_rates))
+                else:
+                    pairing = {
+                        "status": "paired",
+                        "reason": "all 8 validation mask SHA values match",
+                    }
+            if pairing["status"] == "paired":
+                assert reference is not None
                 paired_delta = validation_mean - mean(reference.values())
                 paired_high_delta = validation_high - mean(
                     reference[rate] for rate in HIGH_MISSING_RATE_KEYS
                 )
+                paired_deltas.append(paired_delta)
+                paired_high_deltas.append(paired_high_delta)
                 if paired_delta > 0.0:
                     positive_seeds.append(job.seed)
-            collapse_rates = [
-                rate
-                for rate in MISSING_RATE_KEYS
-                if float(metrics["test"][rate]["prediction_std"]) <= 0.0
-                or int(metrics["test"][rate]["predicted_sign_count"]) < 2
-            ]
-            if collapse_rates:
-                collapsed_seeds.append(job.seed)
+            test_collapse_rates = list(inspection.collapse_rates)
+            if test_collapse_rates:
+                test_collapsed_seeds.append(job.seed)
+            validation_collapse_rates = _validation_collapse_rates(
+                metrics["best_validation"]
+            )
+            if validation_collapse_rates is None:
+                validation_collapse_unknown_seeds.append(job.seed)
+            elif validation_collapse_rates:
+                validation_collapsed_seeds.append(job.seed)
             seed_rows[str(job.seed)] = {
                 "best_epoch": metrics["best_epoch"],
                 "validation": validation,
@@ -1080,7 +1444,9 @@ def aggregate(
                 "test_high_missing_mean": test_high,
                 "paired_validation_delta": paired_delta,
                 "paired_validation_high_missing_delta": paired_high_delta,
-                "collapse_rates": collapse_rates,
+                "pairing": pairing,
+                "validation_collapse_rates": validation_collapse_rates,
+                "test_collapse_rates": test_collapse_rates,
             }
             for rate in MISSING_RATE_KEYS:
                 validation_by_rate[rate].append(validation[rate])
@@ -1093,6 +1459,35 @@ def aggregate(
             }
             for rate in MISSING_RATE_KEYS
         }
+        paired_complete = len(paired_deltas) == len(SEEDS)
+        mean_validation_delta = (
+            mean(paired_deltas) if paired_complete else None
+        )
+        mean_validation_high_delta = (
+            mean(paired_high_deltas) if paired_complete else None
+        )
+        validation_collapse_known = not validation_collapse_unknown_seeds
+        criteria = {
+            "all_five_seeds_paired": paired_complete,
+            "validation_collapse_free": (
+                validation_collapse_known and not validation_collapsed_seeds
+            ),
+            "mean_validation_delta_positive": (
+                mean_validation_delta is not None
+                and mean_validation_delta > 0.0
+            ),
+            "mean_validation_high_missing_delta_positive": (
+                mean_validation_high_delta is not None
+                and mean_validation_high_delta > 0.0
+            ),
+            "positive_seed_count_at_least_3": len(positive_seeds) >= 3,
+        }
+        if not paired_complete or not validation_collapse_known:
+            gate_status = "not-assessable"
+        elif all(criteria.values()):
+            gate_status = "pass"
+        else:
+            gate_status = "fail"
         by_variant[variant] = {
             "seeds": seed_rows,
             "rates": rates,
@@ -1109,9 +1504,24 @@ def aggregate(
             ),
             "positive_seeds": positive_seeds,
             "positive_seed_count": len(positive_seeds),
-            "collapse": {
-                "any": bool(collapsed_seeds),
-                "seeds": collapsed_seeds,
+            "paired_seed_count": len(paired_deltas),
+            "mean_validation_delta": mean_validation_delta,
+            "mean_validation_high_missing_delta": mean_validation_high_delta,
+            "validation_collapse_gate": {
+                "any": bool(validation_collapsed_seeds),
+                "seeds": validation_collapsed_seeds,
+            },
+            "validation_collapse_unknown_seeds": (
+                validation_collapse_unknown_seeds
+            ),
+            "test_collapse_descriptive": {
+                "any": bool(test_collapsed_seeds),
+                "seeds": test_collapsed_seeds,
+            },
+            "formal_gate": {
+                "status": gate_status,
+                "uses_test": False,
+                "criteria": criteria,
             },
         }
 

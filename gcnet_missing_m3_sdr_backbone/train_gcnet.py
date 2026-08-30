@@ -27,6 +27,7 @@ from .model import MissingM3SDRModel, SDRConversationBackbone
 # eight-rate validation orchestration needed to record treatment provenance.
 _resolve_task_contract = base_train._resolve_task_contract
 _save_best_checkpoint = base_train._save_best_checkpoint
+_sha256_tensor = base_train._sha256_tensor
 _schedules = base_train._schedules
 _state_to_cpu = base_train._state_to_cpu
 _write_json = base_train._write_json
@@ -333,6 +334,7 @@ def run_experiment(
 
     test_metrics: Dict[str, Dict[str, float]] = {}
     mask_hashes: Dict[str, str] = {}
+    prediction_availability_hashes: Dict[str, str] = {}
     if config_value.evaluate_test:
         for rate in MISSING_RATES:
             metrics, artifacts = evaluate_rate(
@@ -350,8 +352,19 @@ def run_experiment(
             if artifacts is None:
                 raise RuntimeError("test artifacts were not collected")
             rate_key = format(rate, ".1f")
+            prediction_availability_sha256 = _sha256_tensor(
+                torch.from_numpy(
+                    np.ascontiguousarray(artifacts["availability"])
+                )
+            )
+            metrics[
+                "prediction_availability_sha256"
+            ] = prediction_availability_sha256
             test_metrics[rate_key] = metrics
             mask_hashes[rate_key] = str(metrics["mask_sha256"])
+            prediction_availability_hashes[
+                rate_key
+            ] = prediction_availability_sha256
             np.savez_compressed(
                 output
                 / ("predictions_miss_" + rate_key.replace(".", "p") + ".npz"),
@@ -364,6 +377,9 @@ def run_experiment(
         "best_validation": best_validation,
         "test": test_metrics,
         "mask_sha256": mask_hashes,
+        "prediction_availability_sha256": (
+            prediction_availability_hashes
+        ),
         "variant": config_value.sdr_variant,
         "sdr_variant": config_value.sdr_variant,
         "backbone": "sdr-gnn-whole-backbone",

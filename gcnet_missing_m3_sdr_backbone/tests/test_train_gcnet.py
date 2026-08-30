@@ -495,6 +495,18 @@ def test_run_experiment_selects_only_eight_rate_validation_and_records_provenanc
     assert result["wall_time_seconds"] >= 0.0
     assert result["peak_memory_bytes"] == 0
     assert len(result["mask_sha256"]) == 8
+    artifact_hash = train_gcnet._sha256_tensor(
+        torch.ones(2, 3, dtype=torch.float32)
+    )
+    assert result["prediction_availability_sha256"] == {
+        format(rate, ".1f"): artifact_hash for rate in MISSING_RATES
+    }
+    for rate in MISSING_RATES:
+        rate_key = format(rate, ".1f")
+        assert result["test"][rate_key][
+            "prediction_availability_sha256"
+        ] == artifact_hash
+        assert result["test"][rate_key]["mask_sha256"] != artifact_hash
     assert json.loads((tmp_path / "config.json").read_text()) == asdict(config)
     assert len(json.loads((tmp_path / "history.json").read_text())) == 2
     assert json.loads((tmp_path / "metrics.json").read_text()) == result

@@ -129,6 +129,14 @@ def _write_complete_result(
     )
     history = []
     best_validation = None
+    validation_mask_hashes = {
+        rate: hashlib.sha256(
+            "validation:{}:{}:{}".format(job.seed, job.variant, rate).encode(
+                "utf-8"
+            )
+        ).hexdigest()
+        for rate in RATES
+    }
     for epoch in range(1, 101):
         epoch_offset = 0.1 if epoch == 37 else 0.0
         validation = {
@@ -140,6 +148,9 @@ def _write_complete_result(
                     - float(rate) / 100.0
                 ),
                 "loss": 0.2,
+                "prediction_std": 0.5,
+                "predicted_sign_count": 2,
+                "mask_sha256": validation_mask_hashes[rate],
             }
             for rate in RATES
         }
@@ -160,6 +171,7 @@ def _write_complete_result(
     assert best_validation is not None
     test = {}
     mask_hashes = {}
+    prediction_availability_hashes = {}
     if not validation_only:
         for index, rate in enumerate(RATES, start=1):
             labels = np.array(
@@ -195,8 +207,10 @@ def _write_complete_result(
                 "prediction_std": recomputed["prediction_std"],
                 "predicted_sign_count": recomputed["predicted_sign_count"],
                 "mask_sha256": mask_hash,
+                "prediction_availability_sha256": mask_hash,
             }
             mask_hashes[rate] = mask_hash
+            prediction_availability_hashes[rate] = mask_hash
             np.savez_compressed(
                 job.output_dir
                 / "predictions_miss_{}.npz".format(rate.replace(".", "p")),
@@ -220,6 +234,7 @@ def _write_complete_result(
         ),
         "test": test,
         "mask_sha256": mask_hashes,
+        "prediction_availability_sha256": prediction_availability_hashes,
         "registered_parameters": counts["registered_parameters"],
         "trainable_parameters": counts["trainable_parameters"],
         "registered_backbone_parameters": counts[
@@ -342,6 +357,22 @@ def test_npz_metrics_are_independently_recomputed_with_mosi_nonzero_rule(tmp_pat
     assert "recomputed" in inspection.reason
 
 
+def test_npz_wf1_recomputation_does_not_call_training_metrics(monkeypatch, tmp_path):
+    from gcnet_missing_m3 import train_gcnet as base_train
+    from gcnet_missing_m3_sdr_backbone import run_mosi
+
+    job = run_mosi.build_jobs(output_root=tmp_path)[0]
+    _write_complete_result(job)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("runner must not call training-side _metrics")
+
+    monkeypatch.setattr(base_train, "_metrics", forbidden)
+    inspection = run_mosi.inspect_result(job)
+
+    assert inspection.complete is True, inspection.reason
+
+
 def test_npz_availability_sha_is_independent_and_rate_or_job_swaps_fail(tmp_path):
     from gcnet_missing_m3_sdr_backbone import run_mosi
 
@@ -351,8 +382,8 @@ def test_npz_availability_sha_is_independent_and_rate_or_job_swaps_fail(tmp_path
     _write_complete_result(second)
 
     metrics = json.loads((first.output_dir / "metrics.json").read_text())
-    metrics["test"]["0.3"]["mask_sha256"] = "f" * 64
-    metrics["mask_sha256"]["0.3"] = "f" * 64
+    metrics["test"]["0.3"]["prediction_availability_sha256"] = "f" * 64
+    metrics["prediction_availability_sha256"]["0.3"] = "f" * 64
     (first.output_dir / "metrics.json").write_text(json.dumps(metrics))
     assert run_mosi.inspect_result(first).complete is False
 
@@ -372,6 +403,63 @@ def test_npz_availability_sha_is_independent_and_rate_or_job_swaps_fail(tmp_path
     job_b.write_bytes(bytes_a)
     assert run_mosi.inspect_result(first).complete is False
     assert run_mosi.inspect_result(second).complete is False
+
+
+def test_schedule_and_archive_availability_hashes_are_separate_domains(tmp_path):
+    from gcnet_missing_m3_sdr_backbone import run_mosi
+
+    job = run_mosi.build_jobs(output_root=tmp_path)[0]
+    _write_complete_result(job)
+
+    metrics_path = job.output_dir / "metrics.json"
+    metrics = json.loads(metrics_path.read_text())
+    artifact_hashes = dict(metrics["mask_sha256"])
+    metrics["prediction_availability_sha256"] = artifact_hashes
+    for index, rate in enumerate(RATES, start=1):
+        metrics["test"][rate][
+            "prediction_availability_sha256"
+        ] = artifact_hashes[rate]
+        schedule_hash = hashlib.sha256(
+            "schedule:{}".format(index).encode("utf-8")
+        ).hexdigest()
+        metrics["mask_sha256"][rate] = schedule_hash
+        metrics["test"][rate]["mask_sha256"] = schedule_hash
+    metrics_path.write_text(json.dumps(metrics))
+
+    inspection = run_mosi.inspect_result(job)
+    assert inspection.complete is True, inspection.reason
+
+
+def test_legacy_result_without_artifact_hash_is_audited_from_npz_in_manifest(
+    tmp_path,
+):
+    from gcnet_missing_m3_sdr_backbone import run_mosi
+
+    job = run_mosi.build_jobs(output_root=tmp_path / "formal")[0]
+    _write_complete_result(job)
+    metrics_path = job.output_dir / "metrics.json"
+    metrics = json.loads(metrics_path.read_text())
+    expected_artifact_hashes = metrics.pop("prediction_availability_sha256")
+    for rate in RATES:
+        metrics["test"][rate].pop("prediction_availability_sha256")
+    metrics_path.write_text(json.dumps(metrics))
+
+    inspection = run_mosi.inspect_result(job)
+    assert inspection.complete is True, inspection.reason
+    manifest_path = tmp_path / "formal" / "manifest.json"
+    run_mosi.write_manifest(
+        manifest_path,
+        run_mosi.build_jobs(output_root=tmp_path / "formal"),
+        source_commit="a" * 40,
+        feature_root=Path("/features"),
+        repo_root=Path(run_mosi.__file__).resolve().parents[1],
+    )
+    entry = json.loads(manifest_path.read_text())["jobs"][0]
+    assert entry["prediction_availability_sha256"] == expected_artifact_hashes
+    assert (
+        entry["prediction_availability_sha256_source"]
+        == "derived-from-prediction-npz"
+    )
 
 
 @pytest.mark.parametrize(
@@ -542,6 +630,97 @@ def test_manifest_is_atomic_and_binds_source_results_environment_and_status(
         )
 
 
+def test_producer_provenance_is_written_before_launch_and_cannot_be_relabelled(
+    monkeypatch,
+    tmp_path,
+):
+    from gcnet_missing_m3_sdr_backbone import run_mosi
+
+    job = run_mosi.build_jobs(output_root=tmp_path / "formal")[-1]
+    repo_root = Path(run_mosi.__file__).resolve().parents[1]
+    runtime = {
+        "python_version": "3.8.10",
+        "torch_version": "1.8.0",
+        "cuda_version": "11.1",
+        "cudnn_version": 8005,
+        "gpu_names": {"7": "V100"},
+    }
+    monkeypatch.setattr(run_mosi, "_query_training_runtime", lambda: runtime)
+    provenance_path = job.output_dir / run_mosi.PRODUCER_PROVENANCE_NAME
+
+    class FakeProcess:
+        pid = 12345
+
+        def wait(self, timeout=None):
+            assert provenance_path.is_file()
+            provenance = json.loads(provenance_path.read_text())
+            assert provenance["source_commit"] == "a" * 40
+            assert provenance["canonical_config_sha256"] == hashlib.sha256(
+                (
+                    json.dumps(
+                        asdict(
+                            run_mosi.SDRTrainConfig(
+                                seed=job.seed,
+                                sdr_variant=job.variant,
+                            )
+                        ),
+                        indent=2,
+                        sort_keys=True,
+                    )
+                    + "\n"
+                ).encode("utf-8")
+            ).hexdigest()
+            assert provenance["features"]["root"] == str(
+                Path("/features").resolve()
+            )
+            assert provenance["training_runtime"] == runtime
+            assert set(provenance["source_files_sha256"]) == set(
+                run_mosi.SOURCE_FILES
+            )
+            _write_complete_result(job)
+            return 0
+
+    launches = []
+
+    def popen(*args, **kwargs):
+        launches.append(args)
+        return FakeProcess()
+
+    monkeypatch.setattr(run_mosi.subprocess, "Popen", popen)
+    failures = run_mosi.run_jobs(
+        [job],
+        feature_root=Path("/features"),
+        repo_root=repo_root,
+        jobs_per_gpu=1,
+        timeout_seconds=30,
+        source_commit="a" * 40,
+    )
+    assert failures == 0
+    assert len(launches) == 1
+    original = provenance_path.read_bytes()
+
+    with pytest.raises(ValueError, match="producer provenance"):
+        run_mosi.run_jobs(
+            [job],
+            feature_root=Path("/features"),
+            repo_root=repo_root,
+            jobs_per_gpu=1,
+            timeout_seconds=30,
+            source_commit="b" * 40,
+        )
+    assert provenance_path.read_bytes() == original
+    assert len(launches) == 1
+
+    with pytest.raises(ValueError, match="producer provenance"):
+        run_mosi.write_manifest(
+            tmp_path / "manifest.json",
+            [job],
+            source_commit="b" * 40,
+            feature_root=Path("/features"),
+            repo_root=repo_root,
+        )
+
+
 def test_resume_skips_only_semantically_complete_jobs(monkeypatch, tmp_path):
     from gcnet_missing_m3_sdr_backbone import run_mosi
 
@@ -549,6 +728,16 @@ def test_resume_skips_only_semantically_complete_jobs(monkeypatch, tmp_path):
     complete, incomplete = jobs[:2]
     _write_complete_result(complete)
     _write_complete_result(incomplete)
+    repo_root = Path(run_mosi.__file__).resolve().parents[1]
+    run_mosi._write_producer_provenance_once(
+        complete,
+        run_mosi._producer_provenance(
+            complete,
+            source_commit="a" * 40,
+            feature_root=Path("/features"),
+            repo_root=repo_root,
+        ),
+    )
     (incomplete.output_dir / "history.json").write_text("[]")
     launched = []
 
@@ -568,9 +757,10 @@ def test_resume_skips_only_semantically_complete_jobs(monkeypatch, tmp_path):
     failures = run_mosi.run_jobs(
         [complete, incomplete],
         feature_root=Path("/features"),
-        repo_root=tmp_path,
+        repo_root=repo_root,
         jobs_per_gpu=1,
         timeout_seconds=123,
+        source_commit="a" * 40,
     )
 
     assert failures == 0
@@ -609,9 +799,10 @@ def test_rerun_clears_half_written_artifacts_before_child_failure(
     failures = run_mosi.run_jobs(
         [job],
         feature_root=Path("/features"),
-        repo_root=tmp_path,
+        repo_root=Path(run_mosi.__file__).resolve().parents[1],
         jobs_per_gpu=1,
         timeout_seconds=123,
+        source_commit="a" * 40,
     )
 
     assert failures == 1
@@ -650,9 +841,10 @@ def test_timeout_and_launch_exception_terminate_processes_instead_of_hanging(
     failures = run_mosi.run_jobs(
         [jobs[0]],
         feature_root=Path("/features"),
-        repo_root=tmp_path,
+        repo_root=Path(run_mosi.__file__).resolve().parents[1],
         jobs_per_gpu=1,
         timeout_seconds=1,
+        source_commit="a" * 40,
     )
     assert failures == 1
     assert terminated == [12345]
@@ -674,9 +866,10 @@ def test_timeout_and_launch_exception_terminate_processes_instead_of_hanging(
         run_mosi.run_jobs(
             run_mosi.build_jobs(output_root=tmp_path / "launch")[:2],
             feature_root=Path("/features"),
-            repo_root=tmp_path,
+            repo_root=Path(run_mosi.__file__).resolve().parents[1],
             jobs_per_gpu=1,
             timeout_seconds=1,
+            source_commit="a" * 40,
         )
     assert terminated[-1] == 12345
 
@@ -736,10 +929,27 @@ def test_aggregate_reports_per_rate_high_missing_paired_deltas_and_collapse(
                 test_offset=0.10,
             )
     _make_rate_collapsed(jobs[0], "0.4")
-    control = {
-        seed: {rate: 0.70 - float(rate) / 100.0 for rate in RATES}
-        for seed in (66, 67, 68, 69, 70)
-    }
+    control = {}
+    for seed in (66, 67, 68, 69, 70):
+        candidate = next(
+            job
+            for job in jobs
+            if job.variant == "sdr-public" and job.seed == seed
+        )
+        candidate_metrics = json.loads(
+            (candidate.output_dir / "metrics.json").read_text()
+        )
+        control[seed] = {
+            "best_validation": {
+                rate: {
+                    "weighted_f1": 0.70 - float(rate) / 100.0,
+                    "mask_sha256": candidate_metrics["best_validation"][rate][
+                        "mask_sha256"
+                    ],
+                }
+                for rate in RATES
+            }
+        }
     summary = run_mosi.aggregate(jobs, control_validation=control)
 
     assert summary["selection_basis"] == "validation-eight-rate-mean-weighted-f1"
@@ -755,11 +965,73 @@ def test_aggregate_reports_per_rate_high_missing_paired_deltas_and_collapse(
     assert public["validation_high_missing_mean"] == pytest.approx(
         np.mean([0.72 - rate / 100.0 for rate in (0.4, 0.5, 0.6, 0.7)])
     )
-    assert public["collapse"] == {"any": True, "seeds": [66]}
-    assert public["seeds"]["66"]["collapse_rates"] == ["0.4"]
+    assert public["test_collapse_descriptive"] == {"any": True, "seeds": [66]}
+    assert public["validation_collapse_gate"] == {"any": False, "seeds": []}
+    assert public["seeds"]["66"]["test_collapse_rates"] == ["0.4"]
     assert public["seeds"]["66"]["paired_validation_delta"] == pytest.approx(0.02)
+    assert public["mean_validation_delta"] == pytest.approx(0.02)
+    assert public["mean_validation_high_missing_delta"] == pytest.approx(0.02)
+    assert public["formal_gate"]["status"] == "pass"
+    assert public["formal_gate"]["uses_test"] is False
     assert public["seeds"]["66"]["validation_mean"] > paper["seeds"]["66"][
         "validation_mean"
     ]
     # Paper has deliberately better test metrics, which must not alter ordering.
     assert public["test_mean"] < paper["test_mean"]
+
+
+def test_aggregate_requires_exact_matrix_and_five_seed_control(tmp_path):
+    from gcnet_missing_m3_sdr_backbone import run_mosi
+
+    jobs = run_mosi.build_jobs(output_root=tmp_path)
+    for job in jobs:
+        _write_complete_result(job)
+
+    with pytest.raises(ValueError, match="exactly 2 variants x 5 seeds"):
+        run_mosi.aggregate(jobs[:-1])
+    with pytest.raises(ValueError, match="duplicate"):
+        run_mosi.aggregate(jobs + [jobs[0]])
+    with pytest.raises(ValueError, match="exactly seeds 66 through 70"):
+        run_mosi.aggregate(jobs, control_validation={66: {}})
+
+
+def test_aggregate_marks_mask_mismatch_nonpaired_and_test_collapse_is_not_gate(
+    tmp_path,
+):
+    from gcnet_missing_m3_sdr_backbone import run_mosi
+
+    jobs = run_mosi.build_jobs(output_root=tmp_path)
+    for job in jobs:
+        _write_complete_result(job, validation_offset=0.02)
+    _make_rate_collapsed(jobs[0], "0.4")
+    control = {}
+    for seed in (66, 67, 68, 69, 70):
+        candidate = next(
+            job
+            for job in jobs
+            if job.variant == "sdr-public" and job.seed == seed
+        )
+        metrics = json.loads((candidate.output_dir / "metrics.json").read_text())
+        control[seed] = {
+            "best_validation": {
+                rate: {
+                    "weighted_f1": 0.60,
+                    "mask_sha256": metrics["best_validation"][rate][
+                        "mask_sha256"
+                    ],
+                }
+                for rate in RATES
+            }
+        }
+    control[66]["best_validation"]["0.7"]["mask_sha256"] = "f" * 64
+
+    summary = run_mosi.aggregate(jobs, control_validation=control)
+    public = summary["variants"]["sdr-public"]
+
+    assert public["seeds"]["66"]["pairing"]["status"] == "non-paired"
+    assert "mask" in public["seeds"]["66"]["pairing"]["reason"]
+    assert public["seeds"]["66"]["paired_validation_delta"] is None
+    assert public["paired_seed_count"] == 4
+    assert public["formal_gate"]["status"] == "not-assessable"
+    assert public["test_collapse_descriptive"]["any"] is True
+    assert public["validation_collapse_gate"]["any"] is False
