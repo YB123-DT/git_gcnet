@@ -556,6 +556,59 @@ def test_run_experiment_rejects_uncontrolled_result_identity(
         )
 
 
+def test_run_experiment_rejects_identity_that_disagrees_with_built_model(
+    monkeypatch,
+    tmp_path,
+):
+    from gcnet_missing_m3_sdr_backbone import train_gcnet
+
+    config = train_gcnet.SDRTrainConfig(
+        device="cpu",
+        epochs=1,
+        evaluate_test=False,
+    )
+    loader = _Loader()
+    monkeypatch.setattr(
+        train_gcnet,
+        "get_loaders",
+        lambda **_kwargs: ([loader], [loader], [loader], 2, 3, 4),
+    )
+    monkeypatch.setattr(
+        train_gcnet,
+        "_schedules",
+        lambda _config, split: {
+            rate: (split, rate) for rate in MISSING_RATES
+        },
+    )
+
+    def mislabeled_builder(config_value, adim, tdim, vdim, device):
+        model = train_gcnet.build_model(
+            config_value,
+            adim,
+            tdim,
+            vdim,
+            device,
+        )
+        model.variant = "actual-model-identity"
+        return model
+
+    def fail_if_training_starts(*_args, **_kwargs):
+        raise AssertionError("identity mismatch was not rejected")
+
+    monkeypatch.setattr(train_gcnet, "train_epoch", fail_if_training_starts)
+
+    with pytest.raises(ValueError, match="variant"):
+        train_gcnet.run_experiment(
+            config,
+            "audio",
+            "text",
+            "visual",
+            tmp_path,
+            model_builder=mislabeled_builder,
+            result_identity={"variant": "claimed-result-identity"},
+        )
+
+
 def test_run_experiment_can_skip_test_without_calling_test_evaluation(
     monkeypatch,
     tmp_path,

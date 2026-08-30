@@ -220,6 +220,29 @@ def _validated_result_identity(result_identity):
     return dict(result_identity)
 
 
+def _validate_model_identity(model, result_identity):
+    for name, claimed in result_identity.items():
+        try:
+            actual = getattr(model, name)
+        except AttributeError:
+            raise ValueError(
+                "model does not declare result_identity field {!r}".format(
+                    name
+                )
+            )
+        if actual != claimed:
+            raise ValueError(
+                (
+                    "result_identity field {!r} claims {!r}, "
+                    "model declares {!r}"
+                ).format(
+                    name,
+                    claimed,
+                    actual,
+                )
+            )
+
+
 def run_experiment(
     config_value: SDRTrainConfig,
     audio_root: str,
@@ -276,6 +299,7 @@ def run_experiment(
     set_random_seed(model_seed)
     builder = build_model if model_builder is None else model_builder
     model = builder(config_value, adim, tdim, vdim, device)
+    _validate_model_identity(model, identity)
     optimizer = torch.optim.Adam(
         (
             parameter

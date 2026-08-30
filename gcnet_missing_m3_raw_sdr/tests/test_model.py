@@ -1,9 +1,10 @@
 import pytest
 import torch
-from torch.nn import functional as F
 
 import gcnet_missing_m3_raw_sdr as raw_sdr_package
+from gcnet_missing_m3.loss import missing_m3_loss
 from gcnet_missing_m3.model import RawResidualObservedEncoder
+from gcnet_missing_m3.train_gcnet import _task_loss
 from gcnet_missing_m3_sdr_backbone.model import MissingM3SDRModel
 from gcnet_missing_m3_raw_sdr.model import MissingM3RawSDRModel
 
@@ -115,6 +116,20 @@ def test_raw_sdr_model_is_public_thin_subclass_with_fixed_identity():
     assert model.sdr_variant == "sdr-public"
     assert model.representation_type == "slot"
     assert isinstance(model.observed_set, RawResidualObservedEncoder)
+
+
+def test_raw_sdr_model_declares_its_actual_result_identity():
+    model = _model()
+
+    assert {
+        name: getattr(model, name)
+        for name in ("variant", "backbone", "sdr_variant", "sdr_input_type")
+    } == {
+        "variant": "raw-residual-sdr-public",
+        "backbone": "raw-residual-sdr-public",
+        "sdr_variant": "sdr-public",
+        "sdr_input_type": "raw-residual",
+    }
 
 
 @pytest.mark.parametrize(
@@ -240,22 +255,26 @@ def test_real_backward_reaches_student_adapter_sdr_graph_heads_not_teacher():
         lengths,
         predict_missing=True,
     )
-    valid = umask.T.bool()
-    targets = predictions.target_mask
-    loss = (
-        F.mse_loss(logits[valid], torch.full_like(logits[valid], 0.25))
-        + F.mse_loss(
-            predictions.reg_predictions[targets],
-            torch.full_like(predictions.reg_predictions[targets], -0.5),
-        )
-        + F.mse_loss(
-            predictions.cl_predictions[targets],
-            torch.full_like(predictions.cl_predictions[targets], 0.5),
-        )
+    labels = torch.tensor(
+        [[0.5, -0.25, 1.0, -1.0], [-0.5, 0.75, -1.25, 0.0]],
+        dtype=logits.dtype,
     )
+    classification = _task_loss("CMUMOSI", logits, labels, umask)
+    teacher_targets = model.encode_teacher_targets([features])
+    jepa = missing_m3_loss(
+        predictions,
+        teacher_targets,
+        temperature=0.03,
+    )
+    loss = classification + 0.1 * jepa.total
     loss.backward()
 
     assert torch.isfinite(loss).item()
+    assert torch.isfinite(classification).item()
+    assert torch.isfinite(jepa.total).item()
+    assert torch.isfinite(jepa.regression).item()
+    assert torch.isfinite(jepa.contrastive).item()
+    assert jepa.target_count == int(predictions.target_mask.sum().item()) > 0
     assert torch.isfinite(logits).all().item()
     assert torch.isfinite(hidden).all().item()
     assert _gradient_total(model.observed_set.projectors) > 0.0

@@ -11,6 +11,9 @@ from gcnet_missing_m3_sdr_backbone.model import MissingM3SDRModel
 class MissingM3RawSDRModel(MissingM3SDRModel):
     """Thin fixed-identity wrapper around :class:`MissingM3SDRModel`."""
 
+    variant = "raw-residual-sdr-public"
+    backbone = "raw-residual-sdr-public"
+
     _GRAPH_IDENTITY = {
         "fusion_type": "raw-residual",
         "representation_type": "slot",

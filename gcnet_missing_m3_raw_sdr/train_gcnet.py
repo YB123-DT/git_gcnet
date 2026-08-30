@@ -83,6 +83,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--video-feature", required=True)
     parser.add_argument("--feature-root", default=None)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument(
+        "--train-rate-mode",
+        choices=("all",),
+        default="all",
+    )
+    parser.add_argument("--lr", type=float, choices=(5e-4,), default=5e-4)
     parser.add_argument("--seed", type=int, default=66)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--device", default="cuda")
@@ -97,6 +103,8 @@ def main() -> None:
         epochs=args.epochs,
         device=args.device,
         evaluate_test=not args.skip_test,
+        train_rate_mode=args.train_rate_mode,
+        learning_rate=args.lr,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[
         config_value.dataset

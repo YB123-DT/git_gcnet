@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 from dataclasses import asdict
 
@@ -104,7 +105,7 @@ def _required_cli():
     ]
 
 
-def test_parser_exposes_only_paths_and_lifecycle_fields():
+def test_parser_exposes_paths_lifecycle_and_fixed_protocol_markers():
     parser = train_gcnet.build_parser()
     options = {
         option
@@ -119,6 +120,8 @@ def test_parser_exposes_only_paths_and_lifecycle_fields():
         "--video-feature",
         "--feature-root",
         "--output-dir",
+        "--train-rate-mode",
+        "--lr",
         "--seed",
         "--epochs",
         "--device",
@@ -130,11 +133,28 @@ def test_parser_exposes_only_paths_and_lifecycle_fields():
         "video_feature": "video",
         "feature_root": None,
         "output_dir": "output",
+        "train_rate_mode": "all",
+        "lr": pytest.approx(5e-4),
         "seed": 66,
         "epochs": 100,
         "device": "cuda",
         "skip_test": False,
     }
+
+
+def test_parser_accepts_explicit_formal_protocol_markers():
+    args = train_gcnet.build_parser().parse_args(
+        [
+            *_required_cli(),
+            "--train-rate-mode",
+            "all",
+            "--lr",
+            "0.0005",
+        ]
+    )
+
+    assert args.train_rate_mode == "all"
+    assert args.lr == pytest.approx(5e-4)
 
 
 @pytest.mark.parametrize(
@@ -149,6 +169,26 @@ def test_parser_exposes_only_paths_and_lifecycle_fields():
 def test_parser_does_not_accept_structure_search(changed):
     with pytest.raises(SystemExit):
         train_gcnet.build_parser().parse_args([*_required_cli(), *changed])
+
+
+def test_module_entrypoint_does_not_eagerly_import_itself():
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "gcnet_missing_m3_raw_sdr.train_gcnet",
+            "--help",
+        ],
+        cwd=str(__file__.rsplit("/gcnet_missing_m3_raw_sdr/", 1)[0]),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "RuntimeWarning" not in completed.stderr
+    assert "--train-rate-mode" in completed.stdout
+    assert "--lr" in completed.stdout
 
 
 class _EpochSampler:
@@ -247,6 +287,11 @@ def test_run_experiment_reuses_shared_lifecycle_and_records_raw_identity(
 
 def test_main_resolves_paths_and_constructs_only_open_config(monkeypatch, tmp_path):
     captured = {}
+    config_class = train_gcnet.RawSDRTrainConfig
+
+    def build_config(**kwargs):
+        captured["config_kwargs"] = kwargs
+        return config_class(**kwargs)
 
     def run_experiment(config_value, *roots, output_dir):
         captured.update(config=config_value, roots=roots, output_dir=output_dir)
@@ -266,14 +311,27 @@ def test_main_resolves_paths_and_constructs_only_open_config(monkeypatch, tmp_pa
             "--device",
             "cpu",
             "--skip-test",
+            "--train-rate-mode",
+            "all",
+            "--lr",
+            "0.0005",
         ],
     )
     monkeypatch.setattr(train_gcnet.os.path, "exists", lambda _path: True)
+    monkeypatch.setattr(train_gcnet, "RawSDRTrainConfig", build_config)
     monkeypatch.setattr(train_gcnet, "run_experiment", run_experiment)
 
     train_gcnet.main()
 
-    assert type(captured["config"]) is train_gcnet.RawSDRTrainConfig
+    assert type(captured["config"]) is config_class
+    assert captured["config_kwargs"] == {
+        "seed": 72,
+        "epochs": 2,
+        "device": "cpu",
+        "evaluate_test": False,
+        "train_rate_mode": "all",
+        "learning_rate": pytest.approx(5e-4),
+    }
     assert captured["config"].seed == 72
     assert captured["config"].epochs == 2
     assert captured["config"].device == "cpu"
