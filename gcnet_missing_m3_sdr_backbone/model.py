@@ -1,5 +1,7 @@
 """SDR-GNN conversation backbones for Missing-M3 representations."""
 
+import inspect
+
 import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
@@ -181,66 +183,40 @@ class SDRConversationBackbone(nn.Module):
 class MissingM3SDRModel(MissingM3GraphModel):
     """Slot Missing-M3 with its complete conversation path replaced by SDR."""
 
-    @staticmethod
-    def _parent_argument(args, kwargs, index, name, default=None):
-        if len(args) > index:
-            return args[index]
-        return kwargs.get(name, default)
-
     def __init__(self, *args, sdr_variant="sdr-public", **kwargs):
-        base_model = self._parent_argument(args, kwargs, 0, "base_model")
-        recurrent_hidden = self._parent_argument(args, kwargs, 4, "D_e")
-        graph_hidden = self._parent_argument(
-            args,
-            kwargs,
-            5,
-            "graph_hidden_size",
-        )
-        dropout = self._parent_argument(args, kwargs, 10, "dropout", 0.5)
-        time_attn = self._parent_argument(args, kwargs, 11, "time_attn", True)
-        fusion_type = self._parent_argument(
-            args,
-            kwargs,
-            18,
-            "fusion_type",
-            "mean",
-        )
-        graph_branch_mode = self._parent_argument(
-            args,
-            kwargs,
-            22,
-            "graph_branch_mode",
-            "both",
-        )
-        classification_completion = self._parent_argument(
-            args,
-            kwargs,
-            24,
-            "classification_completion",
-            False,
-        )
-        representation_type = self._parent_argument(
-            args,
-            kwargs,
-            25,
-            "representation_type",
-            "slot",
-        )
+        parent_arguments = inspect.signature(
+            MissingM3GraphModel.__init__
+        ).bind(self, *args, **kwargs)
+        parent_arguments.apply_defaults()
+        configuration = parent_arguments.arguments
+        dropout = configuration["dropout"]
 
         if isinstance(dropout, bool):
             raise TypeError("dropout must be a real probability, not bool")
-        if base_model != "LSTM":
-            raise ValueError("base_model must be 'LSTM' for the locked control")
-        if fusion_type != "slot":
-            raise ValueError("fusion_type must be 'slot'")
-        if representation_type != "slot":
-            raise ValueError("representation_type must be 'slot'")
-        if classification_completion is not False:
-            raise ValueError("classification_completion must be False")
-        if graph_branch_mode != "both":
-            raise ValueError("graph_branch_mode must be 'both'")
-        if time_attn is not False:
-            raise ValueError("time_attn must be False")
+        locked_configuration = {
+            "base_model": "LSTM",
+            "fusion_type": "slot",
+            "representation_type": "slot",
+            "classification_completion": False,
+            "graph_branch_mode": "both",
+            "time_attn": False,
+            "local_context_residual": False,
+            "node_interaction_residual": False,
+            "readout_type": "shared",
+            "mmoe_variant": "dual-gate",
+            "recurrent_padding_mode": "legacy",
+            "postgraph_sequence_mode": "independent",
+            "graph_message_calibration": "none",
+        }
+        for name, expected in locked_configuration.items():
+            actual = configuration[name]
+            matches = (
+                actual is expected
+                if isinstance(expected, bool)
+                else actual == expected
+            )
+            if not matches:
+                raise ValueError("{} must be {!r}".format(name, expected))
         if sdr_variant not in SDRConversationBackbone.VARIANTS:
             raise ValueError("sdr_variant must be 'sdr-public' or 'sdr-paper'")
 
@@ -255,8 +231,8 @@ class MissingM3SDRModel(MissingM3GraphModel):
         self.conversation_backbone = SDRConversationBackbone(
             variant=sdr_variant,
             input_dim=self.latent_dim,
-            recurrent_hidden=recurrent_hidden,
-            graph_hidden=graph_hidden,
+            recurrent_hidden=configuration["D_e"],
+            graph_hidden=configuration["graph_hidden_size"],
             n_speakers=self.n_speakers,
             window_past=self.window_past,
             window_future=self.window_future,

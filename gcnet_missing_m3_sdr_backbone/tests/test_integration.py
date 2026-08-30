@@ -21,6 +21,22 @@ PATTERNS = torch.tensor(
     dtype=torch.float32,
 )
 
+LOCKED_CONFIGURATION_FAILURES = (
+    ("base_model", "GRU"),
+    ("fusion_type", "mean"),
+    ("representation_type", "track"),
+    ("classification_completion", True),
+    ("graph_branch_mode", "temporal-only"),
+    ("time_attn", True),
+    ("local_context_residual", True),
+    ("node_interaction_residual", True),
+    ("readout_type", "availability-low-rank"),
+    ("mmoe_variant", "paper-faithful"),
+    ("recurrent_padding_mode", "packed"),
+    ("postgraph_sequence_mode", "shared-bilstm"),
+    ("graph_message_calibration", "branch-layernorm-residual"),
+)
+
 
 def _model_arguments(**overrides):
     arguments = {
@@ -62,6 +78,19 @@ def _candidate(variant="sdr-public", **overrides):
         **_model_arguments(**overrides),
         sdr_variant=variant,
     )
+
+
+def _parent_positional_arguments(**overrides):
+    values_by_name = _model_arguments(**overrides)
+    values = []
+    parameters = inspect.signature(MissingM3GraphModel.__init__).parameters
+    for parameter in tuple(parameters.values())[1:]:
+        if parameter.name in values_by_name:
+            values.append(values_by_name[parameter.name])
+        else:
+            assert parameter.default is not inspect.Parameter.empty
+            values.append(parameter.default)
+    return values
 
 
 def _all_pattern_batch():
@@ -146,20 +175,47 @@ def test_legacy_conversation_modules_are_not_registered(variant):
     assert candidate.conversation_backbone.graph_hidden == 100
 
 
-@pytest.mark.parametrize(
-    ("override", "message"),
-    [
-        ({"base_model": "GRU"}, "base_model"),
-        ({"fusion_type": "mean"}, "fusion_type"),
-        ({"representation_type": "track"}, "representation_type"),
-        ({"classification_completion": True}, "classification_completion"),
-        ({"graph_branch_mode": "temporal-only"}, "graph_branch_mode"),
-        ({"time_attn": True}, "time_attn"),
-    ],
-)
-def test_candidate_rejects_non_experimental_parent_configuration(override, message):
-    with pytest.raises(ValueError, match=message):
-        _candidate(**override)
+@pytest.mark.parametrize(("name", "invalid"), LOCKED_CONFIGURATION_FAILURES)
+def test_candidate_rejects_non_experimental_keyword_configuration(name, invalid):
+    with pytest.raises(ValueError, match=name):
+        _candidate(**{name: invalid})
+
+
+@pytest.mark.parametrize(("name", "invalid"), LOCKED_CONFIGURATION_FAILURES)
+def test_candidate_rejects_non_experimental_positional_configuration(name, invalid):
+    candidate_class = _candidate_class()
+
+    with pytest.raises(ValueError, match=name):
+        candidate_class(
+            *_parent_positional_arguments(**{name: invalid}),
+            sdr_variant="sdr-public",
+        )
+
+
+def test_parent_signature_binding_rejects_duplicate_arguments():
+    candidate_class = _candidate_class()
+
+    with pytest.raises(TypeError, match="multiple values.*base_model"):
+        candidate_class(
+            "LSTM",
+            **_model_arguments(),
+            sdr_variant="sdr-public",
+        )
+
+
+def test_parent_signature_binding_rejects_unknown_arguments():
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        _candidate(unknown_parent_option=True)
+
+
+def test_sdr_variant_remains_keyword_only_after_full_parent_positional_binding():
+    candidate = _candidate_class()(
+        *_parent_positional_arguments(),
+        sdr_variant="sdr-paper",
+    )
+
+    assert candidate.sdr_variant == "sdr-paper"
+    assert candidate.conversation_backbone.variant == "sdr-paper"
 
 
 @pytest.mark.parametrize("dropout", [False, True])
