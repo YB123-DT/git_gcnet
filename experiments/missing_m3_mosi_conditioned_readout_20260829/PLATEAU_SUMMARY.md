@@ -4,8 +4,9 @@
 
 在当前 CMU-MOSI、frozen wav2vec/DeBERTa/MANet、单模型、统一 checkpoint、八个
 missing rates 同批训练、validation-only 选模的锁定边界内，本轮没有找到可稳定替代
-deterministic Legacy control 的局部 downstream 改动。该结论不外推到其他数据集、
-上游特征适配或结构级重构。保留的可复现配置为：
+deterministic Legacy control 的 downstream 改动。该证据现已同时覆盖局部模块与一次
+等活跃参数的 whole-backbone replacement；结论仍不外推到其他数据集、上游特征适配或
+不同 benchmark protocol。保留的可复现配置为：
 
 ```text
 shared readout
@@ -37,17 +38,26 @@ controls 配对的 D--H，尤其是完成五种子确认的 Option F。
 | F | shared postgraph BiLSTM | SCREEN PASS → 5-seed FAIL | -0.1785 (5 seeds) | 2/5 positive、high-missing |
 | G | sparsity-weighted JEPA coefficients | FAIL | -0.2526 | 1/3 positive、high-missing |
 | H | branch graph-message calibration | FAIL | +0.0620 | below +0.40、high-missing |
+| I | equal-active full-context SDT backbone | FAIL | -1.2100 (5 seeds) | 1/5 positive、全部八率均值下降 |
 
 Option F 是唯一三种子通过者，但新增 seeds 69/70 后从 `+0.5344` 反转为
 `-0.1785` point，证明小 seed screen 不能替代五种子稳定性确认。
 
+Option I 将 GCNet conversation backbone 整体替换为参数差仅 `+0.07963%` 的
+full-context Pre-LN Transformer，同时保持 Observed-Set、Missing-M3、EMA、loss、mask
+和优化协议不变。其五种子 validation 8-rate mean 为 `77.5575`，相对 control 下降
+`1.2100` point；high-missing 下降 `1.4334` point，miss-0 下降 `0.7392` point，仅
+seed 68 为正。完整逐 seed/逐 rate 证据见
+`gcnet_missing_m3_sdt_backbone/results/SUMMARY.md`。
+
 ## 强平台证据的含义
 
-该结论只适用于当前 CMU-MOSI frozen-feature 局部 downstream 边界，不表示 MOSI、
-其他 frozen-feature 方法或更大结构改造不可能提升。严格配对证据覆盖 recurrent
+该结论只适用于当前 CMU-MOSI frozen-feature downstream 边界，不表示 MOSI、
+上游特征适配或不同协议不可能提升。严格配对证据覆盖 recurrent
 padding semantics、robust task loss、跨图 sequence sharing、JEPA rate 聚合与
-graph-message calibration；A--C 对 readout、hidden affine 和 JEPA target 聚合的结果
-仅提供方向性补充。继续扫描同族小变体会增加选择偏差，缺少新的机制依据。
+graph-message calibration，并由 Option I 扩展到一次整体 conversation backbone 替换；
+A--C 对 readout、hidden affine 和 JEPA target 聚合的结果仅提供方向性补充。继续扫描
+同族小变体或第三个对话主干会增加选择偏差，缺少新的机制依据。
 
 此前 CaM-HG 的数值不能作为同协议硬门槛：其 feature dimensions/Audio extractor、
 二分类目标、连续混合率采样、text blindness、test-time completion 与 seed 报告方式均
