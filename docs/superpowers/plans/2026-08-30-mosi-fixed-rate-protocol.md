@@ -16,23 +16,23 @@
 - 修改：`tests/test_missing_m3.py`
 - 修改：`gcnet_missing_m3/train_gcnet.py`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 增加测试，要求 `TrainConfig(train_rate_mode="fixed", fixed_missing_rate=0.5)` 的两个
 batch 都只准备 `0.5` view，并验证非法 rate、fixed 缺 rate、非 fixed 携带 rate 均报错。
 
-- [ ] **步骤 2：运行红灯**
+- [x] **步骤 2：运行红灯**
 
 运行：
 
 ```bash
-/home/yangbin/miniconda3/envs/gcnet-official/bin/python -m pytest \
-  tests/test_missing_m3.py -k 'fixed_rate' -q
+/home/yangbin/miniconda3/envs/multimodalerc310/bin/python -c \
+  'import sys; sys.path.append("/home/yangbin/miniconda3/envs/msa_extract/lib/python3.10/site-packages"); import pytest; raise SystemExit(pytest.main(["-q", "tests/test_missing_m3.py", "-k", "fixed_rate"]))'
 ```
 
 预期：因缺少 `fixed_missing_rate`/`fixed` choice 而失败。
 
-- [ ] **步骤 3：最小实现**
+- [x] **步骤 3：最小实现**
 
 在 `TrainConfig` 末尾追加：
 
@@ -47,11 +47,11 @@ batch 只生成：
 rate_views = ((rate, _prepare_view(data, schedules[rate], epoch, dimensions)),)
 ```
 
-- [ ] **步骤 4：运行绿灯**
+- [x] **步骤 4：运行绿灯**
 
 重复步骤 2，预期 fixed-rate focused tests 全部通过。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 提交训练合同，commit 使用 Lore trailers，记录 positional compatibility 与未改模型。
 
@@ -61,33 +61,33 @@ rate_views = ((rate, _prepare_view(data, schedules[rate], epoch, dimensions)),)
 - 修改：`tests/test_missing_m3.py`
 - 修改：`gcnet_missing_m3/train_gcnet.py`
 
-- [ ] **步骤 1：编写失败测试**
+- [x] **步骤 1：编写失败测试**
 
 增加最小 fake loader/model 集成测试，要求 fixed `0.5` 时 history 只含 validation `0.5`、
 checkpoint score 等于该 rate W-F1、metrics/test/NPZ 也只含 `0.5`；旧 all 模式仍包含八率。
 
-- [ ] **步骤 2：运行红灯**
+- [x] **步骤 2：运行红灯**
 
 运行 fixed selection 测试，预期当前八率 validation/test 行为导致失败。
 
-- [ ] **步骤 3：最小实现**
+- [x] **步骤 3：最小实现**
 
 新增 `_protocol_rates(config)`：fixed 返回单元素 tuple，其他模式返回 `MISSING_RATES`。
 `run_experiment()` 的 validation/test 循环和 selection mean 只遍历该 tuple；metrics 增加
 `train_missing_rate` 与 `selection_missing_rates`。
 
-- [ ] **步骤 4：运行绿灯和既有回归**
+- [x] **步骤 4：运行绿灯和既有回归**
 
 运行：
 
 ```bash
-/home/yangbin/miniconda3/envs/gcnet-official/bin/python -m pytest \
-  tests/test_missing_m3.py -q
+/home/yangbin/miniconda3/envs/multimodalerc310/bin/python -c \
+  'import sys; sys.path.append("/home/yangbin/miniconda3/envs/msa_extract/lib/python3.10/site-packages"); import pytest; raise SystemExit(pytest.main(["-q", "tests/test_missing_m3.py"]))'
 ```
 
 预期：全部通过。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 提交同率 lifecycle 变更，并记录旧 mixed-rate 行为已回归验证。
 
@@ -98,13 +98,13 @@ checkpoint score 等于该 rate W-F1、metrics/test/NPZ 也只含 `0.5`；旧 al
 - 创建：`tests/test_mosi_fixed_rate_runner.py`
 - 创建：`experiments/missing_m3_mosi_fixed_rate_20260830/EXPERIMENT.md`
 
-- [ ] **步骤 1：编写 runner 失败测试**
+- [x] **步骤 1：编写 runner 失败测试**
 
 测试默认矩阵恰为 40 个唯一 `(rate, seed)`，命令包含 `--train-rate-mode fixed` 和匹配的
 `--train-missing-rate`，只使用 GPU 0/1/2，不包含 Original 命令；完成检查拒绝缺少
 100 epochs、错误 config 或多个 test rate 的目录。
 
-- [ ] **步骤 2：运行红灯**
+- [x] **步骤 2：运行红灯**
 
 运行：
 
@@ -115,12 +115,12 @@ checkpoint score 等于该 rate W-F1、metrics/test/NPZ 也只含 `0.5`；旧 al
 
 预期：runner 模块不存在而失败。
 
-- [ ] **步骤 3：实现 runner**
+- [x] **步骤 3：实现 runner**
 
 复用现有 runner 的原子 JSON、进程回收和 manifest 方式，固定当前正式 Slot 配置；提供
-`--dry-run`、`--jobs-per-gpu`、`--python`、`--output-root` 和 resume。
+`--dry-run`、`--jobs-per-gpu`、`--python-executable`、`--output-root` 和 resume。
 
-- [ ] **步骤 4：运行绿灯与 dry-run**
+- [x] **步骤 4：运行绿灯与 dry-run**
 
 运行 runner tests，并确认 dry-run 输出任务数 40、GPU 仅 0/1/2。
 
