@@ -1,10 +1,13 @@
 """Deterministic graph utilities and SDR message-passing layers."""
 
+from numbers import Real
 from typing import NamedTuple
 
 import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from torch_geometric.nn import RGCNConv
 
 
 TEMPORAL_RELATION_TABLE = {"past": 0, "now": 1, "future": 2}
@@ -48,6 +51,61 @@ def _validated_lengths(lengths, batch_size=None, max_length=None):
     if max_length is not None and torch.any(normalized > max_length).item():
         raise ValueError("lengths cannot exceed the padded sequence length")
     return [int(value) for value in normalized.tolist()]
+
+
+def _validated_dropout(dropout):
+    if isinstance(dropout, bool):
+        raise TypeError("dropout must be a real probability, not bool")
+    if not isinstance(dropout, Real):
+        raise TypeError("dropout must be a real probability")
+    if not 0.0 <= dropout <= 1.0:
+        raise ValueError("dropout must be between 0 and 1")
+    return float(dropout)
+
+
+def _run_packed_bigru(recurrent, values, lengths):
+    """Run a BiGRU over non-empty valid prefixes and restore batch padding."""
+
+    normalized_lengths = _validated_lengths(
+        lengths,
+        batch_size=values.size(1),
+        max_length=values.size(0),
+    )
+    active_batches = [
+        batch_index
+        for batch_index, length in enumerate(normalized_lengths)
+        if length > 0
+    ]
+    output_width = recurrent.hidden_size * (2 if recurrent.bidirectional else 1)
+    output = values.new_zeros((values.size(0), values.size(1), output_width))
+    if not active_batches:
+        dependency = values.sum() * 0.0
+        for parameter in recurrent.parameters():
+            dependency = dependency + parameter.sum() * 0.0
+        return output + dependency
+
+    active_index = torch.tensor(
+        active_batches,
+        dtype=torch.long,
+        device=values.device,
+    )
+    active_values = values.index_select(1, active_index)
+    active_lengths = torch.tensor(
+        [normalized_lengths[index] for index in active_batches],
+        dtype=torch.long,
+        device="cpu",
+    )
+    packed = pack_padded_sequence(
+        active_values,
+        active_lengths,
+        enforce_sorted=False,
+    )
+    packed_output, _ = recurrent(packed)
+    active_output, _ = pad_packed_sequence(
+        packed_output,
+        total_length=values.size(0),
+    )
+    return output.index_copy(1, active_index, active_output)
 
 
 def conversation_to_nodes(values, lengths):
@@ -364,9 +422,134 @@ class FrequencyAwareConv(nn.Module):
         return output
 
 
+class SDRRelationBranch(nn.Module):
+    """One temporal or speaker relation path from recurrent states to SDR hidden."""
+
+    def __init__(
+        self,
+        recurrent_dim=400,
+        graph_hidden=100,
+        num_relations=3,
+        relation="temporal",
+        n_speakers=1,
+        window_past=2,
+        window_future=2,
+        dropout=0.5,
+    ):
+        super().__init__()
+        dimensions = {
+            "recurrent_dim": recurrent_dim,
+            "graph_hidden": graph_hidden,
+            "num_relations": num_relations,
+        }
+        for name, value in dimensions.items():
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError("{} must be a positive integer".format(name))
+        if relation not in ("temporal", "speaker"):
+            raise ValueError("relation must be 'temporal' or 'speaker'")
+        if isinstance(n_speakers, bool) or n_speakers not in SPEAKER_RELATION_TABLE:
+            raise ValueError("n_speakers must be 1 or 2")
+        expected_relations = 3 if relation == "temporal" else n_speakers ** 2
+        if num_relations != expected_relations:
+            raise ValueError(
+                "num_relations must be {} for the {} branch".format(
+                    expected_relations,
+                    relation,
+                )
+            )
+        _validate_window("window_past", window_past)
+        _validate_window("window_future", window_future)
+        dropout = _validated_dropout(dropout)
+
+        self.recurrent_dim = recurrent_dim
+        self.graph_hidden = graph_hidden
+        self.output_dim = recurrent_dim + graph_hidden
+        self.num_relations = num_relations
+        self.relation = relation
+        self.n_speakers = n_speakers
+        self.window_past = window_past
+        self.window_future = window_future
+
+        self.rgcn = RGCNConv(recurrent_dim, graph_hidden, num_relations)
+        self.hypergraph = SDRHypergraphConv(graph_hidden)
+        self.high_conv = FrequencyAwareConv(graph_hidden)
+        self.post_graph_bigru = nn.GRU(
+            input_size=self.output_dim,
+            hidden_size=self.output_dim,
+            num_layers=2,
+            bidirectional=True,
+            dropout=dropout,
+        )
+        self.output_linear = nn.Linear(2 * self.output_dim, self.output_dim)
+
+    def forward(self, recurrent, qmask, umask, lengths):
+        if (
+            not isinstance(recurrent, Tensor)
+            or recurrent.dim() != 3
+            or recurrent.size(-1) != self.recurrent_dim
+        ):
+            raise ValueError(
+                "recurrent must have shape [L, B, {}]".format(
+                    self.recurrent_dim
+                )
+            )
+        sequence_length, batch_size, _ = recurrent.shape
+        expected_mask_shape = (batch_size, sequence_length)
+        if not isinstance(qmask, Tensor) or tuple(qmask.shape) != expected_mask_shape:
+            raise ValueError("qmask must have shape [B, L]")
+        if not isinstance(umask, Tensor) or tuple(umask.shape) != expected_mask_shape:
+            raise ValueError("umask must have shape [B, L]")
+        if qmask.device != recurrent.device or umask.device != recurrent.device:
+            raise ValueError("recurrent, qmask, and umask must share a device")
+        normalized_lengths = _validated_lengths(
+            lengths,
+            batch_size=batch_size,
+            max_length=sequence_length,
+        )
+
+        graph = graphify(
+            recurrent,
+            qmask,
+            normalized_lengths,
+            n_speakers=self.n_speakers,
+            window_past=self.window_past,
+            window_future=self.window_future,
+            relation=self.relation,
+        )
+        if graph.node_features.size(0):
+            graph_nodes = self.rgcn(
+                graph.node_features,
+                graph.edge_index,
+                graph.edge_type,
+            )
+        else:
+            dependency = graph.node_features.sum() * 0.0
+            for parameter in self.rgcn.parameters():
+                dependency = dependency + parameter.sum() * 0.0
+            graph_nodes = graph.node_features.new_zeros((0, self.graph_hidden))
+            graph_nodes = graph_nodes + dependency
+        graph_nodes = self.hypergraph(graph_nodes, graph.edge_index)
+        graph_nodes = self.high_conv(graph_nodes, graph.edge_index)
+        nodes = torch.cat((graph.node_features, graph_nodes), dim=-1)
+        conversation = nodes_to_conversation(
+            nodes,
+            normalized_lengths,
+            max_length=sequence_length,
+        )
+        fused = _run_packed_bigru(
+            self.post_graph_bigru,
+            conversation,
+            normalized_lengths,
+        )
+        hidden = F.relu(self.output_linear(fused))
+        valid = umask.transpose(0, 1).bool().unsqueeze(-1)
+        return hidden.masked_fill(~valid, 0.0)
+
+
 __all__ = [
     "FrequencyAwareConv",
     "GraphData",
+    "SDRRelationBranch",
     "SDRHypergraphConv",
     "SPEAKER_RELATION_TABLE",
     "TEMPORAL_RELATION_TABLE",
