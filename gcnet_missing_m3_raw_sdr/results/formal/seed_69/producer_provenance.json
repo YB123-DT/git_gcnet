@@ -1,0 +1,84 @@
+{
+  "canonical_config_sha256": "b385867949dab3968f76a0ce03658b27b8a722f7398c69932e8c8a3d7bb3be94",
+  "command": [
+    "/data2/yb/reproduction_envs/gcnet-official/bin/python",
+    "-m",
+    "gcnet_missing_m3_raw_sdr.train_gcnet",
+    "--audio-feature",
+    "wav2vec-large-c-UTT",
+    "--text-feature",
+    "deberta-large-4-UTT",
+    "--video-feature",
+    "manet_UTT",
+    "--feature-root",
+    "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features",
+    "--output-dir",
+    "/data2/yb/remote_experiments/missing_m3_raw_sdr_20260830/formal/seed_69",
+    "--seed",
+    "69",
+    "--epochs",
+    "100",
+    "--train-rate-mode",
+    "all",
+    "--lr",
+    "0.0005",
+    "--device",
+    "cuda"
+  ],
+  "features": {
+    "audio": "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features/wav2vec-large-c-UTT",
+    "root": "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features",
+    "text": "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features/deberta-large-4-UTT",
+    "video": "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features/manet_UTT"
+  },
+  "schema_version": 1,
+  "seed": 69,
+  "source_commit": "21cebc996ee790cbc3d26cf7c5f5f72d2b5b996e",
+  "source_files_sha256": {
+    "gcnet_missing_m3/loss.py": "ed404a33be1098a8154da9e6ddc3fae60cab36cf96427acc1416aedefddb279c",
+    "gcnet_missing_m3/mixed_rate.py": "7ed390cb1d752c26dc8f9d0277801cbf88a3c11398e213a93f5ff328ffda9ccf",
+    "gcnet_missing_m3/model.py": "c85f2d6264631a797b3a6b316dd13b5c77ffe92fe2d863b1ac05759439d5554d",
+    "gcnet_missing_m3/train_gcnet.py": "037bed66d0329b486a90f09fa068d4f90a3ed844e776deff08de30712731c634",
+    "gcnet_missing_m3_raw_sdr/__init__.py": "a84ac7b869df17859370f01961ffb425d2e4629ebf6155408453931ed6ccd654",
+    "gcnet_missing_m3_raw_sdr/model.py": "eca99eec76efd61e145d34b702d647de9ca8529e1c9f4d8865ee3da1f5b3da40",
+    "gcnet_missing_m3_raw_sdr/run_mosi.py": "837cb3c5e39ca1b6e3ac535e17a6287843f69676e9456e6535d392c148359bfe",
+    "gcnet_missing_m3_raw_sdr/train_gcnet.py": "59a33659b8e3b8e818ad4fffd2f702edd092c791d1273f24ce107cc06b357cf7",
+    "gcnet_missing_m3_sdr_backbone/layers.py": "27e2905bcef1948845a9f734438d5ea4111ccbc02ef0c94bb023f70946e4ec40",
+    "gcnet_missing_m3_sdr_backbone/model.py": "c4d4912131ad4322b1d25464a79f22418c321c9a6655a0b930b867a39c05fe4a",
+    "gcnet_missing_m3_sdr_backbone/train_gcnet.py": "266b02b0ee46feb732ce5020499a7d4861431455c7df23e8b160871ffb38c0a1",
+    "gcnet_modality_jepa/mask_schedule.py": "947fbd523cdd09871f4619d89d1b9ba0d56ce067fb908dc08ac4be14c21cc636",
+    "gcnet_modality_jepa/protocol.py": "29916fd89442e7a845fde6c4270a6d9aa40cf3a6ac0654cf33bda5c6cf34644d"
+  },
+  "training_module": "gcnet_missing_m3_raw_sdr.train_gcnet",
+  "training_python_executable": "/data2/yb/reproduction_envs/gcnet-official/bin/python",
+  "training_runtime": {
+    "cuda_version": "10.2",
+    "cudnn_version": 7605,
+    "gpu_names": {
+      "2": "Tesla V100-SXM2-32GB",
+      "3": "Tesla V100-SXM2-32GB",
+      "5": "Tesla V100-SXM2-32GB",
+      "6": "Tesla V100-SXM2-32GB",
+      "7": "Tesla V100-SXM2-32GB"
+    },
+    "python_version": "3.8.20 | packaged by conda-forge | (default, Sep 30 2024, 17:52:49) ",
+    "torch_version": "1.8.0"
+  },
+  "treatment": "missing-m3-raw-residual-sdr-public",
+  "validation_schedule_identity": {
+    "kind": "schedule-config-hash-not-realized-mask",
+    "mask_seed": 1245961325,
+    "rates": {
+      "0.0": "af28aabe1733261c68e3e5cae4fc3e1520d803268fd86e7606def1403f7d5e60",
+      "0.1": "93410a275c5e96072a32f56ee9ca32fddb6f633542203d793de76372f4ea3b18",
+      "0.2": "d84a1003c30dbb427cf23c3cab64c052fdf82231952a96fe4497f494900e8d0b",
+      "0.3": "3718f94a5f277666ad6a89a5f56e49bba00683c74329385d682cf53d4042c35f",
+      "0.4": "b2a8fb36dbd732bb94ad0229917a8e73aada042ed79965cbec0ae95a5e22073e",
+      "0.5": "96879695751ba0820758ebfb651a8aebfd2008a2e3e0db7813d81659d02394f0",
+      "0.6": "05f4fe843af09c8db25a15a0e8ef3ff48bccb9cbea9c6373bc9be14ecc6ca770",
+      "0.7": "0632e1ba536853c721661c470506ee7b1b6038afeec020b64b25591e9b911257"
+    },
+    "split": "validation"
+  },
+  "variant": "raw-residual-sdr-public"
+}

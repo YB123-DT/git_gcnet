@@ -1,0 +1,40 @@
+{
+  "checkpoint_evidence": {
+    "name": "best.pt",
+    "sha256": "6764d36d79fb6c1a8237511b679167ca2269a0b2db0d7689c6b4ff8a5610f319"
+  },
+  "command": [
+    "/data2/yb/reproduction_envs/gcnet-official/bin/python",
+    "-m",
+    "gcnet_missing_m3_raw_sdr.train_gcnet",
+    "--audio-feature",
+    "wav2vec-large-c-UTT",
+    "--text-feature",
+    "deberta-large-4-UTT",
+    "--video-feature",
+    "manet_UTT",
+    "--feature-root",
+    "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features",
+    "--output-dir",
+    "/data2/yb/remote_experiments/missing_m3_raw_sdr_20260830/formal/seed_69",
+    "--seed",
+    "69",
+    "--epochs",
+    "100",
+    "--train-rate-mode",
+    "all",
+    "--lr",
+    "0.0005",
+    "--device",
+    "cuda"
+  ],
+  "completion_reason": "complete-test-8-rates",
+  "finished_at_unix": 1788107150.3981712,
+  "gpu": 6,
+  "pid": 2744306,
+  "returncode": 0,
+  "seed": 69,
+  "started_at_unix": 1788106844.209909,
+  "state": "complete",
+  "variant": "raw-residual-sdr-public"
+}

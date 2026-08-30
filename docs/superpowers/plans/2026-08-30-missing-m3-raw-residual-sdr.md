@@ -50,7 +50,7 @@ missing rates。
 - 修改：`gcnet_missing_m3_sdr_backbone/tests/test_integration.py`
 - 修改：`gcnet_missing_m3_sdr_backbone/model.py`
 
-- [ ] **步骤 1：编写默认 Slot 回归测试**
+- [x] **步骤 1：编写默认 Slot 回归测试**
 
 在生产代码改动前，构造同 seed 的旧调用与显式 `sdr_input_type="slot"` 调用：
 
@@ -66,7 +66,7 @@ for key, value in implicit_state.items():
 assert explicit.conversation_backbone.input_dim == 256
 ```
 
-- [ ] **步骤 2：编写 Raw-Residual 红灯测试**
+- [x] **步骤 2：编写 Raw-Residual 红灯测试**
 
 期望调用：
 
@@ -90,7 +90,7 @@ assert model.conversation_backbone.input_dim == 512 + 1024 + 1024
 
 预期：Raw-Residual 测试因未知 `sdr_input_type` 或 Slot lock 失败；默认 Slot 回归通过。
 
-- [ ] **步骤 3：实现最小 switch**
+- [x] **步骤 3：实现最小 switch**
 
 `MissingM3SDRModel.__init__` 新增 keyword-only：
 
@@ -103,7 +103,7 @@ sdr_input_type="slot"
 Raw-Residual 父类不会注册前图 LSTM/GRU。默认 Slot 路径不增加参数且不改变初始化
 顺序。
 
-- [ ] **步骤 4：验证绿灯与完整 SDR 回归**
+- [x] **步骤 4：验证绿灯与完整 SDR 回归**
 
 运行：
 
@@ -114,7 +114,7 @@ Raw-Residual 父类不会注册前图 LSTM/GRU。默认 Slot 路径不增加参�
 
 预期：全部通过；现有 verified parameter counts 不变。
 
-- [ ] **步骤 5：提交共享 seam**
+- [x] **步骤 5：提交共享 seam**
 
 Lore commit 必须记录默认 Slot state/RNG 等价与 Raw 输入宽度测试。
 
@@ -131,7 +131,7 @@ Lore commit 必须记录默认 Slot state/RNG 等价与 Raw 输入宽度测试�
 - 修改：`gcnet_missing_m3_sdr_backbone/train_gcnet.py`
 - 修改：`gcnet_missing_m3_sdr_backbone/tests/test_train_gcnet.py`
 
-- [ ] **步骤 1：写模型红灯测试**
+- [x] **步骤 1：写模型红灯测试**
 
 测试正式类只能构造成：
 
@@ -145,7 +145,7 @@ assert model.conversation_backbone.input_dim == 2560
 传入 `fusion_type="slot"`、`sdr_variant="sdr-paper"` 或任何第二分支配置必须抛出
 `ValueError`。
 
-- [ ] **步骤 2：写七 pattern、泄漏和零初始化测试**
+- [x] **步骤 2：写七 pattern、泄漏和零初始化测试**
 
 对 A/T/V/AT/AV/TV/ATV 逐一断言：
 
@@ -159,13 +159,13 @@ assert torch.count_nonzero(encoded[missing_or_padding]) == 0
 复制 batch 后只改变 missing blocks，`encoded`、observed latents 和
 `predict_missing=False` logits 必须不变。
 
-- [ ] **步骤 3：写 backward 红灯测试**
+- [x] **步骤 3：写 backward 红灯测试**
 
 执行 natural classification + JEPA forward/backward，检查 finite nonzero gradient
 到达：Student projector、residual adapter、SDR pre-GRU、temporal graph branch、
 regression head 与 Missing-M3 predictor。Teacher 参数保持无梯度。
 
-- [ ] **步骤 4：实现薄模型**
+- [x] **步骤 4：实现薄模型**
 
 `MissingM3RawSDRModel` 复用共享类，只注入：
 
@@ -178,7 +178,7 @@ sdr_variant="sdr-public"
 
 不得复制 `SDRConversationBackbone` 或 `RawResidualObservedEncoder`。
 
-- [ ] **步骤 5：先写 trainer hook 红灯测试**
+- [x] **步骤 5：先写 trainer hook 红灯测试**
 
 共享 `run_experiment` 接受 keyword-only `model_builder` 与 `result_identity`；不传时
 旧 trainer 的 config、metrics identity 和参数量保持原值。新 trainer 调用 hook 后：
@@ -190,13 +190,13 @@ metrics["sdr_input_type"] == "raw-residual"
 metrics["backbone"] == "raw-residual-sdr-public"
 ```
 
-- [ ] **步骤 6：实现最小 trainer 复用点与锁定配置**
+- [x] **步骤 6：实现最小 trainer 复用点与锁定配置**
 
 `RawSDRTrainConfig` 仅开放 `seed/device/epochs/evaluate_test`；其余值全部锁定，特别是
 `fusion_type="raw-residual"`、`sdr_variant="sdr-public"`、lr `5e-4`、100 epoch
 和 `train_rate_mode="all"`。新 CLI 不暴露结构搜索参数。
 
-- [ ] **步骤 7：验证绿灯并提交**
+- [x] **步骤 7：验证绿灯并提交**
 
 运行新模型/trainer 测试和旧 SDR 完整测试，确认旧路径无回归后提交。
 
@@ -207,7 +207,7 @@ metrics["backbone"] == "raw-residual-sdr-public"
 - 创建：`gcnet_missing_m3_raw_sdr/run_mosi.py`
 - 创建：`gcnet_missing_m3_raw_sdr/tests/test_runner.py`
 
-- [ ] **步骤 1：写 5-job 与 GPU 红灯测试**
+- [x] **步骤 1：写 5-job 与 GPU 红灯测试**
 
 ```python
 jobs = build_jobs(output_root=tmp_path)
@@ -221,25 +221,25 @@ assert all(job.variant == "raw-residual-sdr-public" for job in jobs)
 `--train-rate-mode all`、`--lr 0.0005`，且不能出现 Original、Slot 或
 `sdr-paper` 训练项。
 
-- [ ] **步骤 2：写结果完整性红灯测试**
+- [x] **步骤 2：写结果完整性红灯测试**
 
 一个 job 只有在以下条件同时满足时才可 resume 为 complete：100 epoch history、
 8-rate validation/test、40 prediction fields 所需 NPZ、正确 config、参数量、
 schedule mask SHA、prediction availability SHA 和 producer provenance 均有效。
 半写文件、非零退出但完整结果、旧目录重标记均按现有 SDR runner 语义处理。
 
-- [ ] **步骤 3：写继承对照与 validation-only gate 测试**
+- [x] **步骤 3：写继承对照与 validation-only gate 测试**
 
 汇总读取现有 GCNet Control 和 Slot-SDR-public compact metrics，不产生它们的训练
 command。Primary gate 只比较 validation；交换 test 分数不得改变 gate/status。
 
-- [ ] **步骤 4：实现 runner**
+- [x] **步骤 4：实现 runner**
 
 优先复用 `gcnet_missing_m3_sdr_backbone.run_mosi` 的审计函数；新文件只维护 treatment
 identity、五个 job、命令和两组 inherited reference。每张健康卡只启动一个 job，
 异常进程超时终止，不创建 1-epoch 保存兼容任务。
 
-- [ ] **步骤 5：运行 runner 测试并提交**
+- [x] **步骤 5：运行 runner 测试并提交**
 
 运行新 runner 测试、旧 runner 测试与 `py_compile`；记录 exact pass count。
 
@@ -250,7 +250,7 @@ identity、五个 job、命令和两组 inherited reference。每张健康卡只
 - 创建：`gcnet_missing_m3_raw_sdr/README.md`
 - 创建：`gcnet_missing_m3_raw_sdr/STATUS.md`
 
-- [ ] **步骤 1：同步到 biggpu**
+- [x] **步骤 1：同步到 biggpu**
 
 只同步当前 worktree 的 tracked source；使用已记录的：
 
@@ -262,23 +262,23 @@ GPUs: 2,3,5,6,7
 
 不重复扫描 Python 环境，不使用坏卡 GPU 4。
 
-- [ ] **步骤 2：运行唯一 smoke**
+- [x] **步骤 2：运行唯一 smoke**
 
 只运行 seed 66、1 epoch、`evaluate_test=False`，验证真实 MOSI batch 的 forward、
 backward、EMA、八 rate validation、显存和结果写入。若通过，不再运行第二个 smoke。
 
-- [ ] **步骤 3：记录正式参数量并锁定测试**
+- [x] **步骤 3：记录正式参数量并锁定测试**
 
 从 smoke 的模型实例读取 registered/trainable total 与 backbone 参数量，将 exact
 整数写入新 runner 的 completion check，再重跑 runner 单测。
 
-- [ ] **步骤 4：启动五个正式 job**
+- [x] **步骤 4：启动五个正式 job**
 
 GPU 2/3/5/6/7 各一个 seed，100 epoch。保留每 epoch validation 轨迹；完成后删除
 大 checkpoint，只保存 checkpoint SHA256、metrics/history、prediction NPZ、日志与
 producer provenance。
 
-- [ ] **步骤 5：监控而不改变模型**
+- [x] **步骤 5：监控而不改变模型**
 
 每次状态检查只读取进程、epoch、错误和显存；不在队列运行期间新增模块、修改 loss、
 更换 mask 或启动额外 seed。异常 job 只按同 config/provenance resume。
@@ -292,22 +292,22 @@ producer provenance。
 - 创建：`gcnet_missing_m3_raw_sdr/results/formal/manifest.json`
 - 创建：`gcnet_missing_m3_raw_sdr/results/formal/RESULTS.md`
 
-- [ ] **步骤 1：独立重算 40 个 W-F1**
+- [x] **步骤 1：独立重算 40 个 W-F1**
 
 从 prediction NPZ 使用 MOSI nonzero-label weighted-F1 规则重算，与 metrics.json 比较；
 最大绝对误差必须小于 `1e-10`。检查 40/40 schedule hashes 与配对 Control 一致。
 
-- [ ] **步骤 2：只用 validation 做结论**
+- [x] **步骤 2：只用 validation 做结论**
 
 报告五种子逐 seed、逐 rate、八 rate mean 与 high-missing mean；分别对比
 Slot-SDR-public 和 GCNet Control。test 只在 validation 结论之后描述。
 
-- [ ] **步骤 3：更新状态文档**
+- [x] **步骤 3：更新状态文档**
 
 明确写 PASS/FAIL、支持或否定的假设、参数/时间/显存、padding-safe adaptation 边界
 和剩余风险。失败结果也必须完整保留，防止未来重复探索。
 
-- [ ] **步骤 4：完成前验证**
+- [x] **步骤 4：完成前验证**
 
 运行：
 
