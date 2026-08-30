@@ -8,7 +8,7 @@ from .layers import (
     SDRRelationBranch,
     _run_packed_bigru,
     _validated_dropout,
-    _validated_lengths,
+    _validated_umask,
 )
 
 
@@ -39,7 +39,11 @@ class SDRConversationBackbone(nn.Module):
                 raise ValueError("{} must be a positive integer".format(name))
         if variant not in self.VARIANTS:
             raise ValueError("variant must be 'sdr-public' or 'sdr-paper'")
-        if isinstance(n_speakers, bool) or n_speakers not in (1, 2):
+        if (
+            isinstance(n_speakers, bool)
+            or not isinstance(n_speakers, int)
+            or n_speakers not in (1, 2)
+        ):
             raise ValueError("n_speakers must be 1 or 2")
         dropout = _validated_dropout(dropout)
 
@@ -100,34 +104,17 @@ class SDRConversationBackbone(nn.Module):
         expected_mask_shape = (batch_size, sequence_length)
         if not isinstance(qmask, Tensor) or tuple(qmask.shape) != expected_mask_shape:
             raise ValueError("qmask must have shape [B, L]")
-        if not isinstance(umask, Tensor) or tuple(umask.shape) != expected_mask_shape:
+        if not isinstance(umask, Tensor):
             raise ValueError("umask must have shape [B, L]")
         if qmask.device != values.device or umask.device != values.device:
             raise ValueError("values, qmask, and umask must share a device")
 
-        normalized_lengths = _validated_lengths(
+        normalized_lengths, valid = _validated_umask(
+            umask,
             lengths,
-            batch_size=batch_size,
-            max_length=sequence_length,
+            batch_size,
+            sequence_length,
         )
-        try:
-            binary_umask = (umask == 0) | (umask == 1)
-        except RuntimeError as error:
-            raise ValueError("umask must contain only binary values") from error
-        if not torch.all(binary_umask).item():
-            raise ValueError("umask must contain only binary values")
-
-        length_tensor = torch.tensor(
-            normalized_lengths,
-            dtype=torch.long,
-            device=umask.device,
-        )
-        positions = torch.arange(sequence_length, device=umask.device).unsqueeze(0)
-        valid = positions < length_tensor.unsqueeze(1)
-        if not torch.equal(umask.bool(), valid):
-            raise ValueError(
-                "umask must be a contiguous valid prefix matching lengths"
-            )
 
         valid_speakers = qmask[valid]
         integer_dtypes = {

@@ -1,6 +1,7 @@
 import importlib.util
 import sys
 import types
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -228,10 +229,23 @@ def test_non_numeric_dropout_is_rejected():
         _small_backbone(dropout="0.5")
 
 
-@pytest.mark.parametrize("n_speakers", [False, True])
-def test_boolean_speaker_counts_are_rejected(n_speakers):
+@pytest.mark.parametrize("n_speakers", [False, True, 1.0, 2.0])
+def test_backbone_requires_an_integer_speaker_count(n_speakers):
     with pytest.raises(ValueError, match="n_speakers"):
         _small_backbone(n_speakers=n_speakers)
+
+
+@pytest.mark.parametrize("n_speakers", [False, True, 1.0, 2.0])
+def test_relation_branch_requires_an_integer_speaker_count(n_speakers):
+    with pytest.raises(ValueError, match="n_speakers"):
+        SDRRelationBranch(
+            recurrent_dim=6,
+            graph_hidden=5,
+            num_relations=3,
+            relation="temporal",
+            n_speakers=n_speakers,
+            dropout=0.0,
+        )
 
 
 @pytest.mark.parametrize("variant", ["public", "paper", "SDR-public", ""])
@@ -284,6 +298,38 @@ def test_lengths_must_be_finite_integers_within_padded_length(bad_lengths):
 
     with pytest.raises(ValueError, match="length"):
         model(values, qmask, umask, bad_lengths)
+
+
+def test_complex_lengths_are_rejected_before_integer_conversion():
+    model = _small_backbone()
+    values, qmask, umask, _ = _make_batch()
+    complex_lengths = torch.tensor([4 + 0j, 2 + 0j, 0 + 0j])
+
+    with pytest.raises(ValueError, match="complex"):
+        model(values, qmask, umask, complex_lengths)
+
+
+@pytest.mark.parametrize("failure", ["non_binary", "not_prefix", "mismatch"])
+def test_direct_relation_branch_validates_umask_against_lengths(failure):
+    branch = SDRRelationBranch(
+        recurrent_dim=6,
+        graph_hidden=5,
+        num_relations=3,
+        relation="temporal",
+        n_speakers=2,
+        dropout=0.0,
+    )
+    recurrent = torch.randn(4, 2, 6)
+    _, qmask, umask, lengths = _make_batch(lengths=(4, 2))
+    if failure == "non_binary":
+        umask[1, 2] = 0.5
+    elif failure == "not_prefix":
+        umask[1] = torch.tensor([1.0, 0.0, 1.0, 0.0])
+    elif failure == "mismatch":
+        umask[1, 2] = 1.0
+
+    with pytest.raises(ValueError, match="umask"):
+        branch(recurrent, qmask, umask, lengths)
 
 
 @pytest.mark.parametrize("invalid_id", [-1.0, 2.0, 0.5, float("nan")])
@@ -342,6 +388,7 @@ def test_backbone_does_not_register_excluded_sdr_components():
         assert not any("reconstruct" in name or "classifier" in name for name in names)
 
 
+@contextmanager
 def _load_upstream_sdr_modules():
     if not UPSTREAM_SDR.is_dir():
         pytest.skip("the locked upstream SDR repository is unavailable")
@@ -361,56 +408,110 @@ def _load_upstream_sdr_modules():
 
     graph_module = importlib.util.module_from_spec(graph_spec)
     model_module = importlib.util.module_from_spec(model_spec)
-    sys.modules[graph_spec.name] = graph_module
-    sys.modules[model_spec.name] = model_module
-    previous_graph = sys.modules.get("graph")
-    previous_torch_scatter = sys.modules.get("torch_scatter")
-    if previous_torch_scatter is None:
-        torch_scatter = types.ModuleType("torch_scatter")
-
-        def scatter_add(source, index, dim=0, dim_size=None):
-            if dim != 0:
-                raise ValueError("the parity shim only supports dim=0")
-            if dim_size is None:
-                dim_size = int(index.max().item()) + 1 if index.numel() else 0
-            shape = list(source.shape)
-            shape[dim] = dim_size
-            output = source.new_zeros(shape)
-            return output.index_add(dim, index.long(), source)
-
-        torch_scatter.scatter_add = scatter_add
-        sys.modules["torch_scatter"] = torch_scatter
+    temporary_names = (
+        graph_spec.name,
+        model_spec.name,
+        "graph",
+        "torch_scatter",
+    )
+    missing = object()
+    previous_modules = {
+        name: sys.modules.get(name, missing) for name in temporary_names
+    }
     try:
+        sys.modules[graph_spec.name] = graph_module
+        sys.modules[model_spec.name] = model_module
+        if previous_modules["torch_scatter"] is missing:
+            torch_scatter = types.ModuleType("torch_scatter")
+
+            def scatter_add(source, index, dim=0, dim_size=None):
+                if dim != 0:
+                    raise ValueError("the parity shim only supports dim=0")
+                if dim_size is None:
+                    dim_size = int(index.max().item()) + 1 if index.numel() else 0
+                shape = list(source.shape)
+                shape[dim] = dim_size
+                output = source.new_zeros(shape)
+                return output.index_add(dim, index.long(), source)
+
+            torch_scatter.scatter_add = scatter_add
+            sys.modules["torch_scatter"] = torch_scatter
         graph_spec.loader.exec_module(graph_module)
         sys.modules["graph"] = graph_module
         model_spec.loader.exec_module(model_module)
+        yield graph_module, model_module
     finally:
-        if previous_graph is None:
-            sys.modules.pop("graph", None)
-        else:
-            sys.modules["graph"] = previous_graph
-        if previous_torch_scatter is None:
-            sys.modules.pop("torch_scatter", None)
-        else:
-            sys.modules["torch_scatter"] = previous_torch_scatter
-    return graph_module, model_module
+        for name in reversed(temporary_names):
+            previous = previous_modules[name]
+            if previous is missing:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = previous
+
+
+def test_upstream_loader_does_not_leak_private_module_names(monkeypatch):
+    private_names = ("_locked_sdr_graph", "_locked_sdr_model")
+    for name in private_names:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+
+    with _load_upstream_sdr_modules() as (graph_module, model_module):
+        assert sys.modules[private_names[0]] is graph_module
+        assert sys.modules[private_names[1]] is model_module
+
+    assert all(name not in sys.modules for name in private_names)
+
+
+def test_upstream_loader_restores_existing_private_modules(monkeypatch):
+    previous_graph = types.ModuleType("_previous_locked_sdr_graph")
+    previous_model = types.ModuleType("_previous_locked_sdr_model")
+    monkeypatch.setitem(sys.modules, "_locked_sdr_graph", previous_graph)
+    monkeypatch.setitem(sys.modules, "_locked_sdr_model", previous_model)
+
+    with _load_upstream_sdr_modules() as (graph_module, model_module):
+        assert graph_module is not previous_graph
+        assert model_module is not previous_model
+
+    assert sys.modules["_locked_sdr_graph"] is previous_graph
+    assert sys.modules["_locked_sdr_model"] is previous_model
+
+
+def test_upstream_loader_cleans_private_modules_when_import_fails(monkeypatch):
+    private_names = ("_locked_sdr_graph", "_locked_sdr_model")
+    for name in private_names:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    real_spec_from_file_location = importlib.util.spec_from_file_location
+
+    class FailingLoader:
+        def create_module(self, _spec):
+            return None
+
+        def exec_module(self, _module):
+            raise ImportError("deliberate parity import failure")
+
+    def failing_model_spec(name, location):
+        if name == "_locked_sdr_model":
+            return importlib.util.spec_from_loader(name, FailingLoader())
+        return real_spec_from_file_location(name, location)
+
+    monkeypatch.setattr(
+        importlib.util,
+        "spec_from_file_location",
+        failing_model_spec,
+    )
+
+    with pytest.raises(ImportError, match="deliberate parity import failure"):
+        with _load_upstream_sdr_modules():
+            pass
+
+    assert all(name not in sys.modules for name in private_names)
 
 
 def test_temporal_branch_matches_public_code_after_semantic_weight_mapping():
-    upstream_graph, upstream_model = _load_upstream_sdr_modules()
     torch.manual_seed(17)
     recurrent = torch.randn(4, 2, 8)
     qmask = torch.zeros(2, 4, dtype=torch.long)
     umask = torch.ones(2, 4)
     lengths = [4, 4]
-    upstream_branch = upstream_model.GraphNetwork(
-        num_features=8,
-        num_relations=3,
-        time_attn=False,
-        hidden_size=3,
-        dropout=0.0,
-        no_cuda=True,
-    ).eval()
     branch = SDRRelationBranch(
         recurrent_dim=8,
         graph_hidden=3,
@@ -422,43 +523,54 @@ def test_temporal_branch_matches_public_code_after_semantic_weight_mapping():
         dropout=0.0,
     ).eval()
 
-    upstream_nodes, edge_index, edge_type, upstream_mapping = (
-        upstream_graph.batch_graphify(
-            recurrent.unsqueeze(2),
-            qmask,
-            lengths,
-            1,
-            2,
-            2,
-            "temporal",
-            True,
-        )
-    )
-    with torch.no_grad():
-        for relation_name, explicit_id in TEMPORAL_RELATION_TABLE.items():
-            upstream_id = upstream_mapping[relation_name]
-            branch.rgcn.weight[explicit_id].copy_(
-                upstream_branch.conv1.weight[upstream_id]
+    with _load_upstream_sdr_modules() as (upstream_graph, upstream_model):
+        upstream_branch = upstream_model.GraphNetwork(
+            num_features=8,
+            num_relations=3,
+            time_attn=False,
+            hidden_size=3,
+            dropout=0.0,
+            no_cuda=True,
+        ).eval()
+        upstream_nodes, edge_index, edge_type, upstream_mapping = (
+            upstream_graph.batch_graphify(
+                recurrent.unsqueeze(2),
+                qmask,
+                lengths,
+                1,
+                2,
+                2,
+                "temporal",
+                True,
             )
-        branch.rgcn.root.copy_(upstream_branch.conv1.root)
-        branch.rgcn.bias.copy_(upstream_branch.conv1.bias)
-        branch.hypergraph.bias.copy_(upstream_branch.hypergraph.bias)
-        branch.high_conv.gate.load_state_dict(
-            upstream_branch.high_conv.gate.state_dict()
         )
-        branch.post_graph_bigru.load_state_dict(
-            upstream_branch.grufusion.state_dict()
-        )
-        branch.output_linear.load_state_dict(upstream_branch.linear.state_dict())
+        with torch.no_grad():
+            for relation_name, explicit_id in TEMPORAL_RELATION_TABLE.items():
+                upstream_id = upstream_mapping[relation_name]
+                branch.rgcn.weight[explicit_id].copy_(
+                    upstream_branch.conv1.weight[upstream_id]
+                )
+            branch.rgcn.root.copy_(upstream_branch.conv1.root)
+            branch.rgcn.bias.copy_(upstream_branch.conv1.bias)
+            branch.hypergraph.bias.copy_(upstream_branch.hypergraph.bias)
+            branch.high_conv.gate.load_state_dict(
+                upstream_branch.high_conv.gate.state_dict()
+            )
+            branch.post_graph_bigru.load_state_dict(
+                upstream_branch.grufusion.state_dict()
+            )
+            branch.output_linear.load_state_dict(
+                upstream_branch.linear.state_dict()
+            )
 
-        expected = upstream_branch(
-            upstream_nodes,
-            edge_index,
-            edge_type,
-            lengths,
-            umask,
-        )[0]
-        actual = branch(recurrent, qmask, umask, lengths)
+            expected = upstream_branch(
+                upstream_nodes,
+                edge_index,
+                edge_type,
+                lengths,
+                umask,
+            )[0]
+            actual = branch(recurrent, qmask, umask, lengths)
 
     assert actual.shape == expected.shape == (4, 2, 11)
     assert (actual - expected).abs().max().item() < 1e-6

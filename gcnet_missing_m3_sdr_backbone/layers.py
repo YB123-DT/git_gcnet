@@ -40,6 +40,8 @@ def _validated_lengths(lengths, batch_size=None, max_length=None):
         raise ValueError("lengths must contain one value per conversation")
     if values.dtype == torch.bool:
         raise ValueError("lengths must contain integers")
+    if values.is_complex():
+        raise ValueError("lengths cannot contain complex values")
     if values.is_floating_point():
         if not torch.isfinite(values).all().item() or not torch.equal(
             values, values.round()
@@ -51,6 +53,36 @@ def _validated_lengths(lengths, batch_size=None, max_length=None):
     if max_length is not None and torch.any(normalized > max_length).item():
         raise ValueError("lengths cannot exceed the padded sequence length")
     return [int(value) for value in normalized.tolist()]
+
+
+def _validated_umask(umask, lengths, batch_size, sequence_length):
+    if (
+        not isinstance(umask, Tensor)
+        or tuple(umask.shape) != (batch_size, sequence_length)
+    ):
+        raise ValueError("umask must have shape [B, L]")
+    normalized_lengths = _validated_lengths(
+        lengths,
+        batch_size=batch_size,
+        max_length=sequence_length,
+    )
+    try:
+        binary = (umask == 0) | (umask == 1)
+    except RuntimeError as error:
+        raise ValueError("umask must contain only binary values") from error
+    if not torch.all(binary).item():
+        raise ValueError("umask must contain only binary values")
+
+    length_tensor = torch.tensor(
+        normalized_lengths,
+        dtype=torch.long,
+        device=umask.device,
+    )
+    positions = torch.arange(sequence_length, device=umask.device).unsqueeze(0)
+    valid = positions < length_tensor.unsqueeze(1)
+    if not torch.equal(umask.bool(), valid):
+        raise ValueError("umask must be a contiguous valid prefix matching lengths")
+    return normalized_lengths, valid
 
 
 def _validated_dropout(dropout):
@@ -447,7 +479,11 @@ class SDRRelationBranch(nn.Module):
                 raise ValueError("{} must be a positive integer".format(name))
         if relation not in ("temporal", "speaker"):
             raise ValueError("relation must be 'temporal' or 'speaker'")
-        if isinstance(n_speakers, bool) or n_speakers not in SPEAKER_RELATION_TABLE:
+        if (
+            isinstance(n_speakers, bool)
+            or not isinstance(n_speakers, int)
+            or n_speakers not in SPEAKER_RELATION_TABLE
+        ):
             raise ValueError("n_speakers must be 1 or 2")
         expected_relations = 3 if relation == "temporal" else n_speakers ** 2
         if num_relations != expected_relations:
@@ -497,14 +533,15 @@ class SDRRelationBranch(nn.Module):
         expected_mask_shape = (batch_size, sequence_length)
         if not isinstance(qmask, Tensor) or tuple(qmask.shape) != expected_mask_shape:
             raise ValueError("qmask must have shape [B, L]")
-        if not isinstance(umask, Tensor) or tuple(umask.shape) != expected_mask_shape:
+        if not isinstance(umask, Tensor):
             raise ValueError("umask must have shape [B, L]")
         if qmask.device != recurrent.device or umask.device != recurrent.device:
             raise ValueError("recurrent, qmask, and umask must share a device")
-        normalized_lengths = _validated_lengths(
+        normalized_lengths, valid = _validated_umask(
+            umask,
             lengths,
-            batch_size=batch_size,
-            max_length=sequence_length,
+            batch_size,
+            sequence_length,
         )
 
         graph = graphify(
@@ -542,7 +579,7 @@ class SDRRelationBranch(nn.Module):
             normalized_lengths,
         )
         hidden = F.relu(self.output_linear(fused))
-        valid = umask.transpose(0, 1).bool().unsqueeze(-1)
+        valid = valid.transpose(0, 1).unsqueeze(-1)
         return hidden.masked_fill(~valid, 0.0)
 
 
