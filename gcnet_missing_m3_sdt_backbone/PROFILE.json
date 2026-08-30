@@ -1,0 +1,50 @@
+{
+  "candidate": {
+    "loss": 2.6296835839748383,
+    "name": "sdt-style-full-context",
+    "optimizer_steps": 1,
+    "peak_allocated_gib": 0.5351638793945312,
+    "rate_batch_counts": {
+      "0.0": 1,
+      "0.1": 1,
+      "0.2": 1,
+      "0.3": 1,
+      "0.4": 1,
+      "0.5": 1,
+      "0.6": 1,
+      "0.7": 1
+    },
+    "registered_parameters": 8847037,
+    "seconds_per_real_batch_all_8_rates": 1.1368328277021646,
+    "trainable_parameters": 7986877
+  },
+  "control": {
+    "loss": 2.6129908561706543,
+    "name": "missing-m3-gcnet-control",
+    "optimizer_steps": 1,
+    "peak_allocated_gib": 0.40634679794311523,
+    "rate_batch_counts": {
+      "0.0": 1,
+      "0.1": 1,
+      "0.2": 1,
+      "0.3": 1,
+      "0.4": 1,
+      "0.5": 1,
+      "0.6": 1,
+      "0.7": 1
+    },
+    "registered_parameters": 11121383,
+    "seconds_per_real_batch_all_8_rates": 1.8875459972769022,
+    "trainable_parameters": 10261223
+  },
+  "decision": {
+    "formal_jobs_per_gpu": 2,
+    "reason": "The candidate used 0.535 GiB peak allocated memory on a 32 GiB V100; the locked five jobs therefore fit in one wave on GPUs 0, 1, and 2."
+  },
+  "environment": {
+    "batch_size": 32,
+    "gpu": "Tesla V100-SXM2-32GB",
+    "torch": "1.8.0"
+  },
+  "method": "One real CMU-MOSI training batch, including all eight missing-rate forward/backward passes and one optimizer/EMA update; no epoch, checkpoint, or result selection was run."
+}

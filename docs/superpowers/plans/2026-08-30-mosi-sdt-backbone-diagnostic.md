@@ -335,8 +335,10 @@ jepa_weight=0.1
 readout=shared
 ```
 
-CLI 只开放 seed、feature roots、output dir、device、epochs 和 skip-test；旧候选开关不
-存在。`--epochs` 仅服务测试与复现，正式 runner 强制 100。
+CLI 仅允许 seed、feature roots、output dir、device、epochs 和 skip-test 改变；同时
+显式保留 `--dataset CMUMOSI`、`--train-rate-mode all`、`--fusion-type slot` 与
+`--lr 5e-4` 作为命令级 provenance，但这些参数只有一个合法值，不能切换旧候选。
+`--epochs` 仅服务测试与复现，正式 runner 强制 100。
 
 - [ ] **步骤 2：实现 `SDTTrainConfig` 与 `build_model()`**
 
@@ -436,7 +438,7 @@ Commit 说明只复用现有训练 primitive，现有 control 文件无 diff。
 ```text
 config.json
 history.json（恰好 100 个 epoch）
-metrics.json（8 个 test rate 或显式 validation-only）
+metrics.json（必须包含完整 8 个 test rate；validation-only 不算正式完成）
 train.log
 ```
 
@@ -533,7 +535,8 @@ GPU 4 不进入任务列表。
 /data2/yb/reproduction_envs/gcnet-official/bin/python \
   -m gcnet_missing_m3_sdt_backbone.run_mosi \
   --output-root gcnet_missing_m3_sdt_backbone/results/formal \
-  --gpus 0 1 2 --jobs-per-gpu 2
+  --gpus 0 1 2 --jobs-per-gpu 2 \
+  --source-commit <40-character-git-sha>
 ```
 
 每个任务训练 100 epochs，按 validation 8-rate mean 选 checkpoint，然后测试 8 rates。
