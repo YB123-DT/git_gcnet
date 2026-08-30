@@ -1,0 +1,25 @@
+{
+  "source_commit": "62ecad3ecf187885208420ab1fc4a6a54e2fcb2e",
+  "remote_code_root": "/data2/yb/paper/GCNet_TPAMI_fixed_rate_20260830",
+  "remote_result_root": "/data2/yb/remote_experiments/missing_m3_mosi_cyclic_20260830/formal",
+  "runtime": {
+    "python": "3.8.20",
+    "python_executable": "/data2/yb/reproduction_envs/gcnet-official/bin/python",
+    "torch": "1.8.0",
+    "cuda": "10.2"
+  },
+  "gpu_mapping": {"66": 0, "67": 1, "68": 2, "69": 0, "70": 1},
+  "command_contract": {
+    "training_module": "gcnet_missing_m3.train_gcnet",
+    "train_rate_mode": "cyclic",
+    "epochs": 100,
+    "batch_size": 32,
+    "hidden": 200,
+    "latent_dim": 256,
+    "window_past": 2,
+    "window_future": 2,
+    "learning_rate": 0.0005,
+    "jepa_weight": 0.1
+  },
+  "wall_clock_note": "Seed68 ran alone on an unoccupied GPU in about 2.4 minutes. The other seeds shared GPUs with unrelated 24.8 GB jobs and took about 9 minutes, so wall-clock speedup is not a controlled comparison."
+}
