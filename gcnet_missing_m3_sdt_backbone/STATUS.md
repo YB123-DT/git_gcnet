@@ -4,11 +4,11 @@
 
 ## 当前结论
 
-**状态：`PENDING — FORMAL RESULTS NOT RUN`**
+**状态：`CLOSED — NO IMPROVEMENT`**
 
-等活跃参数 SDT-style 主干、锁定训练入口、5-seed runner 和真实 batch 资源画像已经放在
-本目录。正式 5-seed × 8-rate 训练结果尚未完成，因此当前没有可报告的 treatment
-W-F1，也不能判断该主干是否优于 GCNet control。
+正式 5-seed × 100-epoch × 8-rate 实验已经完成。Candidate validation 8-rate mean 为
+`77.56 ± 1.03`，低于 inherited GCNet control 的 `78.77 ± 1.63`；仅 `1/5` seeds
+为正，high-missing 与 miss-0 也都未通过预注册门槛。因此关闭该 whole-backbone 路线。
 
 `PROFILE.json` 中的 loss、速度和显存仅来自 1 个真实训练 batch，用于确认代码路径与
 `jobs_per_gpu=2` 的资源决策，不能当作 validation/test 结果。
@@ -20,22 +20,22 @@ W-F1，也不能判断该主干是否优于 GCNet control。
 | 独立版本目录 | 完成 | `gcnet_missing_m3_sdt_backbone/` |
 | 等活跃参数主干 | 完成 | Active 5,869,370；control 5,864,700 |
 | Missing-M3 合同接入 | 完成 | 保留 Observed-Set、Predictor、EMA 和 loss |
-| 模型、训练器、runner 测试 | 待最终回归 | `tests/` 已提供合同测试；提交前运行完整目标测试 |
+| 模型、训练器、runner 测试 | 完成 | 新目录 135 passed；既有 Missing-M3 106 passed |
 | 真实 batch profiling | 完成 | `PROFILE.json`；V100 32GB；candidate 0.5352 GiB |
 | 并发计划 | 锁定 | 2 jobs/GPU；只使用 GPU 0、1、2 |
-| Seeds 66–70 正式训练 | `PENDING` | 固定源码提交后，运行 runner 并传入 `--source-commit <40-character-git-sha>` |
-| 五种子结果汇总 | `PENDING` | 正式任务完成后生成结果摘要 |
-| GitHub 结果归档 | `PENDING` | 只归档验证后的源码与小型结果文件 |
+| Seeds 66–70 正式训练 | 完成 | 5/5 seeds、每个 100 epochs 与 8-rate test；failures=0 |
+| 五种子结果汇总 | 完成 | `results/SUMMARY.json` 与 `results/SUMMARY.md` |
+| GitHub 结果归档 | 进行中 | 只归档源码与小型 JSON/MD/log；无 PT/NPZ |
 
 ## 锁定运行矩阵
 
 | Seed | GPU | Treatment | Original/control |
 | ---: | ---: | --- | --- |
-| 66 | 0 | 待运行 | 继承，不重跑 |
-| 67 | 1 | 待运行 | 继承，不重跑 |
-| 68 | 2 | 待运行 | 继承，不重跑 |
-| 69 | 0 | 待运行 | 继承，不重跑 |
-| 70 | 1 | 待运行 | 继承，不重跑 |
+| 66 | 0 | 完成；val8 76.61 | 77.31；继承未重跑 |
+| 67 | 1 | 完成；val8 78.52 | 78.68；继承未重跑 |
+| 68 | 2 | 完成；val8 78.72 | 78.22；继承未重跑 |
+| 69 | 0 | 完成；val8 77.41 | 81.54；继承未重跑 |
+| 70 | 1 | 完成；val8 76.53 | 78.09；继承未重跑 |
 
 每张 GPU 最多同时运行 2 个 job。所有 seed 使用相同的冻结 wav2vec、DeBERTa、MANet
 特征和 `all-rates-per-batch` 协议。
@@ -60,9 +60,9 @@ W-F1，也不能判断该主干是否优于 GCNet control。
 4. miss-0 validation ≥ 85.3461；
 5. 无单一符号、常量输出、非有限 loss 或表示异常坍塌。
 
-若未满足，状态改为 `CLOSED — NO IMPROVEMENT`，结论仅限于：在当前冻结特征与锁定
+所有四项性能门槛均未满足，non-collapse 门槛通过。结论仅限于：在当前冻结特征与锁定
 协议下，整体替换 GCNet 主干不足以通过预注册门槛。不能据此声称 Transformer 或图网络
-在一般情况下孰优孰劣。
+在一般情况下孰优孰劣。完整数字见 `results/SUMMARY.md`。
 
 ## 归档约束
 

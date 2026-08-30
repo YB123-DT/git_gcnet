@@ -123,8 +123,9 @@ source commit、源码 SHA、完整配置 SHA、feature 路径、运行环境、
 - miss-0 validation 不低于 control `85.6461 - 0.30 = 85.3461`；
 - 不出现单一符号输出、常量输出、非有限 loss 或表示异常坍塌。
 
-当前正式分数为 `PENDING`。详见 [`STATUS.md`](./STATUS.md) 和
-[`results/README.md`](./results/README.md)。
+正式结果为 `CLOSED — NO IMPROVEMENT`：validation 8-rate mean 为
+`77.56 ± 1.03`，低于 control 的 `78.77 ± 1.63`，且仅 `1/5` seeds 为正。
+详见 [`STATUS.md`](./STATUS.md) 与 [`results/SUMMARY.md`](./results/SUMMARY.md)。
 
 ## 文件说明
 

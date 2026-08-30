@@ -1,7 +1,8 @@
 # 正式结果目录
 
-**当前状态：`PENDING`。** Seeds 66–70 的正式训练尚未完成，本目录目前没有可报告的
-treatment 分数。
+**当前状态：`CLOSED — NO IMPROVEMENT`。** Seeds 66–70 均已完成 100 epochs 和
+8-rate test。Candidate validation 8-rate mean 为 `77.56 ± 1.03`，低于 inherited
+control 的 `78.77 ± 1.63`；完整结果见 [`SUMMARY.md`](./SUMMARY.md)。
 
 ## 目录结构
 

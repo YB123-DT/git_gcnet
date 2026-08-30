@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "result_status": "complete-closed-no-improvement",
+  "candidate": {
+    "source_commit": "9b93326badf710884c0a814b5991dbcc85f98683",
+    "manifest_path": "gcnet_missing_m3_sdt_backbone/results/formal/manifest.json",
+    "manifest_sha256": "87f2d117b0e77a7b5427c298e6db89044c6ef3266b56f4bcfe550cde5a8127de",
+    "profile_path": "gcnet_missing_m3_sdt_backbone/PROFILE.json",
+    "profile_sha256": "24f1d1492ff820a725bc1081b6aef996c6591fabf4bd1a5464c40643b7fc5b0c",
+    "formal_seed_directories": [
+      "formal/seed_66",
+      "formal/seed_67",
+      "formal/seed_68",
+      "formal/seed_69",
+      "formal/seed_70"
+    ],
+    "runtime": {
+      "python": "3.8.20",
+      "torch": "1.8.0",
+      "cuda": "10.2",
+      "cudnn": 7605,
+      "gpu": "Tesla V100-SXM2-32GB",
+      "gpu_indices": [0, 1, 2],
+      "jobs_per_gpu": 2
+    },
+    "features": {
+      "root": "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features",
+      "audio": "wav2vec-large-c-UTT",
+      "text": "deberta-large-4-UTT",
+      "video": "manet_UTT"
+    }
+  },
+  "inherited_control": {
+    "description": "deterministic legacy Missing-M3 GCNet control; no control job was launched by the SDT runner",
+    "root": "/data2/yb/remote_experiments/missing_m3_mosi_conditioned_readout_20260829/results/deterministic-legacy",
+    "files": {
+      "seed_66/metrics.json": "2b25120621276b8eea10696ef4875535d803a0122037a401f0d7d600392b9526",
+      "seed_66/history.json": "21dd5fe8b0d577482a29e20e102b2cb4effe96392bc02f029b173e7357757d03",
+      "seed_67/metrics.json": "4bfbd2b21fe9b3d48935abd978390624f63dbaa86b11ce53dc5f380b525080b5",
+      "seed_67/history.json": "17c71e5d1cfef3553f32d27c81de8ca3e8843b55d570830d9f2e2266c956218d",
+      "seed_68/metrics.json": "2f853b5a4df8f3d0f8aea10367714594ae70f798dd6bb8030688d58163509505",
+      "seed_68/history.json": "8069971acca4f2ad912f6bc876b690e5d0464afc0ad21f3eeefb75758f78507f",
+      "seed_69/metrics.json": "040b1f3e82ca99c425b6ba68ba778d0d72b9fa3447ab0edb638037eb7fa40f8f",
+      "seed_69/history.json": "e5bcf63520cacde9bc6dd8fcb130042323fec648f1ef80995ae9c70f9a1cc1c0",
+      "seed_70/metrics.json": "7f2f8c6420f482f62e0b1f377e7701fc28d0c6898f8b40916d169ff519bfc2d1",
+      "seed_70/history.json": "6ddb7430c0e002b03fe8bc6a84cd13c5fa4cb4157b6ab567e18252d452d044fb"
+    }
+  },
+  "verification": {
+    "new_directory_tests": "135 passed",
+    "existing_missing_m3_regression": "106 passed",
+    "official_torch18_cuda_forward_backward_ema": "passed",
+    "formal_runner": {
+      "failures": 0,
+      "incomplete": 0,
+      "jobs": 5
+    },
+    "validation_mask_pairing": {
+      "status": "inferred-not-cryptographically-auditable",
+      "basis": "identical seed/config fields and shared deterministic schedule implementation",
+      "limitation": "candidate and inherited-control validation histories do not persist validation mask SHA values"
+    },
+    "large_artifacts_committed": false
+  }
+}
