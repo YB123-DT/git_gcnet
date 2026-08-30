@@ -95,6 +95,28 @@ def _fake_provenance(
     }
 
 
+def _fake_expected_context(
+    run_mosi, jobs, feature_root, source_commit="a" * 40
+):
+    from gcnet_missing_m3_raw_sdr.train_gcnet import RawSDRTrainConfig
+
+    return run_mosi.ExpectedContext(
+        producer_provenance={
+            (job.variant, job.seed): _fake_provenance(
+                run_mosi, job, feature_root, source_commit=source_commit
+            )
+            for job in jobs
+        },
+        mask_audits={
+            job.seed: _fake_mask_audit(
+                run_mosi,
+                asdict(RawSDRTrainConfig(seed=job.seed)),
+            )
+            for job in jobs
+        },
+    )
+
+
 def _write_complete_result(
     run_mosi,
     job,
@@ -283,6 +305,10 @@ def _write_reference_set(
         paths,
         reference_kind=reference_kind,
         expected_dirs=paths,
+        feature_root=feature_root,
+        mask_audit_builder=lambda config, root: _fake_mask_audit(
+            run_mosi, config
+        ),
     )
 
 
@@ -462,6 +488,40 @@ def test_malformed_provenance_feature_path_fails_closed_without_type_error(tmp_p
     assert "provenance" in inspection.reason
 
 
+def test_expected_context_prevents_stale_producer_self_certification(tmp_path):
+    from gcnet_missing_m3_raw_sdr import run_mosi
+
+    feature_root = _feature_root(tmp_path)
+    job = run_mosi.build_jobs(output_root=tmp_path / "candidate")[0]
+    _write_complete_result(
+        run_mosi, job, feature_root=feature_root
+    )
+    context = _fake_expected_context(run_mosi, [job], feature_root)
+    producer_path = job.output_dir / run_mosi.PRODUCER_PROVENANCE_NAME
+    stale = json.loads(producer_path.read_text())
+    stale["source_commit"] = "b" * 40
+    producer_path.write_text(json.dumps(stale))
+
+    manifest_path = tmp_path / "manifest.json"
+    run_mosi.write_manifest(
+        manifest_path,
+        [job],
+        source_commit="a" * 40,
+        feature_root=feature_root,
+        repo_root=Path(run_mosi.__file__).resolve().parents[1],
+        expected_parameter_counts=COUNTS,
+        expected_context=context,
+    )
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["jobs"][0]["complete"] is False
+    assert "mismatch" in manifest["jobs"][0]["completion_reason"]
+    assert run_mosi.pending_jobs(
+        [job],
+        expected_parameter_counts=COUNTS,
+        expected_context=context,
+    ) == [job]
+
+
 def test_nonzero_child_exit_is_inherited_when_all_durable_outputs_are_complete(
     tmp_path, monkeypatch
 ):
@@ -470,6 +530,7 @@ def test_nonzero_child_exit_is_inherited_when_all_durable_outputs_are_complete(
     job = run_mosi.build_jobs(output_root=tmp_path)[0]
     feature_root = _feature_root(tmp_path)
     expected = _fake_provenance(run_mosi, job, feature_root)
+    context = _fake_expected_context(run_mosi, [job], feature_root)
     monkeypatch.setattr(
         run_mosi,
         "_producer_provenance",
@@ -496,10 +557,8 @@ def test_nonzero_child_exit_is_inherited_when_all_durable_outputs_are_complete(
         repo_root=Path(run_mosi.__file__).resolve().parents[1],
         timeout_seconds=30,
         source_commit="a" * 40,
+        expected_context=context,
         expected_parameter_counts=COUNTS,
-        mask_audit_builder=lambda config, root: _fake_mask_audit(
-            run_mosi, config
-        ),
     )
     assert failures == 0
     status = json.loads((job.output_dir / "status.json").read_text())
@@ -515,6 +574,7 @@ def test_provenance_is_written_before_launch_and_existing_output_cannot_relabel(
     job = run_mosi.build_jobs(output_root=tmp_path)[0]
     feature_root = _feature_root(tmp_path)
     expected = _fake_provenance(run_mosi, job, feature_root)
+    context = _fake_expected_context(run_mosi, [job], feature_root)
     monkeypatch.setattr(
         run_mosi,
         "_producer_provenance",
@@ -542,17 +602,13 @@ def test_provenance_is_written_before_launch_and_existing_output_cannot_relabel(
         repo_root=Path(run_mosi.__file__).resolve().parents[1],
         timeout_seconds=30,
         source_commit="a" * 40,
+        expected_context=context,
         expected_parameter_counts=COUNTS,
-        mask_audit_builder=lambda config, root: _fake_mask_audit(
-            run_mosi, config
-        ),
     ) == 1
     assert len(launched) == 1
 
-    monkeypatch.setattr(
-        run_mosi,
-        "_producer_provenance",
-        lambda *args, **kwargs: {**expected, "source_commit": "b" * 40},
+    relabel_context = _fake_expected_context(
+        run_mosi, [job], feature_root, source_commit="b" * 40
     )
     with pytest.raises(ValueError, match="provenance"):
         run_mosi.run_jobs(
@@ -561,10 +617,8 @@ def test_provenance_is_written_before_launch_and_existing_output_cannot_relabel(
             repo_root=Path(run_mosi.__file__).resolve().parents[1],
             timeout_seconds=30,
             source_commit="b" * 40,
+            expected_context=relabel_context,
             expected_parameter_counts=COUNTS,
-            mask_audit_builder=lambda config, root: _fake_mask_audit(
-                run_mosi, config
-            ),
         )
     assert len(launched) == 1
 
@@ -575,6 +629,7 @@ def test_timeout_terminates_bounded_process_tree(tmp_path, monkeypatch):
     job = run_mosi.build_jobs(output_root=tmp_path)[0]
     feature_root = _feature_root(tmp_path)
     expected = _fake_provenance(run_mosi, job, feature_root)
+    context = _fake_expected_context(run_mosi, [job], feature_root)
     monkeypatch.setattr(
         run_mosi, "_producer_provenance", lambda *args, **kwargs: expected
     )
@@ -598,10 +653,8 @@ def test_timeout_terminates_bounded_process_tree(tmp_path, monkeypatch):
         repo_root=Path(run_mosi.__file__).resolve().parents[1],
         timeout_seconds=1,
         source_commit="a" * 40,
+        expected_context=context,
         expected_parameter_counts=COUNTS,
-        mask_audit_builder=lambda config, root: _fake_mask_audit(
-            run_mosi, config
-        ),
     )
     assert failures == 1
     assert terminated == [12345]
@@ -614,6 +667,7 @@ def test_flock_is_nonblocking_records_owner_and_kernel_releases_on_exit(tmp_path
     job = run_mosi.build_jobs(output_root=tmp_path)[0]
     feature_root = _feature_root(tmp_path)
     expected = _fake_provenance(run_mosi, job, feature_root)
+    context = _fake_expected_context(run_mosi, [job], feature_root)
     with run_mosi.job_lock(job, expected):
         metadata = json.loads((job.output_dir / run_mosi.LOCK_NAME).read_text())
         assert metadata["owner_pid"] == os.getpid()
@@ -636,6 +690,7 @@ def test_status_write_failure_cannot_leave_an_orphan_or_held_lock(
     job = run_mosi.build_jobs(output_root=tmp_path)[0]
     feature_root = _feature_root(tmp_path)
     expected = _fake_provenance(run_mosi, job, feature_root)
+    context = _fake_expected_context(run_mosi, [job], feature_root)
     monkeypatch.setattr(
         run_mosi, "_producer_provenance", lambda *args, **kwargs: expected
     )
@@ -668,10 +723,8 @@ def test_status_write_failure_cannot_leave_an_orphan_or_held_lock(
             repo_root=Path(run_mosi.__file__).resolve().parents[1],
             timeout_seconds=30,
             source_commit="a" * 40,
+            expected_context=context,
             expected_parameter_counts=COUNTS,
-            mask_audit_builder=lambda config, root: _fake_mask_audit(
-                run_mosi, config
-            ),
         )
     assert terminated == [24680]
     with run_mosi.job_lock(job, expected):
@@ -683,6 +736,7 @@ def test_aggregate_inherits_slot_and_control_and_gate_never_reads_test(tmp_path)
 
     feature_root = _feature_root(tmp_path)
     jobs = run_mosi.build_jobs(output_root=tmp_path / "candidate")
+    context = _fake_expected_context(run_mosi, jobs, feature_root)
     for job in jobs:
         _write_complete_result(
             run_mosi,
@@ -709,6 +763,7 @@ def test_aggregate_inherits_slot_and_control_and_gate_never_reads_test(tmp_path)
         jobs,
         slot_reference=slot,
         control_reference=control,
+        expected_context=context,
         expected_parameter_counts=COUNTS,
     )
     assert first["selection_basis"] == "validation-only"
@@ -734,6 +789,7 @@ def test_aggregate_inherits_slot_and_control_and_gate_never_reads_test(tmp_path)
         jobs,
         slot_reference=slot,
         control_reference=control,
+        expected_context=context,
         expected_parameter_counts=COUNTS,
         require_complete_results=False,
     )
@@ -748,6 +804,7 @@ def test_aggregate_is_not_assessable_for_unpaired_masks_or_incomplete_matrix(
 
     feature_root = _feature_root(tmp_path)
     jobs = run_mosi.build_jobs(output_root=tmp_path / "candidate")
+    context = _fake_expected_context(run_mosi, jobs, feature_root)
     for job in jobs:
         _write_complete_result(
             run_mosi,
@@ -777,6 +834,7 @@ def test_aggregate_is_not_assessable_for_unpaired_masks_or_incomplete_matrix(
         jobs,
         slot_reference=slot,
         control_reference=control,
+        expected_context=context,
         expected_parameter_counts=COUNTS,
     )
     assert summary["primary_gate"]["status"] == "not-assessable"
@@ -788,6 +846,7 @@ def test_aggregate_is_not_assessable_for_unpaired_masks_or_incomplete_matrix(
         jobs,
         slot_reference=slot,
         control_reference=control,
+        expected_context=context,
         expected_parameter_counts=COUNTS,
     )
     assert summary["primary_gate"]["status"] == "not-assessable"
@@ -799,6 +858,7 @@ def test_aggregate_is_not_assessable_for_unpaired_masks_or_incomplete_matrix(
         jobs,
         slot_reference=slot,
         control_reference=control,
+        expected_context=context,
         expected_parameter_counts=COUNTS,
     )
     assert summary["primary_gate"]["status"] == "not-assessable"
@@ -807,6 +867,7 @@ def test_aggregate_is_not_assessable_for_unpaired_masks_or_incomplete_matrix(
             jobs[:-1],
             slot_reference=slot,
             control_reference=control,
+            expected_context=context,
             expected_parameter_counts=COUNTS,
         )
 
@@ -848,7 +909,91 @@ def test_reference_loader_recovers_control_selection_and_audits_real_schemas(
             paths,
             reference_kind="control",
             expected_dirs=paths,
+            feature_root=feature_root,
+            mask_audit_builder=lambda config, root: _fake_mask_audit(
+                run_mosi, config
+            ),
         )
+
+
+def test_reference_loader_replays_and_rejects_forged_validation_sidecar(
+    tmp_path,
+):
+    from gcnet_missing_m3_raw_sdr import run_mosi
+
+    feature_root = _feature_root(tmp_path)
+    control = _write_reference_set(
+        run_mosi,
+        tmp_path / "control",
+        validation_offset=0.02,
+        reference_kind="control",
+        feature_root=feature_root,
+    )
+    paths = {
+        seed: Path(control[seed]["source_path"])
+        for seed in run_mosi.SEEDS
+    }
+    audit_path = paths[66] / run_mosi.MASK_AUDIT_NAME
+    forged = json.loads(audit_path.read_text())
+    forged["validation_mask_sha256"]["0.7"] = "f" * 64
+    audit_path.write_text(json.dumps(forged))
+
+    with pytest.raises(ValueError, match="replay"):
+        run_mosi.load_inherited_reference(
+            paths,
+            reference_kind="control",
+            expected_dirs=paths,
+            feature_root=feature_root,
+            mask_audit_builder=lambda config, root: _fake_mask_audit(
+                run_mosi, config
+            ),
+        )
+
+
+def test_main_audits_references_before_any_training_launch(
+    tmp_path, monkeypatch
+):
+    from gcnet_missing_m3_raw_sdr import run_mosi
+
+    feature_root = _feature_root(tmp_path)
+    events = []
+    monkeypatch.setattr(run_mosi, "EXPECTED_PARAMETER_COUNTS", COUNTS)
+    monkeypatch.setattr(
+        run_mosi,
+        "write_manifest",
+        lambda *args, **kwargs: events.append("manifest"),
+    )
+    monkeypatch.setattr(
+        run_mosi,
+        "run_jobs",
+        lambda *args, **kwargs: events.append("popen") or 0,
+    )
+    monkeypatch.setattr(run_mosi, "pending_jobs", lambda *a, **k: [])
+
+    def reject_reference(*args, **kwargs):
+        events.append("reference-preflight")
+        raise ValueError("reference audit failed")
+
+    monkeypatch.setattr(
+        run_mosi, "load_inherited_reference", reject_reference
+    )
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "run_mosi.py",
+            "--output-root",
+            str(tmp_path / "candidate"),
+            "--feature-root",
+            str(feature_root),
+            "--repo-root",
+            str(Path(run_mosi.__file__).resolve().parents[1]),
+            "--source-commit",
+            "a" * 40,
+        ],
+    )
+    with pytest.raises(ValueError, match="reference audit failed"):
+        run_mosi.main()
+    assert events == ["reference-preflight"]
 
 
 def test_dry_run_prints_five_and_only_five_raw_commands(tmp_path, monkeypatch, capsys):

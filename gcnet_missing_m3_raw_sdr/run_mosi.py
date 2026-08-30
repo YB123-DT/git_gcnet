@@ -132,6 +132,14 @@ class ResultInspection:
     collapse_rates: Tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class ExpectedContext:
+    """Immutable-by-contract evidence computed before a formal run."""
+
+    producer_provenance: Mapping[Tuple[str, int], Mapping]
+    mask_audits: Mapping[int, Mapping]
+
+
 def _exact_tuple(value: Sequence, expected: Tuple, name: str) -> Tuple:
     if isinstance(value, (str, bytes)):
         raise ValueError("{} must be the exact registered tuple".format(name))
@@ -552,6 +560,83 @@ def replay_mask_audit(config: Mapping, feature_root: Path):
     )
 
 
+def build_expected_context(
+    jobs: Sequence[RawSDRJob],
+    *,
+    source_commit: str,
+    feature_root: Path,
+    repo_root: Path,
+    mask_audit_builder=replay_mask_audit,
+) -> ExpectedContext:
+    """Compute the sole provenance and realized-mask authority for a run."""
+
+    normalized = _validate_job_subset(jobs)
+    source_commit = _validate_source_commit(source_commit)
+    feature_root = resolve_feature_root(feature_root)
+    try:
+        repo_root = Path(repo_root).expanduser().resolve(strict=True)
+    except (TypeError, OSError, RuntimeError, ValueError) as error:
+        raise ValueError("repo_root is invalid: {}".format(error))
+    if not repo_root.is_dir():
+        raise ValueError("repo_root must be a directory")
+    context = ExpectedContext(
+        producer_provenance={
+            (job.variant, job.seed): _producer_provenance(
+                job,
+                source_commit=source_commit,
+                feature_root=feature_root,
+                repo_root=repo_root,
+            )
+            for job in normalized
+        },
+        mask_audits={
+            job.seed: mask_audit_builder(
+                asdict(RawSDRTrainConfig(seed=job.seed)), feature_root
+            )
+            for job in normalized
+        },
+    )
+    return _validate_expected_context(normalized, context)
+
+
+def _validate_expected_context(
+    jobs: Sequence[RawSDRJob], expected_context: ExpectedContext
+) -> ExpectedContext:
+    normalized = _validate_job_subset(jobs)
+    if not isinstance(expected_context, ExpectedContext):
+        raise ValueError("expected_context must be an ExpectedContext")
+    expected_keys = {(job.variant, job.seed) for job in normalized}
+    expected_seeds = {job.seed for job in normalized}
+    if (
+        set(expected_context.producer_provenance) != expected_keys
+        or set(expected_context.mask_audits) != expected_seeds
+    ):
+        raise ValueError("expected_context does not match the job matrix")
+    for job in normalized:
+        producer = expected_context.producer_provenance[
+            (job.variant, job.seed)
+        ]
+        if (
+            not isinstance(producer, Mapping)
+            or producer.get("variant") != job.variant
+            or producer.get("seed") != job.seed
+            or producer.get("canonical_config_sha256")
+            != _canonical_json_sha256(
+                asdict(RawSDRTrainConfig(seed=job.seed))
+            )
+        ):
+            raise ValueError("expected_context provenance is invalid")
+        _, audit_error = _validate_mask_audit(
+            expected_context.mask_audits[job.seed],
+            asdict(RawSDRTrainConfig(seed=job.seed)),
+        )
+        if audit_error is not None:
+            raise ValueError(
+                "expected_context mask audit: {}".format(audit_error)
+            )
+    return expected_context
+
+
 def inspect_result(
     job: RawSDRJob,
     *,
@@ -705,26 +790,21 @@ def inspect_result(
 def pending_jobs(
     jobs: Sequence[RawSDRJob],
     *,
-    expected_parameter_counts: Optional[Mapping[str, int]] = None,
-    expected_provenance: Optional[Mapping[Tuple[str, int], Mapping]] = None,
-    expected_mask_audits: Optional[Mapping[int, Mapping]] = None,
+    expected_parameter_counts: Optional[Mapping[str, int]],
+    expected_context: ExpectedContext,
 ) -> List[RawSDRJob]:
+    jobs = _validate_job_subset(jobs)
+    context = _validate_expected_context(jobs, expected_context)
     return [
         job
         for job in jobs
         if not inspect_result(
             job,
             expected_parameter_counts=expected_parameter_counts,
-            expected_provenance=(
-                expected_provenance.get((job.variant, job.seed))
-                if expected_provenance is not None
-                else None
-            ),
-            expected_mask_audit=(
-                expected_mask_audits.get(job.seed)
-                if expected_mask_audits is not None
-                else None
-            ),
+            expected_provenance=context.producer_provenance[
+                (job.variant, job.seed)
+            ],
+            expected_mask_audit=context.mask_audits[job.seed],
         ).complete
     ]
 
@@ -798,9 +878,9 @@ def run_jobs(
     repo_root: Path,
     timeout_seconds: int,
     source_commit: str,
+    expected_context: ExpectedContext,
     expected_parameter_counts: Optional[Mapping[str, int]] = None,
     manifest_path: Optional[Path] = None,
-    mask_audit_builder=replay_mask_audit,
 ) -> int:
     """Launch at most one registered treatment on each healthy GPU."""
 
@@ -822,55 +902,53 @@ def run_jobs(
         raise ValueError("repo_root is invalid: {}".format(error))
     if not repo_root.is_dir():
         raise ValueError("repo_root must be a directory")
-    expected_provenance = {
-        (job.variant, job.seed): _producer_provenance(
-            job,
-            source_commit=source_commit,
-            feature_root=feature_root,
-            repo_root=repo_root,
+    context = _validate_expected_context(all_jobs, expected_context)
+    if any(
+        context.producer_provenance[(job.variant, job.seed)].get(
+            "source_commit"
         )
+        != source_commit
         for job in all_jobs
-    }
-    expected_mask_audits = {
-        job.seed: mask_audit_builder(
-            asdict(RawSDRTrainConfig(seed=job.seed)), feature_root
-        )
-        for job in all_jobs
-    }
+    ):
+        raise ValueError("expected_context source commit mismatch")
     running = []
     handled = set()
     failures = 0
     with ExitStack() as lock_stack:
         for job in all_jobs:
             lock_stack.enter_context(
-                job_lock(job, expected_provenance[(job.variant, job.seed)])
+                job_lock(
+                    job,
+                    context.producer_provenance[(job.variant, job.seed)],
+                )
             )
         for job in all_jobs:
             if (job.output_dir / PRODUCER_PROVENANCE_NAME).exists():
                 _write_producer_provenance_once(
-                    job, expected_provenance[(job.variant, job.seed)]
+                    job,
+                    context.producer_provenance[(job.variant, job.seed)],
                 )
             _write_mask_audit_once(
                 job.output_dir,
                 asdict(RawSDRTrainConfig(seed=job.seed)),
-                expected_mask_audits[job.seed],
+                context.mask_audits[job.seed],
             )
         pending = pending_jobs(
             all_jobs,
             expected_parameter_counts=counts,
-            expected_provenance=expected_provenance,
-            expected_mask_audits=expected_mask_audits,
+            expected_context=context,
         )
         try:
             for job in pending:
                 reset_incomplete_output(job.output_dir)
                 _write_producer_provenance_once(
-                    job, expected_provenance[(job.variant, job.seed)]
+                    job,
+                    context.producer_provenance[(job.variant, job.seed)],
                 )
                 _write_mask_audit_once(
                     job.output_dir,
                     asdict(RawSDRTrainConfig(seed=job.seed)),
-                    expected_mask_audits[job.seed],
+                    context.mask_audits[job.seed],
                 )
                 command = build_command(job, feature_root=feature_root)
                 log_path = job.output_dir / "train.log"
@@ -932,10 +1010,10 @@ def run_jobs(
                 inspection = inspect_result(
                     job,
                     expected_parameter_counts=counts,
-                    expected_provenance=expected_provenance[
+                    expected_provenance=context.producer_provenance[
                         (job.variant, job.seed)
                     ],
-                    expected_mask_audit=expected_mask_audits[job.seed],
+                    expected_mask_audit=context.mask_audits[job.seed],
                 )
                 checkpoint = _prune_checkpoint(job.output_dir)
                 if inspection.complete:
@@ -962,15 +1040,16 @@ def run_jobs(
                         "finished_at_unix": time.time(),
                     },
                 )
-                if manifest_path is not None:
-                    write_manifest(
-                        manifest_path,
-                        all_jobs,
-                        source_commit=source_commit,
-                        feature_root=feature_root,
-                        repo_root=repo_root,
-                        expected_parameter_counts=counts,
-                    )
+            if manifest_path is not None:
+                write_manifest(
+                    manifest_path,
+                    all_jobs,
+                    source_commit=source_commit,
+                    feature_root=feature_root,
+                    repo_root=repo_root,
+                    expected_parameter_counts=counts,
+                    expected_context=context,
+                )
         finally:
             for _, process, log_handle, _, _ in running:
                 if id(process) not in handled:
@@ -988,8 +1067,10 @@ def write_manifest(
     feature_root: Path,
     repo_root: Path,
     expected_parameter_counts: Optional[Mapping[str, int]] = None,
+    expected_context: ExpectedContext,
 ) -> None:
     jobs = _validate_job_subset(jobs)
+    context = _validate_expected_context(jobs, expected_context)
     counts = _locked_counts(expected_parameter_counts)
     source_commit = _validate_source_commit(source_commit)
     entries = []
@@ -998,7 +1079,10 @@ def write_manifest(
         inspection = inspect_result(
             job,
             expected_parameter_counts=counts,
-            expected_provenance=producer if producer_error is None else None,
+            expected_provenance=context.producer_provenance[
+                (job.variant, job.seed)
+            ],
+            expected_mask_audit=context.mask_audits[job.seed],
         )
         entries.append(
             {
@@ -1010,6 +1094,16 @@ def write_manifest(
                 "completion_reason": inspection.reason,
                 "producer_provenance": producer,
                 "producer_provenance_error": producer_error,
+                "expected_producer_provenance_sha256": (
+                    _canonical_json_sha256(
+                        context.producer_provenance[
+                            (job.variant, job.seed)
+                        ]
+                    )
+                ),
+                "expected_mask_audit_sha256": _canonical_json_sha256(
+                    context.mask_audits[job.seed]
+                ),
                 "parameter_count_lock": counts,
             }
         )
@@ -1179,12 +1273,33 @@ def load_inherited_reference(
             )
         ):
             raise ValueError("reference test schedule hashes are invalid")
-        audit, audit_error = _read_mask_audit(root, config)
-        if audit_error is not None:
-            audit = mask_audit_builder(config, feature_root)
-            _write_mask_audit_once(root, config, audit)
+        expected_audit = mask_audit_builder(config, feature_root)
+        expected_audit, replay_error = _validate_mask_audit(
+            expected_audit, config
+        )
+        if replay_error is not None:
+            raise ValueError(
+                "reference mask replay is invalid: {}".format(replay_error)
+            )
+        audit_path = root / MASK_AUDIT_NAME
+        if audit_path.exists():
+            recorded_audit, audit_error = _read_mask_audit(root, config)
+            if audit_error is not None or recorded_audit != expected_audit:
+                raise ValueError(
+                    "reference mask replay mismatch: {}".format(
+                        audit_error or "sidecar differs from fresh replay"
+                    )
+                )
+            audit_source = "sidecar-verified-against-fresh-replay"
+        else:
+            audit_source = "fresh-replay-no-source-sidecar"
+        audit = expected_audit
         if audit["test_mask_sha256"] != dict(test_hashes):
             raise ValueError("reference test replay sentinel mismatch")
+        source_files_sha256 = {
+            name: _sha256_file(root / name)
+            for name in ("config.json", "history.json", "metrics.json")
+        }
         result[seed] = {
             "source_path": str(root),
             "source_lane": source_lane,
@@ -1196,8 +1311,58 @@ def load_inherited_reference(
             "test": dict(test),
             "test_schedule_sha256": dict(test_hashes),
             "mask_audit": audit,
+            "mask_audit_source": audit_source,
+            "source_files_sha256": source_files_sha256,
         }
     return result
+
+
+def write_reference_audit(
+    path: Path,
+    *,
+    slot_reference: Mapping[int, Mapping],
+    control_reference: Mapping[int, Mapping],
+) -> None:
+    """Record preflight evidence in the new run root, never old references."""
+
+    entries = []
+    for kind, reference in (
+        ("slot", _reference_validation(slot_reference, "Slot-SDR-public")),
+        ("control", _reference_validation(control_reference, "GCNet control")),
+    ):
+        for seed in SEEDS:
+            record = reference[seed]
+            source_hashes = record.get("source_files_sha256")
+            audit = record.get("mask_audit")
+            if (
+                not _is_sha256_mapping(
+                    source_hashes,
+                    ("config.json", "history.json", "metrics.json"),
+                )
+                or not isinstance(audit, Mapping)
+            ):
+                raise ValueError("reference audit record is incomplete")
+            entries.append(
+                {
+                    "kind": kind,
+                    "seed": seed,
+                    "source_path": record["source_path"],
+                    "source_files_sha256": dict(source_hashes),
+                    "mask_audit_source": record["mask_audit_source"],
+                    "validation_mask_sha256": dict(
+                        audit["validation_mask_sha256"]
+                    ),
+                    "test_mask_sha256": dict(audit["test_mask_sha256"]),
+                }
+            )
+    _atomic_json(
+        Path(path),
+        {
+            "schema_version": 1,
+            "domain": "inherited-reference-preflight",
+            "references": entries,
+        },
+    )
 
 
 def _reference_validation(reference: Mapping, name: str):
@@ -1237,6 +1402,7 @@ def aggregate(
     *,
     slot_reference: Mapping,
     control_reference: Mapping,
+    expected_context: ExpectedContext,
     expected_parameter_counts: Optional[Mapping[str, int]] = None,
     require_complete_results: bool = True,
     output_path: Optional[Path] = None,
@@ -1245,6 +1411,7 @@ def aggregate(
     if len(jobs) != 5 or {job.seed for job in jobs} != set(SEEDS):
         raise ValueError("aggregate requires exactly five treatment seeds")
     _validate_job_subset(jobs)
+    context = _validate_expected_context(jobs, expected_context)
     slot = _reference_validation(slot_reference, "Slot-SDR-public")
     control = _reference_validation(control_reference, "GCNet control")
 
@@ -1259,7 +1426,12 @@ def aggregate(
     for job in sorted(jobs, key=lambda value: value.seed):
         if require_complete_results:
             inspection = inspect_result(
-                job, expected_parameter_counts=expected_parameter_counts
+                job,
+                expected_parameter_counts=expected_parameter_counts,
+                expected_provenance=context.producer_provenance[
+                    (job.variant, job.seed)
+                ],
+                expected_mask_audit=context.mask_audits[job.seed],
             )
             if not inspection.complete:
                 raise ValueError(
@@ -1441,64 +1613,101 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     jobs = build_jobs(output_root=args.output_root)
+    if args.dry_run:
+        for job in jobs:
+            print(
+                "COMMAND {}".format(
+                    shlex.join(
+                        build_command(job, feature_root=args.feature_root)
+                    )
+                )
+            )
+        print(json.dumps({"dry_run": True, "jobs": 5}, sort_keys=True))
+        return 0
     counts = _locked_counts(None)
     if counts is None:
         raise SystemExit(
             "formal parameter counts are not locked; run the single smoke first"
         )
-    manifest_path = args.output_root / "manifest.json"
-    write_manifest(
-        manifest_path,
+    slot = load_inherited_reference(
+        SLOT_REFERENCE_DIRS,
+        reference_kind="slot",
+        expected_dirs=SLOT_REFERENCE_DIRS,
+        feature_root=args.feature_root,
+    )
+    control = load_inherited_reference(
+        CONTROL_REFERENCE_DIRS,
+        reference_kind="control",
+        expected_dirs=CONTROL_REFERENCE_DIRS,
+        feature_root=args.feature_root,
+    )
+    write_reference_audit(
+        args.output_root / "reference_audit.json",
+        slot_reference=slot,
+        control_reference=control,
+    )
+    context = build_expected_context(
         jobs,
         source_commit=args.source_commit,
         feature_root=args.feature_root,
         repo_root=args.repo_root,
-        expected_parameter_counts=counts,
     )
-    if args.dry_run:
-        for job in jobs:
-            print("COMMAND {}".format(shlex.join(build_command(job, feature_root=args.feature_root))))
-        print(json.dumps({"jobs": 5, "manifest": str(manifest_path)}, sort_keys=True))
-        return 0
+    manifest_path = args.output_root / "manifest.json"
     failures = run_jobs(
         jobs,
         feature_root=args.feature_root,
         repo_root=args.repo_root,
         timeout_seconds=args.timeout_seconds,
         source_commit=args.source_commit,
+        expected_context=context,
         expected_parameter_counts=counts,
         manifest_path=manifest_path,
     )
-    incomplete = pending_jobs(jobs, expected_parameter_counts=counts)
-    if not incomplete:
-        slot = load_inherited_reference(
-            SLOT_REFERENCE_DIRS,
-            reference_kind="slot",
-            expected_dirs=SLOT_REFERENCE_DIRS,
-            feature_root=args.feature_root,
-        )
-        control = load_inherited_reference(
-            CONTROL_REFERENCE_DIRS,
-            reference_kind="control",
-            expected_dirs=CONTROL_REFERENCE_DIRS,
-            feature_root=args.feature_root,
-        )
-        aggregate(
+    summary_path = args.output_root / "summary.json"
+    runner_status_path = args.output_root / "runner_status.json"
+    with ExitStack() as lock_stack:
+        for job in jobs:
+            lock_stack.enter_context(
+                job_lock(
+                    job,
+                    context.producer_provenance[(job.variant, job.seed)],
+                )
+            )
+        for stale_path in (summary_path, runner_status_path):
+            if stale_path.is_file():
+                stale_path.unlink()
+        incomplete = pending_jobs(
             jobs,
-            slot_reference=slot,
-            control_reference=control,
             expected_parameter_counts=counts,
-            output_path=args.output_root / "summary.json",
+            expected_context=context,
         )
-    _atomic_json(
-        args.output_root / "runner_status.json",
-        {
-            "state": "complete" if not incomplete else "failed",
-            "failures": failures,
-            "incomplete": len(incomplete),
-            "jobs": 5,
-        },
-    )
+        write_manifest(
+            manifest_path,
+            jobs,
+            source_commit=args.source_commit,
+            feature_root=args.feature_root,
+            repo_root=args.repo_root,
+            expected_parameter_counts=counts,
+            expected_context=context,
+        )
+        if not incomplete:
+            aggregate(
+                jobs,
+                slot_reference=slot,
+                control_reference=control,
+                expected_context=context,
+                expected_parameter_counts=counts,
+                output_path=summary_path,
+            )
+        _atomic_json(
+            runner_status_path,
+            {
+                "state": "complete" if not incomplete else "failed",
+                "failures": failures,
+                "incomplete": len(incomplete),
+                "jobs": 5,
+            },
+        )
     return 0 if not incomplete else 1
 
 
