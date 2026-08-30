@@ -84,6 +84,7 @@ class TrainConfig:
     postgraph_sequence_mode: str = "independent"
     jepa_rate_weighting: str = "uniform"
     graph_message_calibration: str = "none"
+    fixed_missing_rate: float | None = None
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -206,6 +207,24 @@ def _build_schedule(
 
 def _schedules(config: TrainConfig, split: str) -> Dict[float, ConversationMaskSchedule]:
     return {rate: _build_schedule(config, split, rate) for rate in MISSING_RATES}
+
+
+def _fixed_missing_rate(config: TrainConfig) -> float | None:
+    rate = config.fixed_missing_rate
+    if config.train_rate_mode == "fixed":
+        if rate is None:
+            raise ValueError(
+                "fixed_missing_rate is required when train_rate_mode='fixed'"
+            )
+        normalized = float(rate)
+        if not math.isfinite(normalized) or normalized not in MISSING_RATES:
+            raise ValueError("fixed_missing_rate must be one of the official missing rates")
+        return normalized
+    if rate is not None:
+        raise ValueError(
+            "fixed_missing_rate is only valid when train_rate_mode='fixed'"
+        )
+    return None
 
 
 def _move_batch(data: Sequence[object], device: torch.device) -> list[object]:
@@ -408,6 +427,7 @@ def train_epoch(
     if mmoe is not None:
         mmoe.reset_routing_statistics()
     rate_schedule = BalancedBatchRateSchedule()
+    fixed_rate = _fixed_missing_rate(config)
     losses: list[float] = []
     cls_losses: list[float] = []
     jepa_losses: list[float] = []
@@ -430,8 +450,13 @@ def train_epoch(
             view = _prepare_view(data, schedules[rate], epoch, dimensions)
             optimizer.zero_grad(set_to_none=True)
             rate_views = ((rate, view),)
+        elif config.train_rate_mode == "fixed":
+            rate = fixed_rate
+            view = _prepare_view(data, schedules[rate], epoch, dimensions)
+            optimizer.zero_grad(set_to_none=True)
+            rate_views = ((rate, view),)
         else:
-            raise ValueError("train_rate_mode must be 'cyclic' or 'all'")
+            raise ValueError("train_rate_mode must be 'cyclic', 'all', or 'fixed'")
         teacher = None
         for rate, view in rate_views:
             rate_counts[rate] += 1

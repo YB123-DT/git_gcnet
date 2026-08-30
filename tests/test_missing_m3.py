@@ -2210,6 +2210,68 @@ def test_all_train_rate_mode_averages_eight_views_with_one_update_per_batch(monk
     assert metrics["rate_batch_counts"] == {str(rate): 2 for rate in MISSING_RATES}
 
 
+def test_fixed_rate_mode_uses_only_the_registered_rate_for_every_batch(monkeypatch):
+    prepared_rates, clipped_gradients, events = _install_train_epoch_lifecycle_fakes(
+        monkeypatch
+    )
+    model = _LifecycleModel(events)
+    optimizer = _CountingOptimizer(model.weight)
+    config = TrainConfig(train_rate_mode="fixed", fixed_missing_rate=0.5)
+
+    metrics = train_gcnet.train_epoch(
+        model=model,
+        loader=[["first"], ["second"]],
+        optimizer=optimizer,
+        config=config,
+        schedules={rate: rate for rate in MISSING_RATES},
+        epoch=7,
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+    )
+
+    assert prepared_rates == [0.5, 0.5]
+    assert model.forward_rates == [0.5, 0.5]
+    assert events == [
+        ("prepare", 0.5),
+        ("forward", 0.5),
+        ("prepare", 0.5),
+        ("forward", 0.5),
+    ]
+    assert model.teacher_calls == 2
+    assert optimizer.zero_grad_calls == 2
+    assert len(clipped_gradients) == 2
+    assert len(optimizer.step_gradients) == 2
+    assert all(value.item() == pytest.approx(6.0) for value in optimizer.step_gradients)
+    assert model.ema_calls == 2
+    assert metrics["optimizer_steps"] == 2
+    assert metrics["rate_batch_counts"]["0.5"] == 2
+    assert sum(metrics["rate_batch_counts"].values()) == 2
+
+
+@pytest.mark.parametrize(
+    "mode,rate,match",
+    [
+        ("fixed", None, "fixed_missing_rate"),
+        (
+            "fixed",
+            0.25,
+            "official missing rates",
+        ),
+        (
+            "all",
+            0.5,
+            "only valid when train_rate_mode='fixed'",
+        ),
+    ],
+)
+def test_fixed_rate_configuration_rejects_ambiguous_or_invalid_contracts(
+    mode, rate, match
+):
+    config = TrainConfig(train_rate_mode=mode, fixed_missing_rate=rate)
+    with pytest.raises(ValueError, match=match):
+        train_gcnet._fixed_missing_rate(config)
+
+
 def test_sparsity_jepa_weights_preserve_the_active_rate_budget():
     uniform = [
         train_gcnet._jepa_rate_weight(rate, "uniform")
