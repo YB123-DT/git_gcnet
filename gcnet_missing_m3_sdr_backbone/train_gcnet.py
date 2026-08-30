@@ -7,6 +7,7 @@ import copy
 import math
 import os
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Dict, FrozenSet, List, Union
@@ -20,6 +21,11 @@ from gcnet_missing_m3.mixed_rate import MISSING_RATES
 from gcnet_modality_jepa.protocol import SeedBundle
 
 from .model import MissingM3SDRModel, SDRConversationBackbone
+
+
+_RESULT_IDENTITY_FIELDS = frozenset(
+    {"variant", "sdr_variant", "sdr_input_type", "backbone"}
+)
 
 
 # Preserve the registered control's data, mask, optimization, evaluation, and
@@ -116,14 +122,20 @@ def build_model(
     tdim: int,
     vdim: int,
     device: torch.device,
+    *,
+    model_type=None,
 ) -> MissingM3SDRModel:
     """Construct exactly one registered SDR treatment on ``device``."""
 
+    if model_type is None:
+        model_type = MissingM3SDRModel
+    if not callable(model_type):
+        raise TypeError("model_type must be callable")
     shape = _resolve_task_contract(
         config_value.dataset,
         config_value.mosi_task_mode,
     )
-    return MissingM3SDRModel(
+    return model_type(
         config_value.base_model,
         adim,
         tdim,
@@ -188,16 +200,42 @@ def _peak_memory(device: torch.device) -> int:
     return int(torch.cuda.max_memory_allocated(device))
 
 
+def _validated_result_identity(result_identity):
+    if result_identity is None:
+        return {}
+    if not isinstance(result_identity, Mapping):
+        raise TypeError("result_identity must be a mapping")
+    unexpected = set(result_identity).difference(_RESULT_IDENTITY_FIELDS)
+    if unexpected:
+        raise ValueError(
+            "result_identity contains uncontrolled fields: {}".format(
+                ", ".join(sorted(str(name) for name in unexpected))
+            )
+        )
+    if any(
+        not isinstance(value, str) or not value
+        for value in result_identity.values()
+    ):
+        raise ValueError("result_identity values must be non-empty strings")
+    return dict(result_identity)
+
+
 def run_experiment(
     config_value: SDRTrainConfig,
     audio_root: str,
     text_root: str,
     visual_root: str,
     output_dir: Union[str, Path],
+    *,
+    model_builder=None,
+    result_identity=None,
 ) -> Dict[str, object]:
     """Train and evaluate one validation-selected SDR treatment."""
 
     started_at = time.perf_counter()
+    identity = _validated_result_identity(result_identity)
+    if model_builder is not None and not callable(model_builder):
+        raise TypeError("model_builder must be callable")
     shape = _resolve_task_contract(
         config_value.dataset,
         config_value.mosi_task_mode,
@@ -236,7 +274,8 @@ def run_experiment(
         "missing_m3_model_init:fold:5"
     )
     set_random_seed(model_seed)
-    model = build_model(config_value, adim, tdim, vdim, device)
+    builder = build_model if model_builder is None else model_builder
+    model = builder(config_value, adim, tdim, vdim, device)
     optimizer = torch.optim.Adam(
         (
             parameter
@@ -402,6 +441,7 @@ def run_experiment(
         "train_missing_rate": config_value.fixed_missing_rate,
         **_parameter_provenance(model),
     }
+    result.update(identity)
     _write_json(output / "metrics.json", result)
     return result
 

@@ -1,3 +1,4 @@
+import inspect
 import json
 import sys
 from dataclasses import asdict
@@ -11,6 +12,16 @@ from gcnet_missing_m3 import train_gcnet as base_train
 from gcnet_missing_m3.mixed_rate import MISSING_RATES
 from gcnet_missing_m3_sdr_backbone.model import MissingM3SDRModel
 from gcnet_modality_jepa.protocol import SeedBundle
+
+
+def test_run_experiment_exposes_keyword_only_reuse_hooks():
+    from gcnet_missing_m3_sdr_backbone import train_gcnet
+
+    parameters = inspect.signature(train_gcnet.run_experiment).parameters
+
+    for name in ("model_builder", "result_identity"):
+        assert parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
+        assert parameters[name].default is None
 
 
 def test_sdr_config_inherits_control_and_locks_registered_treatment():
@@ -485,6 +496,7 @@ def test_run_experiment_selects_only_eight_rate_validation_and_records_provenanc
     assert result["selection_missing_rates"] == list(MISSING_RATES)
     assert result["variant"] == "sdr-paper"
     assert result["sdr_variant"] == "sdr-paper"
+    assert "sdr_input_type" not in result
     assert result["backbone"] == "sdr-gnn-whole-backbone"
     assert result["evaluation_stage"] == "train-validation-test"
     assert result["registered_parameters"] > 0
@@ -512,6 +524,36 @@ def test_run_experiment_selects_only_eight_rate_validation_and_records_provenanc
     assert json.loads((tmp_path / "metrics.json").read_text()) == result
     assert len(list(tmp_path.glob("predictions_miss_*.npz"))) == 8
     assert not list(tmp_path.rglob("*.tmp"))
+
+
+@pytest.mark.parametrize(
+    "result_identity",
+    [
+        {"best_epoch": "forbidden"},
+        {"registered_parameters": "forbidden"},
+        {"sdr_input_type": 1},
+        [],
+    ],
+)
+def test_run_experiment_rejects_uncontrolled_result_identity(
+    result_identity,
+    tmp_path,
+):
+    from gcnet_missing_m3_sdr_backbone import train_gcnet
+
+    with pytest.raises((TypeError, ValueError), match="result_identity"):
+        train_gcnet.run_experiment(
+            train_gcnet.SDRTrainConfig(
+                device="cpu",
+                epochs=1,
+                evaluate_test=False,
+            ),
+            "audio",
+            "text",
+            "visual",
+            tmp_path,
+            result_identity=result_identity,
+        )
 
 
 def test_run_experiment_can_skip_test_without_calling_test_evaluation(
