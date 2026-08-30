@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass
+from functools import lru_cache
 from pathlib import Path
 from statistics import mean
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
@@ -21,6 +22,7 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
+from gcnet_missing_m3 import train_gcnet as base_train
 from gcnet_missing_m3_sdr_backbone.train_gcnet import SDRTrainConfig
 
 
@@ -74,6 +76,17 @@ class ResultInspection:
     complete: bool
     reason: str
     has_test_metrics: bool = False
+    collapsed: bool = False
+    collapse_rates: Tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class PredictionInspection:
+    weighted_f1: float
+    prediction_std: float
+    predicted_sign_count: int
+    mask_sha256: str
+    collapsed: bool
 
 
 def _validated_gpus(gpus: Sequence[int]) -> Tuple[int, ...]:
@@ -271,12 +284,12 @@ def _test_metrics_are_semantically_complete(
             or not 0.0 <= float(weighted_f1) <= 1.0
         ):
             return False
-        if not _finite_number(prediction_std) or float(prediction_std) <= 0.0:
+        if not _finite_number(prediction_std) or float(prediction_std) < 0.0:
             return False
         if (
             isinstance(sign_count, bool)
             or not isinstance(sign_count, int)
-            or sign_count < 2
+            or sign_count < 1
         ):
             return False
         if not _is_sha256(mask_sha256) or mask_hashes[rate] != mask_sha256:
@@ -307,39 +320,60 @@ def _test_metrics_are_semantically_complete(
     return True
 
 
-def _prediction_archive_is_complete(path: Path) -> bool:
+def _inspect_prediction_archive(path: Path):
     if not Path(path).is_file():
-        return False
+        return None, "archive is missing"
     try:
         with np.load(str(path), allow_pickle=False) as archive:
             if not {"predictions", "labels", "availability"}.issubset(
                 archive.files
             ):
-                return False
+                return None, "required arrays are missing"
             predictions = np.asarray(archive["predictions"])
             labels = np.asarray(archive["labels"])
             availability = np.asarray(archive["availability"])
     except (OSError, ValueError, TypeError, EOFError):
-        return False
+        return None, "archive cannot be loaded"
     if predictions.size == 0 or labels.size == 0 or availability.size == 0:
-        return False
+        return None, "archive arrays must be non-empty"
     if predictions.reshape(-1).shape != labels.reshape(-1).shape:
-        return False
+        return None, "predictions and labels have different shapes"
     if availability.ndim != 2 or availability.shape[0] != predictions.size:
-        return False
+        return None, "availability has the wrong row count"
     if availability.shape[1] != 3:
-        return False
+        return None, "availability must have three modality columns"
     if not (
         np.isfinite(predictions).all()
         and np.isfinite(labels).all()
         and np.isfinite(availability).all()
     ):
-        return False
-    if float(np.std(predictions)) <= 0.0:
-        return False
-    if np.unique(predictions.reshape(-1) > 0).size < 2:
-        return False
-    return True
+        return None, "archive arrays must be finite"
+    flattened_predictions = predictions.reshape(-1)
+    flattened_labels = labels.reshape(-1)
+    if not np.any(flattened_labels != 0):
+        return None, "MOSI W-F1 requires at least one nonzero label"
+    try:
+        recomputed = base_train._metrics(
+            "CMUMOSI",
+            flattened_labels,
+            flattened_predictions,
+            "regression",
+        )
+    except (TypeError, ValueError) as error:
+        return None, "MOSI metrics cannot be recomputed: {}".format(error)
+    availability_tensor = torch.from_numpy(
+        np.ascontiguousarray(availability)
+    )
+    mask_sha256 = base_train._sha256_tensor(availability_tensor)
+    prediction_std = float(recomputed["prediction_std"])
+    sign_count = int(recomputed["predicted_sign_count"])
+    return PredictionInspection(
+        weighted_f1=float(recomputed["weighted_f1"]),
+        prediction_std=prediction_std,
+        predicted_sign_count=sign_count,
+        mask_sha256=mask_sha256,
+        collapsed=prediction_std <= 0.0 or sign_count < 2,
+    ), None
 
 
 def inspect_result(job: SDRJob) -> ResultInspection:
@@ -411,16 +445,65 @@ def inspect_result(job: SDRJob) -> ResultInspection:
     if not _test_metrics_are_semantically_complete(metrics, job):
         return ResultInspection(False, "test metrics failed semantic completion checks")
 
+    collapse_rates = []
     for rate in MISSING_RATE_KEYS:
         archive = job.output_dir / "predictions_miss_{}.npz".format(
             rate.replace(".", "p")
         )
-        if not _prediction_archive_is_complete(archive):
+        prediction, prediction_error = _inspect_prediction_archive(archive)
+        if prediction_error is not None:
             return ResultInspection(
                 False,
-                "prediction archive is missing or invalid for rate {}".format(rate),
+                "prediction archive is invalid for rate {}: {}".format(
+                    rate, prediction_error
+                ),
             )
-    return ResultInspection(True, "complete-test-8-rates", has_test_metrics=True)
+        assert prediction is not None
+        rate_metrics = test_metrics[rate]
+        comparisons = {
+            "weighted_f1": prediction.weighted_f1,
+            "prediction_std": prediction.prediction_std,
+        }
+        for name, recomputed_value in comparisons.items():
+            if not _same_float(rate_metrics.get(name), recomputed_value, 1e-8):
+                return ResultInspection(
+                    False,
+                    (
+                        "test metrics semantic mismatch: prediction archive "
+                        "recomputed {} mismatch "
+                        "for rate {}"
+                    ).format(name, rate),
+                )
+        if (
+            rate_metrics.get("predicted_sign_count")
+            != prediction.predicted_sign_count
+        ):
+            return ResultInspection(
+                False,
+                (
+                    "test metrics semantic mismatch: prediction archive "
+                    "recomputed sign count mismatch for rate {}"
+                ).format(rate),
+            )
+        if (
+            rate_metrics.get("mask_sha256") != prediction.mask_sha256
+            or metrics["mask_sha256"].get(rate) != prediction.mask_sha256
+        ):
+            return ResultInspection(
+                False,
+                "prediction archive availability SHA mismatch for rate {}".format(
+                    rate
+                ),
+            )
+        if prediction.collapsed:
+            collapse_rates.append(rate)
+    return ResultInspection(
+        True,
+        "complete-test-8-rates",
+        has_test_metrics=True,
+        collapsed=bool(collapse_rates),
+        collapse_rates=tuple(collapse_rates),
+    )
 
 
 def pending_jobs(jobs: Sequence[SDRJob]) -> List[SDRJob]:
@@ -487,6 +570,11 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _canonical_json_sha256(payload: object) -> str:
+    encoded = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def _validate_source_commit(source_commit: str) -> str:
     normalized = str(source_commit).lower()
     if len(normalized) != 40 or any(
@@ -496,26 +584,81 @@ def _validate_source_commit(source_commit: str) -> str:
     return normalized
 
 
+@lru_cache(maxsize=1)
+def _query_training_runtime() -> Dict[str, object]:
+    program = """
+import json
+import sys
+import torch
+
+healthy = (2, 3, 5, 6, 7)
+gpu_names = {}
+if torch.cuda.is_available():
+    try:
+        count = torch.cuda.device_count()
+        gpu_names = {
+            str(index): torch.cuda.get_device_name(index)
+            for index in healthy
+            if index < count
+        }
+    except RuntimeError:
+        gpu_names = {}
+print(json.dumps({
+    "python_version": sys.version.splitlines()[0],
+    "torch_version": torch.__version__,
+    "cuda_version": torch.version.cuda,
+    "cudnn_version": torch.backends.cudnn.version(),
+    "gpu_names": gpu_names,
+}, sort_keys=True))
+"""
+    try:
+        completed = subprocess.run(
+            [str(DEFAULT_PYTHON), "-c", program],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            check=True,
+            timeout=60,
+        )
+        lines = [line for line in completed.stdout.splitlines() if line.strip()]
+        payload = json.loads(lines[-1])
+    except (
+        IndexError,
+        json.JSONDecodeError,
+        OSError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ) as error:
+        raise RuntimeError(
+            "failed to query fixed training Python provenance: {}".format(error)
+        )
+    if not isinstance(payload, Mapping):
+        raise RuntimeError("fixed training Python returned invalid provenance")
+    return dict(payload)
+
+
 def _runtime_provenance() -> Dict[str, object]:
-    gpu_names: Dict[str, str] = {}
-    if torch.cuda.is_available():
-        try:
-            device_count = torch.cuda.device_count()
-            gpu_names = {
-                str(index): torch.cuda.get_device_name(index)
-                for index in HEALTHY_GPUS
-                if index < device_count
-            }
-        except RuntimeError:
-            gpu_names = {}
-    return {
-        "training_python_executable": str(DEFAULT_PYTHON),
-        "runner_python_executable": sys.executable,
+    training = _query_training_runtime()
+    runner = {
+        "python_executable": sys.executable,
         "python_version": sys.version.splitlines()[0],
         "torch_version": torch.__version__,
         "cuda_version": torch.version.cuda,
         "cudnn_version": torch.backends.cudnn.version(),
-        "gpu_names": gpu_names,
+    }
+    return {
+        "training_python_executable": str(DEFAULT_PYTHON),
+        "runner_python_executable": sys.executable,
+        "python_version": training["python_version"],
+        "torch_version": training["torch_version"],
+        "cuda_version": training["cuda_version"],
+        "cudnn_version": training["cudnn_version"],
+        "gpu_names": training["gpu_names"],
+        "training": {
+            "python_executable": str(DEFAULT_PYTHON),
+            **training,
+        },
+        "runner": runner,
         "child_environment": {
             "OMP_NUM_THREADS": "2",
             "MKL_NUM_THREADS": "2",
@@ -533,8 +676,14 @@ def _result_manifest_fields(job: SDRJob) -> Dict[str, object]:
     status, status_error = _read_json(job.output_dir / "status.json")
     if status_error is not None or not isinstance(status, Mapping):
         status = None
+    expected_config = asdict(
+        SDRTrainConfig(seed=job.seed, sdr_variant=job.variant)
+    )
     return {
-        "config_sha256": _sha256_file(config_path) if config_path.is_file() else None,
+        "config_sha256": _canonical_json_sha256(expected_config),
+        "config_file_sha256": (
+            _sha256_file(config_path) if config_path.is_file() else None
+        ),
         "metrics_sha256": (
             _sha256_file(metrics_path) if metrics_path.is_file() else None
         ),
@@ -577,6 +726,8 @@ def write_manifest(
                 "complete": inspection.complete,
                 "completion_reason": inspection.reason,
                 "has_test_metrics": inspection.has_test_metrics,
+                "collapsed": inspection.collapsed,
+                "collapse_rates": list(inspection.collapse_rates),
                 "log_path": str(job.output_dir / "train.log"),
                 **_result_manifest_fields(job),
             }

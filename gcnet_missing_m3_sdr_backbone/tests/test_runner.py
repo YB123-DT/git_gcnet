@@ -1,4 +1,5 @@
 from collections import Counter
+import hashlib
 import json
 import subprocess
 import sys
@@ -114,6 +115,7 @@ def _write_complete_result(
     test_offset=0.0,
     validation_only=False,
 ):
+    from gcnet_missing_m3 import train_gcnet as base_train
     from gcnet_missing_m3_sdr_backbone import run_mosi
     from gcnet_missing_m3_sdr_backbone.train_gcnet import SDRTrainConfig
 
@@ -160,21 +162,47 @@ def _write_complete_result(
     mask_hashes = {}
     if not validation_only:
         for index, rate in enumerate(RATES, start=1):
-            mask_hash = format(index, "064x")
+            labels = np.array(
+                [0.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0],
+                dtype=np.float32,
+            )
+            if test_offset < 0.0:
+                predictions = np.array(
+                    [100.0 + index, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0],
+                    dtype=np.float32,
+                )
+            else:
+                predictions = np.array(
+                    [100.0 + index, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0],
+                    dtype=np.float32,
+                )
+            code = (job.seed - 66) * len(RATES) + index
+            availability = np.zeros((labels.size, 3), dtype=np.float32)
+            for bit in range(availability.size):
+                availability.reshape(-1)[bit] = float((code >> bit) & 1)
+            mask_hash = hashlib.sha256(
+                np.ascontiguousarray(availability).tobytes()
+            ).hexdigest()
+            recomputed = base_train._metrics(
+                "CMUMOSI",
+                labels,
+                predictions,
+                "regression",
+            )
             test[rate] = {
-                "weighted_f1": 0.65 + test_offset - float(rate) / 100.0,
+                "weighted_f1": recomputed["weighted_f1"],
                 "loss": 0.3,
-                "prediction_std": 0.25,
-                "predicted_sign_count": 2,
+                "prediction_std": recomputed["prediction_std"],
+                "predicted_sign_count": recomputed["predicted_sign_count"],
                 "mask_sha256": mask_hash,
             }
             mask_hashes[rate] = mask_hash
             np.savez_compressed(
                 job.output_dir
                 / "predictions_miss_{}.npz".format(rate.replace(".", "p")),
-                predictions=np.array([-1.0, 1.0], dtype=np.float32),
-                labels=np.array([-1.0, 1.0], dtype=np.float32),
-                availability=np.ones((2, 3), dtype=np.float32),
+                predictions=predictions,
+                labels=labels,
+                availability=availability,
             )
     counts = run_mosi.EXPECTED_PARAMETER_COUNTS[job.variant]
     metrics = {
@@ -209,8 +237,39 @@ def _write_complete_result(
         ("history.json", history),
         ("metrics.json", metrics),
     ):
-        (job.output_dir / name).write_text(json.dumps(payload), encoding="utf-8")
+        (job.output_dir / name).write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     (job.output_dir / "train.log").touch()
+
+
+def _make_rate_collapsed(job, rate="0.4"):
+    from gcnet_missing_m3 import train_gcnet as base_train
+
+    archive_path = job.output_dir / "predictions_miss_{}.npz".format(
+        rate.replace(".", "p")
+    )
+    with np.load(archive_path, allow_pickle=False) as archive:
+        labels = archive["labels"]
+        availability = archive["availability"]
+    predictions = np.ones_like(labels)
+    np.savez_compressed(
+        archive_path,
+        predictions=predictions,
+        labels=labels,
+        availability=availability,
+    )
+    recomputed = base_train._metrics(
+        "CMUMOSI", labels, predictions, "regression"
+    )
+    metrics = json.loads((job.output_dir / "metrics.json").read_text())
+    metrics["test"][rate].update(
+        weighted_f1=recomputed["weighted_f1"],
+        prediction_std=recomputed["prediction_std"],
+        predicted_sign_count=recomputed["predicted_sign_count"],
+    )
+    (job.output_dir / "metrics.json").write_text(json.dumps(metrics))
 
 
 def test_result_completion_requires_exact_semantics_and_all_prediction_archives(
@@ -241,6 +300,78 @@ def test_result_completion_requires_exact_semantics_and_all_prediction_archives(
     archive.write_bytes(saved_archive)
     archive.write_bytes(b"half-written")
     assert "prediction" in run_mosi.inspect_result(job).reason
+
+
+def test_collapse_is_complete_scientific_state_and_is_not_rescheduled(tmp_path):
+    from gcnet_missing_m3_sdr_backbone import run_mosi
+
+    job = run_mosi.build_jobs(output_root=tmp_path)[0]
+    _write_complete_result(job)
+    rate = "0.4"
+    _make_rate_collapsed(job, rate)
+
+    inspection = run_mosi.inspect_result(job)
+
+    assert inspection.complete is True
+    assert inspection.collapsed is True
+    assert inspection.collapse_rates == (rate,)
+    assert run_mosi.pending_jobs([job]) == []
+
+
+def test_npz_metrics_are_independently_recomputed_with_mosi_nonzero_rule(tmp_path):
+    from gcnet_missing_m3 import train_gcnet as base_train
+    from gcnet_missing_m3_sdr_backbone import run_mosi
+
+    job = run_mosi.build_jobs(output_root=tmp_path)[0]
+    _write_complete_result(job)
+    archive_path = job.output_dir / "predictions_miss_0p2.npz"
+    with np.load(archive_path, allow_pickle=False) as archive:
+        labels = archive["labels"]
+        predictions = archive["predictions"]
+    assert labels[0] == 0.0 and predictions[0] > 0.0
+    assert base_train._metrics(
+        "CMUMOSI", labels, predictions, "regression"
+    )["weighted_f1"] == pytest.approx(1.0)
+
+    metrics = json.loads((job.output_dir / "metrics.json").read_text())
+    metrics["test"]["0.2"]["weighted_f1"] = 0.123
+    (job.output_dir / "metrics.json").write_text(json.dumps(metrics))
+
+    inspection = run_mosi.inspect_result(job)
+    assert inspection.complete is False
+    assert "recomputed" in inspection.reason
+
+
+def test_npz_availability_sha_is_independent_and_rate_or_job_swaps_fail(tmp_path):
+    from gcnet_missing_m3_sdr_backbone import run_mosi
+
+    jobs = run_mosi.build_jobs(output_root=tmp_path)
+    first, second = jobs[0], jobs[1]
+    _write_complete_result(first)
+    _write_complete_result(second)
+
+    metrics = json.loads((first.output_dir / "metrics.json").read_text())
+    metrics["test"]["0.3"]["mask_sha256"] = "f" * 64
+    metrics["mask_sha256"]["0.3"] = "f" * 64
+    (first.output_dir / "metrics.json").write_text(json.dumps(metrics))
+    assert run_mosi.inspect_result(first).complete is False
+
+    _write_complete_result(first)
+    rate_a = first.output_dir / "predictions_miss_0p1.npz"
+    rate_b = first.output_dir / "predictions_miss_0p2.npz"
+    bytes_a, bytes_b = rate_a.read_bytes(), rate_b.read_bytes()
+    rate_a.write_bytes(bytes_b)
+    rate_b.write_bytes(bytes_a)
+    assert run_mosi.inspect_result(first).complete is False
+
+    _write_complete_result(first)
+    job_a = first.output_dir / "predictions_miss_0p5.npz"
+    job_b = second.output_dir / "predictions_miss_0p5.npz"
+    bytes_a, bytes_b = job_a.read_bytes(), job_b.read_bytes()
+    job_a.write_bytes(bytes_b)
+    job_b.write_bytes(bytes_a)
+    assert run_mosi.inspect_result(first).complete is False
+    assert run_mosi.inspect_result(second).complete is False
 
 
 @pytest.mark.parametrize(
@@ -371,16 +502,28 @@ def test_manifest_is_atomic_and_binds_source_results_environment_and_status(
     assert first["runtime"]["training_python_executable"] == str(
         run_mosi.DEFAULT_PYTHON
     )
-    assert first["runtime"]["python_version"]
-    assert first["runtime"]["torch_version"]
-    assert "cuda_version" in first["runtime"]
-    assert "gpu_names" in first["runtime"]
+    assert first["runtime"]["training"]["python_version"].startswith("3.8")
+    assert first["runtime"]["training"]["torch_version"] == "1.8.0"
+    assert "cuda_version" in first["runtime"]["training"]
+    assert "gpu_names" in first["runtime"]["training"]
+    assert first["runtime"]["runner"]["python_version"].startswith("3.10")
     assert set(first["source_files_sha256"]) == set(run_mosi.SOURCE_FILES)
     assert all(len(value) == 64 for value in first["source_files_sha256"].values())
     assert len(first["jobs"]) == 10
     complete = first["jobs"][0]
+    incomplete = first["jobs"][1]
     assert complete["complete"] is True
     assert len(complete["config_sha256"]) == 64
+    expected_config = asdict(
+        run_mosi.SDRTrainConfig(seed=66, sdr_variant="sdr-public")
+    )
+    expected_config_sha = hashlib.sha256(
+        (json.dumps(expected_config, indent=2, sort_keys=True) + "\n").encode()
+    ).hexdigest()
+    assert complete["config_sha256"] == expected_config_sha
+    assert complete["config_file_sha256"] == expected_config_sha
+    assert len(incomplete["config_sha256"]) == 64
+    assert incomplete["config_file_sha256"] is None
     assert len(complete["metrics_sha256"]) == 64
     assert complete["status"] == {"state": "complete", "returncode": 0}
     assert set(complete["mask_sha256"]) == set(RATES)
@@ -592,6 +735,7 @@ def test_aggregate_reports_per_rate_high_missing_paired_deltas_and_collapse(
                 validation_offset=-0.01,
                 test_offset=0.10,
             )
+    _make_rate_collapsed(jobs[0], "0.4")
     control = {
         seed: {rate: 0.70 - float(rate) / 100.0 for rate in RATES}
         for seed in (66, 67, 68, 69, 70)
@@ -611,7 +755,8 @@ def test_aggregate_reports_per_rate_high_missing_paired_deltas_and_collapse(
     assert public["validation_high_missing_mean"] == pytest.approx(
         np.mean([0.72 - rate / 100.0 for rate in (0.4, 0.5, 0.6, 0.7)])
     )
-    assert public["collapse"]["any"] is False
+    assert public["collapse"] == {"any": True, "seeds": [66]}
+    assert public["seeds"]["66"]["collapse_rates"] == ["0.4"]
     assert public["seeds"]["66"]["paired_validation_delta"] == pytest.approx(0.02)
     assert public["seeds"]["66"]["validation_mean"] > paper["seeds"]["66"][
         "validation_mean"
