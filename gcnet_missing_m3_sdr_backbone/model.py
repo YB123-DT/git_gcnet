@@ -4,6 +4,8 @@ import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
 
+from gcnet_missing_m3.model import MissingM3GraphModel
+
 from .layers import (
     SDRRelationBranch,
     _run_packed_bigru,
@@ -176,4 +178,115 @@ class SDRConversationBackbone(nn.Module):
         return hidden.masked_fill(value_padding, 0.0)
 
 
-__all__ = ["SDRConversationBackbone", "SDRRelationBranch"]
+class MissingM3SDRModel(MissingM3GraphModel):
+    """Slot Missing-M3 with its complete conversation path replaced by SDR."""
+
+    @staticmethod
+    def _parent_argument(args, kwargs, index, name, default=None):
+        if len(args) > index:
+            return args[index]
+        return kwargs.get(name, default)
+
+    def __init__(self, *args, sdr_variant="sdr-public", **kwargs):
+        base_model = self._parent_argument(args, kwargs, 0, "base_model")
+        recurrent_hidden = self._parent_argument(args, kwargs, 4, "D_e")
+        graph_hidden = self._parent_argument(
+            args,
+            kwargs,
+            5,
+            "graph_hidden_size",
+        )
+        dropout = self._parent_argument(args, kwargs, 10, "dropout", 0.5)
+        time_attn = self._parent_argument(args, kwargs, 11, "time_attn", True)
+        fusion_type = self._parent_argument(
+            args,
+            kwargs,
+            18,
+            "fusion_type",
+            "mean",
+        )
+        graph_branch_mode = self._parent_argument(
+            args,
+            kwargs,
+            22,
+            "graph_branch_mode",
+            "both",
+        )
+        classification_completion = self._parent_argument(
+            args,
+            kwargs,
+            24,
+            "classification_completion",
+            False,
+        )
+        representation_type = self._parent_argument(
+            args,
+            kwargs,
+            25,
+            "representation_type",
+            "slot",
+        )
+
+        if isinstance(dropout, bool):
+            raise TypeError("dropout must be a real probability, not bool")
+        if base_model != "LSTM":
+            raise ValueError("base_model must be 'LSTM' for the locked control")
+        if fusion_type != "slot":
+            raise ValueError("fusion_type must be 'slot'")
+        if representation_type != "slot":
+            raise ValueError("representation_type must be 'slot'")
+        if classification_completion is not False:
+            raise ValueError("classification_completion must be False")
+        if graph_branch_mode != "both":
+            raise ValueError("graph_branch_mode must be 'both'")
+        if time_attn is not False:
+            raise ValueError("time_attn must be False")
+        if sdr_variant not in SDRConversationBackbone.VARIANTS:
+            raise ValueError("sdr_variant must be 'sdr-public' or 'sdr-paper'")
+
+        super().__init__(*args, **kwargs)
+
+        del self.lstm
+        del self.gru
+        del self.graph_net_temporal
+        del self.graph_net_speaker
+
+        self.sdr_variant = sdr_variant
+        self.conversation_backbone = SDRConversationBackbone(
+            variant=sdr_variant,
+            input_dim=self.latent_dim,
+            recurrent_hidden=recurrent_hidden,
+            graph_hidden=graph_hidden,
+            n_speakers=self.n_speakers,
+            window_past=self.window_past,
+            window_future=self.window_future,
+            dropout=dropout,
+        )
+        if self.conversation_backbone.output_dim != self.smax_fc.in_features:
+            raise RuntimeError(
+                "SDR backbone output width must match the Missing-M3 heads"
+            )
+
+    def encode_hidden(
+        self,
+        inputfeats,
+        qmask,
+        umask,
+        seq_lengths,
+        pre_graph_residual=None,
+    ):
+        if pre_graph_residual is not None:
+            raise ValueError("pre_graph_residual is unsupported by the SDR backbone")
+        return self.conversation_backbone(
+            self._feature_tensor(inputfeats),
+            qmask,
+            umask,
+            seq_lengths,
+        )
+
+
+__all__ = [
+    "MissingM3SDRModel",
+    "SDRConversationBackbone",
+    "SDRRelationBranch",
+]

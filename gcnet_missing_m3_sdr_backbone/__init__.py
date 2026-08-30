@@ -11,7 +11,7 @@ from .layers import (
     graphify,
     nodes_to_conversation,
 )
-from .model import SDRConversationBackbone
+from .model import MissingM3SDRModel, SDRConversationBackbone
 
 __all__ = [
     "FrequencyAwareConv",
@@ -19,6 +19,7 @@ __all__ = [
     "SDRHypergraphConv",
     "SDRRelationBranch",
     "SDRConversationBackbone",
+    "MissingM3SDRModel",
     "SPEAKER_RELATION_TABLE",
     "TEMPORAL_RELATION_TABLE",
     "conversation_to_nodes",
