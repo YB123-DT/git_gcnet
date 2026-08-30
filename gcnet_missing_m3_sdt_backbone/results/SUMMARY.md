@@ -60,6 +60,10 @@ Candidate 的 8 个 test mask SHA 已保存并通过 manifest 核对；但 inher
 validation-only 运行，其 `history.json` 没有保存 validation mask SHA。因此 validation A/B
 的逐 mask 配对只能由相同 seed、相同配置和双方共享的确定性 `_schedules()` 实现推断，不能
 仅凭现有 artifact 做密码学复核。该限制不改变本次门槛失败，但必须在论文或总账中披露。
+Control 也没有 test metrics，因此上表 Candidate test 只能作描述，不能声称 paired test
+提升。Control 的五种子 provenance 来自既有分散归档；本次 `PROVENANCE.json` 额外锁定了
+实际读取的十个 control JSON 文件 SHA。Candidate manifest 未内置 history SHA，本次同样
+在 `PROVENANCE.json` 中补充了五个 history SHA。
 
 Test 仅在预先由 validation 选择的 checkpoint 上报告，没有用于反向修改模型。完整机器可读
 结果见 [`SUMMARY.json`](./SUMMARY.json)，运行证据见 [`formal/manifest.json`](./formal/manifest.json)

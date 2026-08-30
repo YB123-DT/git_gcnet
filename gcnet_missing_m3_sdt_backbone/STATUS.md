@@ -25,7 +25,7 @@
 | 并发计划 | 锁定 | 2 jobs/GPU；只使用 GPU 0、1、2 |
 | Seeds 66–70 正式训练 | 完成 | 5/5 seeds、每个 100 epochs 与 8-rate test；failures=0 |
 | 五种子结果汇总 | 完成 | `results/SUMMARY.json` 与 `results/SUMMARY.md` |
-| GitHub 结果归档 | 进行中 | 只归档源码与小型 JSON/MD/log；无 PT/NPZ |
+| GitHub 结果归档 | 完成 | `feature/m3-jepa-gcnet`；只含源码与小型 JSON/MD/log，无 PT/NPZ |
 
 ## 锁定运行矩阵
 
