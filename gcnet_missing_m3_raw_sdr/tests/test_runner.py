@@ -401,6 +401,17 @@ def test_parameter_count_lock_is_fail_closed_until_smoke_records_exact_counts(
     assert run_mosi.inspect_result(job, expected_parameter_counts=COUNTS).complete
 
 
+def test_parameter_count_lock_matches_the_single_formal_smoke():
+    from gcnet_missing_m3_raw_sdr import run_mosi
+
+    assert run_mosi.EXPECTED_PARAMETER_COUNTS == {
+        "registered_parameters": 15_643_426,
+        "trainable_parameters": 14_783_266,
+        "registered_backbone_parameters": 12_209_701,
+        "trainable_backbone_parameters": 12_209_701,
+    }
+
+
 def test_completion_requires_provenance_config_100_epochs_metrics_and_8_npz(
     tmp_path,
 ):

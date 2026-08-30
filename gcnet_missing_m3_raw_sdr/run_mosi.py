@@ -82,9 +82,13 @@ SOURCE_FILES = (
     "gcnet_missing_m3_raw_sdr/run_mosi.py",
 )
 
-# Task 4 replaces this with the exact counts read from the one formal smoke.
-# Formal completion deliberately fails closed while this lock is unset.
-EXPECTED_PARAMETER_COUNTS: Optional[Mapping[str, int]] = None
+# Locked from the one seed-66, one-epoch, validation-only formal smoke.
+EXPECTED_PARAMETER_COUNTS: Optional[Mapping[str, int]] = {
+    "registered_parameters": 15_643_426,
+    "trainable_parameters": 14_783_266,
+    "registered_backbone_parameters": 12_209_701,
+    "trainable_backbone_parameters": 12_209_701,
+}
 PARAMETER_COUNT_FIELDS = (
     "registered_parameters",
     "trainable_parameters",
