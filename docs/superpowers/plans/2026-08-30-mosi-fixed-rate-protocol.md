@@ -124,7 +124,7 @@ checkpoint score 等于该 rate W-F1、metrics/test/NPZ 也只含 `0.5`；旧 al
 
 运行 runner tests，并确认 dry-run 输出任务数 40、GPU 仅 0/1/2。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 提交 runner、测试和实验登记。
 
@@ -136,27 +136,27 @@ checkpoint score 等于该 rate W-F1、metrics/test/NPZ 也只含 `0.5`；旧 al
 - 生成：`experiments/missing_m3_mosi_fixed_rate_20260830/results/PROVENANCE.json`
 - 修改：`experiments/missing_m3_mosi_fixed_rate_20260830/EXPERIMENT.md`
 
-- [ ] **步骤 1：同步并做一次官方环境验证**
+- [x] **步骤 1：同步并做一次官方环境验证**
 
 在 biggpu 使用 `/data2/yb/reproduction_envs/gcnet-official/bin/python` 运行 focused tests 和
 runner dry-run；不运行 1-epoch smoke。
 
-- [ ] **步骤 2：启动正式矩阵**
+- [x] **步骤 2：启动正式矩阵**
 
 使用 GPU 0/1/2、默认每卡 5 个并发任务运行 40 个 100-epoch jobs，runner 自动恢复完整
 结果并记录失败任务。
 
-- [ ] **步骤 3：审计结果**
+- [x] **步骤 3：审计结果**
 
 确认 40/40 config、history、metrics 和单-rate prediction NPZ 完整；独立从 prediction
 重算 W-F1，核对每个 test mask SHA，并检查单符号/非有限输出。
 
-- [ ] **步骤 4：汇总比较**
+- [x] **步骤 4：汇总比较**
 
 按 rate 和 seed 汇总 fixed-rate，比较既有 mixed-rate Slot Missing-M3；明确 SDR-GNN 与
 CaM-HG 的协议差异，不进行不配对显著性声明。
 
-- [ ] **步骤 5：提交并推送**
+- [x] **步骤 5：提交并推送**
 
 只提交源码、测试、JSON/Markdown 和小型日志摘要，不提交 checkpoint 或 prediction NPZ；
 按 Lore 协议提交并推送 `feature/m3-jepa-gcnet`。

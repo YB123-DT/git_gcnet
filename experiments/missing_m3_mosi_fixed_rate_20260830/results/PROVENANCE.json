@@ -1,0 +1,30 @@
+{
+  "source_commit": "62ecad3ecf187885208420ab1fc4a6a54e2fcb2e",
+  "training_module": "gcnet_missing_m3.train_gcnet",
+  "runner": "scripts/run_mosi_fixed_rate.py",
+  "remote_code_root": "/data2/yb/paper/GCNet_TPAMI_fixed_rate_20260830",
+  "remote_result_root": "/data2/yb/remote_experiments/missing_m3_mosi_fixed_rate_20260830/formal",
+  "runtime": {
+    "python": "3.8.20",
+    "python_executable": "/data2/yb/reproduction_envs/gcnet-official/bin/python",
+    "torch": "1.8.0",
+    "cuda": "10.2",
+    "gpus": [0, 1, 2],
+    "jobs_per_gpu": 5
+  },
+  "source_files_sha256": {
+    "gcnet_missing_m3/loss.py": "ed404a33be1098a8154da9e6ddc3fae60cab36cf96427acc1416aedefddb279c",
+    "gcnet_missing_m3/mixed_rate.py": "7ed390cb1d752c26dc8f9d0277801cbf88a3c11398e213a93f5ff328ffda9ccf",
+    "gcnet_missing_m3/model.py": "c85f2d6264631a797b3a6b316dd13b5c77ffe92fe2d863b1ac05759439d5554d",
+    "gcnet_missing_m3/train_gcnet.py": "037bed66d0329b486a90f09fa068d4f90a3ed844e776deff08de30712731c634",
+    "scripts/run_mosi_fixed_rate.py": "f01cb9bc4cb38389dde065c4fa490198ecfceb3693097d397de4c2513325d54c"
+  },
+  "formal_runner_status": {
+    "state": "complete",
+    "jobs": 40,
+    "failures": 0,
+    "incomplete": 0
+  },
+  "initial_launch_note": "The first launch exited before epoch 1 because the newly synchronized code root omitted the 1.6 MB CMUMOSI split/label metadata pickle. The metadata was synchronized and the same resumable runner replaced all 40 empty shells. No failed-shell metric was inherited.",
+  "full_manifest": "formal/manifest.json"
+}

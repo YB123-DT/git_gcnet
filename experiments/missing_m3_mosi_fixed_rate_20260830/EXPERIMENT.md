@@ -2,7 +2,7 @@
 
 ## 状态
 
-`RUNNING`。
+`COMPLETE — FAIL`。
 
 本实验检验现有统一八率训练是否限制了 MOSI 表现；它只改变训练/选模/测试协议，不修改
 Slot Missing-M3 模型或损失。
@@ -46,6 +46,20 @@ Original 和既有 mixed-rate Slot Missing-M3 结果直接继承，不重新训�
 - `train.log` 和原子 `status.json`。
 
 完成 40/40 后，从 NPZ 独立重算 W-F1，再与既有 mixed-rate 五种子均值按 rate 比较。
+
+## 结果
+
+- Fixed-rate 八率均值：`77.2638%`；
+- Mixed-rate 八率均值：`78.8680%`；
+- 差值：`-1.6042` 个百分点，`0/5` seeds 正向；
+- Fixed high missing：`72.6339%`；
+- Mixed high missing：`75.1207%`；
+- high-missing 差值：`-2.4868` 个百分点，`0/5` seeds 正向。
+
+逐率训练仅在 `0.1` 和 `0.2` 得到可忽略的正差值；`0.3--0.7` 全部下降，且 `0.7`
+下降 `3.9185` 个点。完整结果见 `results/SUMMARY.md`。
+
+结论：当前 Slot Missing-M3 应保留统一八率训练；固定率 specialization 不是 MOSI 提分方向。
 
 ## 路径
 
