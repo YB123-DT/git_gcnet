@@ -322,7 +322,7 @@ git diff --check
 
 核对没有待运行 job、没有已知错误、结果单元为 40/40。
 
-- [ ] **步骤 5：Lore commit 与推送**
+- [x] **步骤 5：Lore commit 与推送**
 
 提交只包含源代码、测试、文档和 compact results；不提交 checkpoint、完整 feature、
 缓存或临时日志。推送当前研究分支到 `https://github.com/YB123-DT/git_gcnet`，并记录
