@@ -1,6 +1,6 @@
 # Missing-M3 SDR-GNN Whole-Backbone Replacement Design
 
-Date: 2026-08-30  
+Date: 2026-08-30
 Status: approved architecture, pending written-spec review
 
 ## 1. Objective
