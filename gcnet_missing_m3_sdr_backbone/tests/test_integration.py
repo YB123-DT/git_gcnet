@@ -5,7 +5,7 @@ import torch
 
 import gcnet_missing_m3_sdr_backbone as sdr_package
 import gcnet_missing_m3_sdr_backbone.model as sdr_model
-from gcnet_missing_m3.model import MissingM3GraphModel
+from gcnet_missing_m3.model import MissingM3GraphModel, RawResidualObservedEncoder
 
 
 PATTERNS = torch.tensor(
@@ -117,10 +117,89 @@ def test_missing_m3_sdr_model_is_public_and_subclasses_control():
 
     assert sdr_package.MissingM3SDRModel is candidate_class
     assert issubclass(candidate_class, MissingM3GraphModel)
-    parameter = inspect.signature(candidate_class.__init__).parameters[
-        "sdr_variant"
-    ]
-    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    parameters = inspect.signature(candidate_class.__init__).parameters
+    assert "sdr_input_type" in parameters
+    assert parameters["sdr_input_type"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameters["sdr_input_type"].default == "slot"
+    assert parameters["sdr_variant"].kind is inspect.Parameter.KEYWORD_ONLY
+
+
+@pytest.mark.parametrize("variant", ["sdr-public", "sdr-paper"])
+def test_default_slot_input_is_bitwise_equal_to_explicit_slot(variant):
+    arguments = _model_arguments(
+        adim=512,
+        tdim=1024,
+        vdim=1024,
+        latent_dim=256,
+        n_speakers=1,
+        n_classes=1,
+    )
+    torch.manual_seed(700)
+    legacy = _candidate(variant, **arguments)
+    legacy_rng = torch.get_rng_state().clone()
+    torch.manual_seed(700)
+    explicit = _candidate_class()(
+        **arguments,
+        sdr_variant=variant,
+        sdr_input_type="slot",
+    )
+    explicit_rng = torch.get_rng_state().clone()
+
+    legacy_state = legacy.state_dict()
+    explicit_state = explicit.state_dict()
+    assert tuple(legacy_state) == tuple(explicit_state)
+    for key, legacy_value in legacy_state.items():
+        assert torch.equal(legacy_value, explicit_state[key]), key
+    assert torch.equal(legacy_rng, explicit_rng)
+    assert legacy.sdr_input_type == explicit.sdr_input_type == "slot"
+    assert legacy.conversation_backbone.input_dim == 256
+    assert explicit.conversation_backbone.input_dim == 256
+
+
+@pytest.mark.parametrize("variant", ["sdr-public", "sdr-paper"])
+def test_raw_residual_input_uses_raw_encoder_and_full_width(variant):
+    candidate = _candidate_class()(
+        **_model_arguments(
+            adim=512,
+            tdim=1024,
+            vdim=1024,
+            fusion_type="raw-residual",
+        ),
+        sdr_variant=variant,
+        sdr_input_type="raw-residual",
+    )
+
+    assert candidate.sdr_input_type == "raw-residual"
+    assert isinstance(candidate.observed_set, RawResidualObservedEncoder)
+    assert candidate.conversation_backbone.input_dim == 512 + 1024 + 1024
+
+
+def test_candidate_rejects_unknown_sdr_input_type():
+    with pytest.raises(ValueError, match="sdr_input_type"):
+        _candidate_class()(
+            **_model_arguments(),
+            sdr_variant="sdr-public",
+            sdr_input_type="mean",
+        )
+
+
+@pytest.mark.parametrize(
+    ("fusion_type", "sdr_input_type"),
+    [
+        ("raw-residual", "slot"),
+        ("slot", "raw-residual"),
+    ],
+)
+def test_candidate_requires_matching_fusion_and_sdr_input_types(
+    fusion_type,
+    sdr_input_type,
+):
+    with pytest.raises(ValueError, match="fusion_type"):
+        _candidate_class()(
+            **_model_arguments(fusion_type=fusion_type),
+            sdr_variant="sdr-public",
+            sdr_input_type=sdr_input_type,
+        )
 
 
 @pytest.mark.parametrize("variant", ["sdr-public", "sdr-paper"])

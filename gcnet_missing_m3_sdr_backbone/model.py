@@ -181,9 +181,15 @@ class SDRConversationBackbone(nn.Module):
 
 
 class MissingM3SDRModel(MissingM3GraphModel):
-    """Slot Missing-M3 with its complete conversation path replaced by SDR."""
+    """Missing-M3 with its complete conversation path replaced by SDR."""
 
-    def __init__(self, *args, sdr_variant="sdr-public", **kwargs):
+    def __init__(
+        self,
+        *args,
+        sdr_variant="sdr-public",
+        sdr_input_type="slot",
+        **kwargs,
+    ):
         parent_arguments = inspect.signature(
             MissingM3GraphModel.__init__
         ).bind(self, *args, **kwargs)
@@ -193,9 +199,11 @@ class MissingM3SDRModel(MissingM3GraphModel):
 
         if isinstance(dropout, bool):
             raise TypeError("dropout must be a real probability, not bool")
+        if sdr_input_type not in {"slot", "raw-residual"}:
+            raise ValueError("sdr_input_type must be 'slot' or 'raw-residual'")
         locked_configuration = {
             "base_model": "LSTM",
-            "fusion_type": "slot",
+            "fusion_type": sdr_input_type,
             "representation_type": "slot",
             "classification_completion": False,
             "graph_branch_mode": "both",
@@ -222,15 +230,24 @@ class MissingM3SDRModel(MissingM3GraphModel):
 
         super().__init__(*args, **kwargs)
 
-        del self.lstm
-        del self.gru
-        del self.graph_net_temporal
-        del self.graph_net_speaker
+        for name in (
+            "lstm",
+            "gru",
+            "graph_net_temporal",
+            "graph_net_speaker",
+        ):
+            if hasattr(self, name):
+                delattr(self, name)
 
         self.sdr_variant = sdr_variant
+        self.sdr_input_type = sdr_input_type
         self.conversation_backbone = SDRConversationBackbone(
             variant=sdr_variant,
-            input_dim=self.latent_dim,
+            input_dim=(
+                self.latent_dim
+                if self.sdr_input_type == "slot"
+                else sum(self.dimensions)
+            ),
             recurrent_hidden=configuration["D_e"],
             graph_hidden=configuration["graph_hidden_size"],
             n_speakers=self.n_speakers,
