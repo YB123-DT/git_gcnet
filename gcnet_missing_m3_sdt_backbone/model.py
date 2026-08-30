@@ -5,6 +5,8 @@ import math
 import torch
 from torch import Tensor, nn
 
+from gcnet_missing_m3.model import MissingM3GraphModel
+
 
 class SinusoidalPositionEncoding(nn.Module):
     """Add a persistent, fixed sinusoidal encoding to ``[L, B, D]`` inputs."""
@@ -330,7 +332,50 @@ class SDTStyleConversationBackbone(nn.Module):
         return output.masked_fill(value_padding, 0.0)
 
 
+class MissingM3SDTModel(MissingM3GraphModel):
+    """Missing-M3 with the GCNet conversation path replaced by SDT attention."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if len(args) > 10:
+            dropout = args[10]
+        else:
+            dropout = kwargs.get("dropout", 0.5)
+
+        del self.lstm
+        del self.gru
+        del self.graph_net_temporal
+        del self.graph_net_speaker
+
+        self.conversation_backbone = SDTStyleConversationBackbone(
+            input_dim=self.latent_dim,
+            output_dim=self.smax_fc.in_features,
+            n_speakers=self.n_speakers,
+            dropout=float(dropout),
+            validate_inputs=False,
+        )
+
+    def encode_hidden(
+        self,
+        inputfeats,
+        qmask,
+        umask,
+        seq_lengths,
+        pre_graph_residual=None,
+    ):
+        if pre_graph_residual is not None:
+            raise ValueError("pre_graph_residual is unsupported by the SDT backbone")
+        return self.conversation_backbone(
+            self._feature_tensor(inputfeats),
+            qmask,
+            umask,
+            seq_lengths,
+        )
+
+
 __all__ = [
+    "MissingM3SDTModel",
     "PreNormTransformerLayer",
     "SDTStyleConversationBackbone",
     "SinusoidalPositionEncoding",

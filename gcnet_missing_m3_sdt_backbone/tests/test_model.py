@@ -1,6 +1,9 @@
 import pytest
 import torch
 
+import gcnet_missing_m3_sdt_backbone as sdt_package
+import gcnet_missing_m3_sdt_backbone.model as sdt_model
+from gcnet_missing_m3.model import MissingM3GraphModel
 from gcnet_missing_m3_sdt_backbone.model import (
     PreNormTransformerLayer,
     SDTStyleConversationBackbone,
@@ -410,3 +413,278 @@ def test_default_registered_and_effective_parameter_counts_match_contract():
     assert abs(effective_parameters - control_parameters) / control_parameters < 0.002
     assert model.speaker_embedding.num_embeddings == 2
     assert model.speaker_embedding.padding_idx == 1
+
+
+def _missing_m3_arguments(**overrides):
+    arguments = {
+        "base_model": "LSTM",
+        "adim": 2,
+        "tdim": 3,
+        "vdim": 4,
+        "D_e": 4,
+        "graph_hidden_size": 2,
+        "n_speakers": 2,
+        "window_past": 1,
+        "window_future": 1,
+        "n_classes": 6,
+        "dropout": 0.0,
+        "time_attn": False,
+        "no_cuda": True,
+        "latent_dim": 8,
+        "num_experts": 2,
+        "top_k": 1,
+        "predictor_dropout": 0.0,
+    }
+    arguments.update(overrides)
+    return arguments
+
+
+def _missing_m3_inputs():
+    features = torch.randn(3, 2, 9, dtype=torch.float32)
+    availability = torch.tensor(
+        [
+            [[1, 0, 0], [0, 1, 1]],
+            [[1, 1, 0], [0, 0, 1]],
+            [[1, 1, 1], [0, 0, 0]],
+        ],
+        dtype=torch.float32,
+    )
+    qmask = torch.tensor(
+        [[0, 1, 0], [1, 0, 0]],
+        dtype=torch.long,
+    )
+    umask = torch.tensor(
+        [[1, 1, 1], [1, 1, 0]],
+        dtype=torch.float32,
+    )
+    return features, availability, qmask, umask, [3, 2]
+
+
+def _missing_m3_sdt_model(**overrides):
+    return sdt_model.MissingM3SDTModel(
+        **_missing_m3_arguments(**overrides)
+    )
+
+
+def test_missing_m3_sdt_model_is_public_and_subclasses_control():
+    assert sdt_package.MissingM3SDTModel is sdt_model.MissingM3SDTModel
+    assert issubclass(sdt_model.MissingM3SDTModel, MissingM3GraphModel)
+
+
+def test_missing_m3_sdt_preserves_shared_initialization_at_equal_seed():
+    shared_prefixes = (
+        "observed_set.",
+        "teacher.",
+        "missing_predictor.",
+        "smax_fc.",
+    )
+    torch.manual_seed(701)
+    control = MissingM3GraphModel(**_missing_m3_arguments())
+    torch.manual_seed(701)
+    candidate = _missing_m3_sdt_model()
+
+    control_state = {
+        key: value
+        for key, value in control.state_dict().items()
+        if key.startswith(shared_prefixes)
+    }
+    candidate_state = {
+        key: value
+        for key, value in candidate.state_dict().items()
+        if key.startswith(shared_prefixes)
+    }
+
+    assert control_state
+    assert candidate_state.keys() == control_state.keys()
+    for key, control_value in control_state.items():
+        assert torch.equal(control_value, candidate_state[key]), key
+
+
+def test_missing_m3_sdt_replaces_all_legacy_conversation_modules():
+    candidate = _missing_m3_sdt_model()
+    state_keys = tuple(candidate.state_dict())
+    removed_prefixes = (
+        "lstm.",
+        "gru.",
+        "graph_net_temporal.",
+        "graph_net_speaker.",
+    )
+
+    for prefix in removed_prefixes:
+        assert not any(key.startswith(prefix) for key in state_keys)
+    assert any(key.startswith("conversation_backbone.") for key in state_keys)
+
+
+def test_missing_m3_sdt_uses_locked_backbone_configuration_and_model_dropout():
+    candidate = _missing_m3_sdt_model(dropout=0.25)
+    backbone = candidate.conversation_backbone
+
+    assert isinstance(backbone, SDTStyleConversationBackbone)
+    assert backbone.input_dim == candidate.latent_dim
+    assert backbone.output_dim == candidate.smax_fc.in_features
+    assert backbone.n_speakers == candidate.n_speakers
+    assert backbone.input_projection.out_features == 384
+    assert backbone.speaker_embedding.embedding_dim == 384
+    assert len(backbone.layers) == 5
+    assert all(layer.self_attn.num_heads == 8 for layer in backbone.layers)
+    assert all(layer.linear1.out_features == 704 for layer in backbone.layers)
+    assert backbone.max_len == 512
+    assert backbone.input_dropout.p == 0.25
+    assert all(layer.self_attn.dropout == 0.25 for layer in backbone.layers)
+    assert backbone.validate_inputs is False
+
+
+def test_missing_m3_sdt_forward_preserves_tuple_and_prediction_contract():
+    torch.manual_seed(703)
+    candidate = _missing_m3_sdt_model().eval()
+    features, availability, qmask, umask, lengths = _missing_m3_inputs()
+
+    output = candidate(
+        [features],
+        availability,
+        qmask,
+        umask,
+        lengths,
+        predict_missing=True,
+    )
+
+    assert isinstance(output, tuple)
+    assert len(output) == 4
+    logits, hidden, latents, predictions = output
+    expected_hidden_dim = (
+        2 * _missing_m3_arguments()["D_e"]
+        + _missing_m3_arguments()["graph_hidden_size"]
+    )
+    assert logits.shape == (3, 2, 6)
+    assert hidden.shape == (3, 2, expected_hidden_dim)
+    assert set(latents) == {"audio", "text", "visual"}
+    assert all(value.shape == (3, 2, 8) for value in latents.values())
+    assert predictions is not None
+    assert predictions.reg_predictions.shape == (3, 2, 3, 8)
+    assert predictions.cl_predictions.shape == (3, 2, 3, 8)
+    assert predictions.target_mask.shape == (3, 2, 3)
+    assert predictions.source_counts.shape == (3, 2, 3)
+
+    expected_target_mask = torch.tensor(
+        [
+            [[False, True, True], [True, False, False]],
+            [[False, False, True], [True, True, False]],
+            [[False, False, False], [False, False, False]],
+        ]
+    )
+    expected_source_counts = torch.tensor(
+        [
+            [[0, 1, 1], [2, 0, 0]],
+            [[0, 0, 2], [1, 1, 0]],
+            [[0, 0, 0], [0, 0, 0]],
+        ],
+        dtype=torch.long,
+    )
+    assert torch.equal(predictions.target_mask, expected_target_mask)
+    assert torch.equal(predictions.source_counts, expected_source_counts)
+
+    finite_tensors = [
+        logits,
+        hidden,
+        predictions.reg_predictions,
+        predictions.cl_predictions,
+        *latents.values(),
+    ]
+    assert all(torch.isfinite(value).all().item() for value in finite_tensors)
+
+
+def test_missing_m3_sdt_update_teacher_preserves_ema_semantics_and_step():
+    candidate = _missing_m3_sdt_model()
+    before = {
+        key: value.detach().clone()
+        for key, value in candidate.teacher.state_dict().items()
+    }
+    with torch.no_grad():
+        for parameter in candidate.observed_set.projectors.parameters():
+            parameter.add_(1.0)
+    students = {
+        key: value.detach().clone()
+        for key, value in candidate.observed_set.projectors.state_dict().items()
+    }
+    tau = 0.75
+
+    candidate.update_teacher(tau)
+
+    assert candidate.ema_step == 1
+    assert all(
+        not parameter.requires_grad for parameter in candidate.teacher.parameters()
+    )
+    for key, actual in candidate.teacher.state_dict().items():
+        expected = before[key].clone().mul_(tau).add_(
+            students[key], alpha=1.0 - tau
+        )
+        assert torch.equal(actual, expected), key
+
+
+def test_missing_m3_sdt_rejects_pre_graph_residual():
+    candidate = _missing_m3_sdt_model()
+    values = torch.randn(3, 2, candidate.latent_dim)
+    _, _, qmask, umask, lengths = _missing_m3_inputs()
+
+    with pytest.raises(ValueError, match="pre_graph_residual"):
+        candidate.encode_hidden(
+            [values],
+            qmask,
+            umask,
+            lengths,
+            pre_graph_residual=torch.zeros_like(values),
+        )
+
+
+def test_missing_m3_sdt_formal_backbone_parameter_budget_and_fast_path():
+    candidate = _missing_m3_sdt_model(
+        D_e=100,
+        graph_hidden_size=50,
+        n_speakers=1,
+        n_classes=1,
+        latent_dim=256,
+        dropout=0.5,
+    )
+    backbone = candidate.conversation_backbone
+    registered_parameters = sum(
+        parameter.numel() for parameter in backbone.parameters()
+    )
+    effective_parameters = (
+        registered_parameters - backbone.speaker_embedding.embedding_dim
+    )
+    control_parameters = 5_864_700
+
+    assert registered_parameters == 5_869_754
+    assert effective_parameters == 5_869_370
+    assert abs(effective_parameters - control_parameters) / control_parameters < 0.002
+    assert backbone.validate_inputs is False
+
+
+@pytest.mark.parametrize("dropout", [True, False])
+def test_missing_m3_sdt_rejects_boolean_keyword_dropout(dropout):
+    with pytest.raises(ValueError, match="dropout"):
+        _missing_m3_sdt_model(dropout=dropout)
+
+
+@pytest.mark.parametrize("dropout", [True, False])
+def test_missing_m3_sdt_rejects_boolean_positional_dropout(dropout):
+    with pytest.raises(ValueError, match="dropout"):
+        sdt_model.MissingM3SDTModel(
+            "LSTM",
+            2,
+            3,
+            4,
+            4,
+            2,
+            2,
+            1,
+            1,
+            6,
+            dropout,
+            time_attn=False,
+            no_cuda=True,
+            latent_dim=8,
+            num_experts=2,
+            top_k=1,
+            predictor_dropout=0.0,
+        )
