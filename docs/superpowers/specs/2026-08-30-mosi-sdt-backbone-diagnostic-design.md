@@ -134,6 +134,10 @@ total                                 5,869,754
 Control，但实际参与前向的容量严格近似匹配。报告必须同时给出 registered、trainable、
 active-forward 3 种口径，不能只选有利口径。
 
+构造时先按 Control 的原始顺序初始化共享模块，再删除旧 LSTM/GRU/graph objects，最后
+实例化新 backbone。测试必须证明相同 seed 下 Observed-Set、Teacher、Missing-M3
+Predictor 和分类头的初始 tensor 与 Control 完全一致，避免 RNG 消耗差异污染比较。
+
 ## 6. 保持不变
 
 以下内容全部锁定：
@@ -162,6 +166,15 @@ active-forward 3 种口径，不能只选有利口径。
 - 新 runner 只接受唯一 treatment，拒绝同时启用旧候选开关。
 - Existing Original 结果直接继承，不重新训练。
 
+## 7.1 已知残余混杂
+
+- Control 的 `legacy` recurrent 会处理 padding；候选 Transformer 使用显式 padding
+  mask。这是整体 backbone 替换带来的语义差异。既有 paired Packed-control 没有形成
+  稳定提升，因此不为本轮重复训练，但报告中必须披露。
+- MOSI 只有 1 个 speaker。其 speaker embedding 对有效 utterance 是常量条件，不能
+  据此声称模型学习了 speaker interaction。
+- 参数预算近似相等不代表 FLOPs 相等；必须记录单 batch wall time 与峰值显存。
+
 ## 8. 测试
 
 实现前先写以下失败测试：
@@ -174,9 +187,12 @@ active-forward 3 种口径，不能只选有利口径。
 6. active-forward 参数计数与 `5,864,700` 的差异小于 `0.2%`。
 7. 新模型保持现有 Missing-M3 tuple、teacher update 和 predictor target mask 合同。
 8. 同 seed 初始化与 forward 确定；不同 seed 初始化不同。
-9. CPU FP32 完整 forward/backward；远程 CUDA FP32 单 batch forward/backward。
-10. Runner dry-run 生成且只生成 seeds 66–70，GPU 仅使用 0、1、2，Original 不在命令中。
-11. Result manifest 记录 commit、环境、配置 SHA、mask SHA、参数口径和完成状态。
+9. 同 seed 下所有共享模块的初始 tensor 与 Control 精确相同。
+10. CPU FP32 完整 forward/backward；远程 CUDA FP32 单 batch forward/backward。
+11. Runner dry-run 生成且只生成 seeds 66–70，GPU 仅使用 0、1、2，Original 不在命令中。
+12. Result manifest 记录 commit、环境、配置 SHA、mask SHA、参数口径和完成状态。
+13. 单 batch 记录 candidate 的 forward/backward wall time 与 peak GPU memory，并与
+    同 batch Control 做一次只读 profiling；该 profiling 不训练新的 Original。
 
 不增加重复的 1-epoch checkpoint/smoke 训练。单元测试与一次 CUDA batch 验证通过后，
 直接启动正式任务。
