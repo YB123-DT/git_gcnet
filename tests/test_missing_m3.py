@@ -2411,6 +2411,128 @@ def test_train_rate_mode_cli_defaults_and_persists_in_run_artifacts(tmp_path):
         parser.parse_args(required + ["--train-rate-mode", "invalid"])
 
 
+def test_fixed_rate_cli_exposes_and_persists_the_selected_missing_rate(tmp_path):
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+    args = build_parser().parse_args(
+        required
+        + [
+            "--train-rate-mode",
+            "fixed",
+            "--train-missing-rate",
+            "0.5",
+        ]
+    )
+    config = TrainConfig(
+        train_rate_mode=args.train_rate_mode,
+        fixed_missing_rate=args.train_missing_rate,
+    )
+    config_path = tmp_path / "config.json"
+
+    train_gcnet._write_run_config(config_path, config)
+
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert args.train_rate_mode == "fixed"
+    assert args.train_missing_rate == pytest.approx(0.5)
+    assert saved["train_rate_mode"] == "fixed"
+    assert saved["fixed_missing_rate"] == pytest.approx(0.5)
+
+
+def test_fixed_rate_protocol_selects_and_tests_only_the_training_rate(
+    monkeypatch, tmp_path
+):
+    evaluated = []
+
+    class FixedRateLifecycleModel(torch.nn.Module):
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+            del args, kwargs
+            self.weight = torch.nn.Parameter(torch.zeros(()))
+            self.ema_step = 200
+            self.readout_type = "shared"
+            self.readout_rank = 8
+
+    loaders = ([["train"]], [["validation"]], [["test"]], 1, 1, 1)
+    monkeypatch.setattr(train_gcnet, "get_loaders", lambda **_kwargs: loaders)
+    monkeypatch.setattr(train_gcnet, "MissingM3GraphModel", FixedRateLifecycleModel)
+    monkeypatch.setattr(
+        train_gcnet,
+        "_schedules",
+        lambda config, split: {rate: (split, rate) for rate in MISSING_RATES},
+    )
+    monkeypatch.setattr(
+        train_gcnet,
+        "train_epoch",
+        lambda *_args, **_kwargs: {
+            "weighted_f1": 0.5,
+            "classification_loss": 1.0,
+            "jepa_loss": 0.5,
+        },
+    )
+
+    def evaluate_rate(model, loader, schedule, dataset, dimensions, device, collect, **kwargs):
+        del model, loader, dataset, dimensions, device, kwargs
+        split, rate = schedule
+        evaluated.append((split, rate, collect))
+        metrics = {"weighted_f1": 0.8 + rate / 100}
+        if not collect:
+            return metrics, None
+        metrics["mask_sha256"] = "mask-{}".format(rate)
+        return metrics, {
+            "predictions": train_gcnet.np.array([1.0]),
+            "labels": train_gcnet.np.array([1.0]),
+            "availability": train_gcnet.np.ones((1, 3)),
+        }
+
+    monkeypatch.setattr(train_gcnet, "evaluate_rate", evaluate_rate)
+
+    result = train_gcnet.run_experiment(
+        TrainConfig(
+            dataset="CMUMOSI",
+            fold=1,
+            epochs=2,
+            device="cpu",
+            train_rate_mode="fixed",
+            fixed_missing_rate=0.5,
+        ),
+        "audio",
+        "text",
+        "visual",
+        tmp_path,
+    )
+
+    assert evaluated == [
+        ("validation", 0.5, False),
+        ("validation", 0.5, False),
+        ("test", 0.5, True),
+    ]
+    history = json.loads((tmp_path / "history.json").read_text(encoding="utf-8"))
+    assert [set(record["validation"]) for record in history] == [{"0.5"}, {"0.5"}]
+    assert result["best_epoch"] == 1
+    assert result["best_validation_mean_weighted_f1"] == pytest.approx(0.805)
+    assert set(result["test"]) == {"0.5"}
+    assert result["train_missing_rate"] == pytest.approx(0.5)
+    assert result["selection_missing_rates"] == [0.5]
+    assert (tmp_path / "predictions_miss_0p5.npz").is_file()
+    assert not (tmp_path / "predictions_miss_0p0.npz").exists()
+
+
+def test_protocol_rates_preserve_eight_rate_lifecycle_for_existing_modes():
+    assert train_gcnet._protocol_rates(TrainConfig(train_rate_mode="all")) == MISSING_RATES
+    assert train_gcnet._protocol_rates(TrainConfig(train_rate_mode="cyclic")) == MISSING_RATES
+    assert train_gcnet._protocol_rates(
+        TrainConfig(train_rate_mode="fixed", fixed_missing_rate=0.7)
+    ) == (0.7,)
+
+
 def test_mosi_task_mode_cli_defaults_to_regression_and_accepts_binary_for_mosi():
     required = [
         "--audio-feature",

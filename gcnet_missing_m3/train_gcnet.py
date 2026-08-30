@@ -227,6 +227,15 @@ def _fixed_missing_rate(config: TrainConfig) -> float | None:
     return None
 
 
+def _protocol_rates(config: TrainConfig) -> tuple[float, ...]:
+    fixed_rate = _fixed_missing_rate(config)
+    if config.train_rate_mode == "fixed":
+        return (fixed_rate,)
+    if config.train_rate_mode in {"cyclic", "all"}:
+        return MISSING_RATES
+    raise ValueError("train_rate_mode must be 'cyclic', 'all', or 'fixed'")
+
+
 def _move_batch(data: Sequence[object], device: torch.device) -> list[object]:
     moved: list[object] = []
     for value in data:
@@ -660,6 +669,7 @@ def run_experiment(
     visual_root: str,
     output_dir: str | Path,
 ) -> Dict[str, object]:
+    protocol_rates = _protocol_rates(config_value)
     shape = _resolve_task_contract(
         config_value.dataset, config_value.mosi_task_mode
     )
@@ -753,7 +763,7 @@ def run_experiment(
             device,
         )
         validation: Dict[float, Dict[str, float]] = {}
-        for rate in MISSING_RATES:
+        for rate in protocol_rates:
             validation[rate], _ = evaluate_rate(
                 model,
                 validation_loader,
@@ -766,7 +776,9 @@ def run_experiment(
                 task_regression_loss=config_value.task_regression_loss,
                 task_smooth_l1_beta=config_value.task_smooth_l1_beta,
             )
-        validation_mean = mean_validation_weighted_f1(validation)
+        validation_mean = sum(
+            float(validation[rate]["weighted_f1"]) for rate in protocol_rates
+        ) / len(protocol_rates)
         record = {
             "epoch": epoch + 1,
             "train": train_metrics,
@@ -776,7 +788,7 @@ def run_experiment(
         history.append(record)
         _write_json(output / "history.json", history)
         print(
-            "epoch={:03d} train_wf1={:.4f} val8_wf1={:.4f} cls={:.4f} jepa={:.4f}".format(
+            "epoch={:03d} train_wf1={:.4f} val_wf1={:.4f} cls={:.4f} jepa={:.4f}".format(
                 epoch + 1,
                 train_metrics["weighted_f1"],
                 validation_mean,
@@ -803,7 +815,7 @@ def run_experiment(
     test_metrics: Dict[str, Dict[str, float]] = {}
     mask_hashes: Dict[str, str] = {}
     if config_value.evaluate_test:
-        for rate in MISSING_RATES:
+        for rate in protocol_rates:
             metrics, artifacts = evaluate_rate(
                 model,
                 test_loader,
@@ -850,6 +862,8 @@ def run_experiment(
         "postgraph_sequence_mode": config_value.postgraph_sequence_mode,
         "jepa_rate_weighting": config_value.jepa_rate_weighting,
         "graph_message_calibration": config_value.graph_message_calibration,
+        "train_missing_rate": _fixed_missing_rate(config_value),
+        "selection_missing_rates": list(protocol_rates),
         **_readout_provenance(model),
     }
     _write_json(output / "metrics.json", result)
@@ -883,8 +897,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument(
-        "--train-rate-mode", choices=("cyclic", "all"), default="cyclic"
+        "--train-rate-mode", choices=("cyclic", "all", "fixed"), default="cyclic"
     )
+    parser.add_argument("--train-missing-rate", type=float, default=None)
     parser.add_argument("--hidden", type=int, default=200)
     parser.add_argument("--latent-dim", type=int, default=256)
     parser.add_argument("--num-experts", type=int, default=4)
@@ -1016,6 +1031,7 @@ def main() -> None:
         postgraph_sequence_mode=args.postgraph_sequence_mode,
         jepa_rate_weighting=args.jepa_rate_weighting,
         graph_message_calibration=args.graph_message_calibration,
+        fixed_missing_rate=args.train_missing_rate,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [
