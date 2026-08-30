@@ -77,7 +77,8 @@ assert not torch.allclose(hidden[0, 0], hidden_changed[0, 0])
 - [ ] **步骤 3：编写输入合同失败测试**
 
 逐一验证：非二值 `umask`、非连续有效前缀、错误 `seq_lengths`、有效 utterance 的
-`qmask.sum(-1) != 1`、长度超过 512，均抛出带字段名的 `ValueError`。
+speaker-ID `qmask [B,L]` 含负数、越界值、非整数或 NaN、长度超过 512，均抛出带
+字段名的 `ValueError`。padding speaker ID 被忽略。
 
 - [ ] **步骤 4：在 biggpu 官方环境运行红灯**
 
@@ -285,9 +286,11 @@ class MissingM3SDTModel(MissingM3GraphModel):
 MOSI 配置下断言：
 
 ```python
-active = sum(p.numel() for p in model.conversation_backbone.parameters())
-assert active == 5_869_754
-assert abs(active - 5_864_700) / 5_864_700 < 0.002
+registered = sum(p.numel() for p in model.conversation_backbone.parameters())
+effective = registered - model.conversation_backbone.speaker_embedding.embedding_dim
+assert registered == 5_869_754
+assert effective == 5_869_370
+assert abs(effective - 5_864_700) / 5_864_700 < 0.002
 ```
 
 对 control 做一次 forward/backward，按非 `None` gradient 统计 active backbone，要求
@@ -377,7 +380,8 @@ from gcnet_missing_m3.train_gcnet import (
   "transformer": {"d_model": 384, "heads": 8, "layers": 5, "ff_dim": 704},
   "registered_parameters": 0,
   "trainable_parameters": 0,
-  "active_backbone_parameters": 5869754,
+  "registered_backbone_parameters": 5869754,
+  "active_backbone_parameters": 5869370,
   "control_active_backbone_parameters": 5864700
 }
 ```

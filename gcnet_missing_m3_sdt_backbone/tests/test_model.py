@@ -20,16 +20,11 @@ def _make_batch(
     batch_size = len(lengths)
     values = torch.randn(total_length, batch_size, input_dim, dtype=torch.float32)
     umask = torch.zeros(batch_size, total_length, dtype=torch.float32)
-    qmask = torch.zeros(
-        batch_size,
-        total_length,
-        n_speakers,
-        dtype=torch.float32,
-    )
+    qmask = torch.zeros(batch_size, total_length, dtype=torch.float32)
     for batch_index, length in enumerate(lengths):
         umask[batch_index, :length] = 1.0
         for time_index in range(length):
-            qmask[batch_index, time_index, time_index % n_speakers] = 1.0
+            qmask[batch_index, time_index] = time_index % n_speakers
 
     return values, qmask, umask, torch.tensor(lengths, dtype=torch.long)
 
@@ -90,6 +85,40 @@ def test_forward_has_requested_shape_dtype_and_strict_zero_padding():
     assert torch.count_nonzero(output[:2, 1]).item() > 0
 
 
+def test_float64_model_and_inputs_produce_float64_output():
+    torch.manual_seed(10)
+    model = _small_model().double()
+    values, qmask, umask, lengths = _make_batch()
+
+    output = model(values.double(), qmask.double(), umask.double(), lengths)
+
+    assert output.dtype == torch.float64
+
+
+def test_real_missing_m3_mosi_shapes_regression():
+    torch.manual_seed(11)
+    model = SDTStyleConversationBackbone(dropout=0.0)
+    model.eval()
+    values = torch.randn(7, 3, 256, dtype=torch.float32)
+    qmask = torch.zeros(3, 7, dtype=torch.long)
+    umask = torch.tensor(
+        [
+            [1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+        ],
+        dtype=torch.float32,
+    )
+    lengths = torch.tensor([7, 5, 3], dtype=torch.long)
+
+    output = model(values, qmask, umask, lengths)
+
+    assert output.shape == (7, 3, 250)
+    assert output.dtype == torch.float32
+    assert torch.count_nonzero(output[5:, 1]).item() == 0
+    assert torch.count_nonzero(output[3:, 2]).item() == 0
+
+
 def test_padding_values_cannot_change_valid_outputs():
     torch.manual_seed(2)
     model = _small_model()
@@ -102,6 +131,22 @@ def test_padding_values_cannot_change_valid_outputs():
     valid = umask.transpose(0, 1).bool()
 
     assert torch.allclose(original[valid], changed[valid], atol=1e-6, rtol=1e-6)
+
+
+def test_nan_padding_features_cannot_change_valid_outputs_or_escape_zero_padding():
+    torch.manual_seed(21)
+    model = _small_model()
+    values, qmask, umask, lengths = _make_batch()
+    poisoned_values = values.clone()
+    poisoned_values[2:, 1] = float("nan")
+
+    original = model(values, qmask, umask, lengths)
+    poisoned = model(poisoned_values, qmask, umask, lengths)
+    valid = umask.transpose(0, 1).bool()
+
+    assert torch.allclose(original[valid], poisoned[valid], atol=1e-6, rtol=1e-6)
+    assert torch.isfinite(poisoned[~valid]).all().item()
+    assert torch.count_nonzero(poisoned[~valid]).item() == 0
 
 
 def test_future_valid_utterance_changes_earlier_output_with_full_context():
@@ -122,7 +167,7 @@ def test_changing_explicit_speaker_id_changes_output():
     model = _small_model()
     values, qmask, umask, lengths = _make_batch(lengths=(4,))
     changed_qmask = qmask.clone()
-    changed_qmask[0, 1] = torch.tensor([1.0, 0.0])
+    changed_qmask[0, 1] = 0.0
 
     original = model(values, qmask, umask, lengths)
     changed = model(values, changed_qmask, umask, lengths)
@@ -132,7 +177,7 @@ def test_changing_explicit_speaker_id_changes_output():
 
 @pytest.mark.parametrize(
     "bad_shape",
-    ["values_feature", "qmask_time", "qmask_speakers", "umask_time", "lengths_batch"],
+    ["values_feature", "qmask_time", "qmask_rank", "umask_time", "lengths_batch"],
 )
 def test_forward_rejects_inconsistent_shapes(bad_shape):
     model = _small_model()
@@ -142,8 +187,8 @@ def test_forward_rejects_inconsistent_shapes(bad_shape):
         values = values[..., :-1]
     elif bad_shape == "qmask_time":
         qmask = qmask[:, :-1]
-    elif bad_shape == "qmask_speakers":
-        qmask = qmask[..., :-1]
+    elif bad_shape == "qmask_rank":
+        qmask = qmask.unsqueeze(-1)
     elif bad_shape == "umask_time":
         umask = umask[:, :-1]
     elif bad_shape == "lengths_batch":
@@ -169,30 +214,73 @@ def test_forward_rejects_invalid_umask_or_lengths(failure):
         model(values, qmask, umask, lengths)
 
 
-@pytest.mark.parametrize("failure", ["missing_speaker", "multiple_speakers", "non_binary"])
-def test_forward_rejects_invalid_qmask_on_valid_utterances(failure):
+@pytest.mark.parametrize("invalid_id", [-1.0, 2.0, 0.5, float("nan")])
+def test_forward_rejects_invalid_speaker_id_on_valid_utterances(invalid_id):
     model = _small_model()
     values, qmask, umask, lengths = _make_batch()
-
-    if failure == "missing_speaker":
-        qmask[0, 0] = 0.0
-    elif failure == "multiple_speakers":
-        qmask[0, 0] = 1.0
-    elif failure == "non_binary":
-        qmask[0, 0, 0] = 0.5
+    qmask[0, 0] = invalid_id
 
     with pytest.raises(ValueError):
         model(values, qmask, umask, lengths)
 
 
-def test_forward_accepts_all_zero_qmask_on_padding():
+@pytest.mark.parametrize("padding_id", [float("nan"), float("inf"), 0.5, 123.0])
+def test_padding_speaker_ids_are_ignored_and_mapped_to_padding_index(padding_id):
     model = _small_model()
     values, qmask, umask, lengths = _make_batch()
+    baseline = model(values, qmask, umask, lengths)
+    changed_qmask = qmask.clone()
+    changed_qmask[1, 2:] = padding_id
+    embedded_ids = []
+    handle = model.speaker_embedding.register_forward_pre_hook(
+        lambda _module, inputs: embedded_ids.append(inputs[0].detach().clone())
+    )
 
-    assert torch.count_nonzero(qmask[1, 2:]).item() == 0
+    try:
+        changed = model(values, changed_qmask, umask, lengths)
+    finally:
+        handle.remove()
+
+    valid = umask.transpose(0, 1).bool()
+    assert torch.allclose(baseline[valid], changed[valid], atol=1e-6, rtol=1e-6)
+    assert len(embedded_ids) == 1
+    assert embedded_ids[0].shape == (2, 4)
+    assert torch.equal(embedded_ids[0][0], qmask[0].long())
+    assert torch.equal(embedded_ids[0][1, :2], qmask[1, :2].long())
+    assert torch.all(embedded_ids[0][1, 2:] == model.n_speakers).item()
+    assert torch.count_nonzero(changed[2:, 1]).item() == 0
+
+
+def test_fast_validation_path_matches_strict_and_skips_semantic_validator(monkeypatch):
+    torch.manual_seed(41)
+    strict_model = _small_model(validate_inputs=True)
+    fast_model = _small_model(validate_inputs=False)
+    fast_model.load_state_dict(strict_model.state_dict())
+    values, qmask, umask, lengths = _make_batch()
+    strict_output = strict_model(values, qmask, umask, lengths)
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("fast path entered semantic input validation")
+
+    monkeypatch.setattr(fast_model, "_validate_input_semantics", fail_if_called)
+    fast_output = fast_model(values, qmask, umask, lengths)
+
+    assert strict_model.validate_inputs is True
+    assert fast_model.validate_inputs is False
+    assert torch.equal(strict_output, fast_output)
+
+
+def test_fast_validation_path_does_not_materialize_sequence_lengths(monkeypatch):
+    model = _small_model(validate_inputs=False)
+    values, qmask, umask, lengths = _make_batch()
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("fast path called torch.as_tensor for seq_lengths")
+
+    monkeypatch.setattr(torch, "as_tensor", fail_if_called)
     output = model(values, qmask, umask, lengths)
 
-    assert torch.count_nonzero(output[2:, 1]).item() == 0
+    assert output.shape == (4, 2, 32)
 
 
 def test_forward_rejects_sequences_longer_than_configured_capacity():
@@ -254,7 +342,31 @@ def test_custom_encoder_layer_executes_pre_norm_module_order():
     assert events == ["norm1", "self_attn", "norm2", "linear1", "activation", "linear2"]
 
 
-def test_backward_reaches_every_layer_and_input_output_projection():
+@pytest.mark.parametrize(
+    "dimension",
+    [
+        "input_dim",
+        "output_dim",
+        "n_speakers",
+        "d_model",
+        "num_heads",
+        "num_layers",
+        "ff_dim",
+        "max_len",
+    ],
+)
+def test_boolean_dimensions_are_rejected(dimension):
+    with pytest.raises(ValueError):
+        _small_model(**{dimension: True})
+
+
+@pytest.mark.parametrize("dropout", [False, True])
+def test_boolean_dropout_is_rejected(dropout):
+    with pytest.raises(ValueError):
+        _small_model(dropout=dropout)
+
+
+def test_backward_reaches_all_trainable_backbone_components():
     torch.manual_seed(6)
     model = _small_model(num_layers=5)
     model.train()
@@ -265,7 +377,13 @@ def test_backward_reaches_every_layer_and_input_output_projection():
     loss = output[valid].square().mean()
     loss.backward()
 
-    modules = [model.input_projection, *model.layers, model.output_projection]
+    modules = [
+        model.input_projection,
+        *model.layers,
+        model.speaker_embedding,
+        model.final_norm,
+        model.output_projection,
+    ]
     for module in modules:
         gradients = [parameter.grad for parameter in module.parameters()]
         assert gradients
@@ -273,10 +391,22 @@ def test_backward_reaches_every_layer_and_input_output_projection():
         assert all(torch.isfinite(gradient).all().item() for gradient in gradients)
         assert sum(gradient.abs().sum().item() for gradient in gradients) > 0.0
 
+    embedding_gradient = model.speaker_embedding.weight.grad
+    active_gradient = embedding_gradient[: model.n_speakers]
+    padding_gradient = embedding_gradient[model.speaker_embedding.padding_idx]
+    assert torch.isfinite(active_gradient).all().item()
+    assert torch.all(active_gradient.abs().sum(dim=1) > 0).item()
+    assert torch.count_nonzero(padding_gradient).item() == 0
 
-def test_default_parameter_count_matches_sdt_backbone_contract():
+
+def test_default_registered_and_effective_parameter_counts_match_contract():
     model = SDTStyleConversationBackbone()
+    registered_parameters = sum(parameter.numel() for parameter in model.parameters())
+    effective_parameters = registered_parameters - model.speaker_embedding.embedding_dim
+    control_parameters = 5_864_700
 
-    assert sum(parameter.numel() for parameter in model.parameters()) == 5_869_754
+    assert registered_parameters == 5_869_754
+    assert effective_parameters == 5_869_370
+    assert abs(effective_parameters - control_parameters) / control_parameters < 0.002
     assert model.speaker_embedding.num_embeddings == 2
     assert model.speaker_embedding.padding_idx == 1

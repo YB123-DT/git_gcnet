@@ -11,9 +11,14 @@ class SinusoidalPositionEncoding(nn.Module):
 
     def __init__(self, dim=384, max_len=512):
         super().__init__()
-        if not isinstance(dim, int) or dim <= 0 or dim % 2 != 0:
+        if (
+            isinstance(dim, bool)
+            or not isinstance(dim, int)
+            or dim <= 0
+            or dim % 2 != 0
+        ):
             raise ValueError("dim must be a positive even integer")
-        if not isinstance(max_len, int) or max_len <= 0:
+        if isinstance(max_len, bool) or not isinstance(max_len, int) or max_len <= 0:
             raise ValueError("max_len must be a positive integer")
 
         positions = torch.arange(max_len, dtype=torch.float32).unsqueeze(1)
@@ -83,7 +88,11 @@ class PreNormTransformerLayer(nn.Module):
 
 
 class SDTStyleConversationBackbone(nn.Module):
-    """Encode padded conversations with speaker-aware full-context attention."""
+    """Encode padded conversations with speaker-aware full-context attention.
+
+    ``validate_inputs=False`` is a performance path that assumes masks and sequence
+    lengths have already been semantically validated at the data boundary.
+    """
 
     def __init__(
         self,
@@ -96,6 +105,7 @@ class SDTStyleConversationBackbone(nn.Module):
         ff_dim=704,
         dropout=0.5,
         max_len=512,
+        validate_inputs=True,
     ):
         super().__init__()
         self._validate_configuration(
@@ -108,12 +118,14 @@ class SDTStyleConversationBackbone(nn.Module):
             ff_dim=ff_dim,
             dropout=dropout,
             max_len=max_len,
+            validate_inputs=validate_inputs,
         )
 
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.n_speakers = n_speakers
         self.max_len = max_len
+        self.validate_inputs = validate_inputs
 
         self.input_projection = nn.Linear(input_dim, d_model)
         self.position_encoding = SinusoidalPositionEncoding(d_model, max_len)
@@ -149,6 +161,7 @@ class SDTStyleConversationBackbone(nn.Module):
         ff_dim,
         dropout,
         max_len,
+        validate_inputs,
     ):
         positive_integers = {
             "input_dim": input_dim,
@@ -161,16 +174,22 @@ class SDTStyleConversationBackbone(nn.Module):
             "max_len": max_len,
         }
         for name, value in positive_integers.items():
-            if not isinstance(value, int) or value <= 0:
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise ValueError("{} must be a positive integer".format(name))
         if d_model % 2 != 0:
             raise ValueError("d_model must be even for sinusoidal position encoding")
         if d_model % num_heads != 0:
             raise ValueError("d_model must be divisible by num_heads")
-        if not isinstance(dropout, (int, float)) or not 0.0 <= dropout <= 1.0:
+        if (
+            isinstance(dropout, bool)
+            or not isinstance(dropout, (int, float))
+            or not 0.0 <= dropout <= 1.0
+        ):
             raise ValueError("dropout must be between 0 and 1")
+        if not isinstance(validate_inputs, bool):
+            raise ValueError("validate_inputs must be a boolean")
 
-    def _validate_inputs(self, values, qmask, umask, seq_lengths):
+    def _validate_input_structure(self, values, qmask, umask, seq_lengths):
         if not isinstance(values, Tensor) or values.dim() != 3:
             raise ValueError("values must be a tensor with shape [L, B, D]")
         sequence_length, batch_size, feature_dim = values.shape
@@ -194,23 +213,39 @@ class SDTStyleConversationBackbone(nn.Module):
         expected_mask_shape = (batch_size, sequence_length)
         if not isinstance(umask, Tensor) or tuple(umask.shape) != expected_mask_shape:
             raise ValueError("umask must have shape [B, L]")
-        expected_qmask_shape = (batch_size, sequence_length, self.n_speakers)
+        expected_qmask_shape = (batch_size, sequence_length)
         if not isinstance(qmask, Tensor) or tuple(qmask.shape) != expected_qmask_shape:
-            raise ValueError("qmask must have shape [B, L, n_speakers]")
+            raise ValueError("qmask must have shape [B, L]")
         if umask.device != values.device or qmask.device != values.device:
             raise ValueError("values, qmask, and umask must be on the same device")
 
+        if self.validate_inputs:
+            try:
+                lengths = torch.as_tensor(seq_lengths, device=umask.device)
+            except (TypeError, ValueError, RuntimeError) as error:
+                raise ValueError(
+                    "seq_lengths must be a one-dimensional integer sequence"
+                ) from error
+            if lengths.dim() != 1 or lengths.numel() != batch_size:
+                raise ValueError("seq_lengths must contain one length per batch item")
+        else:
+            lengths = seq_lengths
+            if isinstance(lengths, Tensor):
+                valid_batch_shape = lengths.dim() == 1 and lengths.numel() == batch_size
+            else:
+                try:
+                    valid_batch_shape = len(lengths) == batch_size
+                except TypeError as error:
+                    raise ValueError(
+                        "seq_lengths must contain one length per batch item"
+                    ) from error
+            if not valid_batch_shape:
+                raise ValueError("seq_lengths must contain one length per batch item")
+        return sequence_length, lengths
+
+    def _validate_input_semantics(self, qmask, umask, lengths, sequence_length):
         if not torch.all((umask == 0) | (umask == 1)).item():
             raise ValueError("umask must contain only binary values")
-        if not torch.all((qmask == 0) | (qmask == 1)).item():
-            raise ValueError("qmask must contain only binary values")
-
-        try:
-            lengths = torch.as_tensor(seq_lengths, device=umask.device)
-        except (TypeError, ValueError, RuntimeError) as error:
-            raise ValueError("seq_lengths must be a one-dimensional integer sequence") from error
-        if lengths.dim() != 1 or lengths.numel() != batch_size:
-            raise ValueError("seq_lengths must contain one length per batch item")
         if lengths.dtype == torch.bool:
             raise ValueError("seq_lengths must contain integer lengths")
         if lengths.is_floating_point():
@@ -229,31 +264,70 @@ class SDTStyleConversationBackbone(nn.Module):
                 "umask must be a contiguous valid prefix matching seq_lengths"
             )
 
-        speaker_counts = qmask.to(dtype=torch.long).sum(dim=-1)
-        if not torch.all(speaker_counts[expected_valid] == 1).item():
+        valid_speaker_ids = qmask[expected_valid]
+        integer_dtypes = {
+            torch.uint8,
+            torch.int8,
+            torch.int16,
+            torch.int32,
+            torch.int64,
+        }
+        if valid_speaker_ids.dtype == torch.bool:
+            raise ValueError("valid qmask speaker ids must be integers, not booleans")
+        if valid_speaker_ids.is_floating_point():
+            if not torch.isfinite(valid_speaker_ids).all().item():
+                raise ValueError("valid qmask speaker ids must be finite")
+            if not torch.equal(valid_speaker_ids, valid_speaker_ids.round()):
+                raise ValueError("valid qmask speaker ids must be integers")
+        elif valid_speaker_ids.dtype not in integer_dtypes:
+            raise ValueError("valid qmask speaker ids must be numeric integers")
+        if (
+            torch.any(valid_speaker_ids < 0).item()
+            or torch.any(valid_speaker_ids >= self.n_speakers).item()
+        ):
             raise ValueError(
-                "each valid qmask position must identify exactly one speaker"
+                "valid qmask speaker ids must be in [0, n_speakers - 1]"
             )
         return expected_valid
 
     def forward(self, values, qmask, umask, seq_lengths):
-        valid = self._validate_inputs(values, qmask, umask, seq_lengths)
-        speaker_ids = qmask.to(dtype=torch.long).argmax(dim=-1)
-        speaker_ids = speaker_ids.masked_fill(~valid, self.n_speakers)
+        sequence_length, lengths = self._validate_input_structure(
+            values,
+            qmask,
+            umask,
+            seq_lengths,
+        )
+        valid = umask.bool()
+        if self.validate_inputs:
+            valid = self._validate_input_semantics(
+                qmask,
+                umask,
+                lengths,
+                sequence_length,
+            )
 
+        speaker_ids = torch.full(
+            qmask.shape,
+            self.n_speakers,
+            dtype=torch.long,
+            device=qmask.device,
+        )
+        speaker_ids[valid] = qmask[valid].to(dtype=torch.long)
+
+        padding_mask = ~valid
+        value_padding = padding_mask.transpose(0, 1).unsqueeze(-1)
+        values = values.masked_fill(value_padding, 0.0)
         hidden = self.input_projection(values)
         hidden = self.position_encoding(hidden)
         hidden = hidden + self.speaker_embedding(speaker_ids).transpose(0, 1)
         hidden = self.input_dropout(hidden)
 
-        padding_mask = ~valid
         for layer in self.layers:
             hidden = layer(hidden, src_key_padding_mask=padding_mask)
 
         hidden = self.final_norm(hidden)
         output = self.output_activation(self.output_projection(hidden))
-        output_padding = padding_mask.transpose(0, 1).unsqueeze(-1)
-        return output.masked_fill(output_padding, 0.0)
+        return output.masked_fill(value_padding, 0.0)
 
 
 __all__ = [

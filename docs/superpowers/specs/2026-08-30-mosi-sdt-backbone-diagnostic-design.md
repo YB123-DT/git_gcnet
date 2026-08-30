@@ -86,7 +86,8 @@ Slot observed-set node [L,B,256]
 Attention mask 只屏蔽 padding，不使用 causal triangular mask。因此每个有效 utterance
 可以读取同一 conversation 内的过去和未来，这与当前 GCNet 的双向 BiLSTM 语义一致。
 
-speaker index 从显式 `qmask` 得到。padding 使用独立的 padding index，但 padding
+speaker index 从显式 `qmask [B,L]` 得到；有效位置存储 `0..n_speakers-1` 的 speaker
+ID。padding 使用独立的 padding index，但 padding
 输出最终严格置零。模型不得从特征数值是否为零推断 speaker、padding 或缺失状态。
 
 ### 4.3 输出接口
@@ -115,7 +116,7 @@ logits, classification_hidden, observed_latents, missing_predictions
 - **registered-inactive parameters：** 官方类中已注册但该配置不执行的 GRU 与
   `time_attn=False` 下的 MatchingAttention 参数。
 
-Control 的 active-forward backbone 为 `5,864,700` 参数。候选配置的预计 active
+Control 的 active-forward backbone 为 `5,864,700` 参数。候选配置的 registered
 参数为：
 
 ```text
@@ -128,7 +129,10 @@ output projection                       96,250
 total                                 5,869,754
 ```
 
-差值为 `+5,054`，即 `+0.086%`。正式实现后必须由官方 PyTorch 环境重新计数。
+其中 padding speaker row 的 384 个参数按设计始终零梯度，因此候选 effective
+active-forward 参数为 `5,869,370`。它与 Control 的差值为 `+4,670`，即
+`+0.080%`。正式实现后必须由官方 PyTorch 环境同时核验 registered 与 effective
+口径。
 
 新模型不保留无效 GRU、无效 MatchingAttention 或 dummy parameters。总注册参数会低于
 Control，但实际参与前向的容量严格近似匹配。报告必须同时给出 registered、trainable、
@@ -157,9 +161,10 @@ Predictor 和分类头的初始 tensor 与 Control 完全一致，避免 RNG 消
 
 ## 7. 错误处理与不变量
 
-- `input` 必须为 `[L,B,256]`，`umask` 必须为 `[B,L]`，`qmask` 必须与前两维对齐。
+- `input` 必须为 `[L,B,256]`，`umask` 与 speaker-ID `qmask` 必须为 `[B,L]`。
 - `umask` 必须为二值连续前缀，且与 `seq_lengths` 一致。
-- 每个有效 utterance 必须有且只有一个 speaker id；padding 不得进入 attention key/value。
+- 每个有效 utterance 的 speaker ID 必须是有限整数且位于
+  `[0,n_speakers-1]`；padding ID 被忽略并映射为 padding index。
 - sequence length 超过 positional buffer 时立即报错，不静默截断。
 - 所有有效输出、loss 和 gradient 必须有限。
 - 改变 padding feature 数值不得改变有效位置输出。
@@ -183,8 +188,10 @@ Predictor 和分类头的初始 tensor 与 Control 完全一致，避免 RNG 消
 2. padding-value invariance。
 3. future utterance 改变能够影响 earlier hidden，证明是 full-context 而非 causal。
 4. speaker id 改变能够影响输出；padding speaker embedding 不泄漏。
-5. 所有 Transformer 层、输入投影、输出投影均获得有限非零梯度。
-6. active-forward 参数计数与 `5,864,700` 的差异小于 `0.2%`。
+5. 所有 Transformer 层、输入投影、speaker embedding 有效行、final norm 与输出
+   投影均获得有限非零梯度；speaker padding row 梯度严格为零。
+6. registered 参数为 `5,869,754`，effective active-forward 参数为 `5,869,370`，
+   后者与 `5,864,700` 的差异小于 `0.2%`。
 7. 新模型保持现有 Missing-M3 tuple、teacher update 和 predictor target mask 合同。
 8. 同 seed 初始化与 forward 确定；不同 seed 初始化不同。
 9. 同 seed 下所有共享模块的初始 tensor 与 Control 精确相同。
