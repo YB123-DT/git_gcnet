@@ -91,7 +91,12 @@ class TrainConfig:
     initial_backbone_checkpoint: str | None = None
 
 
-_TRAINING_OBJECTIVES = {"joint", "jepa-only", "emotion-only"}
+_TRAINING_OBJECTIVES = {
+    "joint",
+    "jepa-only",
+    "emotion-only",
+    "frozen-completion",
+}
 _STAGE2_EXCLUDED_PREFIXES = (
     "smax_fc.",
     "conditioned_readout.",
@@ -101,6 +106,12 @@ _STAGE2_EXCLUDED_PREFIXES = (
     "teacher.",
 )
 _JOINT_FINETUNE_EXCLUDED_PREFIXES = (
+    "smax_fc.",
+    "conditioned_readout.",
+    "affine_readout.",
+    "missing_latent_fusion.",
+)
+_FROZEN_COMPLETION_TRAINABLE_PREFIXES = (
     "smax_fc.",
     "conditioned_readout.",
     "affine_readout.",
@@ -253,6 +264,49 @@ def _load_inference_backbone_checkpoint(
         "loaded_key_count": len(loaded_keys),
         "included_jepa_modules": include_jepa_modules,
     }
+
+
+def _configure_frozen_completion_probe(
+    model: MissingM3GraphModel,
+) -> Dict[str, object]:
+    trainable_names = []
+    frozen_names = []
+    trainable_count = 0
+    frozen_count = 0
+    for name, parameter in model.named_parameters():
+        trainable = name.startswith(_FROZEN_COMPLETION_TRAINABLE_PREFIXES)
+        parameter.requires_grad_(trainable)
+        if trainable:
+            trainable_names.append(name)
+            trainable_count += parameter.numel()
+        else:
+            frozen_names.append(name)
+            frozen_count += parameter.numel()
+    if not trainable_names:
+        raise ValueError("frozen completion has no trainable parameters")
+    return {
+        "trainable_parameter_names": trainable_names,
+        "frozen_parameter_names": frozen_names,
+        "trainable_parameter_count": trainable_count,
+        "frozen_parameter_count": frozen_count,
+    }
+
+
+def _parameter_subset_sha256(
+    model: MissingM3GraphModel,
+    parameter_names: Sequence[str],
+) -> str:
+    parameters = dict(model.named_parameters())
+    digest = hashlib.sha256()
+    for name in sorted(parameter_names):
+        if name not in parameters:
+            raise ValueError("unknown parameter in hash subset: " + name)
+        tensor = parameters[name].detach().cpu().contiguous()
+        digest.update(name.encode("utf-8"))
+        digest.update(str(tensor.dtype).encode("ascii"))
+        digest.update(str(tuple(tensor.shape)).encode("ascii"))
+        digest.update(tensor.numpy().tobytes())
+    return digest.hexdigest()
 
 
 def _readout_provenance(model: MissingM3GraphModel) -> Dict[str, object]:
@@ -540,7 +594,11 @@ def train_epoch(
 ) -> Dict[str, float]:
     if config.training_objective not in _TRAINING_OBJECTIVES:
         raise ValueError("unsupported training_objective")
-    train_emotion = config.training_objective in {"joint", "emotion-only"}
+    train_emotion = config.training_objective in {
+        "joint",
+        "emotion-only",
+        "frozen-completion",
+    }
     train_jepa = config.training_objective in {"joint", "jepa-only"}
     model.train()
     predictor = getattr(model, "missing_predictor", None)
@@ -629,8 +687,13 @@ def train_epoch(
                 loss = cls + config.jepa_weight * jepa_rate_weight * jepa.total
             elif config.training_objective == "jepa-only":
                 loss = jepa_rate_weight * jepa.total
-            else:
+            elif config.training_objective in {
+                "emotion-only",
+                "frozen-completion",
+            }:
                 loss = cls
+            else:
+                raise ValueError("unsupported training_objective")
             if not bool(torch.isfinite(loss.detach())):
                 raise ValueError("training loss must be finite")
             has_supervision = not (
@@ -812,12 +875,21 @@ def run_experiment(
     protocol_rates = _protocol_rates(config_value)
     if config_value.training_objective not in _TRAINING_OBJECTIVES:
         raise ValueError("unsupported training_objective")
+    frozen_completion = config_value.training_objective == "frozen-completion"
+    if frozen_completion and config_value.initial_backbone_checkpoint is None:
+        raise ValueError(
+            "frozen-completion requires initial_backbone_checkpoint"
+        )
+    if frozen_completion and not config_value.classification_completion:
+        raise ValueError("frozen-completion requires classification_completion")
     if (
         config_value.initial_backbone_checkpoint is not None
-        and config_value.training_objective not in {"joint", "emotion-only"}
+        and config_value.training_objective
+        not in {"joint", "emotion-only", "frozen-completion"}
     ):
         raise ValueError(
-            "initial_backbone_checkpoint is only valid for joint or emotion-only training"
+            "initial_backbone_checkpoint is only valid for joint, emotion-only, "
+            "or frozen-completion training"
         )
     if config_value.training_objective == "jepa-only":
         if config_value.evaluate_test:
@@ -899,11 +971,20 @@ def run_experiment(
         graph_message_calibration=config_value.graph_message_calibration,
     ).to(device)
     initialization = None
+    frozen_probe = None
+    frozen_hash_before = None
     if config_value.initial_backbone_checkpoint is not None:
         initialization = _load_inference_backbone_checkpoint(
             model,
             config_value.initial_backbone_checkpoint,
-            include_jepa_modules=config_value.training_objective == "joint",
+            include_jepa_modules=config_value.training_objective
+            in {"joint", "frozen-completion"},
+        )
+    if frozen_completion:
+        frozen_probe = _configure_frozen_completion_probe(model)
+        frozen_hash_before = _parameter_subset_sha256(
+            model,
+            frozen_probe["frozen_parameter_names"],
         )
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -1031,6 +1112,22 @@ def run_experiment(
         raise RuntimeError("no best checkpoint was selected")
     model.load_state_dict(best_state, strict=True)
     model.to(device)
+    frozen_integrity = None
+    if frozen_probe is not None:
+        frozen_hash_after = _parameter_subset_sha256(
+            model,
+            frozen_probe["frozen_parameter_names"],
+        )
+        if frozen_hash_after != frozen_hash_before:
+            raise RuntimeError("frozen completion backbone changed during training")
+        frozen_integrity = {
+            "trainable_parameter_count": frozen_probe[
+                "trainable_parameter_count"
+            ],
+            "frozen_parameter_count": frozen_probe["frozen_parameter_count"],
+            "frozen_parameter_sha256_before": frozen_hash_before,
+            "frozen_parameter_sha256_after": frozen_hash_after,
+        }
     test_metrics: Dict[str, Dict[str, float]] = {}
     mask_hashes: Dict[str, str] = {}
     if config_value.evaluate_test:
@@ -1091,6 +1188,7 @@ def run_experiment(
         ),
         "training_objective": config_value.training_objective,
         "backbone_initialization": initialization,
+        "frozen_completion_integrity": frozen_integrity,
         "jepa_regression_aggregation": (
             config_value.jepa_regression_aggregation
         ),
@@ -1200,7 +1298,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--training-objective",
-        choices=("joint", "jepa-only", "emotion-only"),
+        choices=(
+            "joint",
+            "jepa-only",
+            "emotion-only",
+            "frozen-completion",
+        ),
         default="joint",
     )
     parser.add_argument("--initial-backbone-checkpoint", default=None)

@@ -2322,6 +2322,33 @@ def test_emotion_only_training_skips_predictor_teacher_and_ema(monkeypatch):
     assert metrics["jepa_target_count"] == 0
 
 
+def test_frozen_completion_training_uses_emotion_loss_without_teacher_or_ema(
+    monkeypatch,
+):
+    _install_train_epoch_lifecycle_fakes(monkeypatch)
+    model = _LifecycleModel()
+    optimizer = _CountingOptimizer(model.weight)
+    config = TrainConfig(training_objective="frozen-completion")
+
+    metrics = train_gcnet.train_epoch(
+        model=model,
+        loader=[["batch"]],
+        optimizer=optimizer,
+        config=config,
+        schedules={rate: rate for rate in MISSING_RATES},
+        epoch=0,
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+    )
+
+    assert model.predict_missing_flags == [False]
+    assert model.teacher_calls == 0
+    assert model.ema_calls == 0
+    assert optimizer.step_gradients[0].item() == pytest.approx(1.0)
+    assert metrics["classification_loss"] == pytest.approx(1.0)
+    assert metrics["jepa_loss"] == pytest.approx(0.0)
+
+
 def test_jepa_only_training_skips_classification_loss(monkeypatch):
     _install_train_epoch_lifecycle_fakes(monkeypatch)
 
@@ -2492,6 +2519,82 @@ def test_joint_finetune_loads_pretrained_predictor_and_teacher_but_not_classifie
         state["smax_fc.weight"], target_before["smax_fc.weight"], rtol=0, atol=0
     )
     assert provenance["included_jepa_modules"] is True
+
+
+def test_frozen_completion_probe_only_trains_completion_and_emotion_readout():
+    model = MissingM3GraphModel(
+        **_model_arguments(),
+        classification_completion=True,
+    )
+
+    provenance = train_gcnet._configure_frozen_completion_probe(model)
+    trainable = provenance["trainable_parameter_names"]
+    frozen = provenance["frozen_parameter_names"]
+    allowed = (
+        "smax_fc.",
+        "conditioned_readout.",
+        "affine_readout.",
+        "missing_latent_fusion.",
+    )
+
+    assert trainable
+    assert all(name.startswith(allowed) for name in trainable)
+    assert "missing_latent_fusion.target_projections.0.1.weight" in trainable
+    assert "smax_fc.weight" in trainable
+    assert "missing_predictor.context_projection.weight" in frozen
+    assert "graph_net_temporal.conv1.weight" in frozen
+    assert provenance["trainable_parameter_count"] > 0
+    assert provenance["frozen_parameter_count"] > 0
+
+
+def test_parameter_subset_sha256_detects_frozen_parameter_changes():
+    model = MissingM3GraphModel(
+        **_model_arguments(),
+        classification_completion=True,
+    )
+    provenance = train_gcnet._configure_frozen_completion_probe(model)
+    frozen = provenance["frozen_parameter_names"]
+    before = train_gcnet._parameter_subset_sha256(model, frozen)
+
+    with torch.no_grad():
+        model.smax_fc.weight.add_(1.0)
+    assert train_gcnet._parameter_subset_sha256(model, frozen) == before
+
+    with torch.no_grad():
+        model.graph_net_temporal.conv1.weight.add_(1.0)
+    assert train_gcnet._parameter_subset_sha256(model, frozen) != before
+
+
+@pytest.mark.parametrize(
+    "config_value,match",
+    [
+        (
+            TrainConfig(
+                training_objective="frozen-completion",
+                classification_completion=True,
+            ),
+            "requires initial_backbone_checkpoint",
+        ),
+        (
+            TrainConfig(
+                training_objective="frozen-completion",
+                initial_backbone_checkpoint="pretrain.pt",
+            ),
+            "requires classification_completion",
+        ),
+    ],
+)
+def test_frozen_completion_rejects_incomplete_stage_contract(
+    tmp_path, config_value, match
+):
+    with pytest.raises(ValueError, match=match):
+        train_gcnet.run_experiment(
+            config_value,
+            "audio",
+            "text",
+            "visual",
+            tmp_path,
+        )
 
 
 @pytest.mark.parametrize(
