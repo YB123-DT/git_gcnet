@@ -1,0 +1,40 @@
+{
+  "dataset": "CMUMOSI",
+  "protocol": "cyclic mixed-rate, fold 1, seed 66, validation-selected checkpoint",
+  "control_weighted_f1_percent": {
+    "rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+    "values": [84.917704, 84.129047, 81.182797, 79.933417, 78.000787, 75.827945, 73.726504, 74.389464],
+    "mean": 79.013458
+  },
+  "stage1": {
+    "objective": "jepa-only",
+    "checkpoint_epoch": 100,
+    "selection": "fixed-final",
+    "latent_audit_missing_rate": 0.7,
+    "regression_branch_centered_cosine": {
+      "audio": 0.129022,
+      "text": 0.067775,
+      "visual": 0.105093
+    },
+    "regression_branch_real_minus_shuffle_cosine": {
+      "audio": 0.083380,
+      "text": 0.034497,
+      "visual": 0.080059
+    }
+  },
+  "stage2_emotion_only": {
+    "best_epoch": 56,
+    "weighted_f1_percent": [84.516679, 83.523236, 81.031551, 77.600212, 77.062964, 74.123949, 71.517005, 74.487782],
+    "mean": 77.982922,
+    "delta_vs_control": -1.030536
+  },
+  "stage2_joint_completion": {
+    "best_epoch": 67,
+    "best_validation_mean_weighted_f1_percent": 79.348258,
+    "weighted_f1_percent": [84.1784, 82.7896, 76.9644, 74.2440, 72.5185, 71.8858, 69.4971, 68.0176],
+    "mean": 75.011932,
+    "delta_vs_control": -4.001526,
+    "per_rate_delta_vs_control": [-0.7393, -1.3395, -4.2184, -5.6894, -5.4823, -3.9421, -4.2294, -6.3718]
+  },
+  "decision": "FAIL: do not expand beyond seed 66"
+}
