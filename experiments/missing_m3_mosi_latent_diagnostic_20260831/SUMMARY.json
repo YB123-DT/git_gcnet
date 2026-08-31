@@ -1,0 +1,79 @@
+{
+  "status": "COMPLETE_FAILURE_MECHANISM_CONFIRMED",
+  "dataset": "CMUMOSI",
+  "missing_rate": 0.7,
+  "seeds": [66, 67, 68, 69, 70],
+  "checkpoint_source": "validation-selected formal 5e-4 Slot Missing-M3",
+  "retrained": false,
+  "regression_head": {
+    "audio": {
+      "centered_cosine": 0.021694,
+      "real_minus_shuffle_cosine": 0.000647,
+      "shuffle_minus_real_smooth_l1": 0.001102,
+      "retrieval_top1": 0.002960,
+      "chance": 0.002459,
+      "effective_rank": 9.376,
+      "channel_std": 0.092455
+    },
+    "text": {
+      "centered_cosine": 0.010467,
+      "real_minus_shuffle_cosine": 0.000318,
+      "shuffle_minus_real_smooth_l1": 0.000567,
+      "retrieval_top1": 0.002559,
+      "chance": 0.002493,
+      "effective_rank": 7.150,
+      "channel_std": 0.093555
+    },
+    "visual": {
+      "centered_cosine": 0.016910,
+      "real_minus_shuffle_cosine": 0.001461,
+      "shuffle_minus_real_smooth_l1": 0.001101,
+      "retrieval_top1": 0.003037,
+      "chance": 0.002546,
+      "effective_rank": 7.295,
+      "channel_std": 0.098454
+    }
+  },
+  "contrastive_head": {
+    "audio": {
+      "centered_cosine": 0.040614,
+      "real_minus_shuffle_cosine": 0.013351,
+      "shuffle_minus_real_nce": 0.445025,
+      "retrieval_top1": 0.003967,
+      "chance": 0.002459,
+      "effective_rank": 11.226
+    },
+    "text": {
+      "centered_cosine": 0.018081,
+      "real_minus_shuffle_cosine": 0.003859,
+      "shuffle_minus_real_nce": 0.128630,
+      "retrieval_top1": 0.004456,
+      "chance": 0.002493,
+      "effective_rank": 7.190
+    },
+    "visual": {
+      "centered_cosine": 0.032153,
+      "real_minus_shuffle_cosine": 0.015078,
+      "shuffle_minus_real_nce": 0.502601,
+      "retrieval_top1": 0.004069,
+      "chance": 0.002546,
+      "effective_rank": 10.277
+    }
+  },
+  "teacher": {
+    "audio_effective_rank": 22.444,
+    "text_effective_rank": 47.790,
+    "visual_effective_rank": 18.829,
+    "audio_channel_std": 0.479376,
+    "text_channel_std": 0.476071,
+    "visual_channel_std": 0.626582
+  },
+  "diagnosis": "regression completion prototype collapse",
+  "formal_test_path_uses_predictor": false,
+  "follow_up": {
+    "experiment": "experiments/missing_m3_mosi_joint_completion_20260831",
+    "mechanism_result": "prototype shortcut substantially reduced",
+    "classification_result": "five-seed eight-rate mean decreased by 0.805331 percentage points",
+    "decision": "retain as mechanism ablation; do not promote to the main model"
+  }
+}

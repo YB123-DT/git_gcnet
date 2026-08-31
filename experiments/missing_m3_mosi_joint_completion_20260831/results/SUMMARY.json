@@ -1,0 +1,69 @@
+{
+  "status": "MECHANISM_FIXED_BUT_CLASSIFICATION_FAIL",
+  "dataset": "CMUMOSI",
+  "fold": 1,
+  "seeds": [66, 67, 68, 69, 70],
+  "train_rate_mode": "cyclic",
+  "candidate": {
+    "jepa_contrastive_source": "regression",
+    "jepa_weight": 0.03
+  },
+  "control": {
+    "source": "experiments/missing_m3_mosi_cyclic_20260830",
+    "retrained": false
+  },
+  "overall": {
+    "joint_mean_percent": 77.278389,
+    "control_mean_percent": 78.083720,
+    "delta_percent_points": -0.805331,
+    "positive_seed_means": 2
+  },
+  "per_seed": {
+    "66": {"best_epoch": 81, "mean_percent": 79.018837, "delta_percent_points": 0.005379},
+    "67": {"best_epoch": 37, "mean_percent": 76.257733, "delta_percent_points": -1.560624},
+    "68": {"best_epoch": 68, "mean_percent": 78.747500, "delta_percent_points": 0.188572},
+    "69": {"best_epoch": 69, "mean_percent": 77.426373, "delta_percent_points": -0.824338},
+    "70": {"best_epoch": 93, "mean_percent": 74.941501, "delta_percent_points": -1.835647}
+  },
+  "per_rate": [
+    {"missing_rate": 0.0, "mean_percent": 83.989974, "control_percent": 84.738256, "delta_percent_points": -0.748283, "positive_seeds": 2},
+    {"missing_rate": 0.1, "mean_percent": 81.805606, "control_percent": 82.634283, "delta_percent_points": -0.828677, "positive_seeds": 1},
+    {"missing_rate": 0.2, "mean_percent": 79.966424, "control_percent": 80.532625, "delta_percent_points": -0.566202, "positive_seeds": 1},
+    {"missing_rate": 0.3, "mean_percent": 78.344748, "control_percent": 79.006676, "delta_percent_points": -0.661927, "positive_seeds": 2},
+    {"missing_rate": 0.4, "mean_percent": 75.516500, "control_percent": 76.234835, "delta_percent_points": -0.718335, "positive_seeds": 1},
+    {"missing_rate": 0.5, "mean_percent": 73.906080, "control_percent": 74.942705, "delta_percent_points": -1.036625, "positive_seeds": 0},
+    {"missing_rate": 0.6, "mean_percent": 73.796005, "control_percent": 74.274866, "delta_percent_points": -0.478860, "positive_seeds": 1},
+    {"missing_rate": 0.7, "mean_percent": 70.901773, "control_percent": 72.305515, "delta_percent_points": -1.403742, "positive_seeds": 0}
+  ],
+  "latent_miss_0p7": {
+    "audio": {
+      "control_centered_cosine": 0.021941,
+      "joint_centered_cosine": 0.037789,
+      "control_real_shuffle_gap": 0.000944,
+      "joint_real_shuffle_gap": 0.013575,
+      "control_retrieval_over_chance": 1.8,
+      "joint_retrieval_over_chance": 3.0
+    },
+    "text": {
+      "control_centered_cosine": 0.017662,
+      "joint_centered_cosine": 0.025032,
+      "control_real_shuffle_gap": 0.001528,
+      "joint_real_shuffle_gap": 0.005875,
+      "control_retrieval_over_chance": 1.6,
+      "joint_retrieval_over_chance": 3.0
+    },
+    "visual": {
+      "control_centered_cosine": 0.022769,
+      "joint_centered_cosine": 0.026605,
+      "control_real_shuffle_gap": 0.001547,
+      "joint_real_shuffle_gap": 0.011680,
+      "control_retrieval_over_chance": 0.8,
+      "joint_retrieval_over_chance": 1.0
+    }
+  },
+  "seed66_weight_screen": {
+    "0.03": {"mean_percent": 79.018837, "delta_percent_points": 0.005379},
+    "0.05": {"mean_percent": 78.824186, "delta_percent_points": -0.189272},
+    "0.10": {"mean_percent": 78.389897, "delta_percent_points": -0.623561}
+  }
+}
