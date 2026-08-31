@@ -58,6 +58,12 @@ miss 0.7 的 686 个非零标签测试样本中，A/T/V singleton 共 543 个，
 W-F1 被 singleton pattern 构成拉低。这不是类别常量坍塌：预测同时包含正负两类，
 prediction standard deviation 为 `0.982`，Accuracy 为 `72.26%`。
 
+上述 pattern 内分数仅描述本次 seed 66 oracle，不应泛化为特定模态结论。进一步读取
+正式 seeds 66--70 后，miss 0.7 的 singleton 占比均值为 `77.7%`；将五种子的样本按
+pattern 汇总，A-only、T-only、V-only W-F1 分别为 `71.86%`、`72.87%`、`72.01%`，
+而 ATV 为 `86.41%`。稳定现象是三类 singleton 整体弱，而不是 Audio 或 Visual 单独
+失效。
+
 正式 validation-best 与 test-oracle 在 miss 0.7 分别为 `72.411%` 和 `72.407%`，
 进一步说明高缺失下降不是 checkpoint 选择问题。
 
@@ -76,7 +82,8 @@ prediction standard deviation 为 `0.982`，Accuracy 为 `72.26%`。
 `COMPLETE — DIAGNOSTIC ONLY`。
 
 MOSI 的主要问题不是 validation checkpoint 选择。后续若继续优化，应优先研究
-A-only/V-only 表示及无 Text pattern，而不应采用 test-oracle 作为正式协议。
+single-source representation 的整体鲁棒性，而不应采用 test-oracle 作为正式协议，
+也不应根据一个 seed 专门修改某一模态。
 
 ## 结果位置
 
