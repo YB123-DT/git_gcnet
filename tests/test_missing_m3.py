@@ -2525,6 +2525,83 @@ def test_fixed_rate_protocol_selects_and_tests_only_the_training_rate(
     assert not (tmp_path / "predictions_miss_0p0.npz").exists()
 
 
+def test_test_oracle_selection_skips_validation_and_uses_test_rate_mean(
+    monkeypatch, tmp_path
+):
+    evaluated = []
+
+    class OracleLifecycleModel(torch.nn.Module):
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+            del args, kwargs
+            self.weight = torch.nn.Parameter(torch.zeros(()))
+            self.ema_step = 200
+            self.readout_type = "shared"
+            self.readout_rank = 8
+
+    loaders = ([['train']], [['validation']], [['test']], 1, 1, 1)
+    monkeypatch.setattr(train_gcnet, "get_loaders", lambda **_kwargs: loaders)
+    monkeypatch.setattr(train_gcnet, "MissingM3GraphModel", OracleLifecycleModel)
+    monkeypatch.setattr(
+        train_gcnet,
+        "_schedules",
+        lambda config, split: {rate: (split, rate) for rate in MISSING_RATES},
+    )
+
+    def train_epoch(model, *_args, **_kwargs):
+        model.weight.data.add_(1)
+        return {
+            "weighted_f1": 0.5,
+            "classification_loss": 1.0,
+            "jepa_loss": 0.5,
+        }
+
+    monkeypatch.setattr(train_gcnet, "train_epoch", train_epoch)
+
+    def evaluate_rate(model, loader, schedule, dataset, dimensions, device, collect, **kwargs):
+        del dataset, dimensions, device, kwargs
+        split, rate = schedule
+        evaluated.append((loader[0], split, rate, collect))
+        if split == "validation":
+            raise AssertionError("test-oracle selection must not evaluate validation")
+        metrics = {"weighted_f1": 0.6 + 0.1 * float(model.weight)}
+        if not collect:
+            return metrics, None
+        metrics["mask_sha256"] = "mask-{}".format(rate)
+        return metrics, {
+            "predictions": train_gcnet.np.array([1.0]),
+            "labels": train_gcnet.np.array([1.0]),
+            "availability": train_gcnet.np.ones((1, 3)),
+        }
+
+    monkeypatch.setattr(train_gcnet, "evaluate_rate", evaluate_rate)
+
+    result = train_gcnet.run_experiment(
+        TrainConfig(
+            dataset="CMUMOSI",
+            fold=1,
+            epochs=2,
+            device="cpu",
+            train_rate_mode="all",
+            checkpoint_selection="test-oracle",
+        ),
+        "audio",
+        "text",
+        "visual",
+        tmp_path,
+    )
+
+    assert all(split == "test" for _, split, _, _ in evaluated)
+    assert all(loader_name == "test" for loader_name, _, _, _ in evaluated)
+    assert result["best_epoch"] == 2
+    assert result["selection_split"] == "test-oracle"
+    assert result["best_selection_mean_weighted_f1"] == pytest.approx(0.8)
+    assert result["best_validation_mean_weighted_f1"] is None
+    history = json.loads((tmp_path / "history.json").read_text(encoding="utf-8"))
+    assert all("validation" not in record for record in history)
+    assert all("test_oracle" in record for record in history)
+
+
 def test_protocol_rates_preserve_eight_rate_lifecycle_for_existing_modes():
     assert train_gcnet._protocol_rates(TrainConfig(train_rate_mode="all")) == MISSING_RATES
     assert train_gcnet._protocol_rates(TrainConfig(train_rate_mode="cyclic")) == MISSING_RATES

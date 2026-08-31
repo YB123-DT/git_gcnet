@@ -85,6 +85,7 @@ class TrainConfig:
     jepa_rate_weighting: str = "uniform"
     graph_message_calibration: str = "none"
     fixed_missing_rate: float | None = None
+    checkpoint_selection: str = "validation"
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -155,13 +156,21 @@ def _save_best_checkpoint(
     config_value: TrainConfig,
     epoch: int,
     validation_mean_weighted_f1: float,
+    selection_split: str = "validation",
 ) -> None:
+    validation_score = (
+        validation_mean_weighted_f1
+        if selection_split == "validation"
+        else None
+    )
     torch.save(
         {
             "model": model_state,
             "config": asdict(config_value),
             "epoch": epoch,
-            "validation_mean_weighted_f1": validation_mean_weighted_f1,
+            "validation_mean_weighted_f1": validation_score,
+            "selection_split": selection_split,
+            "selection_mean_weighted_f1": validation_mean_weighted_f1,
         },
         path,
     )
@@ -706,6 +715,10 @@ def run_experiment(
     output_dir: str | Path,
 ) -> Dict[str, object]:
     protocol_rates = _protocol_rates(config_value)
+    if config_value.checkpoint_selection not in ("validation", "test-oracle"):
+        raise ValueError(
+            "checkpoint_selection must be 'validation' or 'test-oracle'"
+        )
     shape = _resolve_task_contract(
         config_value.dataset, config_value.mosi_task_mode
     )
@@ -778,7 +791,11 @@ def run_experiment(
         weight_decay=config_value.weight_decay,
     )
     train_schedules = _schedules(config_value, "train")
-    validation_schedules = _schedules(config_value, "validation")
+    validation_schedules = (
+        _schedules(config_value, "validation")
+        if config_value.checkpoint_selection == "validation"
+        else None
+    )
     test_schedules = _schedules(config_value, "test")
     history: list[Dict[str, object]] = []
     best_score = -math.inf
@@ -798,12 +815,24 @@ def run_experiment(
             dimensions,
             device,
         )
-        validation: Dict[float, Dict[str, float]] = {}
+        selection_loader = (
+            validation_loader
+            if config_value.checkpoint_selection == "validation"
+            else test_loader
+        )
+        selection_schedules = (
+            validation_schedules
+            if config_value.checkpoint_selection == "validation"
+            else test_schedules
+        )
+        if selection_schedules is None:
+            raise RuntimeError("selection schedules were not initialized")
+        selection_metrics: Dict[float, Dict[str, float]] = {}
         for rate in protocol_rates:
-            validation[rate], _ = evaluate_rate(
+            selection_metrics[rate], _ = evaluate_rate(
                 model,
-                validation_loader,
-                validation_schedules[rate],
+                selection_loader,
+                selection_schedules[rate],
                 config_value.dataset,
                 dimensions,
                 device,
@@ -812,29 +841,38 @@ def run_experiment(
                 task_regression_loss=config_value.task_regression_loss,
                 task_smooth_l1_beta=config_value.task_smooth_l1_beta,
             )
-        validation_mean = sum(
-            float(validation[rate]["weighted_f1"]) for rate in protocol_rates
+        selection_mean = sum(
+            float(selection_metrics[rate]["weighted_f1"])
+            for rate in protocol_rates
         ) / len(protocol_rates)
+        selection_key = (
+            "validation"
+            if config_value.checkpoint_selection == "validation"
+            else "test_oracle"
+        )
         record = {
             "epoch": epoch + 1,
             "train": train_metrics,
-            "validation": {str(rate): value for rate, value in validation.items()},
-            "validation_mean_weighted_f1": validation_mean,
+            selection_key: {
+                str(rate): value for rate, value in selection_metrics.items()
+            },
+            selection_key + "_mean_weighted_f1": selection_mean,
         }
         history.append(record)
         _write_json(output / "history.json", history)
         print(
-            "epoch={:03d} train_wf1={:.4f} val_wf1={:.4f} cls={:.4f} jepa={:.4f}".format(
+            "epoch={:03d} train_wf1={:.4f} {}_wf1={:.4f} cls={:.4f} jepa={:.4f}".format(
                 epoch + 1,
                 train_metrics["weighted_f1"],
-                validation_mean,
+                selection_key,
+                selection_mean,
                 train_metrics["classification_loss"],
                 train_metrics["jepa_loss"],
             ),
             flush=True,
         )
-        if validation_mean > best_score:
-            best_score = validation_mean
+        if selection_mean > best_score:
+            best_score = selection_mean
             best_epoch = epoch + 1
             best_state = _state_to_cpu(model)
             _save_best_checkpoint(
@@ -843,6 +881,7 @@ def run_experiment(
                 config_value=config_value,
                 epoch=best_epoch,
                 validation_mean_weighted_f1=best_score,
+                selection_split=config_value.checkpoint_selection,
             )
     if best_state is None:
         raise RuntimeError("no best checkpoint was selected")
@@ -876,7 +915,13 @@ def run_experiment(
             )
     result: Dict[str, object] = {
         "best_epoch": best_epoch,
-        "best_validation_mean_weighted_f1": best_score,
+        "selection_split": config_value.checkpoint_selection,
+        "best_selection_mean_weighted_f1": best_score,
+        "best_validation_mean_weighted_f1": (
+            best_score
+            if config_value.checkpoint_selection == "validation"
+            else None
+        ),
         "test": test_metrics,
         "mask_sha256": mask_hashes,
         "parameter_count": sum(parameter.numel() for parameter in model.parameters()),
@@ -885,9 +930,13 @@ def run_experiment(
         ),
         "ema_steps": model.ema_step,
         "evaluation_stage": (
-            "train-validation-test"
-            if config_value.evaluate_test
-            else "train-validation-only"
+            "train-test-oracle"
+            if config_value.checkpoint_selection == "test-oracle"
+            else (
+                "train-validation-test"
+                if config_value.evaluate_test
+                else "train-validation-only"
+            )
         ),
         "jepa_regression_aggregation": (
             config_value.jepa_regression_aggregation
@@ -991,6 +1040,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--skip-test-evaluation", action="store_true")
     parser.add_argument(
+        "--checkpoint-selection",
+        choices=("validation", "test-oracle"),
+        default="validation",
+    )
+    parser.add_argument(
         "--fusion-type",
         choices=("mean", "slot", "raw-residual"),
         default="mean",
@@ -1068,6 +1122,7 @@ def main(argv=None) -> None:
         jepa_rate_weighting=args.jepa_rate_weighting,
         graph_message_calibration=args.graph_message_calibration,
         fixed_missing_rate=args.train_missing_rate,
+        checkpoint_selection=args.checkpoint_selection,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [
