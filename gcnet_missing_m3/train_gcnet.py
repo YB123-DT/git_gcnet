@@ -86,6 +86,7 @@ class TrainConfig:
     graph_message_calibration: str = "none"
     fixed_missing_rate: float | None = None
     checkpoint_selection: str = "validation"
+    jepa_contrastive_source: str = "contrastive"
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -528,19 +529,13 @@ def train_epoch(
             if teacher is None:
                 with torch.no_grad():
                     teacher = model.encode_teacher_targets([view["complete"]])
-            if config.jepa_regression_aggregation == "target":
-                jepa: MissingM3Loss = missing_m3_loss(
-                    predictions,
-                    teacher,
-                    temperature=config.temperature,
-                )
-            else:
-                jepa = missing_m3_loss(
-                    predictions,
-                    teacher,
-                    temperature=config.temperature,
-                    regression_aggregation=config.jepa_regression_aggregation,
-                )
+            jepa: MissingM3Loss = missing_m3_loss(
+                predictions,
+                teacher,
+                temperature=config.temperature,
+                regression_aggregation=config.jepa_regression_aggregation,
+                contrastive_prediction_source=config.jepa_contrastive_source,
+            )
             jepa_rate_weight = _jepa_rate_weight(
                 rate, config.jepa_rate_weighting
             )
@@ -941,6 +936,7 @@ def run_experiment(
         "jepa_regression_aggregation": (
             config_value.jepa_regression_aggregation
         ),
+        "jepa_contrastive_source": config_value.jepa_contrastive_source,
         "recurrent_padding_mode": config_value.recurrent_padding_mode,
         "task_regression_loss": config_value.task_regression_loss,
         "task_smooth_l1_beta": config_value.task_smooth_l1_beta,
@@ -1062,6 +1058,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("target", "utterance"),
         default="target",
     )
+    parser.add_argument(
+        "--jepa-contrastive-source",
+        choices=("contrastive", "regression"),
+        default="contrastive",
+    )
     parser.add_argument("--ema-tau", type=float, default=0.996)
     parser.add_argument("--gradient-clip-norm", type=float, default=1.0)
     parser.add_argument("--windowp", type=int, default=2)
@@ -1100,6 +1101,7 @@ def main(argv=None) -> None:
         jepa_weight=args.jepa_weight,
         temperature=args.temperature,
         jepa_regression_aggregation=args.jepa_regression_aggregation,
+        jepa_contrastive_source=args.jepa_contrastive_source,
         ema_tau=args.ema_tau,
         gradient_clip_norm=args.gradient_clip_norm,
         time_attention=args.time_attn,

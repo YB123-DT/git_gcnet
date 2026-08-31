@@ -642,6 +642,41 @@ def test_missing_m3_loss_is_zero_for_complete_atv_and_finite_for_missing_targets
     assert hidden.grad is not None and torch.isfinite(hidden.grad).all()
 
 
+def test_regression_completion_can_receive_the_contrastive_objective():
+    target_mask = torch.zeros(2, 1, 3, dtype=torch.bool)
+    target_mask[..., 0] = True
+    reg_predictions = torch.zeros(2, 1, 3, 2, requires_grad=True)
+    cl_predictions = torch.zeros(2, 1, 3, 2, requires_grad=True)
+    with torch.no_grad():
+        reg_predictions[:, 0, 0] = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
+        cl_predictions[:, 0, 0] = torch.tensor([[0.0, 1.0], [1.0, 0.0]])
+    predictions = missing_m3_model.MissingM3Predictions(
+        reg_predictions=reg_predictions,
+        cl_predictions=cl_predictions,
+        target_mask=target_mask,
+        source_counts=torch.ones(2, 1, dtype=torch.long),
+    )
+    teacher = {
+        "audio": torch.tensor([[[1.0, 0.0]], [[0.0, 1.0]]]),
+        "text": torch.zeros(2, 1, 2),
+        "visual": torch.zeros(2, 1, 2),
+    }
+
+    separate = missing_m3_loss(predictions, teacher, temperature=0.1)
+    coupled = missing_m3_loss(
+        predictions,
+        teacher,
+        temperature=0.1,
+        contrastive_prediction_source="regression",
+    )
+    coupled.total.backward()
+
+    assert coupled.contrastive < separate.contrastive
+    assert reg_predictions.grad is not None
+    assert reg_predictions.grad.abs().sum() > 0
+    assert cl_predictions.grad is None
+
+
 def _synthetic_missing_predictions(target_mask, values):
     target_mask = torch.tensor(target_mask, dtype=torch.bool).view(-1, 1, 3)
     reg_predictions = torch.tensor(values, dtype=torch.float32).view(
@@ -1166,12 +1201,15 @@ def test_graph_message_calibration_default_is_exactly_none():
     for key, value in default.state_dict().items():
         ASSERT_CLOSE(value, explicit.state_dict()[key], rtol=0, atol=0)
     inputs = _model_inputs()
-    ASSERT_CLOSE(
-        default(*inputs)[:3],
-        explicit(*inputs)[:3],
-        rtol=0,
-        atol=0,
-    )
+    default_logits, default_hidden, default_latents = default(*inputs)[:3]
+    explicit_logits, explicit_hidden, explicit_latents = explicit(*inputs)[:3]
+    ASSERT_CLOSE(default_logits, explicit_logits, rtol=0, atol=0)
+    ASSERT_CLOSE(default_hidden, explicit_hidden, rtol=0, atol=0)
+    assert default_latents.keys() == explicit_latents.keys()
+    for name in default_latents:
+        ASSERT_CLOSE(
+            default_latents[name], explicit_latents[name], rtol=0, atol=0
+        )
 
 
 def test_branch_graph_message_calibration_matches_the_bounded_formula():
@@ -2121,9 +2159,17 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
             "lengths": [1],
         }
 
-    def jepa_loss(predictions, teacher, temperature):
+    def jepa_loss(
+        predictions,
+        teacher,
+        temperature,
+        regression_aggregation,
+        contrastive_prediction_source,
+    ):
         assert teacher.keys() == {"complete"}
         assert temperature == pytest.approx(0.03)
+        assert regression_aggregation == "target"
+        assert contrastive_prediction_source == "contrastive"
         rate_index = int(predictions.detach().item()) - 1
         zero = predictions.sum() * 0.0
         return MissingM3Loss(
@@ -2293,9 +2339,17 @@ def test_sparsity_jepa_weights_preserve_the_active_rate_budget():
 def test_sparsity_jepa_weighting_changes_only_the_jepa_gradient(monkeypatch):
     _install_train_epoch_lifecycle_fakes(monkeypatch)
 
-    def jepa_loss(predictions, teacher, temperature):
+    def jepa_loss(
+        predictions,
+        teacher,
+        temperature,
+        regression_aggregation,
+        contrastive_prediction_source,
+    ):
         del teacher
         assert temperature == pytest.approx(0.03)
+        assert regression_aggregation == "target"
+        assert contrastive_prediction_source == "contrastive"
         rate_index = int(predictions.detach().item()) - 1
         active = float(rate_index > 0)
         total = predictions.sum() * active

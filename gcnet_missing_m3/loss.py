@@ -39,12 +39,18 @@ def missing_m3_loss(
     teacher_targets: Mapping[str, torch.Tensor],
     temperature: float = 0.03,
     regression_aggregation: str = "target",
+    contrastive_prediction_source: str = "contrastive",
 ) -> MissingM3Loss:
     if temperature <= 0:
         raise ValueError("temperature must be positive")
     if regression_aggregation not in {"target", "utterance"}:
         raise ValueError(
             "regression_aggregation must be 'target' or 'utterance'"
+        )
+    if contrastive_prediction_source not in {"contrastive", "regression"}:
+        raise ValueError(
+            "contrastive_prediction_source must be 'contrastive' or "
+            "'regression'"
         )
     if set(teacher_targets) != set(MODALITIES):
         raise ValueError("teacher_targets must contain audio, text, and visual")
@@ -76,8 +82,15 @@ def missing_m3_loss(
                 accumulate=True,
             )
         if target.shape[0] >= 2:
+            contrastive_prediction = (
+                reg_prediction
+                if contrastive_prediction_source == "regression"
+                else cl_prediction
+            )
             contrastive_values.append(
-                _symmetric_info_nce(cl_prediction, target, temperature)
+                _symmetric_info_nce(
+                    contrastive_prediction, target, temperature
+                )
             )
 
     if regression_aggregation == "target":
