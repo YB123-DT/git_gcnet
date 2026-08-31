@@ -87,6 +87,25 @@ class TrainConfig:
     fixed_missing_rate: float | None = None
     checkpoint_selection: str = "validation"
     jepa_contrastive_source: str = "contrastive"
+    training_objective: str = "joint"
+    initial_backbone_checkpoint: str | None = None
+
+
+_TRAINING_OBJECTIVES = {"joint", "jepa-only", "emotion-only"}
+_STAGE2_EXCLUDED_PREFIXES = (
+    "smax_fc.",
+    "conditioned_readout.",
+    "affine_readout.",
+    "missing_predictor.",
+    "missing_latent_fusion.",
+    "teacher.",
+)
+_JOINT_FINETUNE_EXCLUDED_PREFIXES = (
+    "smax_fc.",
+    "conditioned_readout.",
+    "affine_readout.",
+    "missing_latent_fusion.",
+)
 
 
 def _dataset_shape(dataset: str) -> Dict[str, object]:
@@ -156,7 +175,7 @@ def _save_best_checkpoint(
     model_state: Mapping[str, torch.Tensor],
     config_value: TrainConfig,
     epoch: int,
-    validation_mean_weighted_f1: float,
+    validation_mean_weighted_f1: float | None,
     selection_split: str = "validation",
 ) -> None:
     validation_score = (
@@ -181,6 +200,58 @@ def _state_to_cpu(model: torch.nn.Module) -> Dict[str, torch.Tensor]:
     return {
         name: value.detach().cpu().clone()
         for name, value in model.state_dict().items()
+    }
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _load_inference_backbone_checkpoint(
+    model: MissingM3GraphModel,
+    checkpoint_path: str | Path,
+    include_jepa_modules: bool = False,
+) -> Dict[str, object]:
+    path = Path(checkpoint_path)
+    checkpoint = torch.load(path, map_location="cpu")
+    source_config = checkpoint.get("config", {})
+    source_objective = source_config.get("training_objective")
+    if source_objective != "jepa-only":
+        raise ValueError(
+            "initial backbone checkpoint must come from jepa-only pretraining"
+        )
+    source_state = checkpoint.get("model")
+    if not isinstance(source_state, Mapping):
+        raise ValueError("initial backbone checkpoint has no model state")
+    target_state = model.state_dict()
+    excluded_prefixes = (
+        _JOINT_FINETUNE_EXCLUDED_PREFIXES
+        if include_jepa_modules
+        else _STAGE2_EXCLUDED_PREFIXES
+    )
+    loaded_keys = []
+    for key, target_value in target_state.items():
+        if key.startswith(excluded_prefixes):
+            continue
+        if key not in source_state:
+            raise ValueError("pretrained backbone is missing key: " + key)
+        source_value = source_state[key]
+        if source_value.shape != target_value.shape:
+            raise ValueError("pretrained backbone shape mismatch: " + key)
+        target_state[key] = source_value.to(dtype=target_value.dtype)
+        loaded_keys.append(key)
+    model.load_state_dict(target_state, strict=True)
+    return {
+        "checkpoint": str(path),
+        "checkpoint_sha256": _sha256_file(path),
+        "source_training_objective": source_objective,
+        "source_epoch": checkpoint.get("epoch"),
+        "loaded_key_count": len(loaded_keys),
+        "included_jepa_modules": include_jepa_modules,
     }
 
 
@@ -467,10 +538,14 @@ def train_epoch(
     dimensions: tuple[int, int, int],
     device: torch.device,
 ) -> Dict[str, float]:
+    if config.training_objective not in _TRAINING_OBJECTIVES:
+        raise ValueError("unsupported training_objective")
+    train_emotion = config.training_objective in {"joint", "emotion-only"}
+    train_jepa = config.training_objective in {"joint", "jepa-only"}
     model.train()
     predictor = getattr(model, "missing_predictor", None)
     mmoe = getattr(predictor, "mmoe", None)
-    if mmoe is not None:
+    if mmoe is not None and train_jepa:
         mmoe.reset_routing_statistics()
     rate_schedule = BalancedBatchRateSchedule()
     fixed_rate = _fixed_missing_rate(config)
@@ -482,6 +557,7 @@ def train_epoch(
     rate_counts = {rate: 0 for rate in MISSING_RATES}
     target_count = 0
     optimizer_steps = 0
+    skipped_optimizer_batches = 0
     for batch_index, raw in enumerate(loader):
         data = _move_batch(raw, device)
         if config.train_rate_mode == "all":
@@ -504,9 +580,10 @@ def train_epoch(
         else:
             raise ValueError("train_rate_mode must be 'cyclic', 'all', or 'fixed'")
         teacher = None
+        batch_has_backward = False
         for rate, view in rate_views:
             rate_counts[rate] += 1
-            if config.train_rate_mode == "all" and teacher is None:
+            if config.train_rate_mode == "all" and train_jepa and teacher is None:
                 with torch.no_grad():
                     teacher = model.encode_teacher_targets([view["complete"]])
             logits, _, _, predictions = model(
@@ -515,40 +592,57 @@ def train_epoch(
                 view["qmask"],
                 view["umask"],
                 view["lengths"],
-                predict_missing=True,
+                predict_missing=train_jepa,
             )
-            cls = _task_loss(
-                config.dataset,
-                logits,
-                view["labels"],
-                view["umask"],
-                config.mosi_task_mode,
-                config.task_regression_loss,
-                config.task_smooth_l1_beta,
+            zero = logits.sum() * 0.0
+            cls = (
+                _task_loss(
+                    config.dataset,
+                    logits,
+                    view["labels"],
+                    view["umask"],
+                    config.mosi_task_mode,
+                    config.task_regression_loss,
+                    config.task_smooth_l1_beta,
+                )
+                if train_emotion
+                else zero
             )
-            if teacher is None:
-                with torch.no_grad():
-                    teacher = model.encode_teacher_targets([view["complete"]])
-            jepa: MissingM3Loss = missing_m3_loss(
-                predictions,
-                teacher,
-                temperature=config.temperature,
-                regression_aggregation=config.jepa_regression_aggregation,
-                contrastive_prediction_source=config.jepa_contrastive_source,
-            )
-            jepa_rate_weight = _jepa_rate_weight(
-                rate, config.jepa_rate_weighting
-            )
-            loss = (
-                cls
-                + config.jepa_weight * jepa_rate_weight * jepa.total
-            )
+            if train_jepa:
+                if teacher is None:
+                    with torch.no_grad():
+                        teacher = model.encode_teacher_targets([view["complete"]])
+                jepa = missing_m3_loss(
+                    predictions,
+                    teacher,
+                    temperature=config.temperature,
+                    regression_aggregation=config.jepa_regression_aggregation,
+                    contrastive_prediction_source=config.jepa_contrastive_source,
+                )
+                jepa_rate_weight = _jepa_rate_weight(
+                    rate, config.jepa_rate_weighting
+                )
+            else:
+                jepa = MissingM3Loss(zero, zero, zero, 0)
+                jepa_rate_weight = 0.0
+            if config.training_objective == "joint":
+                loss = cls + config.jepa_weight * jepa_rate_weight * jepa.total
+            elif config.training_objective == "jepa-only":
+                loss = jepa_rate_weight * jepa.total
+            else:
+                loss = cls
             if not bool(torch.isfinite(loss.detach())):
                 raise ValueError("training loss must be finite")
-            if config.train_rate_mode == "all":
-                (loss / len(MISSING_RATES)).backward()
-            else:
-                loss.backward()
+            has_supervision = not (
+                config.training_objective == "jepa-only"
+                and jepa.target_count == 0
+            )
+            if has_supervision:
+                if config.train_rate_mode == "all":
+                    (loss / len(MISSING_RATES)).backward()
+                else:
+                    loss.backward()
+                batch_has_backward = True
             predicted, expected, _ = _collect_predictions(
                 config.dataset,
                 logits,
@@ -562,6 +656,9 @@ def train_epoch(
             cls_losses.append(float(cls.detach()))
             jepa_losses.append(float(jepa.total.detach()))
             target_count += jepa.target_count
+        if not batch_has_backward:
+            skipped_optimizer_batches += 1
+            continue
         if config.gradient_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(
                 (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -569,7 +666,8 @@ def train_epoch(
             )
         optimizer.step()
         optimizer_steps += 1
-        model.update_teacher(config.ema_tau)
+        if train_jepa:
+            model.update_teacher(config.ema_tau)
     metrics = _metrics(
         config.dataset,
         np.concatenate(all_labels),
@@ -577,7 +675,7 @@ def train_epoch(
         config.mosi_task_mode,
     )
     routing_record = {}
-    if mmoe is not None:
+    if mmoe is not None and train_jepa:
         routing = mmoe.routing_statistics()
         for branch_index, branch_name in enumerate(("regression", "contrastive")):
             routing_record[branch_name] = {
@@ -599,7 +697,9 @@ def train_epoch(
         "jepa_target_count": int(target_count),
         "rate_batch_counts": {str(rate): count for rate, count in rate_counts.items()},
         "optimizer_steps": optimizer_steps,
+        "skipped_optimizer_batches": skipped_optimizer_batches,
         "routing": routing_record,
+        "training_objective": config.training_objective,
     }
 
 
@@ -710,6 +810,24 @@ def run_experiment(
     output_dir: str | Path,
 ) -> Dict[str, object]:
     protocol_rates = _protocol_rates(config_value)
+    if config_value.training_objective not in _TRAINING_OBJECTIVES:
+        raise ValueError("unsupported training_objective")
+    if (
+        config_value.initial_backbone_checkpoint is not None
+        and config_value.training_objective not in {"joint", "emotion-only"}
+    ):
+        raise ValueError(
+            "initial_backbone_checkpoint is only valid for joint or emotion-only training"
+        )
+    if config_value.training_objective == "jepa-only":
+        if config_value.evaluate_test:
+            raise ValueError(
+                "jepa-only pretraining requires skip-test-evaluation"
+            )
+        if config_value.checkpoint_selection != "validation":
+            raise ValueError(
+                "jepa-only pretraining uses a fixed-final checkpoint"
+            )
     if config_value.checkpoint_selection not in ("validation", "test-oracle"):
         raise ValueError(
             "checkpoint_selection must be 'validation' or 'test-oracle'"
@@ -780,6 +898,13 @@ def run_experiment(
         postgraph_sequence_mode=config_value.postgraph_sequence_mode,
         graph_message_calibration=config_value.graph_message_calibration,
     ).to(device)
+    initialization = None
+    if config_value.initial_backbone_checkpoint is not None:
+        initialization = _load_inference_backbone_checkpoint(
+            model,
+            config_value.initial_backbone_checkpoint,
+            include_jepa_modules=config_value.training_objective == "joint",
+        )
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
         lr=config_value.learning_rate,
@@ -793,7 +918,8 @@ def run_experiment(
     )
     test_schedules = _schedules(config_value, "test")
     history: list[Dict[str, object]] = []
-    best_score = -math.inf
+    jepa_pretraining = config_value.training_objective == "jepa-only"
+    best_score: float | None = None if jepa_pretraining else -math.inf
     best_epoch = 0
     best_state = None
     for epoch in range(config_value.epochs):
@@ -810,6 +936,16 @@ def run_experiment(
             dimensions,
             device,
         )
+        if jepa_pretraining:
+            history.append({"epoch": epoch + 1, "train": train_metrics})
+            _write_json(output / "history.json", history)
+            print(
+                "epoch={:03d} jepa={:.4f}".format(
+                    epoch + 1, train_metrics["jepa_loss"]
+                ),
+                flush=True,
+            )
+            continue
         selection_loader = (
             validation_loader
             if config_value.checkpoint_selection == "validation"
@@ -866,6 +1002,8 @@ def run_experiment(
             ),
             flush=True,
         )
+        if best_score is None:
+            raise RuntimeError("emotion checkpoint score was not initialized")
         if selection_mean > best_score:
             best_score = selection_mean
             best_epoch = epoch + 1
@@ -878,6 +1016,17 @@ def run_experiment(
                 validation_mean_weighted_f1=best_score,
                 selection_split=config_value.checkpoint_selection,
             )
+    if jepa_pretraining and config_value.epochs > 0:
+        best_epoch = config_value.epochs
+        best_state = _state_to_cpu(model)
+        _save_best_checkpoint(
+            output / "best.pt",
+            model_state=best_state,
+            config_value=config_value,
+            epoch=best_epoch,
+            validation_mean_weighted_f1=None,
+            selection_split="fixed-final",
+        )
     if best_state is None:
         raise RuntimeError("no best checkpoint was selected")
     model.load_state_dict(best_state, strict=True)
@@ -908,13 +1057,16 @@ def run_experiment(
                 / ("predictions_miss_" + rate_key.replace(".", "p") + ".npz"),
                 **artifacts,
             )
+    selection_split = (
+        "fixed-final" if jepa_pretraining else config_value.checkpoint_selection
+    )
     result: Dict[str, object] = {
         "best_epoch": best_epoch,
-        "selection_split": config_value.checkpoint_selection,
+        "selection_split": selection_split,
         "best_selection_mean_weighted_f1": best_score,
         "best_validation_mean_weighted_f1": (
             best_score
-            if config_value.checkpoint_selection == "validation"
+            if selection_split == "validation"
             else None
         ),
         "test": test_metrics,
@@ -925,14 +1077,20 @@ def run_experiment(
         ),
         "ema_steps": model.ema_step,
         "evaluation_stage": (
-            "train-test-oracle"
-            if config_value.checkpoint_selection == "test-oracle"
+            "jepa-pretrain-only"
+            if jepa_pretraining
             else (
-                "train-validation-test"
-                if config_value.evaluate_test
-                else "train-validation-only"
+                "train-test-oracle"
+                if config_value.checkpoint_selection == "test-oracle"
+                else (
+                    "train-validation-test"
+                    if config_value.evaluate_test
+                    else "train-validation-only"
+                )
             )
         ),
+        "training_objective": config_value.training_objective,
+        "backbone_initialization": initialization,
         "jepa_regression_aggregation": (
             config_value.jepa_regression_aggregation
         ),
@@ -1041,6 +1199,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="validation",
     )
     parser.add_argument(
+        "--training-objective",
+        choices=("joint", "jepa-only", "emotion-only"),
+        default="joint",
+    )
+    parser.add_argument("--initial-backbone-checkpoint", default=None)
+    parser.add_argument(
         "--fusion-type",
         choices=("mean", "slot", "raw-residual"),
         default="mean",
@@ -1125,6 +1289,8 @@ def main(argv=None) -> None:
         graph_message_calibration=args.graph_message_calibration,
         fixed_missing_rate=args.train_missing_rate,
         checkpoint_selection=args.checkpoint_selection,
+        training_objective=args.training_objective,
+        initial_backbone_checkpoint=args.initial_backbone_checkpoint,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [

@@ -2110,6 +2110,7 @@ class _LifecycleModel(torch.nn.Module):
         self.teacher_calls = 0
         self.ema_calls = 0
         self.events = events
+        self.predict_missing_flags = []
 
     def forward(
         self,
@@ -2121,14 +2122,15 @@ class _LifecycleModel(torch.nn.Module):
         predict_missing,
     ):
         del features, qmask, umask, lengths
-        assert predict_missing is True
+        self.predict_missing_flags.append(predict_missing)
         rate_index = int(availability.item())
         rate = MISSING_RATES[rate_index]
         self.forward_rates.append(rate)
         if self.events is not None:
             self.events.append(("forward", rate))
         logits = (self.weight * (rate_index + 1)).reshape(1, 1, 1)
-        return logits, None, None, logits
+        predictions = logits if predict_missing else None
+        return logits, None, None, predictions
 
     def encode_teacher_targets(self, complete):
         self.teacher_calls += 1
@@ -2292,6 +2294,204 @@ def test_fixed_rate_mode_uses_only_the_registered_rate_for_every_batch(monkeypat
     assert metrics["optimizer_steps"] == 2
     assert metrics["rate_batch_counts"]["0.5"] == 2
     assert sum(metrics["rate_batch_counts"].values()) == 2
+
+
+def test_emotion_only_training_skips_predictor_teacher_and_ema(monkeypatch):
+    _install_train_epoch_lifecycle_fakes(monkeypatch)
+    model = _LifecycleModel()
+    optimizer = _CountingOptimizer(model.weight)
+    config = TrainConfig(training_objective="emotion-only")
+
+    metrics = train_gcnet.train_epoch(
+        model=model,
+        loader=[["batch"]],
+        optimizer=optimizer,
+        config=config,
+        schedules={rate: rate for rate in MISSING_RATES},
+        epoch=0,
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+    )
+
+    assert model.predict_missing_flags == [False]
+    assert model.teacher_calls == 0
+    assert model.ema_calls == 0
+    assert optimizer.step_gradients[0].item() == pytest.approx(1.0)
+    assert metrics["classification_loss"] == pytest.approx(1.0)
+    assert metrics["jepa_loss"] == pytest.approx(0.0)
+    assert metrics["jepa_target_count"] == 0
+
+
+def test_jepa_only_training_skips_classification_loss(monkeypatch):
+    _install_train_epoch_lifecycle_fakes(monkeypatch)
+
+    def active_jepa(
+        predictions,
+        teacher,
+        temperature,
+        regression_aggregation,
+        contrastive_prediction_source,
+    ):
+        del teacher, temperature, regression_aggregation
+        assert contrastive_prediction_source == "regression"
+        total = predictions.sum()
+        return MissingM3Loss(total, total, total * 0.0, 1)
+
+    monkeypatch.setattr(train_gcnet, "missing_m3_loss", active_jepa)
+    monkeypatch.setattr(
+        train_gcnet,
+        "_task_loss",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("JEPA-only training must not compute classification loss")
+        ),
+    )
+    model = _LifecycleModel()
+    optimizer = _CountingOptimizer(model.weight)
+    config = TrainConfig(
+        training_objective="jepa-only",
+        jepa_contrastive_source="regression",
+    )
+
+    metrics = train_gcnet.train_epoch(
+        model=model,
+        loader=[["batch"]],
+        optimizer=optimizer,
+        config=config,
+        schedules={rate: rate for rate in MISSING_RATES},
+        epoch=0,
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+    )
+
+    assert model.predict_missing_flags == [True]
+    assert model.teacher_calls == 1
+    assert model.ema_calls == 1
+    assert optimizer.step_gradients[0].item() == pytest.approx(1.0)
+    assert metrics["classification_loss"] == pytest.approx(0.0)
+    assert metrics["jepa_loss"] == pytest.approx(1.0)
+
+
+def test_jepa_only_complete_batch_skips_optimizer_and_ema(monkeypatch):
+    _install_train_epoch_lifecycle_fakes(monkeypatch)
+
+    def empty_jepa(
+        predictions,
+        teacher,
+        temperature,
+        regression_aggregation,
+        contrastive_prediction_source,
+    ):
+        del teacher, temperature, regression_aggregation
+        del contrastive_prediction_source
+        zero = predictions.detach().sum() * 0.0
+        return MissingM3Loss(zero, zero, zero, 0)
+
+    monkeypatch.setattr(train_gcnet, "missing_m3_loss", empty_jepa)
+    monkeypatch.setattr(
+        train_gcnet,
+        "_task_loss",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("JEPA-only training must not compute classification loss")
+        ),
+    )
+    model = _LifecycleModel()
+    optimizer = _CountingOptimizer(model.weight)
+    config = TrainConfig(training_objective="jepa-only")
+
+    metrics = train_gcnet.train_epoch(
+        model=model,
+        loader=[["complete batch"]],
+        optimizer=optimizer,
+        config=config,
+        schedules={rate: rate for rate in MISSING_RATES},
+        epoch=0,
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+    )
+
+    assert optimizer.step_gradients == []
+    assert model.ema_calls == 0
+    assert metrics["optimizer_steps"] == 0
+    assert metrics["jepa_target_count"] == 0
+
+
+def test_pretrained_backbone_load_excludes_predictor_teacher_and_readout(tmp_path):
+    torch.manual_seed(801)
+    source = MissingM3GraphModel(**_model_arguments())
+    torch.manual_seed(802)
+    target = MissingM3GraphModel(**_model_arguments())
+    target_before = copy.deepcopy(target.state_dict())
+    checkpoint_path = tmp_path / "jepa_pretrain.pt"
+    torch.save(
+        {
+            "model": source.state_dict(),
+            "config": asdict(TrainConfig(training_objective="jepa-only")),
+        },
+        checkpoint_path,
+    )
+
+    provenance = train_gcnet._load_inference_backbone_checkpoint(
+        target, checkpoint_path
+    )
+    state = target.state_dict()
+
+    ASSERT_CLOSE(
+        state["observed_set.projectors.audio.fc1.weight"],
+        source.state_dict()["observed_set.projectors.audio.fc1.weight"],
+        rtol=0,
+        atol=0,
+    )
+    ASSERT_CLOSE(
+        state["graph_net_temporal.conv1.weight"],
+        source.state_dict()["graph_net_temporal.conv1.weight"],
+        rtol=0,
+        atol=0,
+    )
+    for key in (
+        "smax_fc.weight",
+        "missing_predictor.context_projection.weight",
+        "teacher.audio.fc1.weight",
+    ):
+        ASSERT_CLOSE(state[key], target_before[key], rtol=0, atol=0)
+    assert provenance["loaded_key_count"] > 0
+    assert provenance["source_training_objective"] == "jepa-only"
+
+
+def test_joint_finetune_loads_pretrained_predictor_and_teacher_but_not_classifier(
+    tmp_path,
+):
+    torch.manual_seed(803)
+    source = MissingM3GraphModel(**_model_arguments())
+    torch.manual_seed(804)
+    target = MissingM3GraphModel(**_model_arguments())
+    target_before = copy.deepcopy(target.state_dict())
+    checkpoint_path = tmp_path / "jepa_pretrain.pt"
+    torch.save(
+        {
+            "model": source.state_dict(),
+            "config": asdict(TrainConfig(training_objective="jepa-only")),
+        },
+        checkpoint_path,
+    )
+
+    provenance = train_gcnet._load_inference_backbone_checkpoint(
+        target,
+        checkpoint_path,
+        include_jepa_modules=True,
+    )
+    state = target.state_dict()
+
+    for key in (
+        "observed_set.projectors.audio.fc1.weight",
+        "graph_net_temporal.conv1.weight",
+        "missing_predictor.context_projection.weight",
+        "teacher.audio.fc1.weight",
+    ):
+        ASSERT_CLOSE(state[key], source.state_dict()[key], rtol=0, atol=0)
+    ASSERT_CLOSE(
+        state["smax_fc.weight"], target_before["smax_fc.weight"], rtol=0, atol=0
+    )
+    assert provenance["included_jepa_modules"] is True
 
 
 @pytest.mark.parametrize(
@@ -2463,6 +2663,35 @@ def test_train_rate_mode_cli_defaults_and_persists_in_run_artifacts(tmp_path):
     assert checkpoint["config"]["train_rate_mode"] == "all"
     with pytest.raises(SystemExit):
         parser.parse_args(required + ["--train-rate-mode", "invalid"])
+
+
+def test_two_stage_cli_defaults_to_joint_and_accepts_checkpoint_handoff():
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+    parser = build_parser()
+    defaults = parser.parse_args(required)
+    staged = parser.parse_args(
+        required
+        + [
+            "--training-objective",
+            "emotion-only",
+            "--initial-backbone-checkpoint",
+            "pretrain.pt",
+        ]
+    )
+
+    assert defaults.training_objective == "joint"
+    assert defaults.initial_backbone_checkpoint is None
+    assert staged.training_objective == "emotion-only"
+    assert staged.initial_backbone_checkpoint == "pretrain.pt"
 
 
 def test_fixed_rate_cli_exposes_and_persists_the_selected_missing_rate(tmp_path):
@@ -2654,6 +2883,74 @@ def test_test_oracle_selection_skips_validation_and_uses_test_rate_mean(
     history = json.loads((tmp_path / "history.json").read_text(encoding="utf-8"))
     assert all("validation" not in record for record in history)
     assert all("test_oracle" in record for record in history)
+
+
+def test_jepa_only_run_uses_fixed_final_checkpoint_without_evaluation(
+    monkeypatch, tmp_path
+):
+    class PretrainLifecycleModel(torch.nn.Module):
+        def __init__(self, *args, **kwargs):
+            super().__init__()
+            del args, kwargs
+            self.weight = torch.nn.Parameter(torch.zeros(()))
+            self.ema_step = 0
+            self.readout_type = "shared"
+            self.readout_rank = 8
+
+    loaders = ([["train"]], [["validation"]], [["test"]], 1, 1, 1)
+    monkeypatch.setattr(train_gcnet, "get_loaders", lambda **_kwargs: loaders)
+    monkeypatch.setattr(
+        train_gcnet, "MissingM3GraphModel", PretrainLifecycleModel
+    )
+    monkeypatch.setattr(
+        train_gcnet,
+        "_schedules",
+        lambda config, split: {
+            rate: (split, rate) for rate in MISSING_RATES
+        },
+    )
+
+    def train_epoch(model, *_args, **_kwargs):
+        model.weight.data.add_(1.0)
+        model.ema_step += 1
+        return {
+            "weighted_f1": 0.0,
+            "classification_loss": 0.0,
+            "jepa_loss": 1.0 / float(model.ema_step),
+        }
+
+    monkeypatch.setattr(train_gcnet, "train_epoch", train_epoch)
+    monkeypatch.setattr(
+        train_gcnet,
+        "evaluate_rate",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("JEPA-only pretraining must not evaluate emotion")
+        ),
+    )
+
+    result = train_gcnet.run_experiment(
+        TrainConfig(
+            dataset="CMUMOSI",
+            fold=1,
+            epochs=2,
+            device="cpu",
+            training_objective="jepa-only",
+            evaluate_test=False,
+        ),
+        "audio",
+        "text",
+        "visual",
+        tmp_path,
+    )
+
+    checkpoint = torch.load(tmp_path / "best.pt", map_location="cpu")
+    assert result["best_epoch"] == 2
+    assert result["selection_split"] == "fixed-final"
+    assert result["best_selection_mean_weighted_f1"] is None
+    assert result["test"] == {}
+    assert result["evaluation_stage"] == "jepa-pretrain-only"
+    assert checkpoint["selection_split"] == "fixed-final"
+    assert checkpoint["model"]["weight"].item() == pytest.approx(2.0)
 
 
 def test_protocol_rates_preserve_eight_rate_lifecycle_for_existing_modes():
