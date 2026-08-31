@@ -2565,6 +2565,103 @@ def test_parameter_subset_sha256_detects_frozen_parameter_changes():
     assert train_gcnet._parameter_subset_sha256(model, frozen) != before
 
 
+def test_differential_optimizer_keeps_fresh_heads_at_base_learning_rate():
+    model = MissingM3GraphModel(
+        **_model_arguments(),
+        classification_completion=True,
+    )
+    config = TrainConfig(
+        learning_rate=5e-4,
+        pretrained_learning_rate=5e-5,
+    )
+
+    groups, provenance = train_gcnet._optimizer_parameter_groups(model, config)
+    learning_rate_by_parameter = {
+        id(parameter): group["lr"]
+        for group in groups
+        for parameter in group["params"]
+    }
+    parameters = dict(model.named_parameters())
+
+    assert learning_rate_by_parameter[
+        id(parameters["missing_predictor.context_projection.weight"])
+    ] == pytest.approx(5e-5)
+    assert learning_rate_by_parameter[
+        id(parameters["graph_net_temporal.conv1.weight"])
+    ] == pytest.approx(5e-5)
+    assert learning_rate_by_parameter[
+        id(parameters["missing_latent_fusion.target_projections.0.1.weight"])
+    ] == pytest.approx(5e-4)
+    assert learning_rate_by_parameter[
+        id(parameters["smax_fc.weight"])
+    ] == pytest.approx(5e-4)
+    assert id(parameters["teacher.audio.fc1.weight"]) not in learning_rate_by_parameter
+    assert provenance["pretrained"]["learning_rate"] == pytest.approx(5e-5)
+    assert provenance["fresh"]["learning_rate"] == pytest.approx(5e-4)
+    assert provenance["pretrained"]["parameter_count"] > 0
+    assert provenance["fresh"]["parameter_count"] > 0
+
+
+def test_pretrained_learning_rate_cli_is_explicit():
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+    parser = build_parser()
+    assert parser.parse_args(required).pretrained_lr is None
+    assert parser.parse_args(
+        required + ["--pretrained-lr", "5e-5"]
+    ).pretrained_lr == pytest.approx(5e-5)
+
+
+@pytest.mark.parametrize(
+    "config_value,match",
+    [
+        (
+            TrainConfig(
+                training_objective="joint",
+                pretrained_learning_rate=5e-5,
+            ),
+            "requires initial_backbone_checkpoint",
+        ),
+        (
+            TrainConfig(
+                training_objective="emotion-only",
+                initial_backbone_checkpoint="pretrain.pt",
+                pretrained_learning_rate=5e-5,
+            ),
+            "only valid for joint training",
+        ),
+        (
+            TrainConfig(
+                training_objective="joint",
+                initial_backbone_checkpoint="pretrain.pt",
+                learning_rate=5e-4,
+                pretrained_learning_rate=5e-4,
+            ),
+            "must be lower than learning_rate",
+        ),
+    ],
+)
+def test_pretrained_learning_rate_rejects_invalid_stage_contract(
+    tmp_path, config_value, match
+):
+    with pytest.raises(ValueError, match=match):
+        train_gcnet.run_experiment(
+            config_value,
+            "audio",
+            "text",
+            "visual",
+            tmp_path,
+        )
+
+
 @pytest.mark.parametrize(
     "config_value,match",
     [

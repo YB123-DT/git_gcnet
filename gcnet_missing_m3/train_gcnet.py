@@ -89,6 +89,7 @@ class TrainConfig:
     jepa_contrastive_source: str = "contrastive"
     training_objective: str = "joint"
     initial_backbone_checkpoint: str | None = None
+    pretrained_learning_rate: float | None = None
 
 
 _TRAINING_OBJECTIVES = {
@@ -307,6 +308,63 @@ def _parameter_subset_sha256(
         digest.update(str(tuple(tensor.shape)).encode("ascii"))
         digest.update(tensor.numpy().tobytes())
     return digest.hexdigest()
+
+
+def _optimizer_parameter_groups(
+    model: MissingM3GraphModel,
+    config_value: TrainConfig,
+) -> tuple[list[Dict[str, object]], Dict[str, object]]:
+    trainable = [
+        (name, parameter)
+        for name, parameter in model.named_parameters()
+        if parameter.requires_grad
+    ]
+    if config_value.pretrained_learning_rate is None:
+        parameters = [parameter for _, parameter in trainable]
+        return [
+            {"params": parameters, "lr": config_value.learning_rate}
+        ], {
+            "default": {
+                "learning_rate": config_value.learning_rate,
+                "parameter_count": sum(value.numel() for value in parameters),
+            }
+        }
+
+    fresh = [
+        (name, parameter)
+        for name, parameter in trainable
+        if name.startswith(_JOINT_FINETUNE_EXCLUDED_PREFIXES)
+    ]
+    pretrained = [
+        (name, parameter)
+        for name, parameter in trainable
+        if not name.startswith(_JOINT_FINETUNE_EXCLUDED_PREFIXES)
+    ]
+    if not fresh or not pretrained:
+        raise ValueError("differential optimizer requires both parameter groups")
+    groups = [
+        {
+            "params": [parameter for _, parameter in pretrained],
+            "lr": config_value.pretrained_learning_rate,
+        },
+        {
+            "params": [parameter for _, parameter in fresh],
+            "lr": config_value.learning_rate,
+        },
+    ]
+    provenance = {
+        "pretrained": {
+            "learning_rate": config_value.pretrained_learning_rate,
+            "parameter_count": sum(
+                parameter.numel() for _, parameter in pretrained
+            ),
+        },
+        "fresh": {
+            "learning_rate": config_value.learning_rate,
+            "parameter_count": sum(parameter.numel() for _, parameter in fresh),
+        },
+    }
+    return groups, provenance
 
 
 def _readout_provenance(model: MissingM3GraphModel) -> Dict[str, object]:
@@ -875,6 +933,19 @@ def run_experiment(
     protocol_rates = _protocol_rates(config_value)
     if config_value.training_objective not in _TRAINING_OBJECTIVES:
         raise ValueError("unsupported training_objective")
+    if config_value.pretrained_learning_rate is not None:
+        if config_value.initial_backbone_checkpoint is None:
+            raise ValueError(
+                "pretrained_learning_rate requires initial_backbone_checkpoint"
+            )
+        if config_value.training_objective != "joint":
+            raise ValueError(
+                "pretrained_learning_rate is only valid for joint training"
+            )
+        if not 0.0 < config_value.pretrained_learning_rate < config_value.learning_rate:
+            raise ValueError(
+                "pretrained_learning_rate must be lower than learning_rate"
+            )
     frozen_completion = config_value.training_objective == "frozen-completion"
     if frozen_completion and config_value.initial_backbone_checkpoint is None:
         raise ValueError(
@@ -986,9 +1057,11 @@ def run_experiment(
             model,
             frozen_probe["frozen_parameter_names"],
         )
+    optimizer_groups, optimizer_group_provenance = _optimizer_parameter_groups(
+        model, config_value
+    )
     optimizer = torch.optim.Adam(
-        (parameter for parameter in model.parameters() if parameter.requires_grad),
-        lr=config_value.learning_rate,
+        optimizer_groups,
         weight_decay=config_value.weight_decay,
     )
     train_schedules = _schedules(config_value, "train")
@@ -1189,6 +1262,7 @@ def run_experiment(
         "training_objective": config_value.training_objective,
         "backbone_initialization": initialization,
         "frozen_completion_integrity": frozen_integrity,
+        "optimizer_parameter_groups": optimizer_group_provenance,
         "jepa_regression_aggregation": (
             config_value.jepa_regression_aggregation
         ),
@@ -1316,6 +1390,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--local-fusion-hidden-dim", type=int, default=256)
     parser.add_argument("--local-fusion-dropout", type=float, default=0.2)
     parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--pretrained-lr", type=float, default=None)
     parser.add_argument("--l2", type=float, default=1e-5)
     parser.add_argument("--dropout", type=float, default=0.5)
     parser.add_argument("--jepa-weight", type=float, default=0.1)
@@ -1394,6 +1469,7 @@ def main(argv=None) -> None:
         checkpoint_selection=args.checkpoint_selection,
         training_objective=args.training_objective,
         initial_backbone_checkpoint=args.initial_backbone_checkpoint,
+        pretrained_learning_rate=args.pretrained_lr,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [
