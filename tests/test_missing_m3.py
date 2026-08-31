@@ -2569,6 +2569,75 @@ def test_mosi_task_mode_contract_selects_regression_or_binary_shape():
     assert binary["num_classes"] == 2
 
 
+def test_mosi_soft_ordinal_contract_uses_single_signed_logit():
+    contract = train_gcnet._resolve_task_contract(
+        "CMUMOSI", "soft-ordinal"
+    )
+
+    assert contract["task"] == "soft-ordinal"
+    assert contract["num_classes"] == 1
+
+
+def test_mosi_soft_ordinal_cli_is_explicit_and_mosi_only():
+    required = [
+        "--audio-feature",
+        "a",
+        "--text-feature",
+        "t",
+        "--video-feature",
+        "v",
+        "--output-dir",
+        "out",
+    ]
+    args = build_parser().parse_args(
+        required
+        + [
+            "--dataset",
+            "CMUMOSI",
+            "--mosi-task-mode",
+            "soft-ordinal",
+        ]
+    )
+
+    assert args.mosi_task_mode == "soft-ordinal"
+    with pytest.raises(ValueError, match="CMUMOSI"):
+        train_gcnet._resolve_task_contract(
+            "IEMOCAPSix", "soft-ordinal"
+        )
+
+
+def test_mosi_soft_ordinal_head_matches_regression_parameter_budget():
+    arguments = _model_arguments()
+    arguments["n_classes"] = 1
+    torch.manual_seed(20260831)
+    regression = MissingM3GraphModel(**arguments)
+    torch.manual_seed(20260831)
+    soft_ordinal = MissingM3GraphModel(**arguments)
+
+    binary_arguments = dict(arguments, n_classes=2)
+    binary = MissingM3GraphModel(**binary_arguments)
+
+    assert regression.smax_fc.out_features == 1
+    assert soft_ordinal.smax_fc.out_features == 1
+    assert binary.smax_fc.out_features == 2
+    assert sum(parameter.numel() for parameter in regression.parameters()) == sum(
+        parameter.numel() for parameter in soft_ordinal.parameters()
+    )
+    assert regression.state_dict().keys() == soft_ordinal.state_dict().keys()
+    ASSERT_CLOSE(
+        regression.smax_fc.weight,
+        soft_ordinal.smax_fc.weight,
+        rtol=0,
+        atol=0,
+    )
+    ASSERT_CLOSE(
+        regression.smax_fc.bias,
+        soft_ordinal.smax_fc.bias,
+        rtol=0,
+        atol=0,
+    )
+
+
 def test_mosi_task_mode_contract_rejects_invalid_mode():
     with pytest.raises(ValueError, match="unsupported MOSI task mode"):
         train_gcnet._resolve_task_contract("CMUMOSI", "multiclass")
@@ -2910,6 +2979,62 @@ def test_mosi_binary_connected_zero_loss_allows_auxiliary_gradient():
     assert torch.count_nonzero(logits.grad) > 0
 
 
+def test_mosi_soft_ordinal_targets_preserve_order_and_clip_range():
+    labels = torch.tensor([-4.0, -3.0, -1.0, 0.0, 1.0, 3.0, 4.0])
+    expected = torch.tensor(
+        [0.0, 0.0, 1.0 / 3.0, 0.5, 2.0 / 3.0, 1.0, 1.0]
+    )
+
+    actual = train_gcnet._mosi_soft_targets(labels)
+
+    ASSERT_CLOSE(actual, expected)
+
+
+def test_mosi_soft_ordinal_loss_includes_zero_and_excludes_padding():
+    logits = torch.tensor(
+        [[[0.0]], [[1.0]], [[-2.0]], [[99.0]]],
+        requires_grad=True,
+    )
+    labels = torch.tensor([[-3.0, 0.0, 3.0, -3.0]])
+    umask = torch.tensor([[1.0, 1.0, 1.0, 0.0]])
+    expected = torch.nn.functional.binary_cross_entropy_with_logits(
+        torch.tensor([0.0, 1.0, -2.0]),
+        torch.tensor([0.0, 0.5, 1.0]),
+    )
+
+    actual = _task_loss(
+        "CMUMOSI",
+        logits,
+        labels,
+        umask,
+        mosi_task_mode="soft-ordinal",
+    )
+    actual.backward()
+
+    ASSERT_CLOSE(actual, expected)
+    assert torch.isfinite(logits.grad).all()
+    assert logits.grad[3].item() == 0.0
+
+
+def test_mosi_soft_ordinal_empty_valid_batch_returns_connected_zero():
+    logits = torch.randn(2, 1, 1, requires_grad=True)
+    labels = torch.tensor([[1.0, -1.0]])
+    umask = torch.zeros(1, 2)
+
+    loss = _task_loss(
+        "CMUMOSI",
+        logits,
+        labels,
+        umask,
+        mosi_task_mode="soft-ordinal",
+    )
+    loss.backward()
+
+    assert loss.item() == 0.0
+    assert logits.grad is not None
+    assert torch.count_nonzero(logits.grad) == 0
+
+
 def test_mosi_binary_prediction_collection_excludes_zero_and_padding():
     logits = torch.tensor(
         [
@@ -2945,6 +3070,39 @@ def test_mosi_binary_metrics_use_direct_class_arrays_without_regression_fields()
     assert result["accuracy"] == pytest.approx(0.75)
     assert result["weighted_f1"] == pytest.approx(0.7333333333333334)
     assert result["macro_f1"] == pytest.approx(0.7333333333333334)
+
+
+def test_mosi_soft_ordinal_collection_uses_zero_logit_threshold():
+    logits = torch.tensor([[[-0.2]], [[0.0]], [[0.4]], [[9.0]]])
+    labels = torch.tensor([[-1.0, 2.0, 2.0, -2.0]])
+    umask = torch.tensor([[1.0, 1.0, 1.0, 0.0]])
+
+    predictions, metric_labels, continuous = (
+        train_gcnet._collect_predictions(
+            "CMUMOSI",
+            logits,
+            labels,
+            umask,
+            mosi_task_mode="soft-ordinal",
+        )
+    )
+
+    assert predictions.tolist() == [0, 0, 1]
+    assert metric_labels.tolist() == [0, 1, 1]
+    assert continuous.tolist() == [-1.0, 2.0, 2.0]
+
+
+def test_mosi_soft_ordinal_metrics_are_binary_without_regression_fields():
+    result = _metrics(
+        "CMUMOSI",
+        torch.tensor([0, 0, 1, 1]).numpy(),
+        torch.tensor([0, 1, 1, 1]).numpy(),
+        mosi_task_mode="soft-ordinal",
+    )
+
+    assert set(result) == {"accuracy", "weighted_f1", "macro_f1"}
+    assert result["accuracy"] == pytest.approx(0.75)
+    assert result["weighted_f1"] == pytest.approx(0.7333333333333334)
 
 
 def test_default_and_explicit_regression_helpers_are_equivalent():
@@ -3195,6 +3353,66 @@ def test_binary_evaluation_filters_artifacts_but_hashes_full_valid_mask(monkeypa
     assert artifacts["predictions"].tolist() == [0, 1]
     assert artifacts["labels"].tolist() == [0, 1]
     assert artifacts["continuous_labels"].tolist() == [-1.0, 2.0]
+    assert artifacts["availability"].tolist() == [
+        [1.0, 0.0, 1.0],
+        [1.0, 1.0, 0.0],
+    ]
+    assert metrics["mask_sha256"] == train_gcnet._sha256_tensor(availability)
+
+
+def test_soft_ordinal_evaluation_saves_signed_logits_and_filters_zero(monkeypatch):
+    availability = torch.tensor(
+        [
+            [[1.0, 0.0, 1.0]],
+            [[0.0, 1.0, 1.0]],
+            [[1.0, 1.0, 0.0]],
+        ]
+    )
+    labels = torch.tensor([[-1.0, 0.0, 2.0]])
+    view = {
+        "complete": torch.zeros(3, 1, 1),
+        "incomplete": torch.zeros(3, 1, 1),
+        "availability": availability,
+        "qmask": torch.ones(3, 1, 1),
+        "umask": torch.ones(1, 3),
+        "labels": labels,
+        "lengths": [3],
+    }
+
+    class SoftOrdinalEvaluationModel:
+        def eval(self):
+            return self
+
+        def __call__(self, *args, **kwargs):
+            del args, kwargs
+            return torch.tensor([[[-0.4]], [[5.0]], [[0.7]]]), None, None, None
+
+    monkeypatch.setattr(train_gcnet, "_move_batch", lambda raw, device: raw)
+    monkeypatch.setattr(
+        train_gcnet,
+        "_prepare_view",
+        lambda data, schedule, epoch, dimensions: view,
+    )
+
+    metrics, artifacts = train_gcnet.evaluate_rate(
+        model=SoftOrdinalEvaluationModel(),
+        loader=[["batch"]],
+        schedule=object(),
+        dataset="CMUMOSI",
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+        collect=True,
+        mosi_task_mode="soft-ordinal",
+    )
+
+    assert artifacts is not None
+    assert artifacts["predictions"].tolist() == [0, 1]
+    assert artifacts["labels"].tolist() == [0, 1]
+    assert artifacts["continuous_labels"].tolist() == [-1.0, 2.0]
+    assert artifacts["signed_logits"].tolist() == pytest.approx([-0.4, 0.7])
+    assert train_gcnet.np.array_equal(
+        artifacts["predictions"], artifacts["signed_logits"] > 0
+    )
     assert artifacts["availability"].tolist() == [
         [1.0, 0.0, 1.0],
         [1.0, 1.0, 0.0],
