@@ -1,0 +1,56 @@
+{
+  "status": "complete",
+  "protocol": {
+    "datasets": ["IEMOCAPSix", "IEMOCAPFour"],
+    "fold": 5,
+    "seeds": [66, 67, 68, 69, 70],
+    "missing_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+    "train_rate_mode": "all",
+    "fusion_type": "slot",
+    "representation_type": "slot",
+    "learning_rate": 0.001,
+    "jepa_weight": 0.1
+  },
+  "audit": {
+    "completed_jobs": "10/10",
+    "histories_with_100_epochs": "10/10",
+    "finite_histories": "10/10",
+    "npz_metric_recomputations": "80/80",
+    "all_expected_classes_predicted": "80/80",
+    "internally_consistent_mask_hashes": "80/80",
+    "current_old_paired_mask_hashes": "80/80",
+    "runner_failures": 0
+  },
+  "IEMOCAPSix": {
+    "best_epochs": [65, 61, 68, 73, 76],
+    "miss0": {"current": 66.8652, "old": 65.0067, "delta": 1.8584, "positive_seeds": "4/5"},
+    "eight_rate": {"current": 64.1093, "old": 62.5682, "delta": 1.5410, "positive_seeds": "4/5"},
+    "high_missing": {"current": 61.9742, "old": 60.7710, "delta": 1.2033, "positive_seeds": "4/5"},
+    "rate_means": {
+      "0.0": 66.8652,
+      "0.1": 66.7658,
+      "0.2": 65.6024,
+      "0.3": 65.7438,
+      "0.4": 63.1030,
+      "0.5": 62.9960,
+      "0.6": 61.0125,
+      "0.7": 60.7855
+    }
+  },
+  "IEMOCAPFour": {
+    "best_epochs": [91, 59, 71, 74, 89],
+    "miss0": {"current": 85.3074, "old": 85.2617, "delta": 0.0457, "positive_seeds": "2/5"},
+    "eight_rate": {"current": 83.6746, "old": 83.5524, "delta": 0.1221, "positive_seeds": "2/5"},
+    "high_missing": {"current": 82.6553, "old": 82.3465, "delta": 0.3088, "positive_seeds": "3/5"},
+    "rate_means": {
+      "0.0": 85.3074,
+      "0.1": 85.0747,
+      "0.2": 84.7411,
+      "0.3": 83.6520,
+      "0.4": 83.5318,
+      "0.5": 83.0172,
+      "0.6": 82.6506,
+      "0.7": 81.4216
+    }
+  }
+}
