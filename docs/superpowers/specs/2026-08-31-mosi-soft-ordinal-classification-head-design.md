@@ -11,10 +11,11 @@
 
 ## 方案选择
 
-新增一个向后兼容的 MOSI task mode：
+新增一个向后兼容的 MOSI task mode，并提供独立版本入口：
 
 ```text
 --mosi-task-mode soft-ordinal
+python -m gcnet_missing_m3_soft_ordinal.train_gcnet
 ```
 
 模型继续输出一个 signed logit：
@@ -73,6 +74,26 @@ soft-ordinal  -> output_dim=1, soft BCE，本轮 treatment
 `soft-ordinal` 与 regression 使用完全相同的 `smax_fc` 参数形状，因此参数量相同。
 默认模式仍为 `regression`；旧 checkpoint、state-dict key、IEMOCAP 与 MOSEI 行为不得
 改变。
+
+## 两个版本与共享边界
+
+保留现有入口：
+
+```text
+python -m gcnet_missing_m3.train_gcnet
+```
+
+它默认且继续代表已经验证的 regression 版本。新建：
+
+```text
+gcnet_missing_m3_soft_ordinal/
+python -m gcnet_missing_m3_soft_ordinal.train_gcnet
+```
+
+它锁定 `mosi_task_mode=soft-ordinal`。两个版本共享 model、dataset、mask、Student/Teacher、
+JEPA、GCNet 与训练生命周期实现；新目录只拥有版本入口、版本身份和本版本测试，不复制
+整个 backbone 或训练器。这样可以分别运行、提交和归档，同时避免两份千行训练代码在
+后续修复中漂移。
 
 本轮保持不变：
 

@@ -4,7 +4,7 @@
 
 **目标：** 在不改变 Missing-M3/GCNet 主干、mask、JEPA 和回归默认行为的前提下，为 CMU-MOSI 增加单 signed-logit 的 soft-ordinal 分类模式，并完成五种子八 missing-rate 配对实验。
 
-**架构：** `mosi_task_mode=soft-ordinal` 继续构造单输出 `smax_fc`，将连续标签线性映射到 `[0,1]` 后使用 `BCEWithLogits`；指标阶段排除零标签并固定以 logit 零为正负阈值。旧 `regression` 与 `binary` 分支逐字保留，treatment 与 regression 参数量相同。
+**架构：** `mosi_task_mode=soft-ordinal` 继续构造单输出 `smax_fc`，将连续标签线性映射到 `[0,1]` 后使用 `BCEWithLogits`；指标阶段排除零标签并固定以 logit 零为正负阈值。现有 `gcnet_missing_m3` 保留为 regression 版本，新建 `gcnet_missing_m3_soft_ordinal` 独立入口；两者共享 model/data/mask/JEPA/GCNet 和训练生命周期，不复制 backbone。旧 `regression` 与 `binary` 分支逐字保留，treatment 与 regression 参数量相同。
 
 **技术栈：** Python、PyTorch、NumPy、scikit-learn、pytest、PyTorch Geometric、biggpu V100。
 
@@ -13,6 +13,9 @@
 ## 文件结构
 
 - 修改 `gcnet_missing_m3/train_gcnet.py`：task contract、soft target helper、loss、prediction collection、metrics 与 NPZ provenance。
+- 创建 `gcnet_missing_m3_soft_ordinal/__init__.py`：声明独立版本包。
+- 创建 `gcnet_missing_m3_soft_ordinal/train_gcnet.py`：锁定 soft-ordinal 的薄入口，复用共享训练器。
+- 创建 `gcnet_missing_m3_soft_ordinal/tests/test_train_gcnet.py`：锁定版本入口不能退回 regression/binary。
 - 修改 `tests/test_missing_m3.py`：contract、soft target、zero/padding、metric threshold、artifact 和旧模式回归测试。
 - 创建 `experiments/missing_m3_mosi_soft_ordinal_head_20260831/EXPERIMENT.md`：锁定协议、继承 control、五种子结果与结论。
 - 创建 `experiments/missing_m3_mosi_soft_ordinal_head_20260831/results/`：仅保存轻量 config/history/metrics/prediction NPZ 与汇总，不保存 checkpoint。
@@ -23,6 +26,9 @@
 - 修改：`tests/test_missing_m3.py`
 - 修改：`gcnet_missing_m3/train_gcnet.py:120-132`
 - 修改：`gcnet_missing_m3/train_gcnet.py:875-885`
+- 创建：`gcnet_missing_m3_soft_ordinal/__init__.py`
+- 创建：`gcnet_missing_m3_soft_ordinal/train_gcnet.py`
+- 创建：`gcnet_missing_m3_soft_ordinal/tests/test_train_gcnet.py`
 
 - [ ] **步骤 1：编写失败的 contract 与 CLI 测试**
 
@@ -48,6 +54,19 @@ def test_mosi_soft_ordinal_cli_is_explicit_and_mosi_only():
     assert args.mosi_task_mode == "soft-ordinal"
     with pytest.raises(ValueError, match="CMUMOSI"):
         train_gcnet._resolve_task_contract("IEMOCAPSix", "soft-ordinal")
+
+
+def test_soft_ordinal_version_entry_injects_locked_task_mode(monkeypatch):
+    captured = {}
+
+    def shared_main(argv=None):
+        captured["argv"] = list(argv)
+
+    monkeypatch.setattr(soft_train.base_train, "main", shared_main)
+    soft_train.main(["--audio-feature", "a"])
+    assert captured["argv"][-2:] == [
+        "--mosi-task-mode", "soft-ordinal"
+    ]
 ```
 
 - [ ] **步骤 2：运行测试并确认正确红灯**
@@ -62,7 +81,7 @@ def test_mosi_soft_ordinal_cli_is_explicit_and_mosi_only():
 
 - [ ] **步骤 3：实现最小 task contract**
 
-将 mode validation 和 CLI choices 扩展为：
+将共享 mode validation 和 CLI choices 扩展为：
 
 ```python
 if mode not in ("regression", "binary", "soft-ordinal"):
@@ -82,6 +101,27 @@ CLI：
 ```python
 choices=("regression", "binary", "soft-ordinal")
 ```
+
+让共享 `main` 可接收显式 argv，但无参数调用保持原语义：
+
+```python
+def main(argv=None) -> None:
+    args = build_parser().parse_args(argv)
+```
+
+新版本入口只注入锁定 task mode：
+
+```python
+def main(argv=None) -> None:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if "--mosi-task-mode" in arguments:
+        raise ValueError("soft-ordinal version owns mosi_task_mode")
+    base_train.main([
+        *arguments, "--mosi-task-mode", "soft-ordinal"
+    ])
+```
+
+不要复制 `MissingM3GraphModel`、train loop、dataset 或 mask 代码。
 
 - [ ] **步骤 4：运行 focused test 确认通过**
 
@@ -290,6 +330,7 @@ git diff --check
 
 ```bash
 git add gcnet_missing_m3/train_gcnet.py tests/test_missing_m3.py \
+  gcnet_missing_m3_soft_ordinal \
   docs/superpowers/plans/2026-08-31-mosi-soft-ordinal-classification-head.md
 git commit -m "让 MOSI 分类边界保留连续情感顺序"
 ```
@@ -306,9 +347,11 @@ git commit -m "让 MOSI 分类边界保留连续情感顺序"
 
 ```bash
 scripts/remote_missing_m3.sh sync \
-  gcnet_missing_m3/train_gcnet.py tests/test_missing_m3.py
+  gcnet_missing_m3/train_gcnet.py tests/test_missing_m3.py \
+  gcnet_missing_m3_soft_ordinal
 scripts/remote_missing_m3.sh test \
-  tests/test_missing_m3.py -q -k 'soft_ordinal'
+  tests/test_missing_m3.py gcnet_missing_m3_soft_ordinal/tests -q \
+  -k 'soft_ordinal'
 ```
 
 不重复 `preflight`；远程 Python 路径和依赖已经由仓库既有记录验证。
@@ -334,6 +377,7 @@ fusion_type=slot
 representation_type=slot
 graph_branch_mode=both
 hidden/window/lr/l2/jepa_weight = paired regression anchor 的逐字段值
+training_module=gcnet_missing_m3_soft_ordinal.train_gcnet
 ```
 
 不得重跑 Original、regression 或旧 binary。输出放入远程独立目录
@@ -360,4 +404,5 @@ Markdown；不上传 checkpoint 或训练日志。提交中记录实际测试、
   修改。
 - `_mosi_soft_targets`、`soft-ordinal` task 名称与 artifact key `signed_logits` 在所有任务中
   一致。
+- regression 和 treatment 具有两个独立启动入口，但不复制 shared backbone/train loop。
 - 只在第一次真实集成使用 1 epoch smoke；不会重复环境检查、Original 或 paired control。
