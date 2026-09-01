@@ -53,7 +53,7 @@ def _inspect(output: Path, seed: int, epochs: int):
     metrics = json.loads((output / "metrics.json").read_text())
     if metrics.get("variant") != "text-anchored-residual-backbone":
         return None
-    if metrics.get("selection_split") != "validation":
+    if metrics.get("selection_split") != "validation_weighted_f1":
         raise RuntimeError("test-oracle result rejected")
     if int(metrics.get("seed", -1)) != seed or int(metrics.get("history_epochs", -1)) != epochs:
         return None
@@ -112,6 +112,7 @@ def run(output_root: Path, gpus: Sequence[int], epochs: int):
     }
     summary = summarize(candidate, load_control(Path(DEFAULT_CONTROL_SUMMARY)))
     summary["variant"] = "text-anchored-residual-backbone"
+    summary["selection_split"] = "validation_weighted_f1"
     write_json(root / "summary.json", summary)
     return summary
 

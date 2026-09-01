@@ -34,7 +34,8 @@ but is not optimized in the Stage-1 complete-MOSI gate.
 - Features and official split: identical to the completed SAM and inherited
   `m3_mosi` control.
 - Seeds: 66--70.
-- Checkpoint selection: minimum validation MSE; test evaluated once afterward.
+- Checkpoint selection: maximum validation W-F1, matching the inherited
+  `m3_mosi` control; test is evaluated once afterward.
 - Control: inherited `m3_mosi` mean W-F1 86.62; no control rerun.
 - Pass: positive five-seed mean delta, at least 3/5 positive paired seeds, no
   collapsed prediction.

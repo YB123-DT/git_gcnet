@@ -3,23 +3,91 @@
 from __future__ import annotations
 
 import argparse
+import math
 import time
 from dataclasses import asdict
 from pathlib import Path
+from typing import Dict, Iterable, List, Mapping, Sequence, Tuple
 
 import torch
 
 from gcnet_missing_m3_sam_backbone.train_mosi import (
     SAMTrainConfig,
     _atomic_save_npz,
+    _state_to_cpu,
     _stable_seed,
     evaluate_model,
     set_random_seed,
-    train_model,
+    train_epoch,
     write_json,
 )
 
 from .model import TextAnchoredResidualModel
+
+
+def select_best_epoch(records: Sequence[Mapping[str, object]]) -> int:
+    if not records:
+        raise ValueError("records must not be empty")
+    best = max(
+        records,
+        key=lambda record: float(record["validation"]["weighted_f1"]),
+    )
+    return int(best["epoch"])
+
+
+def train_model(
+    model: TextAnchoredResidualModel,
+    train_loader: Iterable[Sequence[object]],
+    validation_loader: Iterable[Sequence[object]],
+    optimizer: torch.optim.Optimizer,
+    config_value: SAMTrainConfig,
+    device: torch.device,
+    history_path: Path = None,
+) -> Tuple[List[Dict[str, object]], Dict[str, torch.Tensor], int, Dict[str, object]]:
+    history: List[Dict[str, object]] = []
+    best_state: Dict[str, torch.Tensor] = {}
+    best_epoch = 0
+    best_validation: Dict[str, object] = {}
+    best_score = -math.inf
+    for epoch_index in range(config_value.epochs):
+        train_metrics = train_epoch(
+            model,
+            train_loader,
+            optimizer,
+            device,
+            config_value.gradient_clip_norm,
+        )
+        validation_metrics, _ = evaluate_model(
+            model,
+            validation_loader,
+            device,
+        )
+        record = {
+            "epoch": epoch_index + 1,
+            "train": train_metrics,
+            "validation": validation_metrics,
+        }
+        history.append(record)
+        if history_path is not None:
+            write_json(history_path, history)
+        score = float(validation_metrics["weighted_f1"])
+        if score > best_score:
+            best_score = score
+            best_epoch = epoch_index + 1
+            best_state = _state_to_cpu(model)
+            best_validation = dict(validation_metrics)
+        print(
+            "epoch={:03d} train_loss={:.4f} val_loss={:.4f} val_f1={:.2f}".format(
+                epoch_index + 1,
+                float(train_metrics["loss"]),
+                float(validation_metrics["loss"]),
+                100.0 * score,
+            ),
+            flush=True,
+        )
+    if not best_state or select_best_epoch(history) != best_epoch:
+        raise RuntimeError("validation W-F1 checkpoint provenance is inconsistent")
+    return history, best_state, best_epoch, best_validation
 
 
 def run_experiment(
@@ -33,7 +101,9 @@ def run_experiment(
 
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
-    write_json(output / "config.json", asdict(config_value))
+    config_payload = asdict(config_value)
+    config_payload["checkpoint_selection"] = "validation_weighted_f1"
+    write_json(output / "config.json", config_payload)
     set_random_seed(config_value.seed)
     device = torch.device(config_value.device)
     loaders = get_loaders(
@@ -83,10 +153,10 @@ def run_experiment(
     torch.save(
         {
             "model": best_state,
-            "config": asdict(config_value),
+            "config": config_payload,
             "epoch": best_epoch,
             "validation": best_validation,
-            "selection_split": "validation",
+            "selection_split": "validation_weighted_f1",
         },
         str(output / "best_checkpoint.pt"),
     )
@@ -99,7 +169,7 @@ def run_experiment(
         "missing_rate": 0.0,
         "seed": config_value.seed,
         "best_epoch": best_epoch,
-        "selection_split": "validation",
+        "selection_split": "validation_weighted_f1",
         "validation": best_validation,
         "test": test_metrics,
         "registered_parameters": sum(p.numel() for p in model.parameters()),
@@ -160,4 +230,4 @@ if __name__ == "__main__":
     main()
 
 
-__all__ = ["run_experiment"]
+__all__ = ["run_experiment", "select_best_epoch", "train_model"]
