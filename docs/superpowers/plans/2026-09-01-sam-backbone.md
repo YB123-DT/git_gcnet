@@ -205,7 +205,7 @@ class MaskAwareSAMModel(nn.Module):
 - 创建：`gcnet_missing_m3_sam_backbone/train_mosi.py`
 - 创建：`gcnet_missing_m3_sam_backbone/tests/test_train_mosi.py`
 
-- [ ] **步骤 1：编写失败的数据、指标和选模测试**
+- [x] **步骤 1：编写失败的数据、指标和选模测试**
 
 ```python
 def test_nonzero_metrics_match_existing_implementation():
@@ -225,13 +225,13 @@ def test_best_epoch_is_selected_only_by_validation_loss():
 
 再测试模型只收到 complete features、availability 全一、test loader 不在训练 epoch 内调用，以及输出原子写入。
 
-- [ ] **步骤 2：运行红灯**
+- [x] **步骤 2：运行红灯**
 
 运行：`/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest gcnet_missing_m3_sam_backbone/tests/test_train_mosi.py -q`
 
 预期：训练模块不存在。
 
-- [ ] **步骤 3：实现训练入口**
+- [x] **步骤 3：实现训练入口**
 
 定义不可变配置：
 
@@ -263,7 +263,7 @@ predictions.npz
 
 `metrics.json` 必须记录 best epoch、validation loss、associated test Acc-2/W-F1/MAE、参数量、峰值显存、运行时间和选择 split。
 
-- [ ] **步骤 4：运行训练协议测试与一轮 CPU/单 GPU smoke**
+- [x] **步骤 4：运行训练协议测试与一轮 CPU/单 GPU smoke**
 
 运行：
 
@@ -274,7 +274,7 @@ predictions.npz
 
 预期：测试通过；smoke 生成五个产物，所有指标有限，`selection_split=validation`。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 提交训练入口和测试；Not-tested 记录尚未执行五种子正式训练。
 
