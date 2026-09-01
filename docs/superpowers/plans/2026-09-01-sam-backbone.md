@@ -107,7 +107,7 @@ class MaskedTrackPooling(nn.Module):
 - 创建：`gcnet_missing_m3_sam_backbone/model.py`
 - 创建：`gcnet_missing_m3_sam_backbone/tests/test_model.py`
 
-- [ ] **步骤 1：编写失败的结构和 pattern 测试**
+- [x] **步骤 1：编写失败的结构和 pattern 测试**
 
 ```python
 def test_complete_forward_shape_and_backward():
@@ -138,13 +138,13 @@ def test_missing_local_feature_has_no_effect():
 
 测试还要锁定 A/T/V singleton、AT/AV/TV、ATV、padding、全空有效 utterance 拒绝和邻居 observed key 可用。
 
-- [ ] **步骤 2：运行红灯**
+- [x] **步骤 2：运行红灯**
 
 运行：`/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest gcnet_missing_m3_sam_backbone/tests/test_model.py -q`
 
 预期：`MaskAwareSAMModel` 导入失败。
 
-- [ ] **步骤 3：实现模型**
+- [x] **步骤 3：实现模型**
 
 稳定接口：
 
@@ -189,13 +189,13 @@ class MaskAwareSAMModel(nn.Module):
 
 每个 modality encoder 为 `LayerNorm -> Linear -> GELU -> Dropout -> one pre-norm TransformerEncoderLayer`。缺失输入在投影前后都乘 availability。三条 unimodal track 与六条 directed track 一起进入 `MaskedTrackPooling`。回归头为 `LayerNorm -> Linear -> GELU -> Dropout -> Linear(1)`。
 
-- [ ] **步骤 4：运行模型与联合测试**
+- [x] **步骤 4：运行模型与联合测试**
 
 运行：`/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest gcnet_missing_m3_sam_backbone/tests/test_attention.py gcnet_missing_m3_sam_backbone/tests/test_model.py -q`
 
 预期：全部通过。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 提交模型、公开接口和测试；Directive 明确 missing feature 不得进入投影与 K/V。
 
