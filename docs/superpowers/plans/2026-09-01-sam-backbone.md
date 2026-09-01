@@ -326,7 +326,7 @@ Runner 接受 `--gpus 0,1,2`，以轮询方式将五个 seed 分配到 GPU，每
 - 修改：`docs/superpowers/plans/2026-09-01-sam-backbone.md`
 - 生成：`gcnet_missing_m3_sam_backbone/results/formal/*`（结果文件，不提交 checkpoint）
 
-- [ ] **步骤 1：运行完整本地测试**
+- [x] **步骤 1：运行完整本地测试**
 
 运行：
 
@@ -337,11 +337,11 @@ git diff --check
 
 预期：全部测试通过且无 whitespace error。
 
-- [ ] **步骤 2：执行一次 GPU 前后向与一 epoch smoke**
+- [x] **步骤 2：执行一次 GPU 前后向与一 epoch smoke**
 
 只运行任务 3 的 smoke 命令一次；若已经生成且 provenance 匹配则继承，不重复执行。
 
-- [ ] **步骤 3：启动正式五种子**
+- [x] **步骤 3：启动正式五种子**
 
 ```bash
 /data2/yb/reproduction_envs/gcnet-official/bin/python -m gcnet_missing_m3_sam_backbone.run_mosi \
@@ -351,16 +351,20 @@ git diff --check
 
 预期：五个 candidate job，零个 Original job。
 
-- [ ] **步骤 4：读取并审计结果**
+- [x] **步骤 4：读取并审计结果**
 
 确认 `summary.json` 中：五个 seed 完整、validation-loss 选模、test 只与 best validation epoch 关联、没有 one-class/constant/NaN、参数量与运行时间齐全。
 
-- [ ] **步骤 5：应用门控**
+- [x] **步骤 5：应用门控**
 
 - PASS：另建 Missing-M3 integration 规格，不在本计划内直接追加代码。
 - FAIL：记录负结果并关闭 SAM backbone，不运行 missing rates。
 
-- [ ] **步骤 6：最终提交**
+执行结果：FAIL。五种子 test W-F1 为 84.64、85.94、84.52、82.85、84.04，
+均值 84.40；继承的 `m3_mosi` control 均值为 86.62，平均下降 2.22 个百分点。
+仅 1/5 seed 为正且没有 seed 坍塌，因此关闭 SAM backbone，不接入 Missing-M3。
+
+- [x] **步骤 6：最终提交**
 
 提交代码、测试、`summary.json`、`summary.md` 和更新后的计划；不提交 `best_checkpoint.pt`、大体积 NPZ 或用户已有未跟踪实验目录。
 
