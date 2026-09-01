@@ -284,7 +284,7 @@ predictions.npz
 - 创建：`gcnet_missing_m3_sam_backbone/run_mosi.py`
 - 创建：`gcnet_missing_m3_sam_backbone/tests/test_runner.py`
 
-- [ ] **步骤 1：编写失败的 job matrix 与汇总测试**
+- [x] **步骤 1：编写失败的 job matrix 与汇总测试**
 
 ```python
 def test_jobs_are_exactly_five_seeds_without_control_reruns(tmp_path):
@@ -300,23 +300,23 @@ def test_gate_requires_mean_and_three_paired_wins():
     )
 ```
 
-- [ ] **步骤 2：运行红灯**
+- [x] **步骤 2：运行红灯**
 
 运行：`/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest gcnet_missing_m3_sam_backbone/tests/test_runner.py -q`
 
 预期：runner 模块不存在。
 
-- [ ] **步骤 3：实现 runner**
+- [x] **步骤 3：实现 runner**
 
 Runner 接受 `--gpus 0,1,2`，以轮询方式将五个 seed 分配到 GPU，每张卡同时最多一个训练进程。它继承并校验当前仓库 strongest miss0 control 的五种子结果，不启动 control 子进程。任务退出后验证五个产物、prediction 非坍塌和 selection provenance，原子写入 `summary.json` 与 `summary.md`。
 
-- [ ] **步骤 4：运行 runner 测试**
+- [x] **步骤 4：运行 runner 测试**
 
 运行：`/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest gcnet_missing_m3_sam_backbone/tests/test_runner.py -q`
 
 预期：全部通过，模拟失败进程可被回收，半写 metrics 不会被继承。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 提交 runner 与测试；Directive 写明不得重跑 Original 或改用 test-oracle。
 
