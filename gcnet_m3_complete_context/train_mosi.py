@@ -13,7 +13,7 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 from gcnet_missing_m3_sam_backbone.train_mosi import regression_metrics, write_json
 
@@ -45,8 +45,11 @@ def set_seed(seed: int) -> None:
 
 
 def compute_standardizer(loader) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    sampler_indices = getattr(loader.sampler, "indices", None)
+    if sampler_indices is None:
+        raise ValueError("training loader must expose its split indices")
     deterministic = DataLoader(
-        loader.dataset,
+        Subset(loader.dataset, sorted(int(index) for index in sampler_indices)),
         batch_size=loader.batch_size,
         shuffle=False,
         num_workers=0,
