@@ -29,7 +29,7 @@
 - 创建：`gcnet_missing_m3_sam_backbone/attention.py`
 - 创建：`gcnet_missing_m3_sam_backbone/tests/test_attention.py`
 
-- [ ] **步骤 1：编写失败的 mask 与空 key 测试**
+- [x] **步骤 1：编写失败的 mask 与空 key 测试**
 
 ```python
 def test_masked_key_value_cannot_change_output():
@@ -57,13 +57,13 @@ def test_conversation_without_keys_returns_zero_track():
     assert torch.equal(output, torch.zeros_like(output))
 ```
 
-- [ ] **步骤 2：运行红灯**
+- [x] **步骤 2：运行红灯**
 
 运行：`/data2/yb/reproduction_envs/gcnet-official/bin/python -m pytest gcnet_missing_m3_sam_backbone/tests/test_attention.py -q`
 
 预期：收集失败，`gcnet_missing_m3_sam_backbone.attention` 尚不存在。
 
-- [ ] **步骤 3：实现安全有向注意力与池化**
+- [x] **步骤 3：实现安全有向注意力与池化**
 
 实现接口：
 
@@ -90,13 +90,13 @@ class MaskedTrackPooling(nn.Module):
 
 按 batch conversation 单独处理全空 key，避免 `MultiheadAttention` 在全 `-inf` 行产生 NaN。输出最后乘 `query_valid`，无效位置严格为零。
 
-- [ ] **步骤 4：验证绿灯**
+- [x] **步骤 4：验证绿灯**
 
 运行：同步骤 2。
 
 预期：全部通过，包含输出有限、masked value 不变性、空 key、池化权重和为 1。
 
-- [ ] **步骤 5：提交**
+- [x] **步骤 5：提交**
 
 提交仅包含 attention 实现与测试，使用 Lore commit trailer 记录空 key 的处理不变量。
 
