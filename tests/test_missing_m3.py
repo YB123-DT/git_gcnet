@@ -2555,8 +2555,8 @@ class _LifecycleModel(torch.nn.Module):
     ):
         del features, qmask, umask, lengths
         self.predict_missing_flags.append(predict_missing)
-        if availability.numel() == 1:
-            rate_index = int(availability.item())
+        if availability.ndim == 3 and availability.shape[1] == 1:
+            rate_index = int(availability.eq(0).sum().item())
             rate = MISSING_RATES[rate_index]
         else:
             rate_index = 0
@@ -2587,14 +2587,16 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
         rate_index = MISSING_RATES.index(schedule)
         prepared_rates.append(schedule)
         events.append(("prepare", schedule))
+        availability = torch.ones(3, 1, 3)
+        availability.reshape(-1)[:rate_index] = 0
         return {
-            "complete": torch.ones(1, 1, 1),
-            "incomplete": torch.ones(1, 1, 1),
-            "availability": torch.tensor(float(rate_index)),
-            "qmask": torch.ones(1, 1),
-            "umask": torch.ones(1, 1),
-            "labels": torch.zeros(1, 1),
-            "lengths": [1],
+            "complete": torch.ones(3, 1, 1),
+            "incomplete": torch.ones(3, 1, 1),
+            "availability": availability,
+            "qmask": torch.ones(3, 1),
+            "umask": torch.ones(1, 3),
+            "labels": torch.zeros(1, 3),
+            "lengths": [3],
         }
 
     def prepare_stratified_view(
@@ -2813,9 +2815,17 @@ def test_all_train_rate_mode_averages_eight_views_with_one_update_per_batch(monk
     assert metrics["jepa_target_count"] == 14
     assert metrics["optimizer_steps"] == 2
     assert metrics["rate_batch_counts"] == {str(rate): 2 for rate in MISSING_RATES}
+    assert metrics["rate_realized_missing_fraction"] == pytest.approx(
+        {
+            str(rate): rate_index / 9
+            for rate_index, rate in enumerate(MISSING_RATES)
+        }
+    )
 
 
-def test_fixed_rate_mode_uses_only_the_registered_rate_for_every_batch(monkeypatch):
+def test_fixed_train_rate_mode_uses_only_the_registered_rate_for_every_batch(
+    monkeypatch,
+):
     prepared_rates, clipped_gradients, events = _install_train_epoch_lifecycle_fakes(
         monkeypatch
     )
@@ -2851,6 +2861,9 @@ def test_fixed_rate_mode_uses_only_the_registered_rate_for_every_batch(monkeypat
     assert metrics["optimizer_steps"] == 2
     assert metrics["rate_batch_counts"]["0.5"] == 2
     assert sum(metrics["rate_batch_counts"].values()) == 2
+    assert metrics["rate_realized_missing_fraction"]["0.5"] == pytest.approx(
+        5 / 9
+    )
 
 
 def test_emotion_only_training_skips_predictor_teacher_and_ema(monkeypatch):

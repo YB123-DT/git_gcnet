@@ -841,6 +841,12 @@ def train_epoch(
             if rate is not None:
                 rate_counts[rate] += 1
                 rate_conversation_counts[rate] += batch_size
+                valid_rows = view["umask"].transpose(0, 1).bool()
+                valid_availability = view["availability"][valid_rows]
+                realized_missing[rate][0] += int(
+                    valid_availability.eq(0).sum().item()
+                )
+                realized_missing[rate][1] += int(valid_availability.numel())
             if config.train_rate_mode == "all" and train_jepa and teacher is None:
                 with torch.no_grad():
                     teacher = model.encode_teacher_targets([view["complete"]])
