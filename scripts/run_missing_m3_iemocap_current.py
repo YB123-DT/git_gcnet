@@ -51,10 +51,12 @@ def _build_jobs(
     output_root: Path,
     python: Path,
     gpus: tuple[int, ...],
+    datasets: tuple[str, ...] = DATASETS,
+    jepa_weight: float = 0.1,
 ) -> list[Job]:
     jobs: list[Job] = []
     index = 0
-    for dataset in DATASETS:
+    for dataset in datasets:
         for seed in SEEDS:
             gpu = gpus[index % len(gpus)]
             output_dir = output_root / dataset / f"seed_{seed}"
@@ -110,7 +112,7 @@ def _build_jobs(
                 "--dropout",
                 "0.5",
                 "--jepa-weight",
-                "0.1",
+                str(jepa_weight),
                 "--temperature",
                 "0.03",
                 "--ema-tau",
@@ -196,6 +198,8 @@ def main() -> int:
     parser.add_argument("--gpus", type=int, nargs="+", default=(2, 3, 7))
     parser.add_argument("--max-concurrent-per-gpu", type=int, default=3)
     parser.add_argument("--poll-seconds", type=float, default=10.0)
+    parser.add_argument("--datasets", nargs="+", choices=DATASETS, default=DATASETS)
+    parser.add_argument("--jepa-weight", type=float, default=0.1)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -207,7 +211,14 @@ def main() -> int:
     if args.max_concurrent_per_gpu <= 0:
         raise ValueError("max-concurrent-per-gpu must be positive")
 
-    jobs = _build_jobs(repo_root, output_root, args.python, gpus)
+    jobs = _build_jobs(
+        repo_root,
+        output_root,
+        args.python,
+        gpus,
+        datasets=tuple(args.datasets),
+        jepa_weight=args.jepa_weight,
+    )
     if args.dry_run:
         for job in jobs:
             print(job.gpu, job.dataset, job.seed, job.output_dir)
@@ -225,7 +236,8 @@ def main() -> int:
     _atomic_json(
         output_root / "manifest.json",
         {
-            "datasets": list(DATASETS),
+            "datasets": list(args.datasets),
+            "jepa_weight": args.jepa_weight,
             "seeds": list(SEEDS),
             "gpus": list(gpus),
             "max_concurrent_per_gpu": args.max_concurrent_per_gpu,
