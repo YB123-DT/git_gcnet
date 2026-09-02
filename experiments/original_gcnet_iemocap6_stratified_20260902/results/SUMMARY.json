@@ -1,5 +1,5 @@
 {
-  "schema_version": "matched-original-gcnet-three-arm-v1",
+  "schema_version": "matched-original-gcnet-four-arm-attribution-v2",
   "status": "complete",
   "dataset": "IEMOCAPSix",
   "fold": 5,
@@ -58,6 +58,15 @@
         "gcnet_modality_jepa/loss.py": "f9142f754caaf5938a904cc689af3289956a55cd97d15356080f070bda88cc8a",
         "scripts/run_missing_m3_iemocap_current.py": "45fce0009cf76bcc13a9ad29f2f0e7f34ff820f1f6b11371ca96f02c7f6db024"
       }
+    },
+    "original_gcnet_cls_only": {
+      "commit": "b6100ecdbf02da31740b7bcfeae997e67037e47a",
+      "files_sha256": {
+        "gcnet_original_stratified/train_gcnet.py": "65b073cc7091b0568b1c64675cd389c9d8bcba2e56ae30ef7801cdb445c9faaf",
+        "scripts/run_missing_m3_iemocap_current.py": "288d7b4e045b15a6b3c38c4dcf45a93e6d711df524233da011591105dfed56f6",
+        "gcnet_missing_m3/mixed_rate.py": "0d3e9af0b3c35c0fde4a148851390cf47850a50d9bdb0737a6997dc9438b22c1",
+        "gcnet_modality_jepa/loss.py": "f9142f754caaf5938a904cc689af3289956a55cd97d15356080f070bda88cc8a"
+      }
     }
   },
   "audit": {
@@ -65,34 +74,47 @@
     "jobs_by_arm": {
       "with_jepa": 5,
       "jepa_gradient_off": 5,
-      "original_gcnet": 5
+      "original_gcnet": 5,
+      "original_gcnet_cls_only": 5
     },
-    "total_jobs": 15,
-    "histories": 15,
-    "epochs": 1500,
-    "prediction_npz": 120,
-    "independently_recomputed_npz_bundles": 120,
-    "independently_recomputed_metric_values": 360,
+    "total_jobs": 20,
+    "histories": 20,
+    "epochs": 2000,
+    "prediction_npz": 160,
+    "independently_recomputed_npz_bundles": 160,
+    "independently_recomputed_metric_values": 480,
     "paired_assignment_hashes_by_comparison": {
       "with_jepa_vs_jepa_gradient_off": 500,
       "with_jepa_vs_original_gcnet": 500,
-      "jepa_gradient_off_vs_original_gcnet": 500
+      "jepa_gradient_off_vs_original_gcnet": 500,
+      "original_gcnet_cls_only_vs_with_jepa": 500,
+      "original_gcnet_cls_only_vs_jepa_gradient_off": 500,
+      "original_gcnet_cls_only_vs_original_gcnet": 500
     },
     "paired_test_mask_hashes_by_comparison": {
       "with_jepa_vs_jepa_gradient_off": 40,
       "with_jepa_vs_original_gcnet": 40,
-      "jepa_gradient_off_vs_original_gcnet": 40
+      "jepa_gradient_off_vs_original_gcnet": 40,
+      "original_gcnet_cls_only_vs_with_jepa": 40,
+      "original_gcnet_cls_only_vs_jepa_gradient_off": 40,
+      "original_gcnet_cls_only_vs_original_gcnet": 40
     },
     "paired_validation_mask_hashes": null,
     "paired_labels_by_comparison": {
       "with_jepa_vs_jepa_gradient_off": 40,
       "with_jepa_vs_original_gcnet": 40,
-      "jepa_gradient_off_vs_original_gcnet": 40
+      "jepa_gradient_off_vs_original_gcnet": 40,
+      "original_gcnet_cls_only_vs_with_jepa": 40,
+      "original_gcnet_cls_only_vs_jepa_gradient_off": 40,
+      "original_gcnet_cls_only_vs_original_gcnet": 40
     },
     "paired_availability_by_comparison": {
       "with_jepa_vs_jepa_gradient_off": 40,
       "with_jepa_vs_original_gcnet": 40,
-      "jepa_gradient_off_vs_original_gcnet": 40
+      "jepa_gradient_off_vs_original_gcnet": 40,
+      "original_gcnet_cls_only_vs_with_jepa": 40,
+      "original_gcnet_cls_only_vs_jepa_gradient_off": 40,
+      "original_gcnet_cls_only_vs_original_gcnet": 40
     },
     "collapse_diagnostics_by_arm": {
       "with_jepa": {
@@ -109,12 +131,18 @@
         "minimum_predicted_unique_class_count": 6,
         "maximum_predicted_unique_class_count": 6,
         "maximum_single_class_fraction": 0.3203943314849045
+      },
+      "original_gcnet_cls_only": {
+        "minimum_predicted_unique_class_count": 6,
+        "maximum_predicted_unique_class_count": 6,
+        "maximum_single_class_fraction": 0.3099199014171288
       }
     },
     "runner_failures_by_arm": {
       "with_jepa": 0,
       "jepa_gradient_off": 0,
-      "original_gcnet": 0
+      "original_gcnet": 0,
+      "original_gcnet_cls_only": 0
     },
     "validation_mask_hash_note": "Original persists validation hashes, but the two older Missing-M3 arms do not; three-arm validation artifact-level pairing is therefore not counted."
   },
@@ -268,6 +296,80 @@
       }
     },
     "original_gcnet": {
+      "0.0": {
+        "conversations": 7500,
+        "valid_utterances": 362354,
+        "missing_modalities": 0,
+        "modality_elements": 1087062,
+        "realized_missing_fraction": 0.0,
+        "jepa_targets": 0,
+        "reconstruction_targets": 0
+      },
+      "0.1": {
+        "conversations": 7500,
+        "valid_utterances": 364312,
+        "missing_modalities": 108557,
+        "modality_elements": 1092936,
+        "realized_missing_fraction": 0.09932603555926423,
+        "jepa_targets": 0,
+        "reconstruction_targets": 108557
+      },
+      "0.2": {
+        "conversations": 7500,
+        "valid_utterances": 364245,
+        "missing_modalities": 215783,
+        "modality_elements": 1092735,
+        "realized_missing_fraction": 0.1974705669718642,
+        "jepa_targets": 0,
+        "reconstruction_targets": 215783
+      },
+      "0.3": {
+        "conversations": 7500,
+        "valid_utterances": 362434,
+        "missing_modalities": 316564,
+        "modality_elements": 1087302,
+        "realized_missing_fraction": 0.2911463420466439,
+        "jepa_targets": 0,
+        "reconstruction_targets": 316564
+      },
+      "0.4": {
+        "conversations": 7500,
+        "valid_utterances": 365070,
+        "missing_modalities": 415309,
+        "modality_elements": 1095210,
+        "realized_missing_fraction": 0.3792049013431214,
+        "jepa_targets": 0,
+        "reconstruction_targets": 415309
+      },
+      "0.5": {
+        "conversations": 7500,
+        "valid_utterances": 363206,
+        "missing_modalities": 498505,
+        "modality_elements": 1089618,
+        "realized_missing_fraction": 0.4575043730922213,
+        "jepa_targets": 0,
+        "reconstruction_targets": 498505
+      },
+      "0.6": {
+        "conversations": 7500,
+        "valid_utterances": 362680,
+        "missing_modalities": 575116,
+        "modality_elements": 1088040,
+        "realized_missing_fraction": 0.5285798316238374,
+        "jepa_targets": 0,
+        "reconstruction_targets": 575116
+      },
+      "0.7": {
+        "conversations": 7500,
+        "valid_utterances": 360699,
+        "missing_modalities": 634190,
+        "modality_elements": 1082097,
+        "realized_missing_fraction": 0.5860750006699954,
+        "jepa_targets": 0,
+        "reconstruction_targets": 634190
+      }
+    },
+    "original_gcnet_cls_only": {
       "0.0": {
         "conversations": 7500,
         "valid_utterances": 362354,
@@ -676,6 +778,117 @@
       },
       "overall_mean": 0.6104771346932376,
       "high_rate_mean_0p4_to_0p7": 0.5991935524969755
+    },
+    "original_gcnet_cls_only": {
+      "best_epochs": [
+        100,
+        76,
+        74,
+        70,
+        81
+      ],
+      "parameter_count": [
+        34140166,
+        34140166,
+        34140166,
+        34140166,
+        34140166
+      ],
+      "trainable_parameter_count": [
+        34140166,
+        34140166,
+        34140166,
+        34140166,
+        34140166
+      ],
+      "weighted_f1_by_seed_and_rate": {
+        "66": [
+          0.639953136151443,
+          0.6381144186766972,
+          0.6260184281503764,
+          0.6336442145944965,
+          0.6253286466391361,
+          0.6445764052547128,
+          0.6153842371764073,
+          0.6356202500529604
+        ],
+        "67": [
+          0.6506345691244096,
+          0.6521425613486088,
+          0.6424813107267988,
+          0.6567538452469831,
+          0.6472845505481596,
+          0.6287356244316648,
+          0.6145905564778305,
+          0.5997807093062376
+        ],
+        "68": [
+          0.6347077246293926,
+          0.6293487790693462,
+          0.6449746432574316,
+          0.6243870854200665,
+          0.6287069600527848,
+          0.6432284379212444,
+          0.6105735771245404,
+          0.6160035659702333
+        ],
+        "69": [
+          0.6505192103183095,
+          0.6522295611884932,
+          0.621916483781406,
+          0.6440060296916063,
+          0.6178628705938889,
+          0.6050889433293056,
+          0.6231978514823088,
+          0.6020538358345446
+        ],
+        "70": [
+          0.6366708600729217,
+          0.6238073753140725,
+          0.6251282129174296,
+          0.6240246211306478,
+          0.6183346304240243,
+          0.6249720616009572,
+          0.6071070148954778,
+          0.5811881408164451
+        ]
+      },
+      "mean_by_rate": [
+        0.6424971000592954,
+        0.6391285391194436,
+        0.6321038157666885,
+        0.63656315921676,
+        0.6275035316515988,
+        0.629320294507577,
+        0.6141706474313129,
+        0.6069293003960843
+      ],
+      "sample_std_by_rate": [
+        0.007610253775740971,
+        0.012965451795982876,
+        0.010756664358355903,
+        0.013937826869921628,
+        0.011984137105680295,
+        0.016066990358936276,
+        0.0060409716943599905,
+        0.020266923136533953
+      ],
+      "mean_eight_rate_by_seed": {
+        "66": 0.6323299670870287,
+        "67": 0.6365504659013366,
+        "68": 0.62899134668063,
+        "69": 0.6271093482774829,
+        "70": 0.617654114646497
+      },
+      "mean_high_rate_0p4_to_0p7_by_seed": {
+        "66": 0.6302273847808042,
+        "67": 0.6225978601909731,
+        "68": 0.6246281352672007,
+        "69": 0.612050875310012,
+        "70": 0.6079004619342261
+      },
+      "overall_mean": 0.6285270485185951,
+      "high_rate_mean_0p4_to_0p7": 0.6194809434966433
     }
   },
   "pairwise_effects": {
@@ -858,6 +1071,186 @@
         "paired_t_test_two_sided_unadjusted_p_value": 0.11193963090681085,
         "cohen_dz": 0.9088011649081529
       }
+    },
+    "original_gcnet_cls_only_minus_original_gcnet": {
+      "left_arm": "original_gcnet_cls_only",
+      "right_arm": "original_gcnet",
+      "mean_delta_by_rate": [
+        0.01818875752728355,
+        0.01794093192105377,
+        0.008944854171301442,
+        0.018175202984549842,
+        0.014457734722422112,
+        0.017466071056642662,
+        0.02940126908585363,
+        0.019824489133752808
+      ],
+      "positive_seed_count_by_rate": [
+        3,
+        4,
+        2,
+        4,
+        4,
+        3,
+        5,
+        4
+      ],
+      "mean_eight_rate_delta_by_seed": {
+        "66": -0.00031260152452407264,
+        "67": 0.043986258234276265,
+        "68": 0.03213593267406413,
+        "69": 0.02407137792527786,
+        "70": -0.009631398182306794
+      },
+      "high_rate_delta_by_seed": {
+        "66": 0.006894704577370042,
+        "67": 0.04244873790137191,
+        "68": 0.039062509540022355,
+        "69": 0.02035689865828222,
+        "70": -0.007325895678707506
+      },
+      "overall": {
+        "mean": 0.018049913825357478,
+        "sample_std": 0.022420999769474464,
+        "positive_seeds": 3,
+        "95_percent_t_interval": [
+          -0.009789434392133912,
+          0.04588926204284886
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.14621535132168054,
+        "cohen_dz": 0.8050450029410333
+      },
+      "high_rate_0p4_to_0p7": {
+        "mean": 0.020287390999667802,
+        "sample_std": 0.021127546324672793,
+        "positive_seeds": 4,
+        "95_percent_t_interval": [
+          -0.0059459226420607095,
+          0.046520704641396314
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.09829560405182584,
+        "cohen_dz": 0.9602341269499972
+      }
+    },
+    "jepa_gradient_off_minus_original_gcnet_cls_only": {
+      "left_arm": "jepa_gradient_off",
+      "right_arm": "original_gcnet_cls_only",
+      "mean_delta_by_rate": [
+        0.016425032496814172,
+        0.01839708903172139,
+        0.015845079881967906,
+        0.01368651922164783,
+        0.01849879931962941,
+        0.005232813015851723,
+        0.008019875088011408,
+        0.001785518292337862
+      ],
+      "positive_seed_count_by_rate": [
+        5,
+        4,
+        4,
+        5,
+        4,
+        2,
+        4,
+        3
+      ],
+      "mean_eight_rate_delta_by_seed": {
+        "66": 0.007177747188751513,
+        "67": 0.00769558841906838,
+        "68": 0.017684567723232153,
+        "69": 0.03008543895406071,
+        "70": -0.001461638317624192
+      },
+      "high_rate_delta_by_seed": {
+        "66": -0.0008410784652431169,
+        "67": 0.00592587428063468,
+        "68": 0.012572557883885255,
+        "69": 0.03259254748657994,
+        "70": -0.008328644041068756
+      },
+      "overall": {
+        "mean": 0.012236340793497714,
+        "sample_std": 0.012063539229180359,
+        "positive_seeds": 4,
+        "95_percent_t_interval": [
+          -0.002742521558294353,
+          0.02721520314528978
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.08590795528413665,
+        "cohen_dz": 1.0143242841950866
+      },
+      "high_rate_0p4_to_0p7": {
+        "mean": 0.008384251428957601,
+        "sample_std": 0.015604924814190384,
+        "positive_seeds": 3,
+        "95_percent_t_interval": [
+          -0.0109918219074992,
+          0.0277603247654144
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.2958649905208856,
+        "cohen_dz": 0.5372823982678441
+      }
+    },
+    "with_jepa_minus_original_gcnet_cls_only": {
+      "left_arm": "with_jepa",
+      "right_arm": "original_gcnet_cls_only",
+      "mean_delta_by_rate": [
+        0.01510036893664024,
+        0.01861927048833396,
+        0.022422122822091838,
+        0.016496081909907367,
+        0.017761641712901444,
+        0.01192520184575776,
+        0.010647789770402571,
+        0.008847924304600107
+      ],
+      "positive_seed_count_by_rate": [
+        3,
+        4,
+        5,
+        3,
+        4,
+        4,
+        4,
+        4
+      ],
+      "mean_eight_rate_delta_by_seed": {
+        "66": 0.029956827819263745,
+        "67": -0.004466178261868847,
+        "68": 0.01774864106568544,
+        "69": 0.008788746364269226,
+        "70": 0.024109714131797494
+      },
+      "high_rate_delta_by_seed": {
+        "66": 0.0230415838305931,
+        "67": -0.0061802169337231705,
+        "68": 0.015419022431114926,
+        "69": 0.0170771151292414,
+        "70": 0.0121206925848511
+      },
+      "overall": {
+        "mean": 0.015227550223829411,
+        "sample_std": 0.013523142109126814,
+        "positive_seeds": 4,
+        "95_percent_t_interval": [
+          -0.001563648475666703,
+          0.03201874892332553
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.06550361314353438,
+        "cohen_dz": 1.1260363975286696
+      },
+      "high_rate_0p4_to_0p7": {
+        "mean": 0.01229563940841547,
+        "sample_std": 0.011062111315954627,
+        "positive_seeds": 4,
+        "95_percent_t_interval": [
+          -0.00143978595672788,
+          0.02603106477355882
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.06781685720898814,
+        "cohen_dz": 1.111509282200203
+      }
     }
   },
   "existing_jepa_directional_gate": {
@@ -873,5 +1266,133 @@
     "preregistered_gate": null,
     "status": "descriptive paired comparison; no post-hoc pass/fail gate"
   },
-  "conclusion": "Under the matched equal-budget stratified protocol, both Missing-M3 arms outperform matched Original GCNet descriptively; JEPA adds a smaller incremental effect inside the Missing-M3 architecture. Statistical uncertainty is reported from five paired seeds."
+  "conclusion": "Disabling Original reconstruction explains part, but not all, of the matched gap. The classification-only Original control separates the remaining non-JEPA Missing-M3 parameterization effect; JEPA remains a smaller incremental effect.",
+  "reconstruction_attribution": {
+    "comparison": "original_gcnet_cls_only_minus_original_gcnet",
+    "interpretation": "effect of disabling Original masked reconstruction while preserving the exact model parameterization and stratified protocol",
+    "result": {
+      "left_arm": "original_gcnet_cls_only",
+      "right_arm": "original_gcnet",
+      "mean_delta_by_rate": [
+        0.01818875752728355,
+        0.01794093192105377,
+        0.008944854171301442,
+        0.018175202984549842,
+        0.014457734722422112,
+        0.017466071056642662,
+        0.02940126908585363,
+        0.019824489133752808
+      ],
+      "positive_seed_count_by_rate": [
+        3,
+        4,
+        2,
+        4,
+        4,
+        3,
+        5,
+        4
+      ],
+      "mean_eight_rate_delta_by_seed": {
+        "66": -0.00031260152452407264,
+        "67": 0.043986258234276265,
+        "68": 0.03213593267406413,
+        "69": 0.02407137792527786,
+        "70": -0.009631398182306794
+      },
+      "high_rate_delta_by_seed": {
+        "66": 0.006894704577370042,
+        "67": 0.04244873790137191,
+        "68": 0.039062509540022355,
+        "69": 0.02035689865828222,
+        "70": -0.007325895678707506
+      },
+      "overall": {
+        "mean": 0.018049913825357478,
+        "sample_std": 0.022420999769474464,
+        "positive_seeds": 3,
+        "95_percent_t_interval": [
+          -0.009789434392133912,
+          0.04588926204284886
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.14621535132168054,
+        "cohen_dz": 0.8050450029410333
+      },
+      "high_rate_0p4_to_0p7": {
+        "mean": 0.020287390999667802,
+        "sample_std": 0.021127546324672793,
+        "positive_seeds": 4,
+        "95_percent_t_interval": [
+          -0.0059459226420607095,
+          0.046520704641396314
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.09829560405182584,
+        "cohen_dz": 0.9602341269499972
+      }
+    }
+  },
+  "non_jepa_architecture_attribution": {
+    "comparison": "jepa_gradient_off_minus_original_gcnet_cls_only",
+    "interpretation": "non-JEPA Missing-M3 parameterization difference after both arms use classification-only supervision",
+    "result": {
+      "left_arm": "jepa_gradient_off",
+      "right_arm": "original_gcnet_cls_only",
+      "mean_delta_by_rate": [
+        0.016425032496814172,
+        0.01839708903172139,
+        0.015845079881967906,
+        0.01368651922164783,
+        0.01849879931962941,
+        0.005232813015851723,
+        0.008019875088011408,
+        0.001785518292337862
+      ],
+      "positive_seed_count_by_rate": [
+        5,
+        4,
+        4,
+        5,
+        4,
+        2,
+        4,
+        3
+      ],
+      "mean_eight_rate_delta_by_seed": {
+        "66": 0.007177747188751513,
+        "67": 0.00769558841906838,
+        "68": 0.017684567723232153,
+        "69": 0.03008543895406071,
+        "70": -0.001461638317624192
+      },
+      "high_rate_delta_by_seed": {
+        "66": -0.0008410784652431169,
+        "67": 0.00592587428063468,
+        "68": 0.012572557883885255,
+        "69": 0.03259254748657994,
+        "70": -0.008328644041068756
+      },
+      "overall": {
+        "mean": 0.012236340793497714,
+        "sample_std": 0.012063539229180359,
+        "positive_seeds": 4,
+        "95_percent_t_interval": [
+          -0.002742521558294353,
+          0.02721520314528978
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.08590795528413665,
+        "cohen_dz": 1.0143242841950866
+      },
+      "high_rate_0p4_to_0p7": {
+        "mean": 0.008384251428957601,
+        "sample_std": 0.015604924814190384,
+        "positive_seeds": 3,
+        "95_percent_t_interval": [
+          -0.0109918219074992,
+          0.0277603247654144
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.2958649905208856,
+        "cohen_dz": 0.5372823982678441
+      }
+    }
+  }
 }

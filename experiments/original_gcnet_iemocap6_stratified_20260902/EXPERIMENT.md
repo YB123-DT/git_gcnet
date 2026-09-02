@@ -1,4 +1,4 @@
-# IEMOCAP-6 Matched Stratified Original GCNet Control
+# IEMOCAP-6 Matched Stratified Four-Arm Attribution
 
 ## 研究问题
 
@@ -6,17 +6,25 @@
 batch order、mask、epoch、优化器和选模规则时，当前 Missing-M3 是否优于
 Original GCNet？
 
-本实验形成三个身份不可互换的 arms：
+本实验形成四个身份不可互换的 arms：
 
 - **With-JEPA**：Missing-M3 架构，JEPA 权重为 0.1；
 - **JEPA-gradient-off**：同一 Missing-M3 架构，JEPA 权重为 0；
+- **Classification-only Original GCNet**：与 Matched Original 完全相同的
+  模型、参数、forward 和优化参数集合，只将 masked reconstruction 的训练权重
+  从 1.0 置为 0；reconstruction head 仍实例化并记录 raw loss；
 - **Matched Original GCNet**：Original GCNet 架构及其分类加 masked
   reconstruction 目标，不含 Student、EMA teacher、MMoE 或 missing-latent
   predictor。
 
-因此，`With-JEPA - gradient-off` 隔离 JEPA 梯度，`gradient-off - Original`
-反映非 JEPA 整体差异（模型参数化以及 Original reconstruction 目标同时不同），
-`With-JEPA - Original` 才是完整方法比较。
+因此：
+
+- `With-JEPA - gradient-off` 隔离现有 Missing-M3 内的 JEPA 梯度；
+- `classification-only Original - Original` 隔离关闭 Original reconstruction
+  监督的影响；
+- `gradient-off - classification-only Original` 在两边都只有分类监督时，比较
+  非 JEPA 的 Missing-M3 参数化与 Original 参数化；
+- `With-JEPA - Original` 是完整方法相对正式 Original 的总比较。
 
 ## 锁定协议
 
@@ -36,25 +44,31 @@ Original 使用 corrected formal masked reconstruction loss，权重为 1.0，�
 预算；所以应称为 **matched-protocol Original control**，而不是 upstream
 逐 rate 训练协议的原样复现。
 
+Classification-only Original 只把上述 reconstruction 权重改为 0。该 arm
+并未删除 reconstruction head，也未改变 state-dict、参数量、随机数调用、mask、
+batch order 或训练预算。因此它用于损失归因，而不是一个新模型。
+
 ## 完整性与配对审计
 
 审计结果为 **PASS**：
 
-- Original 5/5 jobs 完成，runner failures 为 0；三臂合计 15 jobs；
-- 15 个 history 共 1,500 个 epoch records；
-- 120/120 prediction NPZ 存在，独立复算 360 个 W-F1、Macro-F1、Accuracy，
+- 四个 arms 均为 5/5 jobs 完成，runner failures 为 0；合计 20 jobs；
+- 20 个 history 共 2,000 个 epoch records；
+- 160/160 prediction NPZ 存在，独立复算 480 个 W-F1、Macro-F1、Accuracy，
   均与 `metrics.json` 一致；
-- 三个 pairwise comparisons 各有 500/500 个 epoch assignment SHA、40/40 个
+- 六个 pairwise comparisons 各有 500/500 个 epoch assignment SHA、40/40 个
   test mask SHA、40/40 个 labels 和 40/40 个 availability 数组完全相同；
-- Original 每个 epoch 均满足 120 source / 120 view / 4 forward / 4 update；
+- 两个 Original arms 每个 epoch 均满足 120 source / 120 view / 4 forward /
+  4 update；
 - Original reconstruction target 数严格等于自然缺失模态数；
-- 三臂所有 120 个预测 bundle 都覆盖六个类别，无单类坍塌或 NaN/Inf；
+- 四臂所有 160 个预测 bundle 都覆盖六个类别，无单类坍塌或 NaN/Inf；
 - Original 参数量为 34,140,166，反而高于 Missing-M3 的总参数 32,212,238
   和可训练参数 31,352,078，因此 Missing-M3 的优势不能用参数更多解释。
 
-Original 新增落盘了 validation mask SHA；既有两个 Missing-M3 arms 没有保存
-该字段，所以三臂 validation 的 artifact-level hash 配对不计数。它们使用相同
-split、seed 和 deterministic schedule，但不能把这一点写成已落盘的 hash 证据。
+两个 Original arms 新增落盘了 validation mask SHA；既有两个 Missing-M3 arms
+没有保存该字段，所以四臂 validation 的 artifact-level hash 配对不计数。它们
+使用相同 split、seed 和 deterministic schedule，但不能把这一点写成已落盘的
+hash 证据。
 
 跨五种子、100 epochs 的公共 sampling 总账为：
 
@@ -110,13 +124,28 @@ split、seed 和 deterministic schedule，但不能把这一点写成已落盘�
 | **Mean** | **62.43** | **62.12** | **62.32** | **61.84** | **61.30** | **61.19** | **58.48** | **58.71** | **61.05** | **59.92** |
 | **SD** | 2.23 | 1.83 | 2.24 | 1.93 | 1.02 | 3.34 | 1.70 | 2.54 | | |
 
-## 三种 paired effects
+### Classification-only Original GCNet
+
+| Seed | 0.0 | 0.1 | 0.2 | 0.3 | 0.4 | 0.5 | 0.6 | 0.7 | 八率均值 | 0.4--0.7 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 66 | 64.00 | 63.81 | 62.60 | 63.36 | 62.53 | 64.46 | 61.54 | 63.56 | 63.23 | 63.02 |
+| 67 | 65.06 | 65.21 | 64.25 | 65.68 | 64.73 | 62.87 | 61.46 | 59.98 | 63.66 | 62.26 |
+| 68 | 63.47 | 62.93 | 64.50 | 62.44 | 62.87 | 64.32 | 61.06 | 61.60 | 62.90 | 62.46 |
+| 69 | 65.05 | 65.22 | 62.19 | 64.40 | 61.79 | 60.51 | 62.32 | 60.21 | 62.71 | 61.21 |
+| 70 | 63.67 | 62.38 | 62.51 | 62.40 | 61.83 | 62.50 | 60.71 | 58.12 | 61.77 | 60.79 |
+| **Mean** | **64.25** | **63.91** | **63.21** | **63.66** | **62.75** | **62.93** | **61.42** | **60.69** | **62.85** | **61.95** |
+| **SD** | 0.76 | 1.30 | 1.08 | 1.39 | 1.20 | 1.61 | 0.60 | 2.03 | | |
+
+## 四臂 paired effects
 
 | Comparison | 八率 mean delta | Positive seeds | 95% CI | p（双侧，未校正） | 高率 delta | Positive seeds | 95% CI | p（双侧，未校正） |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | With-JEPA − gradient-off | +0.30 | 3/5 | [−2.28, +2.88] | 0.764 | +0.39 | 3/5 | [−1.85, +2.64] | 0.654 |
 | With-JEPA − Original | **+3.33** | **5/5** | **[+1.71, +4.95]** | **0.0047** | **+3.26** | **5/5** | **[+1.02, +5.49]** | **0.0155** |
 | gradient-off − Original | +3.03 | 4/5 | [−0.73, +6.79] | 0.089 | +2.87 | 4/5 | [−1.05, +6.78] | 0.112 |
+| Classification-only Original − Original | +1.80 | 3/5 | [−0.98, +4.59] | 0.146 | +2.03 | 4/5 | [−0.59, +4.65] | 0.098 |
+| gradient-off − Classification-only Original | +1.22 | 4/5 | [−0.27, +2.72] | 0.086 | +0.84 | 3/5 | [−1.10, +2.78] | 0.296 |
+| With-JEPA − Classification-only Original | +1.52 | 4/5 | [−0.16, +3.20] | 0.066 | +1.23 | 4/5 | [−0.14, +2.60] | 0.068 |
 
 `With-JEPA - Original` 的 rate-wise mean delta 从 η=0.0 到 0.7 分别为：
 
@@ -129,6 +158,21 @@ split、seed 和 deterministic schedule，但不能把这一点写成已落盘�
 完整方法相对 Original 的两个聚合区间不跨零，但样本量仍只有五个 seeds，
 不应把它扩大表述为跨数据集普适显著性。
 
+### 描述性归因分解
+
+完整方法相对正式 Original 的总差异可以按相邻 controls 描述为：
+
+| 归因步骤 | 八率均值 | 0.4--0.7 均值 |
+| --- | ---: | ---: |
+| 关闭 Original reconstruction | +1.80 | +2.03 |
+| Classification-only 条件下替换为非 JEPA Missing-M3 参数化 | +1.22 | +0.84 |
+| 在 Missing-M3 内开启 JEPA 梯度 | +0.30 | +0.39 |
+| **完整方法 − 正式 Original** | **+3.33** | **+3.26** |
+
+这是一条由相同五个 seeds 构成的描述性分解；三个分量各自的 95% CI 都跨零，
+不能逐项宣称显著。它能支持的边界是：reconstruction 差异解释了总差异的一部分，
+非 JEPA 参数化仍有剩余正差异，而当前 JEPA 的独立增量最小。
+
 ## 结论
 
 当前最可靠的结论是：
@@ -136,14 +180,14 @@ split、seed 和 deterministic schedule，但不能把这一点写成已落盘�
 1. **完整 Missing-M3 在 matched equal-budget 协议下明显优于 Original GCNet。**
    八率均值从 61.05% 提升到 64.38%，高缺失率从 59.92% 提升到 63.18%；
    两个 aggregate comparison 均为 5/5 seeds 正向。
-2. **大部分绝对差异在关闭 JEPA 梯度后已经存在。** gradient-off 相对
-   Original 的均值为 +3.03 个百分点，但 seed 70 为负且置信区间跨零；JEPA
-   在该架构内再增加 +0.30 个百分点，方向性门槛通过，但并不稳定显著。
-   这 +3.03 同时包含模型参数化变化与 Original reconstruction 目标差异；没有
-   classification-only Original 消融时，不能继续归因到某一个架构模块。
-3. **合理的论文叙事不是“JEPA 单独带来 3.33 点”。** 更准确的表述是：
-   非 JEPA 的 observed-set/slot 模型包已伴随主要差异，JEPA 提供较小的附加
-   正则化收益，并让完整方法相对 Original 的 paired seed 结果达到 5/5 正向。
+2. **Original reconstruction 在这个协议下呈负向描述性关联，但不是全部原因。**
+   仅关闭它时均值为 +1.80；两边都采用 classification-only 后，非 JEPA
+   Missing-M3 参数化相对 Original 仍为 +1.22。两项置信区间均跨零，不能分别
+   宣称稳定显著。
+3. **当前 JEPA 是小增量，不是 +3.33 点的唯一来源。** 在相同 Missing-M3
+   参数化内，开启 JEPA 为 +0.30；方向性门槛通过，但置信区间较宽。准确叙事是：
+   完整 observed-set/slot 模型包与训练目标共同形成总提升，JEPA 提供较小的附加
+   正则化收益。
 
 边界：Official IEMOCAP 的 validation 和 test 使用同一 held-out Session，所以上述
 结果是严格同协议的内部 paired comparison，不能表述为具有独立 validation 的外部
