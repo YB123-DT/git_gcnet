@@ -56,6 +56,7 @@ class OriginalTrainConfig:
     learning_rate: float = 1e-3
     weight_decay: float = 1e-5
     gradient_clip_norm: float = 1.0
+    reconstruction_weight: float = 1.0
     time_attention: bool = False
     evaluation_protocol: str = "official"
     validation_fraction: float = 0.1
@@ -68,6 +69,16 @@ class OriginalTrainConfig:
             raise ValueError(
                 "Original matched control requires train_rate_mode='stratified'"
             )
+        if self.reconstruction_weight not in (0.0, 1.0):
+            raise ValueError("reconstruction_weight must be exactly 0.0 or 1.0")
+
+
+def _control_identity(reconstruction_weight: float) -> tuple[str, str]:
+    if reconstruction_weight == 1.0:
+        return "original-gcnet", "classification-plus-masked-reconstruction"
+    if reconstruction_weight == 0.0:
+        return "original-gcnet-cls-only", "classification-only"
+    raise ValueError("reconstruction_weight must be exactly 0.0 or 1.0")
 
 
 def original_control_loss(
@@ -81,6 +92,7 @@ def original_control_loss(
     dataset: str,
     dimensions: tuple[int, int, int],
     reconstruction_criterion: MaskedReconLoss | None = None,
+    reconstruction_weight: float = 1.0,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Return the formal Original task plus corrected missing-only MSE."""
 
@@ -93,7 +105,12 @@ def original_control_loss(
         umask,
         *dimensions,
     )
-    return task + reconstruction_loss, task, reconstruction_loss
+    _control_identity(reconstruction_weight)
+    return (
+        task + reconstruction_weight * reconstruction_loss,
+        task,
+        reconstruction_loss,
+    )
 
 
 def _epoch_size(loader: Iterable[Sequence[object]]) -> int:
@@ -189,6 +206,7 @@ def train_epoch(
             dataset=config.dataset,
             dimensions=dimensions,
             reconstruction_criterion=reconstruction_criterion,
+            reconstruction_weight=config.reconstruction_weight,
         )
         if not bool(torch.isfinite(total.detach())):
             raise ValueError("training loss must be finite")
@@ -243,6 +261,9 @@ def train_epoch(
         np.concatenate(all_predictions),
     )
     reconstruction_target_count = sum(rate_missing_modality_counts.values())
+    model_arm, training_objective = _control_identity(
+        config.reconstruction_weight
+    )
     return {
         **metrics,
         "loss": float(np.mean(total_losses)),
@@ -283,10 +304,10 @@ def train_epoch(
         },
         "stratified_assignment_hash": assignment_digest.hexdigest(),
         "stratified_rate_algorithm": STRATIFIED_RATE_ALGORITHM,
-        "model_arm": "original-gcnet",
-        "training_objective": "classification-plus-masked-reconstruction",
+        "model_arm": model_arm,
+        "training_objective": training_objective,
         "reconstruction_loss_variant": "corrected-formal-repo",
-        "reconstruction_weight": 1.0,
+        "reconstruction_weight": config.reconstruction_weight,
     }
 
 
@@ -479,6 +500,9 @@ def run_experiment(
                 **artifacts,
             )
 
+    model_arm, training_objective = _control_identity(
+        config_value.reconstruction_weight
+    )
     result: Dict[str, object] = {
         "best_epoch": best_epoch,
         "selection_split": "validation",
@@ -499,10 +523,10 @@ def run_experiment(
             if config_value.evaluate_test
             else "train-validation-only"
         ),
-        "model_arm": "original-gcnet",
-        "training_objective": "classification-plus-masked-reconstruction",
+        "model_arm": model_arm,
+        "training_objective": training_objective,
         "reconstruction_loss_variant": "corrected-formal-repo",
-        "reconstruction_weight": 1.0,
+        "reconstruction_weight": config_value.reconstruction_weight,
         "reccls_flag": False,
         "train_rate_mode": "stratified",
         "selection_missing_rates": list(MISSING_RATES),
@@ -539,6 +563,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--l2", type=float, default=1e-5)
     parser.add_argument("--dropout", type=float, default=0.5)
     parser.add_argument("--gradient-clip-norm", type=float, default=1.0)
+    parser.add_argument(
+        "--reconstruction-weight",
+        type=float,
+        choices=(0.0, 1.0),
+        default=1.0,
+    )
     parser.add_argument("--time-attn", action="store_true")
     parser.add_argument(
         "--evaluation-protocol", choices=("official", "strict"), default="official"
@@ -567,6 +597,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         learning_rate=args.lr,
         weight_decay=args.l2,
         gradient_clip_norm=args.gradient_clip_norm,
+        reconstruction_weight=args.reconstruction_weight,
         time_attention=args.time_attn,
         evaluation_protocol=args.evaluation_protocol,
         validation_fraction=args.validation_fraction,

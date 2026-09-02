@@ -13,7 +13,12 @@ from pathlib import Path
 
 DATASETS = ("IEMOCAPSix", "IEMOCAPFour")
 SEEDS = (66, 67, 68, 69, 70)
-MODEL_ARMS = ("missing-m3", "original-gcnet")
+MODEL_ARMS = (
+    "missing-m3",
+    "original-gcnet",
+    "original-gcnet-cls-only",
+)
+ORIGINAL_ARMS = ("original-gcnet", "original-gcnet-cls-only")
 
 
 @dataclass(frozen=True)
@@ -60,7 +65,7 @@ def _build_jobs(
 ) -> list[Job]:
     if model_arm not in MODEL_ARMS:
         raise ValueError(f"unknown model_arm: {model_arm}")
-    if model_arm == "original-gcnet":
+    if model_arm in ORIGINAL_ARMS:
         if jepa_weight != 0:
             raise ValueError("original-gcnet requires jepa_weight=0")
         if train_rate_mode != "stratified":
@@ -73,7 +78,7 @@ def _build_jobs(
             output_dir = output_root / dataset / f"seed_{seed}"
             trainer_module = (
                 "gcnet_original_stratified.train_gcnet"
-                if model_arm == "original-gcnet"
+                if model_arm in ORIGINAL_ARMS
                 else "gcnet_missing_m3.train_gcnet"
             )
             command = [
@@ -145,6 +150,8 @@ def _build_jobs(
                         "0.996",
                     ]
                 )
+            elif model_arm == "original-gcnet-cls-only":
+                command.extend(["--reconstruction-weight", "0.0"])
             jobs.append(
                 Job(
                     model_arm=model_arm,
@@ -204,13 +211,20 @@ def _is_complete(job: Job) -> bool:
         and int(metrics_payload.get("best_epoch", 0)) in range(1, 101)
         and len(metrics_payload.get("test", {})) == 8
     )
-    if not common_complete or job.model_arm != "original-gcnet":
+    if not common_complete or job.model_arm == "missing-m3":
         return common_complete
+    expected_weight = 1.0 if job.model_arm == "original-gcnet" else 0.0
+    expected_objective = (
+        "classification-plus-masked-reconstruction"
+        if expected_weight == 1.0
+        else "classification-only"
+    )
     return (
-        metrics_payload.get("model_arm") == "original-gcnet"
+        metrics_payload.get("model_arm") == job.model_arm
+        and metrics_payload.get("training_objective") == expected_objective
         and metrics_payload.get("reconstruction_loss_variant")
         == "corrected-formal-repo"
-        and metrics_payload.get("reconstruction_weight") == 1.0
+        and metrics_payload.get("reconstruction_weight") == expected_weight
         and metrics_payload.get("ema_steps") == 0
         and metrics_payload.get("selection_split") == "validation"
     )
@@ -267,7 +281,7 @@ def main() -> int:
     jepa_weight = (
         args.jepa_weight
         if args.jepa_weight is not None
-        else (0.0 if args.model_arm == "original-gcnet" else 0.1)
+        else (0.0 if args.model_arm in ORIGINAL_ARMS else 0.1)
     )
     jobs = _build_jobs(
         repo_root,
@@ -303,11 +317,17 @@ def main() -> int:
             ),
             "reconstruction_loss_variant": (
                 "corrected-formal-repo"
-                if args.model_arm == "original-gcnet"
+                if args.model_arm in ORIGINAL_ARMS
                 else None
             ),
             "reconstruction_weight": (
-                1.0 if args.model_arm == "original-gcnet" else None
+                (
+                    1.0
+                    if args.model_arm == "original-gcnet"
+                    else 0.0
+                )
+                if args.model_arm in ORIGINAL_ARMS
+                else None
             ),
             "train_rate_mode": args.train_rate_mode,
             "seeds": list(SEEDS),

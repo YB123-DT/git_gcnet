@@ -268,10 +268,49 @@ def test_original_control_loss_is_differentiable_exact_zero_for_atv() -> None:
     assert torch.count_nonzero(prediction.grad).item() == 0
 
 
+def test_classification_only_control_reports_but_does_not_optimize_reconstruction() -> None:
+    logits = torch.randn(2, 2, 6, requires_grad=True)
+    prediction = torch.randn(2, 2, 6, requires_grad=True)
+    complete = torch.randn(2, 2, 6)
+    availability = torch.tensor(
+        [
+            [[0.0, 1.0, 1.0], [1.0, 1.0, 1.0]],
+            [[1.0, 0.0, 1.0], [1.0, 1.0, 1.0]],
+        ]
+    )
+    umask = torch.ones(2, 2)
+
+    total, task, reconstruction = original_control_loss(
+        logits=logits,
+        reconstruction=[prediction],
+        complete_features=complete,
+        availability=availability,
+        labels=torch.tensor([[0, 1], [2, 3]]),
+        umask=umask,
+        dataset="IEMOCAPSix",
+        dimensions=(2, 3, 1),
+        reconstruction_weight=0.0,
+    )
+    total.backward()
+
+    ASSERT_CLOSE(total.detach(), task.detach(), rtol=0, atol=0)
+    assert reconstruction.item() > 0
+    assert prediction.grad is not None
+    assert torch.count_nonzero(prediction.grad).item() == 0
+
+
 def test_original_train_config_rejects_non_stratified_modes() -> None:
     for mode in ("fixed", "cyclic", "all"):
         with pytest.raises(ValueError, match="stratified"):
             OriginalTrainConfig(train_rate_mode=mode)
+
+
+def test_original_train_config_locks_reconstruction_weight_to_control_values() -> None:
+    assert OriginalTrainConfig(reconstruction_weight=1.0).reconstruction_weight == 1.0
+    assert OriginalTrainConfig(reconstruction_weight=0.0).reconstruction_weight == 0.0
+    for weight in (-1.0, 0.5, 2.0):
+        with pytest.raises(ValueError, match="reconstruction_weight"):
+            OriginalTrainConfig(reconstruction_weight=weight)
 
 
 class _SingleBatchLoader:
