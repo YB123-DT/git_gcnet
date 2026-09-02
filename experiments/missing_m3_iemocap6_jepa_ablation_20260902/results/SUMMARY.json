@@ -1,0 +1,156 @@
+{
+  "status": "complete",
+  "dataset": "IEMOCAPSix",
+  "fold": 5,
+  "method": "Slot all-rates Missing-M3: JEPA versus JEPA-gradient-off",
+  "protocol": {
+    "seeds": [66, 67, 68, 69, 70],
+    "missing_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+    "train_rate_mode": "all",
+    "fusion_type": "slot",
+    "representation_type": "slot",
+    "graph_branch_mode": "both",
+    "learning_rate": 0.001,
+    "with_jepa_weight": 0.1,
+    "gradient_off_jepa_weight": 0.0,
+    "selection": "validation mean weighted F1 over all eight rates",
+    "evaluation": "the selected checkpoint evaluated on all eight fixed masks"
+  },
+  "audit": {
+    "completed_jobs": "5/5",
+    "histories_with_100_epochs": "5/5",
+    "finite_histories": "5/5",
+    "best_epoch_recomputations": "5/5",
+    "normalized_config_pairs_with_only_jepa_weight_changed": "5/5",
+    "matched_parameter_counts": "5/5",
+    "matched_ema_steps": "5/5",
+    "paired_stored_mask_hashes": "40/40",
+    "paired_npz_labels": "40/40",
+    "paired_npz_availability_arrays": "40/40",
+    "npz_metric_recomputations": "80/80",
+    "all_expected_label_classes": "80/80",
+    "all_expected_prediction_classes": "80/80",
+    "maximum_metric_recomputation_error": 2.220446049250313e-16,
+    "runner_failures": 0
+  },
+  "best_epochs": {
+    "with_jepa": [65, 61, 68, 73, 76],
+    "jepa_gradient_off": [72, 89, 79, 91, 61]
+  },
+  "per_rate": {
+    "0.0": {
+      "with_jepa": [66.5660, 67.1508, 67.3429, 66.0065, 67.2596],
+      "jepa_gradient_off": [64.4832, 65.2233, 64.6620, 66.5927, 64.8422],
+      "delta": [2.0827, 1.9275, 2.6809, -0.5862, 2.4174],
+      "with_mean": 66.8652,
+      "gradient_off_mean": 65.1607,
+      "mean_delta": 1.7045,
+      "positive_seeds": 4
+    },
+    "0.1": {
+      "with_jepa": [66.2141, 66.9440, 66.7283, 65.4757, 68.4670],
+      "jepa_gradient_off": [65.1498, 65.2369, 64.1731, 64.6052, 63.3257],
+      "delta": [1.0643, 1.7070, 2.5552, 0.8706, 5.1413],
+      "with_mean": 66.7658,
+      "gradient_off_mean": 64.4981,
+      "mean_delta": 2.2677,
+      "positive_seeds": 5
+    },
+    "0.2": {
+      "with_jepa": [65.3690, 65.5566, 66.7799, 65.4543, 64.8522],
+      "jepa_gradient_off": [62.6075, 64.6427, 63.7239, 65.0704, 62.2103],
+      "delta": [2.7615, 0.9139, 3.0559, 0.3839, 2.6419],
+      "with_mean": 65.6024,
+      "gradient_off_mean": 63.6510,
+      "mean_delta": 1.9514,
+      "positive_seeds": 5
+    },
+    "0.3": {
+      "with_jepa": [64.5829, 66.5698, 66.4304, 64.8707, 66.2651],
+      "jepa_gradient_off": [64.0600, 62.8807, 63.6775, 64.0819, 65.7237],
+      "delta": [0.5229, 3.6891, 2.7529, 0.7888, 0.5414],
+      "with_mean": 65.7438,
+      "gradient_off_mean": 64.0848,
+      "mean_delta": 1.6590,
+      "positive_seeds": 5
+    },
+    "0.4": {
+      "with_jepa": [64.0536, 65.1973, 63.6754, 62.5528, 60.0360],
+      "jepa_gradient_off": [63.2222, 64.5628, 62.4070, 62.6701, 62.8611],
+      "delta": [0.8314, 0.6345, 1.2684, -0.1172, -2.8251],
+      "with_mean": 63.1030,
+      "gradient_off_mean": 63.1446,
+      "mean_delta": -0.0416,
+      "positive_seeds": 3
+    },
+    "0.5": {
+      "with_jepa": [63.5178, 63.8077, 62.1758, 62.5157, 62.9630],
+      "jepa_gradient_off": [62.5971, 60.5411, 62.8522, 63.6447, 60.8159],
+      "delta": [0.9207, 3.2666, -0.6764, -1.1290, 2.1472],
+      "with_mean": 62.9960,
+      "gradient_off_mean": 62.0902,
+      "mean_delta": 0.9058,
+      "positive_seeds": 3
+    },
+    "0.6": {
+      "with_jepa": [61.6853, 63.2242, 60.0723, 61.8485, 58.2319],
+      "jepa_gradient_off": [63.9674, 62.3657, 59.6542, 61.8675, 61.3926],
+      "delta": [-2.2821, 0.8585, 0.4182, -0.0190, -3.1607],
+      "with_mean": 61.0125,
+      "gradient_off_mean": 61.8495,
+      "mean_delta": -0.8370,
+      "positive_seeds": 2
+    },
+    "0.7": {
+      "with_jepa": [60.9503, 61.7302, 61.7905, 61.0861, 58.3704],
+      "jepa_gradient_off": [61.3897, 59.3581, 59.8868, 63.4607, 59.8336],
+      "delta": [-0.4394, 2.3721, 1.9037, -2.3746, -1.4632],
+      "with_mean": 60.7855,
+      "gradient_off_mean": 60.7858,
+      "mean_delta": -0.0003,
+      "positive_seeds": 2
+    }
+  },
+  "per_seed": {
+    "66": {"eight_rate_delta": 0.6828, "high_missing_delta": -0.2424, "miss0_delta": 2.0827},
+    "67": {"eight_rate_delta": 1.9211, "high_missing_delta": 1.7829, "miss0_delta": 1.9275},
+    "68": {"eight_rate_delta": 1.7448, "high_missing_delta": 0.7285, "miss0_delta": 2.6809},
+    "69": {"eight_rate_delta": -0.2728, "high_missing_delta": -0.9099, "miss0_delta": -0.5862},
+    "70": {"eight_rate_delta": 0.6800, "high_missing_delta": -1.3255, "miss0_delta": 2.4174}
+  },
+  "miss0": {
+    "with_jepa_mean": 66.8652,
+    "jepa_gradient_off_mean": 65.1607,
+    "delta": 1.7045,
+    "positive_seeds": 4
+  },
+  "eight_rate": {
+    "with_jepa_mean": 64.1093,
+    "jepa_gradient_off_mean": 63.1581,
+    "delta": 0.9512,
+    "positive_seeds": 4
+  },
+  "high_missing_0p4_to_0p7": {
+    "with_jepa_mean": 61.9742,
+    "jepa_gradient_off_mean": 61.9675,
+    "delta": 0.0067,
+    "positive_seeds": 2
+  },
+  "gate": {
+    "criteria": "positive eight-rate and high-missing mean deltas, each with at least 3/5 positive seed aggregates",
+    "eight_rate_mean_positive": true,
+    "eight_rate_positive_seeds_at_least_3": true,
+    "high_missing_mean_positive": true,
+    "high_missing_positive_seeds_at_least_3": false,
+    "passed": false,
+    "mosei_gradient_off_launched": false
+  },
+  "provenance": {
+    "with_jepa_results": "experiments/missing_m3_iemocap_current_20260831/results/formal/IEMOCAPSix",
+    "gradient_off_results": "experiments/missing_m3_iemocap6_jepa_ablation_20260902/results/formal/IEMOCAPSix",
+    "gradient_off_remote_root": "/data2/yb/remote_experiments/missing_m3_iemocap6_no_jepa_20260902/formal",
+    "with_jepa_model_sha256": "c85f2d6264631a797b3a6b316dd13b5c77ffe92fe2d863b1ac05759439d5554d",
+    "gradient_off_model_sha256": "c85f2d6264631a797b3a6b316dd13b5c77ffe92fe2d863b1ac05759439d5554d",
+    "source_version_note": "The inherited run predates later optional trainer branches. Normalized configs differ only in jepa_weight and the model source is byte-identical, but the producer trainer source was not archived, so byte-identical trainer provenance is not claimed."
+  }
+}
