@@ -1,0 +1,877 @@
+{
+  "schema_version": "matched-original-gcnet-three-arm-v1",
+  "status": "complete",
+  "dataset": "IEMOCAPSix",
+  "fold": 5,
+  "seeds": [
+    66,
+    67,
+    68,
+    69,
+    70
+  ],
+  "missing_rates": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7
+  ],
+  "metric": "weighted_f1",
+  "protocol": {
+    "train_rate_mode": "stratified",
+    "source_conversations_per_epoch": 120,
+    "masked_views_per_epoch": 120,
+    "model_forwards_per_epoch": 4,
+    "optimizer_steps_per_epoch": 4,
+    "conversations_per_requested_rate_per_epoch": 15,
+    "epochs": 100,
+    "checkpoint_selection": "mean validation weighted_f1 across all eight rates",
+    "evaluation": "one validation-selected checkpoint tested at all eight rates"
+  },
+  "source_by_arm": {
+    "with_jepa": {
+      "commit": "6c5346b8cad453920689b2806562eb578f47b424",
+      "files_sha256": {
+        "gcnet_missing_m3/mixed_rate.py": "0d3e9af0b3c35c0fde4a148851390cf47850a50d9bdb0737a6997dc9438b22c1",
+        "gcnet_missing_m3/train_gcnet.py": "3a3352c4d0e77ca7163aa328f4300005d3b63ed538096c418ca440f524f7bb90",
+        "scripts/run_missing_m3_iemocap_current.py": "4430c1c7f1fef16bb715cba06046be76408ac744132c8069584ca74c10bea7f7"
+      }
+    },
+    "jepa_gradient_off": {
+      "commit": "6c5346b8cad453920689b2806562eb578f47b424",
+      "files_sha256": {
+        "gcnet_missing_m3/mixed_rate.py": "0d3e9af0b3c35c0fde4a148851390cf47850a50d9bdb0737a6997dc9438b22c1",
+        "gcnet_missing_m3/train_gcnet.py": "3a3352c4d0e77ca7163aa328f4300005d3b63ed538096c418ca440f524f7bb90",
+        "scripts/run_missing_m3_iemocap_current.py": "4430c1c7f1fef16bb715cba06046be76408ac744132c8069584ca74c10bea7f7"
+      }
+    },
+    "original_gcnet": {
+      "commit": "08c3af478f0b72d9f3a6b06d951281ecfbc88e31",
+      "files_sha256": {
+        "gcnet_original_stratified/model.py": "9684576e179a70fba7c101bfdef070301e9d87c1f51e32c634b9c097272b4fa0",
+        "gcnet_original_stratified/train_gcnet.py": "609ce4d75c1d9e29b632e30ce8cb6d321dd3823fc17bcfb523dd955f65f6aede",
+        "gcnet_missing_m3/mixed_rate.py": "0d3e9af0b3c35c0fde4a148851390cf47850a50d9bdb0737a6997dc9438b22c1",
+        "gcnet_modality_jepa/loss.py": "f9142f754caaf5938a904cc689af3289956a55cd97d15356080f070bda88cc8a",
+        "scripts/run_missing_m3_iemocap_current.py": "45fce0009cf76bcc13a9ad29f2f0e7f34ff820f1f6b11371ca96f02c7f6db024"
+      }
+    }
+  },
+  "audit": {
+    "status": "PASS",
+    "jobs_by_arm": {
+      "with_jepa": 5,
+      "jepa_gradient_off": 5,
+      "original_gcnet": 5
+    },
+    "total_jobs": 15,
+    "histories": 15,
+    "epochs": 1500,
+    "prediction_npz": 120,
+    "independently_recomputed_npz_bundles": 120,
+    "independently_recomputed_metric_values": 360,
+    "paired_assignment_hashes_by_comparison": {
+      "with_jepa_vs_jepa_gradient_off": 500,
+      "with_jepa_vs_original_gcnet": 500,
+      "jepa_gradient_off_vs_original_gcnet": 500
+    },
+    "paired_test_mask_hashes_by_comparison": {
+      "with_jepa_vs_jepa_gradient_off": 40,
+      "with_jepa_vs_original_gcnet": 40,
+      "jepa_gradient_off_vs_original_gcnet": 40
+    },
+    "paired_validation_mask_hashes": null,
+    "paired_labels_by_comparison": {
+      "with_jepa_vs_jepa_gradient_off": 40,
+      "with_jepa_vs_original_gcnet": 40,
+      "jepa_gradient_off_vs_original_gcnet": 40
+    },
+    "paired_availability_by_comparison": {
+      "with_jepa_vs_jepa_gradient_off": 40,
+      "with_jepa_vs_original_gcnet": 40,
+      "jepa_gradient_off_vs_original_gcnet": 40
+    },
+    "collapse_diagnostics_by_arm": {
+      "with_jepa": {
+        "minimum_predicted_unique_class_count": 6,
+        "maximum_predicted_unique_class_count": 6,
+        "maximum_single_class_fraction": 0.34319162045594576
+      },
+      "jepa_gradient_off": {
+        "minimum_predicted_unique_class_count": 6,
+        "maximum_predicted_unique_class_count": 6,
+        "maximum_single_class_fraction": 0.32963647566235366
+      },
+      "original_gcnet": {
+        "minimum_predicted_unique_class_count": 6,
+        "maximum_predicted_unique_class_count": 6,
+        "maximum_single_class_fraction": 0.3203943314849045
+      }
+    },
+    "runner_failures_by_arm": {
+      "with_jepa": 0,
+      "jepa_gradient_off": 0,
+      "original_gcnet": 0
+    },
+    "validation_mask_hash_note": "Original persists validation hashes, but the two older Missing-M3 arms do not; three-arm validation artifact-level pairing is therefore not counted."
+  },
+  "sampling_totals_by_arm": {
+    "with_jepa": {
+      "0.0": {
+        "conversations": 7500,
+        "valid_utterances": 362354,
+        "missing_modalities": 0,
+        "modality_elements": 1087062,
+        "realized_missing_fraction": 0.0,
+        "jepa_targets": 0,
+        "reconstruction_targets": 0
+      },
+      "0.1": {
+        "conversations": 7500,
+        "valid_utterances": 364312,
+        "missing_modalities": 108557,
+        "modality_elements": 1092936,
+        "realized_missing_fraction": 0.09932603555926423,
+        "jepa_targets": 108557,
+        "reconstruction_targets": 0
+      },
+      "0.2": {
+        "conversations": 7500,
+        "valid_utterances": 364245,
+        "missing_modalities": 215783,
+        "modality_elements": 1092735,
+        "realized_missing_fraction": 0.1974705669718642,
+        "jepa_targets": 215783,
+        "reconstruction_targets": 0
+      },
+      "0.3": {
+        "conversations": 7500,
+        "valid_utterances": 362434,
+        "missing_modalities": 316564,
+        "modality_elements": 1087302,
+        "realized_missing_fraction": 0.2911463420466439,
+        "jepa_targets": 316564,
+        "reconstruction_targets": 0
+      },
+      "0.4": {
+        "conversations": 7500,
+        "valid_utterances": 365070,
+        "missing_modalities": 415309,
+        "modality_elements": 1095210,
+        "realized_missing_fraction": 0.3792049013431214,
+        "jepa_targets": 415309,
+        "reconstruction_targets": 0
+      },
+      "0.5": {
+        "conversations": 7500,
+        "valid_utterances": 363206,
+        "missing_modalities": 498505,
+        "modality_elements": 1089618,
+        "realized_missing_fraction": 0.4575043730922213,
+        "jepa_targets": 498505,
+        "reconstruction_targets": 0
+      },
+      "0.6": {
+        "conversations": 7500,
+        "valid_utterances": 362680,
+        "missing_modalities": 575116,
+        "modality_elements": 1088040,
+        "realized_missing_fraction": 0.5285798316238374,
+        "jepa_targets": 575116,
+        "reconstruction_targets": 0
+      },
+      "0.7": {
+        "conversations": 7500,
+        "valid_utterances": 360699,
+        "missing_modalities": 634190,
+        "modality_elements": 1082097,
+        "realized_missing_fraction": 0.5860750006699954,
+        "jepa_targets": 634190,
+        "reconstruction_targets": 0
+      }
+    },
+    "jepa_gradient_off": {
+      "0.0": {
+        "conversations": 7500,
+        "valid_utterances": 362354,
+        "missing_modalities": 0,
+        "modality_elements": 1087062,
+        "realized_missing_fraction": 0.0,
+        "jepa_targets": 0,
+        "reconstruction_targets": 0
+      },
+      "0.1": {
+        "conversations": 7500,
+        "valid_utterances": 364312,
+        "missing_modalities": 108557,
+        "modality_elements": 1092936,
+        "realized_missing_fraction": 0.09932603555926423,
+        "jepa_targets": 108557,
+        "reconstruction_targets": 0
+      },
+      "0.2": {
+        "conversations": 7500,
+        "valid_utterances": 364245,
+        "missing_modalities": 215783,
+        "modality_elements": 1092735,
+        "realized_missing_fraction": 0.1974705669718642,
+        "jepa_targets": 215783,
+        "reconstruction_targets": 0
+      },
+      "0.3": {
+        "conversations": 7500,
+        "valid_utterances": 362434,
+        "missing_modalities": 316564,
+        "modality_elements": 1087302,
+        "realized_missing_fraction": 0.2911463420466439,
+        "jepa_targets": 316564,
+        "reconstruction_targets": 0
+      },
+      "0.4": {
+        "conversations": 7500,
+        "valid_utterances": 365070,
+        "missing_modalities": 415309,
+        "modality_elements": 1095210,
+        "realized_missing_fraction": 0.3792049013431214,
+        "jepa_targets": 415309,
+        "reconstruction_targets": 0
+      },
+      "0.5": {
+        "conversations": 7500,
+        "valid_utterances": 363206,
+        "missing_modalities": 498505,
+        "modality_elements": 1089618,
+        "realized_missing_fraction": 0.4575043730922213,
+        "jepa_targets": 498505,
+        "reconstruction_targets": 0
+      },
+      "0.6": {
+        "conversations": 7500,
+        "valid_utterances": 362680,
+        "missing_modalities": 575116,
+        "modality_elements": 1088040,
+        "realized_missing_fraction": 0.5285798316238374,
+        "jepa_targets": 575116,
+        "reconstruction_targets": 0
+      },
+      "0.7": {
+        "conversations": 7500,
+        "valid_utterances": 360699,
+        "missing_modalities": 634190,
+        "modality_elements": 1082097,
+        "realized_missing_fraction": 0.5860750006699954,
+        "jepa_targets": 634190,
+        "reconstruction_targets": 0
+      }
+    },
+    "original_gcnet": {
+      "0.0": {
+        "conversations": 7500,
+        "valid_utterances": 362354,
+        "missing_modalities": 0,
+        "modality_elements": 1087062,
+        "realized_missing_fraction": 0.0,
+        "jepa_targets": 0,
+        "reconstruction_targets": 0
+      },
+      "0.1": {
+        "conversations": 7500,
+        "valid_utterances": 364312,
+        "missing_modalities": 108557,
+        "modality_elements": 1092936,
+        "realized_missing_fraction": 0.09932603555926423,
+        "jepa_targets": 0,
+        "reconstruction_targets": 108557
+      },
+      "0.2": {
+        "conversations": 7500,
+        "valid_utterances": 364245,
+        "missing_modalities": 215783,
+        "modality_elements": 1092735,
+        "realized_missing_fraction": 0.1974705669718642,
+        "jepa_targets": 0,
+        "reconstruction_targets": 215783
+      },
+      "0.3": {
+        "conversations": 7500,
+        "valid_utterances": 362434,
+        "missing_modalities": 316564,
+        "modality_elements": 1087302,
+        "realized_missing_fraction": 0.2911463420466439,
+        "jepa_targets": 0,
+        "reconstruction_targets": 316564
+      },
+      "0.4": {
+        "conversations": 7500,
+        "valid_utterances": 365070,
+        "missing_modalities": 415309,
+        "modality_elements": 1095210,
+        "realized_missing_fraction": 0.3792049013431214,
+        "jepa_targets": 0,
+        "reconstruction_targets": 415309
+      },
+      "0.5": {
+        "conversations": 7500,
+        "valid_utterances": 363206,
+        "missing_modalities": 498505,
+        "modality_elements": 1089618,
+        "realized_missing_fraction": 0.4575043730922213,
+        "jepa_targets": 0,
+        "reconstruction_targets": 498505
+      },
+      "0.6": {
+        "conversations": 7500,
+        "valid_utterances": 362680,
+        "missing_modalities": 575116,
+        "modality_elements": 1088040,
+        "realized_missing_fraction": 0.5285798316238374,
+        "jepa_targets": 0,
+        "reconstruction_targets": 575116
+      },
+      "0.7": {
+        "conversations": 7500,
+        "valid_utterances": 360699,
+        "missing_modalities": 634190,
+        "modality_elements": 1082097,
+        "realized_missing_fraction": 0.5860750006699954,
+        "jepa_targets": 0,
+        "reconstruction_targets": 634190
+      }
+    }
+  },
+  "sampling_totals_equal_across_arms": true,
+  "arms": {
+    "with_jepa": {
+      "best_epochs": [
+        94,
+        100,
+        76,
+        98,
+        97
+      ],
+      "parameter_count": [
+        32212238,
+        32212238,
+        32212238,
+        32212238,
+        32212238
+      ],
+      "trainable_parameter_count": [
+        31352078,
+        31352078,
+        31352078,
+        31352078,
+        31352078
+      ],
+      "weighted_f1_by_seed_and_rate": {
+        "66": [
+          0.6796964590750971,
+          0.6643019680782832,
+          0.6716358745924209,
+          0.6695841830589494,
+          0.6785210862726264,
+          0.6586102939312641,
+          0.6454686294765956,
+          0.630475864765103
+        ],
+        "67": [
+          0.6479524007889201,
+          0.6541618576140182,
+          0.6425694364331049,
+          0.646320033250699,
+          0.6307736419844794,
+          0.6266241804710677,
+          0.6047491425856703,
+          0.6035236079877824
+        ],
+        "68": [
+          0.6508298384536585,
+          0.6642311943729157,
+          0.6542194041106342,
+          0.6444508342400523,
+          0.6462560695730205,
+          0.6467999763776822,
+          0.6313567236977768,
+          0.6357758611447831
+        ],
+        "69": [
+          0.6441045182535029,
+          0.647328689670212,
+          0.6358806448289236,
+          0.6433589426243647,
+          0.6277086643087206,
+          0.6478427544643681,
+          0.6247021453159921,
+          0.6162583976679327
+        ],
+        "70": [
+          0.665404128408499,
+          0.6587153383034585,
+          0.668324332978818,
+          0.6615822124592716,
+          0.643066404683654,
+          0.6263502765222915,
+          0.6178155449325429,
+          0.5928523919378205
+        ]
+      },
+      "mean_by_rate": [
+        0.6575974689959355,
+        0.6577478096077776,
+        0.6545259385887803,
+        0.6530592411266675,
+        0.6452651733645001,
+        0.6412454963533347,
+        0.6248184372017155,
+        0.6157772247006843
+      ],
+      "sample_std_by_rate": [
+        0.014749552343334887,
+        0.0071997308113084316,
+        0.01560324072402921,
+        0.011825101787685578,
+        0.020186676883062034,
+        0.01424396986263899,
+        0.015174075273439563,
+        0.017971686666413415
+      ],
+      "mean_eight_rate_by_seed": {
+        "66": 0.6622867949062925,
+        "67": 0.6320842876394678,
+        "68": 0.6467399877463154,
+        "69": 0.6358980946417521,
+        "70": 0.6417638287782945
+      },
+      "mean_high_rate_0p4_to_0p7_by_seed": {
+        "66": 0.6532689686113973,
+        "67": 0.6164176432572499,
+        "68": 0.6400471576983157,
+        "69": 0.6291279904392534,
+        "70": 0.6200211545190772
+      },
+      "overall_mean": 0.6437545987424244,
+      "high_rate_mean_0p4_to_0p7": 0.6317765829050587
+    },
+    "jepa_gradient_off": {
+      "best_epochs": [
+        68,
+        81,
+        95,
+        94,
+        78
+      ],
+      "parameter_count": [
+        32212238,
+        32212238,
+        32212238,
+        32212238,
+        32212238
+      ],
+      "trainable_parameter_count": [
+        31352078,
+        31352078,
+        31352078,
+        31352078,
+        31352078
+      ],
+      "weighted_f1_by_seed_and_rate": {
+        "66": [
+          0.6542902841866556,
+          0.6529702197854462,
+          0.650634879415486,
+          0.6406211055564098,
+          0.6536199691123544,
+          0.6296743065797195,
+          0.6310541463477737,
+          0.6031968032223967
+        ],
+        "67": [
+          0.6545809372823211,
+          0.6496531292764529,
+          0.657213707680151,
+          0.6784257224378837,
+          0.6644609169664504,
+          0.6345685458018584,
+          0.6249608302329445,
+          0.5901046448851779
+        ],
+        "68": [
+          0.6702890003680596,
+          0.6598559503173301,
+          0.6521790021267952,
+          0.6422805898143681,
+          0.6550484153984598,
+          0.6385575386323368,
+          0.6232695007835979,
+          0.6319273177899495
+        ],
+        "69": [
+          0.6756713881338434,
+          0.6834848534181435,
+          0.6614991419048234,
+          0.6583292232091705,
+          0.6486622458827616,
+          0.654496972199133,
+          0.6384419595107705,
+          0.6369725135937025
+        ],
+        "70": [
+          0.6397790528096676,
+          0.641663987958452,
+          0.6182177471160263,
+          0.6315917511742072,
+          0.6082201074961145,
+          0.6154681744040957,
+          0.5932261757215352,
+          0.5813728139508838
+        ]
+      },
+      "mean_by_rate": [
+        0.6589221325561094,
+        0.6575256281511649,
+        0.6479488956486563,
+        0.6502496784384079,
+        0.6460023309712282,
+        0.6345531075234287,
+        0.6221905225193243,
+        0.6087148186884221
+      ],
+      "sample_std_by_rate": [
+        0.014287238572971393,
+        0.015918789145014652,
+        0.017164610527645775,
+        0.018462817622190736,
+        0.021881219169168693,
+        0.014158308654876384,
+        0.017251414550731155,
+        0.02480770909735592
+      ],
+      "mean_eight_rate_by_seed": {
+        "66": 0.6395077142757801,
+        "67": 0.6442460543204049,
+        "68": 0.6466759144038621,
+        "69": 0.6571947872315436,
+        "70": 0.6161924763288729
+      },
+      "mean_high_rate_0p4_to_0p7_by_seed": {
+        "66": 0.629386306315561,
+        "67": 0.6285237344716078,
+        "68": 0.637200693151086,
+        "69": 0.644643422796592,
+        "70": 0.5995718178931573
+      },
+      "overall_mean": 0.6407633893120928,
+      "high_rate_mean_0p4_to_0p7": 0.6278651949256008
+    },
+    "original_gcnet": {
+      "best_epochs": [
+        95,
+        98,
+        100,
+        80,
+        98
+      ],
+      "parameter_count": [
+        34140166,
+        34140166,
+        34140166,
+        34140166,
+        34140166
+      ],
+      "trainable_parameter_count": [
+        34140166,
+        34140166,
+        34140166,
+        34140166,
+        34140166
+      ],
+      "weighted_f1_by_seed_and_rate": {
+        "66": [
+          0.6430854304142275,
+          0.6303196882714319,
+          0.6514485963337326,
+          0.6429561130592938,
+          0.6216631938630396,
+          0.6601398182264199,
+          0.5978014855629824,
+          0.6137262231612947
+        ],
+        "67": [
+          0.6000402126604226,
+          0.6016584025373468,
+          0.5923207484349416,
+          0.6258978085453668,
+          0.6164038253094943,
+          0.5749409548609606,
+          0.5813575606421463,
+          0.5478941483458035
+        ],
+        "68": [
+          0.6136619730494979,
+          0.6149352808107375,
+          0.6112225823594218,
+          0.5927609729241561,
+          0.5962750560020313,
+          0.5939251898407008,
+          0.565489975970796,
+          0.5865722810951854
+        ],
+        "69": [
+          0.6123095189890184,
+          0.610766438692864,
+          0.627987622970463,
+          0.6064642755583756,
+          0.6109418398763243,
+          0.6003323174492314,
+          0.5729702089859255,
+          0.5825315402954377
+        ],
+        "70": [
+          0.6524445775468923,
+          0.6482582256795688,
+          0.6328152578783761,
+          0.6238606110738587,
+          0.6199450695949935,
+          0.6299328368773588,
+          0.6062276605654464,
+          0.6047998634139357
+        ]
+      },
+      "mean_by_rate": [
+        0.6243083425320117,
+        0.6211876071983898,
+        0.6231589615953871,
+        0.6183879562322102,
+        0.6130457969291767,
+        0.6118542234509343,
+        0.5847693783454593,
+        0.5871048112623314
+      ],
+      "sample_std_by_rate": [
+        0.02230743052879161,
+        0.018339134812262584,
+        0.022418385325458198,
+        0.019292865241743375,
+        0.010232548978159483,
+        0.033448202075556294,
+        0.016976822051707786,
+        0.025399256505906742
+      ],
+      "mean_eight_rate_by_seed": {
+        "66": 0.6326425686115529,
+        "67": 0.5925642076670603,
+        "68": 0.5968554140065658,
+        "69": 0.603037970352205,
+        "70": 0.6272855128288037
+      },
+      "mean_high_rate_0p4_to_0p7_by_seed": {
+        "66": 0.6233326802034341,
+        "67": 0.5801491222896011,
+        "68": 0.5855656257271784,
+        "69": 0.5916939766517297,
+        "70": 0.6152263576129336
+      },
+      "overall_mean": 0.6104771346932376,
+      "high_rate_mean_0p4_to_0p7": 0.5991935524969755
+    }
+  },
+  "pairwise_effects": {
+    "with_jepa_minus_jepa_gradient_off": {
+      "left_arm": "with_jepa",
+      "right_arm": "jepa_gradient_off",
+      "mean_delta_by_rate": [
+        -0.001324663560173933,
+        0.00022218145661256905,
+        0.0065770429401239335,
+        0.002809562688259537,
+        -0.0007371576067279672,
+        0.006692388829906038,
+        0.002627914682391164,
+        0.007062406012262245
+      ],
+      "positive_seed_count_by_rate": [
+        2,
+        4,
+        3,
+        3,
+        2,
+        3,
+        3,
+        4
+      ],
+      "mean_eight_rate_delta_by_seed": {
+        "66": 0.022779080630512233,
+        "67": -0.012161766680937228,
+        "68": 6.407334245328578e-05,
+        "69": -0.021296692589791485,
+        "70": 0.025571352449421686
+      },
+      "high_rate_delta_by_seed": {
+        "66": 0.023882662295836216,
+        "67": -0.01210609121435785,
+        "68": 0.0028464645472296712,
+        "69": -0.015515432357338543,
+        "70": 0.020449336625919856
+      },
+      "overall": {
+        "mean": 0.002991209430331698,
+        "sample_std": 0.020793663101064248,
+        "positive_seeds": 3,
+        "95_percent_t_interval": [
+          -0.022827533433037867,
+          0.028809952293701264
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.7638157094490063,
+        "cohen_dz": 0.14385197142963252
+      },
+      "high_rate_0p4_to_0p7": {
+        "mean": 0.0039113879794578695,
+        "sample_std": 0.018079343138593572,
+        "positive_seeds": 3,
+        "95_percent_t_interval": [
+          -0.018537081506906056,
+          0.026359857465821798
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.6538443129155993,
+        "cohen_dz": 0.21634569074073917
+      }
+    },
+    "with_jepa_minus_original_gcnet": {
+      "left_arm": "with_jepa",
+      "right_arm": "original_gcnet",
+      "mean_delta_by_rate": [
+        0.03328912646392379,
+        0.03656020240938773,
+        0.03136697699339328,
+        0.03467128489445721,
+        0.032219376435323556,
+        0.02939127290240042,
+        0.0400490588562562,
+        0.028672413438352917
+      ],
+      "positive_seed_count_by_rate": [
+        5,
+        5,
+        5,
+        5,
+        5,
+        3,
+        5,
+        4
+      ],
+      "mean_eight_rate_delta_by_seed": {
+        "66": 0.029644226294739673,
+        "67": 0.03952007997240742,
+        "68": 0.04988457373974957,
+        "69": 0.032860124289547085,
+        "70": 0.0144783159494907
+      },
+      "high_rate_delta_by_seed": {
+        "66": 0.02993628840796314,
+        "67": 0.03626852096764874,
+        "68": 0.05448153197113728,
+        "69": 0.03743401378752362,
+        "70": 0.004794796906143595
+      },
+      "overall": {
+        "mean": 0.03327746404918689,
+        "sample_std": 0.013053245804864543,
+        "positive_seeds": 5,
+        "95_percent_t_interval": [
+          0.01706971867358224,
+          0.04948520942479154
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.004680101076522757,
+        "cohen_dz": 2.549363165810101
+      },
+      "high_rate_0p4_to_0p7": {
+        "mean": 0.032583030408083274,
+        "sample_std": 0.01799896118872457,
+        "positive_seeds": 5,
+        "95_percent_t_interval": [
+          0.010234368294977106,
+          0.05493169252118944
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.015502645177990493,
+        "cohen_dz": 1.8102728299950375
+      }
+    },
+    "jepa_gradient_off_minus_original_gcnet": {
+      "left_arm": "jepa_gradient_off",
+      "right_arm": "original_gcnet",
+      "mean_delta_by_rate": [
+        0.03461379002409772,
+        0.03633802095277516,
+        0.024789934053269347,
+        0.03186172220619767,
+        0.032956534042051525,
+        0.022698884072494385,
+        0.03742114417386504,
+        0.02161000742609067
+      ],
+      "positive_seed_count_by_rate": [
+        4,
+        4,
+        3,
+        4,
+        4,
+        3,
+        4,
+        3
+      ],
+      "mean_eight_rate_delta_by_seed": {
+        "66": 0.00686514566422744,
+        "67": 0.051681846653344646,
+        "68": 0.04982050039729628,
+        "69": 0.05415681687933857,
+        "70": -0.011093036499930986
+      },
+      "high_rate_delta_by_seed": {
+        "66": 0.006053626112126925,
+        "67": 0.04837461218200659,
+        "68": 0.05163506742390761,
+        "69": 0.05294944614486216,
+        "70": -0.01565453971977626
+      },
+      "overall": {
+        "mean": 0.03028625461885519,
+        "sample_std": 0.030290080626453712,
+        "positive_seeds": 4,
+        "95_percent_t_interval": [
+          -0.007323847997701773,
+          0.06789635723541215
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.08903724297280398,
+        "cohen_dz": 0.9998736877710659
+      },
+      "high_rate_0p4_to_0p7": {
+        "mean": 0.028671642428625403,
+        "sample_std": 0.03154886188061068,
+        "positive_seeds": 4,
+        "95_percent_t_interval": [
+          -0.01050144355283205,
+          0.06784472841008285
+        ],
+        "paired_t_test_two_sided_unadjusted_p_value": 0.11193963090681085,
+        "cohen_dz": 0.9088011649081529
+      }
+    }
+  },
+  "existing_jepa_directional_gate": {
+    "requirements": {
+      "overall_mean_delta_positive": true,
+      "high_rate_mean_delta_positive": true,
+      "overall_positive_seeds_at_least_3_of_5": true,
+      "high_rate_positive_seeds_at_least_3_of_5": true
+    },
+    "passed": true
+  },
+  "matched_original_comparison": {
+    "preregistered_gate": null,
+    "status": "descriptive paired comparison; no post-hoc pass/fail gate"
+  },
+  "conclusion": "Under the matched equal-budget stratified protocol, both Missing-M3 arms outperform matched Original GCNet descriptively; JEPA adds a smaller incremental effect inside the Missing-M3 architecture. Statistical uncertainty is reported from five paired seeds."
+}
