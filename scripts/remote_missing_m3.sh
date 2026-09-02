@@ -47,7 +47,7 @@ sync_paths() {
         echo "sync requires at least one repository-relative path" >&2
         exit 2
     fi
-    local path parent
+    local path parent source destination
     for path in "$@"; do
         if [[ "$path" = /* || "$path" == *".."* || ! -e "$path" ]]; then
             echo "refusing unsafe or missing sync path: $path" >&2
@@ -55,7 +55,13 @@ sync_paths() {
         fi
         parent="$(dirname "$path")"
         ssh "$REMOTE_HOST" "mkdir -p $(printf '%q' "$REMOTE_ROOT/$parent")"
-        rsync -a "$path" "$REMOTE_HOST:$REMOTE_ROOT/$path"
+        source="$path"
+        destination="$REMOTE_HOST:$REMOTE_ROOT/$path"
+        if [[ -d "$path" ]]; then
+            source="$path/"
+            destination="$destination/"
+        fi
+        rsync -a "$source" "$destination"
     done
 }
 
@@ -102,4 +108,3 @@ case "$command" in
         exit 2
         ;;
 esac
-
