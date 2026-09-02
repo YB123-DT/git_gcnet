@@ -29,6 +29,7 @@ from gcnet_missing_m3.model import (
     DualGateTopKMMoE,
     LocalContextResidualFusion,
     MissingLatentResidualFusion,
+    MissingM3Predictions,
     MissingM3GraphModel,
     ObservedSetEncoder,
     RawResidualObservedEncoder,
@@ -2553,7 +2554,7 @@ class _LifecycleModel(torch.nn.Module):
         lengths,
         predict_missing,
     ):
-        del features, qmask, umask, lengths
+        del features, qmask, lengths
         self.predict_missing_flags.append(predict_missing)
         if availability.ndim == 3 and availability.shape[1] == 1:
             rate_index = int(availability.eq(0).sum().item())
@@ -2565,7 +2566,22 @@ class _LifecycleModel(torch.nn.Module):
         if self.events is not None:
             self.events.append(("forward", rate))
         logits = (self.weight * (rate_index + 1)).reshape(1, 1, 1)
-        predictions = logits if predict_missing else None
+        if predict_missing:
+            target_mask = (
+                availability.eq(0)
+                & umask.transpose(0, 1).bool().unsqueeze(-1)
+            )
+            prediction_values = logits.reshape(1, 1, 1, 1).expand(
+                *availability.shape, 1
+            )
+            predictions = MissingM3Predictions(
+                reg_predictions=prediction_values,
+                cl_predictions=prediction_values,
+                target_mask=target_mask,
+                source_counts=torch.zeros_like(target_mask, dtype=torch.long),
+            )
+        else:
+            predictions = None
         return logits, None, None, predictions
 
     def encode_teacher_targets(self, complete):
@@ -2577,7 +2593,36 @@ class _LifecycleModel(torch.nn.Module):
         self.ema_calls += 1
 
 
-def _install_train_epoch_lifecycle_fakes(monkeypatch):
+class _FirstMissingTargetLifecycleModel(_LifecycleModel):
+    def forward(self, *args, **kwargs):
+        logits, reconstruction, latents, predictions = super().forward(
+            *args, **kwargs
+        )
+        if predictions is None:
+            return logits, reconstruction, latents, predictions
+        selected = torch.zeros_like(predictions.target_mask)
+        for conversation_index in range(selected.shape[1]):
+            indices = torch.nonzero(
+                predictions.target_mask[:, conversation_index],
+                as_tuple=False,
+            )
+            if indices.numel():
+                timestep, modality = indices[0].tolist()
+                selected[timestep, conversation_index, modality] = True
+        predictions = MissingM3Predictions(
+            reg_predictions=predictions.reg_predictions,
+            cl_predictions=predictions.cl_predictions,
+            target_mask=selected,
+            source_counts=predictions.source_counts,
+        )
+        return logits, reconstruction, latents, predictions
+
+
+def _lifecycle_prediction_marker(predictions):
+    return predictions.reg_predictions.reshape(-1)[0]
+
+
+def _install_train_epoch_lifecycle_fakes(monkeypatch, conversation_lengths=None):
     prepared_rates = []
     clipped_gradients = []
     events = []
@@ -2608,11 +2653,18 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
         assert len(conversation_rates) == batch_size
         prepared_rates.extend(conversation_rates)
         events.append(("prepare_stratified", tuple(conversation_rates)))
-        sequence_length = 4
-        umask = torch.ones(batch_size, sequence_length)
-        umask[:, -1] = 0
+        lengths = (
+            [3] * batch_size
+            if conversation_lengths is None
+            else list(conversation_lengths)
+        )
+        assert len(lengths) == batch_size
+        sequence_length = max(lengths) + 1
+        umask = torch.zeros(batch_size, sequence_length)
+        for batch_index, length in enumerate(lengths):
+            umask[batch_index, :length] = 1
         availability = torch.ones(sequence_length, batch_size, 3)
-        availability[-1] = 0
+        availability[~umask.transpose(0, 1).bool()] = 0
         for batch_index, rate in enumerate(conversation_rates):
             for missing_index in range(MISSING_RATES.index(rate)):
                 timestep, modality = divmod(missing_index, 3)
@@ -2624,7 +2676,7 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
             "qmask": torch.ones(sequence_length, batch_size),
             "umask": umask,
             "labels": torch.zeros(batch_size, sequence_length),
-            "lengths": [sequence_length - 1] * batch_size,
+            "lengths": lengths,
             "conversation_ids": list(conversation_ids),
         }
 
@@ -2639,8 +2691,9 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
         assert temperature == pytest.approx(0.03)
         assert regression_aggregation == "target"
         assert contrastive_prediction_source == "contrastive"
-        rate_index = int(predictions.detach().item()) - 1
-        zero = predictions.sum() * 0.0
+        marker = _lifecycle_prediction_marker(predictions)
+        rate_index = int(marker.detach().item()) - 1
+        zero = marker.sum() * 0.0
         return MissingM3Loss(
             total=zero,
             regression=zero,
@@ -2687,9 +2740,21 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
     return prepared_rates, clipped_gradients, events
 
 
+class _SizedLifecycleSampler:
+    def __init__(self, size):
+        self.size = int(size)
+
+    def __len__(self):
+        return self.size
+
+
 class _LifecycleLoader:
-    def __init__(self, conversation_ids):
-        self.dataset = tuple(conversation_ids)
+    def __init__(self, conversation_ids, dataset_size=None, sampler_size=None):
+        if dataset_size is None:
+            dataset_size = len(conversation_ids)
+        self.dataset = tuple(range(dataset_size))
+        if sampler_size is not None:
+            self.sampler = _SizedLifecycleSampler(sampler_size)
         self.batch = [None] * 9 + [list(conversation_ids)]
 
     def __iter__(self):
@@ -2741,6 +2806,20 @@ def test_stratified_train_uses_one_mixed_view_and_update_per_source_batch(monkey
             for rate_index, rate in enumerate(MISSING_RATES)
         }
     )
+    assert metrics["rate_valid_utterance_counts"] == {
+        str(rate): 12 for rate in MISSING_RATES
+    }
+    assert metrics["rate_missing_modality_counts"] == {
+        str(rate): 4 * rate_index
+        for rate_index, rate in enumerate(MISSING_RATES)
+    }
+    assert metrics["rate_modality_element_counts"] == {
+        str(rate): 36 for rate in MISSING_RATES
+    }
+    assert metrics["rate_jepa_target_counts"] == {
+        str(rate): 4 * rate_index
+        for rate_index, rate in enumerate(MISSING_RATES)
+    }
     assert metrics["rate_batch_counts"] == {
         str(rate): 0 for rate in MISSING_RATES
     }
@@ -2748,6 +2827,130 @@ def test_stratified_train_uses_one_mixed_view_and_update_per_source_batch(monkey
     assert len(assignment_hash) == 64
     assert int(assignment_hash, 16) >= 0
     assert metrics["stratified_rate_algorithm"] == STRATIFIED_RATE_ALGORITHM
+
+
+def test_stratified_train_uses_sampler_length_for_cross_epoch_stream_offset(
+    monkeypatch,
+):
+    prepared_rates, _, _ = _install_train_epoch_lifecycle_fakes(monkeypatch)
+    conversation_ids = [f"sampled-dialog-{index}" for index in range(5)]
+    loader = _LifecycleLoader(
+        conversation_ids,
+        dataset_size=6,
+        sampler_size=5,
+    )
+    config = TrainConfig(
+        train_rate_mode="stratified",
+        jepa_rate_weighting="uniform",
+    )
+    model = _LifecycleModel()
+    optimizer = _CountingOptimizer(model.weight)
+
+    for epoch in (0, 1):
+        expected = stratified_rates_for_batch(
+            MISSING_RATES,
+            master_seed=config.seed,
+            dataset=config.dataset,
+            fold=config.fold,
+            epoch=epoch,
+            batch_index=0,
+            epoch_size=5,
+            conversations_seen=0,
+            conversation_ids=conversation_ids,
+        )
+        offset = len(prepared_rates)
+        train_gcnet.train_epoch(
+            model=model,
+            loader=loader,
+            optimizer=optimizer,
+            config=config,
+            schedules={rate: rate for rate in MISSING_RATES},
+            epoch=epoch,
+            dimensions=(1, 1, 1),
+            device=torch.device("cpu"),
+        )
+
+        assert tuple(prepared_rates[offset:]) == expected.rates
+
+
+def test_stratified_train_rejects_sampler_and_yielded_conversation_mismatch(
+    monkeypatch,
+):
+    _install_train_epoch_lifecycle_fakes(monkeypatch)
+    model = _LifecycleModel()
+    optimizer = _CountingOptimizer(model.weight)
+    loader = _LifecycleLoader(
+        [f"sampled-dialog-{index}" for index in range(5)],
+        dataset_size=6,
+        sampler_size=6,
+    )
+
+    with pytest.raises(RuntimeError, match="expected 6.*observed 5"):
+        train_gcnet.train_epoch(
+            model=model,
+            loader=loader,
+            optimizer=optimizer,
+            config=TrainConfig(
+                train_rate_mode="stratified",
+                jepa_rate_weighting="uniform",
+            ),
+            schedules={rate: rate for rate in MISSING_RATES},
+            epoch=0,
+            dimensions=(1, 1, 1),
+            device=torch.device("cpu"),
+        )
+
+
+def test_stratified_train_reports_exact_per_rate_counts_for_unequal_lengths(
+    monkeypatch,
+):
+    lengths = [1, 2, 3]
+    prepared_rates, _, _ = _install_train_epoch_lifecycle_fakes(
+        monkeypatch,
+        conversation_lengths=lengths,
+    )
+    conversation_ids = [f"unequal-dialog-{index}" for index in range(3)]
+    model = _FirstMissingTargetLifecycleModel()
+    optimizer = _CountingOptimizer(model.weight)
+
+    metrics = train_gcnet.train_epoch(
+        model=model,
+        loader=_LifecycleLoader(
+            conversation_ids,
+            dataset_size=4,
+            sampler_size=3,
+        ),
+        optimizer=optimizer,
+        config=TrainConfig(
+            train_rate_mode="stratified",
+            jepa_rate_weighting="uniform",
+        ),
+        schedules={rate: rate for rate in MISSING_RATES},
+        epoch=0,
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+    )
+
+    expected_valid = {str(rate): 0 for rate in MISSING_RATES}
+    expected_missing = {str(rate): 0 for rate in MISSING_RATES}
+    expected_total = {str(rate): 0 for rate in MISSING_RATES}
+    expected_targets = {str(rate): 0 for rate in MISSING_RATES}
+    for rate, length in zip(prepared_rates, lengths):
+        key = str(rate)
+        missing = MISSING_RATES.index(rate)
+        expected_valid[key] += length
+        expected_missing[key] += missing
+        expected_total[key] += 3 * length
+        expected_targets[key] += int(missing > 0)
+
+    assert metrics["rate_valid_utterance_counts"] == expected_valid
+    assert metrics["rate_missing_modality_counts"] == expected_missing
+    assert metrics["rate_modality_element_counts"] == expected_total
+    assert metrics["rate_jepa_target_counts"] == expected_targets
+    assert any(
+        expected_missing[key] > expected_targets[key]
+        for key in expected_missing
+    )
 
 
 def test_stratified_rejects_sparsity_budget_weighting_before_training(monkeypatch):
@@ -2821,6 +3024,20 @@ def test_all_train_rate_mode_averages_eight_views_with_one_update_per_batch(monk
             for rate_index, rate in enumerate(MISSING_RATES)
         }
     )
+    assert metrics["rate_valid_utterance_counts"] == {
+        str(rate): 6 for rate in MISSING_RATES
+    }
+    assert metrics["rate_missing_modality_counts"] == {
+        str(rate): 2 * rate_index
+        for rate_index, rate in enumerate(MISSING_RATES)
+    }
+    assert metrics["rate_modality_element_counts"] == {
+        str(rate): 18 for rate in MISSING_RATES
+    }
+    assert metrics["rate_jepa_target_counts"] == {
+        str(rate): 2 * rate_index
+        for rate_index, rate in enumerate(MISSING_RATES)
+    }
 
 
 def test_fixed_train_rate_mode_uses_only_the_registered_rate_for_every_batch(
@@ -2890,6 +3107,9 @@ def test_emotion_only_training_skips_predictor_teacher_and_ema(monkeypatch):
     assert metrics["classification_loss"] == pytest.approx(1.0)
     assert metrics["jepa_loss"] == pytest.approx(0.0)
     assert metrics["jepa_target_count"] == 0
+    assert metrics["rate_jepa_target_counts"] == {
+        str(rate): 0 for rate in MISSING_RATES
+    }
 
 
 def test_frozen_completion_training_uses_emotion_loss_without_teacher_or_ema(
@@ -2931,7 +3151,7 @@ def test_jepa_only_training_skips_classification_loss(monkeypatch):
     ):
         del teacher, temperature, regression_aggregation
         assert contrastive_prediction_source == "regression"
-        total = predictions.sum()
+        total = _lifecycle_prediction_marker(predictions)
         return MissingM3Loss(total, total, total * 0.0, 1)
 
     monkeypatch.setattr(train_gcnet, "missing_m3_loss", active_jepa)
@@ -2980,7 +3200,7 @@ def test_jepa_only_complete_batch_skips_optimizer_and_ema(monkeypatch):
     ):
         del teacher, temperature, regression_aggregation
         del contrastive_prediction_source
-        zero = predictions.detach().sum() * 0.0
+        zero = _lifecycle_prediction_marker(predictions).detach() * 0.0
         return MissingM3Loss(zero, zero, zero, 0)
 
     monkeypatch.setattr(train_gcnet, "missing_m3_loss", empty_jepa)
@@ -3320,10 +3540,11 @@ def test_sparsity_jepa_weighting_changes_only_the_jepa_gradient(monkeypatch):
         assert temperature == pytest.approx(0.03)
         assert regression_aggregation == "target"
         assert contrastive_prediction_source == "contrastive"
-        rate_index = int(predictions.detach().item()) - 1
+        marker = _lifecycle_prediction_marker(predictions)
+        rate_index = int(marker.detach().item()) - 1
         active = float(rate_index > 0)
-        total = predictions.sum() * active
-        zero = predictions.sum() * 0.0
+        total = marker * active
+        zero = marker * 0.0
         return MissingM3Loss(
             total=total,
             regression=total,

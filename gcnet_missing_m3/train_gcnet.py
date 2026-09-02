@@ -758,9 +758,16 @@ def train_epoch(
         mmoe.reset_routing_statistics()
     rate_schedule = BalancedBatchRateSchedule()
     fixed_rate = _fixed_missing_rate(config)
-    epoch_size = (
-        len(loader.dataset) if config.train_rate_mode == "stratified" else None
-    )
+    epoch_size = None
+    if config.train_rate_mode == "stratified":
+        sampler = getattr(loader, "sampler", None)
+        if sampler is not None:
+            try:
+                epoch_size = len(sampler)
+            except TypeError:
+                epoch_size = None
+        if epoch_size is None:
+            epoch_size = len(loader.dataset)
     conversations_seen = 0
     losses: list[float] = []
     cls_losses: list[float] = []
@@ -773,6 +780,8 @@ def train_epoch(
     model_forward_count = 0
     rate_conversation_counts = {rate: 0 for rate in MISSING_RATES}
     realized_missing = {rate: [0, 0] for rate in MISSING_RATES}
+    rate_valid_utterance_counts = {rate: 0 for rate in MISSING_RATES}
+    rate_jepa_target_counts = {rate: 0 for rate in MISSING_RATES}
     assignment_digest = hashlib.sha256()
     target_count = 0
     optimizer_steps = 0
@@ -780,6 +789,7 @@ def train_epoch(
     for batch_index, raw in enumerate(loader):
         data = _move_batch(raw, device)
         batch_size = len(data[-1])
+        conversation_rates = None
         if config.train_rate_mode == "all":
             rates = MISSING_RATES
             optimizer.zero_grad(set_to_none=True)
@@ -819,6 +829,7 @@ def train_epoch(
             )
             optimizer.zero_grad(set_to_none=True)
             rate_views = ((None, view),)
+            conversation_rates = assignment.rates
             assignment_digest.update(b"\0")
             assignment_digest.update(assignment.assignment_hash.encode("ascii"))
             for conversation_index, rate in enumerate(assignment.rates):
@@ -826,6 +837,9 @@ def train_epoch(
                 valid_availability = view["availability"][:, conversation_index][
                     view["umask"][conversation_index].bool()
                 ]
+                rate_valid_utterance_counts[rate] += int(
+                    view["umask"][conversation_index].bool().sum().item()
+                )
                 realized_missing[rate][0] += int(
                     valid_availability.eq(0).sum().item()
                 )
@@ -843,6 +857,9 @@ def train_epoch(
                 rate_conversation_counts[rate] += batch_size
                 valid_rows = view["umask"].transpose(0, 1).bool()
                 valid_availability = view["availability"][valid_rows]
+                rate_valid_utterance_counts[rate] += int(
+                    valid_rows.sum().item()
+                )
                 realized_missing[rate][0] += int(
                     valid_availability.eq(0).sum().item()
                 )
@@ -874,6 +891,21 @@ def train_epoch(
                 else zero
             )
             if train_jepa:
+                valid_target_mask = (
+                    predictions.target_mask
+                    & view["umask"].transpose(0, 1).bool().unsqueeze(-1)
+                )
+                if rate is None:
+                    for conversation_index, conversation_rate in enumerate(
+                        conversation_rates
+                    ):
+                        rate_jepa_target_counts[conversation_rate] += int(
+                            valid_target_mask[:, conversation_index].sum().item()
+                        )
+                else:
+                    rate_jepa_target_counts[rate] += int(
+                        valid_target_mask.sum().item()
+                    )
                 if teacher is None:
                     with torch.no_grad():
                         teacher = model.encode_teacher_targets([view["complete"]])
@@ -944,6 +976,16 @@ def train_epoch(
         optimizer_steps += 1
         if train_jepa:
             model.update_teacher(config.ema_tau)
+    if (
+        config.train_rate_mode == "stratified"
+        and conversations_seen != epoch_size
+    ):
+        raise RuntimeError(
+            "stratified epoch expected {} conversations but observed {}".format(
+                epoch_size,
+                conversations_seen,
+            )
+        )
     metrics = _metrics(
         config.dataset,
         np.concatenate(all_labels),
@@ -984,6 +1026,20 @@ def train_epoch(
                 if realized_missing[rate][1]
                 else None
             )
+            for rate in MISSING_RATES
+        },
+        "rate_valid_utterance_counts": {
+            str(rate): rate_valid_utterance_counts[rate]
+            for rate in MISSING_RATES
+        },
+        "rate_missing_modality_counts": {
+            str(rate): realized_missing[rate][0] for rate in MISSING_RATES
+        },
+        "rate_modality_element_counts": {
+            str(rate): realized_missing[rate][1] for rate in MISSING_RATES
+        },
+        "rate_jepa_target_counts": {
+            str(rate): rate_jepa_target_counts[rate]
             for rate in MISSING_RATES
         },
         "stratified_assignment_hash": (
