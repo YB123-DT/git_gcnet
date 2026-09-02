@@ -13,10 +13,12 @@ from pathlib import Path
 
 DATASETS = ("IEMOCAPSix", "IEMOCAPFour")
 SEEDS = (66, 67, 68, 69, 70)
+MODEL_ARMS = ("missing-m3", "original-gcnet")
 
 
 @dataclass(frozen=True)
 class Job:
+    model_arm: str
     dataset: str
     seed: int
     gpu: int
@@ -54,18 +56,31 @@ def _build_jobs(
     datasets: tuple[str, ...] = DATASETS,
     jepa_weight: float = 0.1,
     train_rate_mode: str = "all",
+    model_arm: str = "missing-m3",
 ) -> list[Job]:
+    if model_arm not in MODEL_ARMS:
+        raise ValueError(f"unknown model_arm: {model_arm}")
+    if model_arm == "original-gcnet":
+        if jepa_weight != 0:
+            raise ValueError("original-gcnet requires jepa_weight=0")
+        if train_rate_mode != "stratified":
+            raise ValueError("original-gcnet requires stratified train-rate mode")
     jobs: list[Job] = []
     index = 0
     for dataset in datasets:
         for seed in SEEDS:
             gpu = gpus[index % len(gpus)]
             output_dir = output_root / dataset / f"seed_{seed}"
-            command = (
+            trainer_module = (
+                "gcnet_original_stratified.train_gcnet"
+                if model_arm == "original-gcnet"
+                else "gcnet_missing_m3.train_gcnet"
+            )
+            command = [
                 str(python),
                 "-u",
                 "-m",
-                "gcnet_missing_m3.train_gcnet",
+                trainer_module,
                 "--dataset",
                 dataset,
                 "--fold",
@@ -86,22 +101,8 @@ def _build_jobs(
                 "32",
                 "--train-rate-mode",
                 train_rate_mode,
-                "--fusion-type",
-                "slot",
-                "--representation-type",
-                "slot",
-                "--graph-branch-mode",
-                "both",
-                "--mmoe-variant",
-                "dual-gate",
                 "--hidden",
                 "200",
-                "--latent-dim",
-                "256",
-                "--num-experts",
-                "4",
-                "--top-k",
-                "2",
                 "--windowp",
                 "2",
                 "--windowf",
@@ -112,20 +113,48 @@ def _build_jobs(
                 "0.00001",
                 "--dropout",
                 "0.5",
-                "--jepa-weight",
-                str(jepa_weight),
-                "--temperature",
-                "0.03",
-                "--ema-tau",
-                "0.996",
                 "--gradient-clip-norm",
                 "1.0",
                 "--evaluation-protocol",
                 "official",
                 "--num-threads",
                 "2",
+            ]
+            if model_arm == "missing-m3":
+                command.extend(
+                    [
+                        "--fusion-type",
+                        "slot",
+                        "--representation-type",
+                        "slot",
+                        "--graph-branch-mode",
+                        "both",
+                        "--mmoe-variant",
+                        "dual-gate",
+                        "--latent-dim",
+                        "256",
+                        "--num-experts",
+                        "4",
+                        "--top-k",
+                        "2",
+                        "--jepa-weight",
+                        str(jepa_weight),
+                        "--temperature",
+                        "0.03",
+                        "--ema-tau",
+                        "0.996",
+                    ]
+                )
+            jobs.append(
+                Job(
+                    model_arm=model_arm,
+                    dataset=dataset,
+                    seed=seed,
+                    gpu=gpu,
+                    output_dir=output_dir,
+                    command=tuple(command),
+                )
             )
-            jobs.append(Job(dataset, seed, gpu, output_dir, command))
             index += 1
     return jobs
 
@@ -140,6 +169,7 @@ def _start_job(job: Job, repo_root: Path) -> tuple[subprocess.Popen[str], object
         job.output_dir / "status.json",
         {
             "state": "running",
+            "model_arm": job.model_arm,
             "dataset": job.dataset,
             "seed": job.seed,
             "gpu": job.gpu,
@@ -169,10 +199,20 @@ def _is_complete(job: Job) -> bool:
         metrics_payload = json.loads(metrics.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
-    return (
+    common_complete = (
         len(history_payload) == 100
         and int(metrics_payload.get("best_epoch", 0)) in range(1, 101)
         and len(metrics_payload.get("test", {})) == 8
+    )
+    if not common_complete or job.model_arm != "original-gcnet":
+        return common_complete
+    return (
+        metrics_payload.get("model_arm") == "original-gcnet"
+        and metrics_payload.get("reconstruction_loss_variant")
+        == "corrected-formal-repo"
+        and metrics_payload.get("reconstruction_weight") == 1.0
+        and metrics_payload.get("ema_steps") == 0
+        and metrics_payload.get("selection_split") == "validation"
     )
 
 
@@ -184,7 +224,13 @@ def _runner_payload(
         "total_jobs": len(jobs),
         "completed_jobs": len(completed),
         "running": [
-            {"dataset": job.dataset, "seed": job.seed, "gpu": job.gpu, "pid": pid}
+            {
+                "model_arm": job.model_arm,
+                "dataset": job.dataset,
+                "seed": job.seed,
+                "gpu": job.gpu,
+                "pid": pid,
+            }
             for pid, (job, _, _) in sorted(running.items())
         ],
         "updated_at_unix": time.time(),
@@ -200,7 +246,8 @@ def main() -> int:
     parser.add_argument("--max-concurrent-per-gpu", type=int, default=3)
     parser.add_argument("--poll-seconds", type=float, default=10.0)
     parser.add_argument("--datasets", nargs="+", choices=DATASETS, default=DATASETS)
-    parser.add_argument("--jepa-weight", type=float, default=0.1)
+    parser.add_argument("--model-arm", choices=MODEL_ARMS, default="missing-m3")
+    parser.add_argument("--jepa-weight", type=float, default=None)
     parser.add_argument(
         "--train-rate-mode",
         choices=("cyclic", "all", "fixed", "stratified"),
@@ -217,14 +264,20 @@ def main() -> int:
     if args.max_concurrent_per_gpu <= 0:
         raise ValueError("max-concurrent-per-gpu must be positive")
 
+    jepa_weight = (
+        args.jepa_weight
+        if args.jepa_weight is not None
+        else (0.0 if args.model_arm == "original-gcnet" else 0.1)
+    )
     jobs = _build_jobs(
         repo_root,
         output_root,
         args.python,
         gpus,
         datasets=tuple(args.datasets),
-        jepa_weight=args.jepa_weight,
+        jepa_weight=jepa_weight,
         train_rate_mode=args.train_rate_mode,
+        model_arm=args.model_arm,
     )
     if args.dry_run:
         for job in jobs:
@@ -244,7 +297,18 @@ def main() -> int:
         output_root / "manifest.json",
         {
             "datasets": list(args.datasets),
-            "jepa_weight": args.jepa_weight,
+            "model_arm": args.model_arm,
+            "jepa_weight": (
+                jepa_weight if args.model_arm == "missing-m3" else None
+            ),
+            "reconstruction_loss_variant": (
+                "corrected-formal-repo"
+                if args.model_arm == "original-gcnet"
+                else None
+            ),
+            "reconstruction_weight": (
+                1.0 if args.model_arm == "original-gcnet" else None
+            ),
             "train_rate_mode": args.train_rate_mode,
             "seeds": list(SEEDS),
             "gpus": list(gpus),
@@ -281,6 +345,7 @@ def main() -> int:
             complete = returncode == 0 and _is_complete(job)
             status = {
                 "state": "complete" if complete else "failed",
+                "model_arm": job.model_arm,
                 "dataset": job.dataset,
                 "seed": job.seed,
                 "gpu": job.gpu,
