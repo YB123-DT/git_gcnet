@@ -2423,6 +2423,7 @@ def test_stratified_mask_real_schedules_preserve_rows_and_realized_rates():
         assert 0.0 <= realized <= 1.0
         realized_rates.append(realized)
     assert realized_rates[0] == 0.0
+    assert realized_rates[1] > realized_rates[0]
 
 
 def test_stratified_mask_view_selects_speaker_masks_in_one_mixed_rate_view():
