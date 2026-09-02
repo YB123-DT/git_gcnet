@@ -448,10 +448,56 @@ def _lengths(umask: torch.Tensor) -> list[int]:
     return [int(value) for value in result]
 
 
-def _prepare_view(
-    data: Sequence[object],
-    schedule: ConversationMaskSchedule,
+def _build_stratified_mask_tensors(
+    schedules: Mapping[float, ConversationMaskSchedule],
+    conversation_rates: Sequence[float],
+    conversation_ids: Sequence[str],
+    umask: torch.Tensor,
     epoch: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if umask.ndim != 2:
+        raise ValueError("umask must have shape [batch, sequence]")
+    batch_size, sequence_length = umask.shape
+    if len(conversation_rates) != batch_size:
+        raise ValueError("conversation rates must match the umask batch size")
+    if len(conversation_ids) != batch_size:
+        raise ValueError("conversation IDs must match the umask batch size")
+    if any(rate not in schedules for rate in conversation_rates):
+        raise ValueError("every conversation rate must have a mask schedule")
+    valid_lengths = [
+        int(umask[batch_index].sum().item())
+        for batch_index in range(batch_size)
+    ]
+    for conversation_id, valid_length in zip(conversation_ids, valid_lengths):
+        if valid_length < 1:
+            raise ValueError(
+                "conversation {!r} has no real utterances".format(
+                    conversation_id
+                )
+            )
+
+    side_tensors = []
+    for side in ("host", "guest"):
+        conversations = []
+        for batch_index in range(batch_size):
+            generated = schedules[conversation_rates[batch_index]].generate(
+                str(conversation_ids[batch_index]),
+                length=sequence_length,
+                valid_length=valid_lengths[batch_index],
+                side=side,
+                epoch=epoch,
+            )
+            conversations.append(torch.as_tensor(generated.availability))
+        side_tensors.append(
+            torch.stack(conversations, dim=1).to(device=umask.device)
+        )
+    return tuple(side_tensors)
+
+
+def _prepare_view_from_primary_masks(
+    data: Sequence[object],
+    host_availability: torch.Tensor,
+    guest_availability: torch.Tensor,
     dimensions: tuple[int, int, int],
 ) -> dict[str, object]:
     audio_host, text_host, visual_host = data[0], data[1], data[2]
@@ -467,12 +513,6 @@ def _prepare_view(
         visual_guest,
         qmask,
     )[0]
-    host_availability, guest_availability = build_primary_mask_tensors(
-        schedule,
-        conversation_ids=conversation_ids,
-        umask=umask,
-        epoch=epoch,
-    )
     availability = generate_inputs(
         host_availability[..., 0:1],
         host_availability[..., 1:2],
@@ -497,6 +537,48 @@ def _prepare_view(
         "lengths": _lengths(umask),
         "conversation_ids": list(conversation_ids),
     }
+
+
+def _prepare_stratified_view(
+    data: Sequence[object],
+    schedules: Mapping[float, ConversationMaskSchedule],
+    conversation_rates: Sequence[float],
+    epoch: int,
+    dimensions: tuple[int, int, int],
+) -> dict[str, object]:
+    host_availability, guest_availability = _build_stratified_mask_tensors(
+        schedules=schedules,
+        conversation_rates=conversation_rates,
+        conversation_ids=data[-1],
+        umask=data[7],
+        epoch=epoch,
+    )
+    return _prepare_view_from_primary_masks(
+        data,
+        host_availability,
+        guest_availability,
+        dimensions,
+    )
+
+
+def _prepare_view(
+    data: Sequence[object],
+    schedule: ConversationMaskSchedule,
+    epoch: int,
+    dimensions: tuple[int, int, int],
+) -> dict[str, object]:
+    host_availability, guest_availability = build_primary_mask_tensors(
+        schedule,
+        conversation_ids=data[-1],
+        umask=data[7],
+        epoch=epoch,
+    )
+    return _prepare_view_from_primary_masks(
+        data,
+        host_availability,
+        guest_availability,
+        dimensions,
+    )
 
 
 def _mosi_soft_targets(labels: torch.Tensor) -> torch.Tensor:

@@ -2227,6 +2227,294 @@ def test_stratified_rates_small_tail_never_duplicates_conversations():
     assert len(set(assignment.rates)) == len(conversation_ids)
 
 
+class _GeneratedAvailability:
+    def __init__(self, availability):
+        self.availability = availability
+
+
+class _RecordingMaskSchedule:
+    def __init__(self, host_pattern, guest_pattern):
+        self.patterns = {
+            "host": np.asarray(host_pattern, dtype=np.uint8),
+            "guest": np.asarray(guest_pattern, dtype=np.uint8),
+        }
+        self.calls = []
+
+    def generate(
+        self,
+        conversation_id,
+        length,
+        valid_length,
+        side,
+        epoch,
+    ):
+        self.calls.append(
+            (conversation_id, length, valid_length, side, epoch)
+        )
+        availability = np.zeros((length, 3), dtype=np.uint8)
+        availability[:valid_length] = self.patterns[side]
+        return _GeneratedAvailability(availability)
+
+
+def _recording_mask_schedules():
+    return {
+        0.0: _RecordingMaskSchedule((1, 0, 0), (0, 1, 0)),
+        0.7: _RecordingMaskSchedule((0, 0, 1), (1, 1, 0)),
+    }
+
+
+def _stratified_mask_data():
+    host = [
+        torch.full((4, 2, dimension), value)
+        for dimension, value in zip((1, 2, 1), (1.0, 2.0, 3.0))
+    ]
+    guest = [
+        torch.full((4, 2, dimension), value)
+        for dimension, value in zip((1, 2, 1), (4.0, 5.0, 6.0))
+    ]
+    qmask = torch.tensor(
+        [[0.0, 1.0, 0.0, 1.0], [1.0, 0.0, 1.0, 0.0]]
+    )
+    umask = torch.tensor(
+        [[1.0, 1.0, 1.0, 0.0], [1.0, 1.0, 0.0, 0.0]]
+    )
+    return [
+        *host,
+        *guest,
+        qmask,
+        umask,
+        torch.zeros(2, 4),
+        ("dialog-a", "dialog-b"),
+    ]
+
+
+def test_stratified_mask_tensors_use_each_conversation_schedule_and_side():
+    schedules = _recording_mask_schedules()
+    umask = torch.tensor(
+        [[1.0, 1.0, 1.0, 0.0], [1.0, 1.0, 0.0, 0.0]]
+    )
+
+    host, guest = train_gcnet._build_stratified_mask_tensors(
+        schedules=schedules,
+        conversation_rates=(0.0, 0.7),
+        conversation_ids=("dialog-a", "dialog-b"),
+        umask=umask,
+        epoch=4,
+    )
+
+    expected_host = torch.tensor(
+        [
+            [[1, 0, 0], [0, 0, 1]],
+            [[1, 0, 0], [0, 0, 1]],
+            [[1, 0, 0], [0, 0, 0]],
+            [[0, 0, 0], [0, 0, 0]],
+        ],
+        dtype=torch.uint8,
+    )
+    expected_guest = torch.tensor(
+        [
+            [[0, 1, 0], [1, 1, 0]],
+            [[0, 1, 0], [1, 1, 0]],
+            [[0, 1, 0], [0, 0, 0]],
+            [[0, 0, 0], [0, 0, 0]],
+        ],
+        dtype=torch.uint8,
+    )
+    assert host.shape == guest.shape == (4, 2, 3)
+    assert torch.equal(host, expected_host)
+    assert torch.equal(guest, expected_guest)
+    assert set(schedules[0.0].calls) == {
+        ("dialog-a", 4, 3, "host", 4),
+        ("dialog-a", 4, 3, "guest", 4),
+    }
+    assert set(schedules[0.7].calls) == {
+        ("dialog-b", 4, 2, "host", 4),
+        ("dialog-b", 4, 2, "guest", 4),
+    }
+
+
+@pytest.mark.parametrize(
+    ("conversation_rates", "conversation_ids", "schedules"),
+    (
+        ((0.0,), ("dialog-a", "dialog-b"), {0.0: object(), 0.7: object()}),
+        ((0.0, 0.7), ("dialog-a",), {0.0: object(), 0.7: object()}),
+        ((0.0, 0.7), ("dialog-a", "dialog-b"), {0.0: object()}),
+    ),
+    ids=("rate-count", "id-count", "missing-schedule"),
+)
+def test_stratified_mask_tensors_reject_invalid_batch_alignment(
+    conversation_rates,
+    conversation_ids,
+    schedules,
+):
+    with pytest.raises(ValueError):
+        train_gcnet._build_stratified_mask_tensors(
+            schedules=schedules,
+            conversation_rates=conversation_rates,
+            conversation_ids=conversation_ids,
+            umask=torch.ones(2, 3),
+            epoch=0,
+        )
+
+
+def test_stratified_mask_tensors_require_two_dimensional_umask():
+    with pytest.raises(ValueError, match="umask must have shape"):
+        train_gcnet._build_stratified_mask_tensors(
+            schedules={0.0: object()},
+            conversation_rates=(0.0,),
+            conversation_ids=("dialog-a",),
+            umask=torch.ones(3),
+            epoch=0,
+        )
+
+
+def test_stratified_mask_tensors_reject_empty_conversations():
+    with pytest.raises(ValueError, match="has no real utterances"):
+        train_gcnet._build_stratified_mask_tensors(
+            schedules={0.0: _RecordingMaskSchedule((1, 1, 1), (1, 1, 1))},
+            conversation_rates=(0.0,),
+            conversation_ids=("dialog-a",),
+            umask=torch.zeros(1, 3),
+            epoch=0,
+        )
+
+
+def test_stratified_mask_real_schedules_preserve_rows_and_realized_rates():
+    schedules = {
+        rate: train_gcnet.ConversationMaskSchedule(
+            dataset="CMUMOSEI",
+            split="train",
+            fold=1,
+            requested_missing_rate=rate,
+            mask_seed=79,
+        )
+        for rate in (0.0, 0.7)
+    }
+    umask = torch.tensor(
+        [[1.0, 1.0, 1.0, 0.0], [1.0, 1.0, 0.0, 0.0]]
+    )
+
+    host, guest = train_gcnet._build_stratified_mask_tensors(
+        schedules=schedules,
+        conversation_rates=(0.0, 0.7),
+        conversation_ids=("dialog-a", "dialog-b"),
+        umask=umask,
+        epoch=4,
+    )
+
+    for availability in (host, guest):
+        assert torch.equal(
+            availability[:3, 0], torch.ones(3, 3, dtype=torch.uint8)
+        )
+        assert torch.count_nonzero(availability[3:, 0]) == 0
+        assert bool((availability[:2, 1].sum(dim=-1) >= 1).all())
+        assert torch.count_nonzero(availability[2:, 1]) == 0
+
+    realized_rates = []
+    for batch_index, valid_length in enumerate((3, 2)):
+        valid_availability = torch.cat(
+            (
+                host[:valid_length, batch_index].flatten(),
+                guest[:valid_length, batch_index].flatten(),
+            )
+        ).float()
+        realized = 1.0 - float(valid_availability.mean().item())
+        assert np.isfinite(realized)
+        assert 0.0 <= realized <= 1.0
+        realized_rates.append(realized)
+    assert realized_rates[0] == 0.0
+
+
+def test_stratified_mask_view_selects_speaker_masks_in_one_mixed_rate_view():
+    data = _stratified_mask_data()
+
+    view = train_gcnet._prepare_stratified_view(
+        data=data,
+        schedules=_recording_mask_schedules(),
+        conversation_rates=(0.0, 0.7),
+        epoch=4,
+        dimensions=(1, 2, 1),
+    )
+
+    expected_availability = torch.tensor(
+        [
+            [[1, 0, 0], [1, 1, 0]],
+            [[0, 1, 0], [0, 0, 1]],
+            [[1, 0, 0], [0, 0, 0]],
+            [[0, 0, 0], [0, 0, 0]],
+        ],
+        dtype=torch.float32,
+    )
+    expanded = torch.repeat_interleave(
+        expected_availability, torch.tensor((1, 2, 1)), dim=-1
+    )
+    assert torch.equal(view["availability"], expected_availability)
+    assert view["complete"][0, 0].tolist() == [1.0, 2.0, 2.0, 3.0]
+    assert view["complete"][1, 0].tolist() == [4.0, 5.0, 5.0, 6.0]
+    assert torch.equal(view["incomplete"], view["complete"] * expanded)
+    assert view["lengths"] == [3, 2]
+    assert view["conversation_ids"] == ["dialog-a", "dialog-b"]
+
+
+def test_prepare_view_preserves_primary_mask_numerics_and_shape(monkeypatch):
+    data = _stratified_mask_data()
+    expected_host, expected_guest = train_gcnet._build_stratified_mask_tensors(
+        schedules=_recording_mask_schedules(),
+        conversation_rates=(0.0, 0.7),
+        conversation_ids=data[-1],
+        umask=data[7],
+        epoch=4,
+    )
+    calls = []
+
+    def build_masks(schedule, conversation_ids, umask, epoch):
+        calls.append((schedule, list(conversation_ids), umask, epoch))
+        return expected_host, expected_guest
+
+    monkeypatch.setattr(train_gcnet, "build_primary_mask_tensors", build_masks)
+    schedule = object()
+
+    view = train_gcnet._prepare_view(
+        data=data,
+        schedule=schedule,
+        epoch=4,
+        dimensions=(1, 2, 1),
+    )
+
+    expected_availability = torch.tensor(
+        [
+            [[1, 0, 0], [1, 1, 0]],
+            [[0, 1, 0], [0, 0, 1]],
+            [[1, 0, 0], [0, 0, 0]],
+            [[0, 0, 0], [0, 0, 0]],
+        ],
+        dtype=torch.float32,
+    )
+    assert len(calls) == 1
+    assert calls[0][0] is schedule
+    assert calls[0][1] == ["dialog-a", "dialog-b"]
+    assert calls[0][2] is data[7]
+    assert calls[0][3] == 4
+    assert set(view) == {
+        "complete",
+        "incomplete",
+        "availability",
+        "qmask",
+        "umask",
+        "labels",
+        "lengths",
+        "conversation_ids",
+    }
+    assert view["complete"].shape == view["incomplete"].shape == (4, 2, 4)
+    assert torch.equal(view["availability"], expected_availability)
+    expanded = torch.repeat_interleave(
+        expected_availability, torch.tensor((1, 2, 1)), dim=-1
+    )
+    assert torch.equal(view["incomplete"], view["complete"] * expanded)
+    assert view["lengths"] == [3, 2]
+    assert view["conversation_ids"] == ["dialog-a", "dialog-b"]
+
+
 class _CountingOptimizer:
     def __init__(self, parameter):
         self.parameter = parameter
