@@ -39,7 +39,7 @@ def stratified_rates_for_batch(
         raise ValueError("rates must be a non-empty unique sequence")
 
     if isinstance(master_seed, bool) or not isinstance(master_seed, int):
-        raise ValueError("master_seed must be an integer")
+        raise TypeError("master_seed must be an integer")
     if not isinstance(dataset, str) or not dataset:
         raise ValueError("dataset must be a non-empty string")
     if (

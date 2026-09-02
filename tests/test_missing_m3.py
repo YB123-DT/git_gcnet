@@ -2162,6 +2162,22 @@ def test_stratified_rates_are_deterministic_seeded_and_rng_isolated():
     ASSERT_CLOSE(torch.get_rng_state(), torch_state, rtol=0, atol=0)
 
 
+@pytest.mark.parametrize("master_seed", (True, 1.5))
+def test_stratified_rates_rejects_non_integer_master_seed(master_seed):
+    with pytest.raises(TypeError):
+        stratified_rates_for_batch(
+            MISSING_RATES,
+            master_seed=master_seed,
+            dataset="CMUMOSEI",
+            fold=1,
+            epoch=0,
+            batch_index=0,
+            epoch_size=1,
+            conversations_seen=0,
+            conversation_ids=("conversation-0",),
+        )
+
+
 def test_stratified_rates_tail_surplus_continues_across_epochs():
     assignments = [
         stratified_rates_for_batch(
