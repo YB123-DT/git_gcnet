@@ -23,6 +23,24 @@ def test_default_job_matrix_is_unchanged(tmp_path):
         for seed in runner.SEEDS
     }
     assert {_argument(job.command, "--jepa-weight") for job in jobs} == {"0.1"}
+    assert {_argument(job.command, "--train-rate-mode") for job in jobs} == {"all"}
+
+
+def test_stratified_iemocap6_matrix_forwards_train_rate_mode(tmp_path):
+    jobs = runner._build_jobs(
+        repo_root=tmp_path,
+        output_root=tmp_path / "results",
+        python=Path("/env/bin/python"),
+        gpus=(0, 1, 2),
+        datasets=("IEMOCAPSix",),
+        jepa_weight=0.1,
+        train_rate_mode="stratified",
+    )
+
+    assert len(jobs) == 5
+    assert all(
+        _argument(job.command, "--train-rate-mode") == "stratified" for job in jobs
+    )
 
 
 def test_no_jepa_iemocap6_matrix_contains_only_five_control_jobs(tmp_path):

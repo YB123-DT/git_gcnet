@@ -53,6 +53,7 @@ def _build_jobs(
     gpus: tuple[int, ...],
     datasets: tuple[str, ...] = DATASETS,
     jepa_weight: float = 0.1,
+    train_rate_mode: str = "all",
 ) -> list[Job]:
     jobs: list[Job] = []
     index = 0
@@ -84,7 +85,7 @@ def _build_jobs(
                 "--batch-size",
                 "32",
                 "--train-rate-mode",
-                "all",
+                train_rate_mode,
                 "--fusion-type",
                 "slot",
                 "--representation-type",
@@ -200,6 +201,11 @@ def main() -> int:
     parser.add_argument("--poll-seconds", type=float, default=10.0)
     parser.add_argument("--datasets", nargs="+", choices=DATASETS, default=DATASETS)
     parser.add_argument("--jepa-weight", type=float, default=0.1)
+    parser.add_argument(
+        "--train-rate-mode",
+        choices=("cyclic", "all", "fixed", "stratified"),
+        default="all",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -218,6 +224,7 @@ def main() -> int:
         gpus,
         datasets=tuple(args.datasets),
         jepa_weight=args.jepa_weight,
+        train_rate_mode=args.train_rate_mode,
     )
     if args.dry_run:
         for job in jobs:
@@ -238,6 +245,7 @@ def main() -> int:
         {
             "datasets": list(args.datasets),
             "jepa_weight": args.jepa_weight,
+            "train_rate_mode": args.train_rate_mode,
             "seeds": list(SEEDS),
             "gpus": list(gpus),
             "max_concurrent_per_gpu": args.max_concurrent_per_gpu,
