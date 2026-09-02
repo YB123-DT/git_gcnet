@@ -1,0 +1,127 @@
+{
+  "schema_version": "missing-m3-stratified-ablation-v1",
+  "status": "complete",
+  "dataset": "IEMOCAPSix",
+  "fold": 5,
+  "seeds": [66, 67, 68, 69, 70],
+  "missing_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+  "metric": "weighted_f1",
+  "protocol": {
+    "train_rate_mode": "stratified",
+    "source_conversations_per_epoch": 120,
+    "masked_views_per_epoch": 120,
+    "model_forwards_per_epoch": 4,
+    "optimizer_steps_per_epoch": 4,
+    "conversations_per_requested_rate_per_epoch": 15,
+    "epochs": 100,
+    "checkpoint_selection": "mean validation weighted_f1 across all eight rates",
+    "evaluation": "one validation-selected checkpoint tested at all eight rates"
+  },
+  "source": {
+    "commit": "6c5346b8cad453920689b2806562eb578f47b424",
+    "files_sha256": {
+      "gcnet_missing_m3/mixed_rate.py": "0d3e9af0b3c35c0fde4a148851390cf47850a50d9bdb0737a6997dc9438b22c1",
+      "gcnet_missing_m3/train_gcnet.py": "3a3352c4d0e77ca7163aa328f4300005d3b63ed538096c418ca440f524f7bb90",
+      "scripts/run_missing_m3_iemocap_current.py": "4430c1c7f1fef16bb715cba06046be76408ac744132c8069584ca74c10bea7f7"
+    }
+  },
+  "audit": {
+    "status": "PASS",
+    "jobs": 10,
+    "histories": 10,
+    "epochs": 1000,
+    "prediction_npz": 80,
+    "independently_recomputed_npz_bundles": 80,
+    "independently_recomputed_metric_values": 240,
+    "paired_assignment_hashes": 500,
+    "paired_test_mask_hashes": 40,
+    "paired_validation_mask_hashes": null,
+    "paired_labels": 40,
+    "paired_availability": 40,
+    "minimum_predicted_unique_class_count": 6,
+    "maximum_predicted_unique_class_count": 6,
+    "maximum_single_class_fraction": 0.3431916205,
+    "runner_failures": 0,
+    "validation_mask_hash_note": "Validation mask hashes are not persisted by the trainer; equality is supported by paired configs and the deterministic fixed schedule, but is not counted as an artifact-level hash check."
+  },
+  "sampling_totals_per_arm": {
+    "0.0": {"conversations": 7500, "valid_utterances": 362354, "missing_modalities": 0, "modality_elements": 1087062, "realized_missing_fraction": 0.0, "jepa_targets": 0},
+    "0.1": {"conversations": 7500, "valid_utterances": 364312, "missing_modalities": 108557, "modality_elements": 1092936, "realized_missing_fraction": 0.09932603555926423, "jepa_targets": 108557},
+    "0.2": {"conversations": 7500, "valid_utterances": 364245, "missing_modalities": 215783, "modality_elements": 1092735, "realized_missing_fraction": 0.1974705669718642, "jepa_targets": 215783},
+    "0.3": {"conversations": 7500, "valid_utterances": 362434, "missing_modalities": 316564, "modality_elements": 1087302, "realized_missing_fraction": 0.2911463420466439, "jepa_targets": 316564},
+    "0.4": {"conversations": 7500, "valid_utterances": 365070, "missing_modalities": 415309, "modality_elements": 1095210, "realized_missing_fraction": 0.3792049013431214, "jepa_targets": 415309},
+    "0.5": {"conversations": 7500, "valid_utterances": 363206, "missing_modalities": 498505, "modality_elements": 1089618, "realized_missing_fraction": 0.4575043730922213, "jepa_targets": 498505},
+    "0.6": {"conversations": 7500, "valid_utterances": 362680, "missing_modalities": 575116, "modality_elements": 1088040, "realized_missing_fraction": 0.5285798316238374, "jepa_targets": 575116},
+    "0.7": {"conversations": 7500, "valid_utterances": 360699, "missing_modalities": 634190, "modality_elements": 1082097, "realized_missing_fraction": 0.5860750006699954, "jepa_targets": 634190}
+  },
+  "arms": {
+    "with_jepa": {
+      "jepa_weight": 0.1,
+      "best_epochs": [94, 100, 76, 98, 97],
+      "weighted_f1_by_seed_and_rate": {
+        "66": [0.6796964591, 0.6643019681, 0.6716358746, 0.6695841831, 0.6785210863, 0.6586102939, 0.6454686295, 0.6304758648],
+        "67": [0.6479524008, 0.6541618576, 0.6425694364, 0.6463200333, 0.6307736420, 0.6266241805, 0.6047491426, 0.6035236080],
+        "68": [0.6508298385, 0.6642311944, 0.6542194041, 0.6444508342, 0.6462560696, 0.6467999764, 0.6313567237, 0.6357758611],
+        "69": [0.6441045183, 0.6473286897, 0.6358806448, 0.6433589426, 0.6277086643, 0.6478427545, 0.6247021453, 0.6162583977],
+        "70": [0.6654041284, 0.6587153383, 0.6683243330, 0.6615822125, 0.6430664047, 0.6263502765, 0.6178155449, 0.5928523919]
+      },
+      "mean_by_rate": [0.6575974690, 0.6577478096, 0.6545259386, 0.6530592411, 0.6452651734, 0.6412454964, 0.6248184372, 0.6157772247],
+      "sample_std_by_rate": [0.0147495523, 0.0071997308, 0.0156032407, 0.0118251018, 0.0201866769, 0.0142439699, 0.0151740753, 0.0179716867],
+      "overall_mean": 0.6437545987,
+      "high_rate_mean_0p4_to_0p7": 0.6317765829
+    },
+    "jepa_gradient_off": {
+      "jepa_weight": 0.0,
+      "best_epochs": [68, 81, 95, 94, 78],
+      "weighted_f1_by_seed_and_rate": {
+        "66": [0.6542902842, 0.6529702198, 0.6506348794, 0.6406211056, 0.6536199691, 0.6296743066, 0.6310541463, 0.6031968032],
+        "67": [0.6545809373, 0.6496531293, 0.6572137077, 0.6784257224, 0.6644609170, 0.6345685458, 0.6249608302, 0.5901046449],
+        "68": [0.6702890004, 0.6598559503, 0.6521790021, 0.6422805898, 0.6550484154, 0.6385575386, 0.6232695008, 0.6319273178],
+        "69": [0.6756713881, 0.6834848534, 0.6614991419, 0.6583292232, 0.6486622459, 0.6544969722, 0.6384419595, 0.6369725136],
+        "70": [0.6397790528, 0.6416639880, 0.6182177471, 0.6315917512, 0.6082201075, 0.6154681744, 0.5932261757, 0.5813728140]
+      },
+      "mean_by_rate": [0.6589221326, 0.6575256282, 0.6479488956, 0.6502496784, 0.6460023310, 0.6345531075, 0.6221905225, 0.6087148187],
+      "sample_std_by_rate": [0.0142872386, 0.0159187891, 0.0171646105, 0.0184628176, 0.0218812192, 0.0141583087, 0.0172514146, 0.0248077091],
+      "overall_mean": 0.6407633893,
+      "high_rate_mean_0p4_to_0p7": 0.6278651949
+    }
+  },
+  "paired_effect": {
+    "mean_delta_by_rate": [-0.0013246636, 0.0002221815, 0.0065770429, 0.0028095627, -0.0007371576, 0.0066923888, 0.0026279147, 0.0070624060],
+    "positive_seed_count_by_rate": [2, 4, 3, 3, 2, 3, 3, 4],
+    "mean_eight_rate_delta_by_seed": {
+      "66": 0.0227790806,
+      "67": -0.0121617667,
+      "68": 0.0000640733,
+      "69": -0.0212966926,
+      "70": 0.0255713524
+    },
+    "high_rate_delta_by_seed": {
+      "66": 0.0238826623,
+      "67": -0.0121060912,
+      "68": 0.0028464645,
+      "69": -0.0155154324,
+      "70": 0.0204493366
+    },
+    "overall_mean_delta": 0.0029912094,
+    "overall_positive_seeds": 3,
+    "overall_sample_std_of_seed_delta": 0.0207936631,
+    "overall_95_percent_t_interval": [-0.0228275334, 0.0288099523],
+    "overall_paired_t_test_p_value": 0.7638157094,
+    "high_rate_mean_delta": 0.0039113880,
+    "high_rate_positive_seeds": 3,
+    "high_rate_sample_std_of_seed_delta": 0.0180793431,
+    "high_rate_95_percent_t_interval": [-0.0185370815, 0.0263598575],
+    "high_rate_paired_t_test_p_value": 0.6538443129
+  },
+  "preregistered_gate": {
+    "requirements": {
+      "overall_mean_delta_positive": true,
+      "high_rate_mean_delta_positive": true,
+      "overall_positive_seeds_at_least_3_of_5": true,
+      "high_rate_positive_seeds_at_least_3_of_5": true
+    },
+    "passed": true
+  },
+  "conclusion": "The JEPA arm passes the preregistered directional screen, but the effect is small and both 95% t intervals include zero. Treat it as promising evidence that warrants a matched stratified Original GCNet control, not as a stable superiority claim."
+}
