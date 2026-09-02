@@ -30,8 +30,10 @@ from gcnet_modality_jepa.train_gcnet import (
 from .loss import MissingM3Loss, missing_m3_loss
 from .mixed_rate import (
     MISSING_RATES,
+    STRATIFIED_RATE_ALGORITHM,
     BalancedBatchRateSchedule,
     mean_validation_weighted_f1,
+    stratified_rates_for_batch,
 )
 from .model import MissingM3GraphModel
 
@@ -429,9 +431,11 @@ def _protocol_rates(config: TrainConfig) -> tuple[float, ...]:
     fixed_rate = _fixed_missing_rate(config)
     if config.train_rate_mode == "fixed":
         return (fixed_rate,)
-    if config.train_rate_mode in {"cyclic", "all"}:
+    if config.train_rate_mode in {"cyclic", "all", "stratified"}:
         return MISSING_RATES
-    raise ValueError("train_rate_mode must be 'cyclic', 'all', or 'fixed'")
+    raise ValueError(
+        "train_rate_mode must be 'cyclic', 'all', 'fixed', or 'stratified'"
+    )
 
 
 def _move_batch(data: Sequence[object], device: torch.device) -> list[object]:
@@ -732,6 +736,13 @@ def train_epoch(
     dimensions: tuple[int, int, int],
     device: torch.device,
 ) -> Dict[str, float]:
+    if (
+        config.train_rate_mode == "stratified"
+        and config.jepa_rate_weighting != "uniform"
+    ):
+        raise ValueError(
+            "stratified train_rate_mode requires uniform jepa_rate_weighting"
+        )
     if config.training_objective not in _TRAINING_OBJECTIVES:
         raise ValueError("unsupported training_objective")
     train_emotion = config.training_objective in {
@@ -747,17 +758,28 @@ def train_epoch(
         mmoe.reset_routing_statistics()
     rate_schedule = BalancedBatchRateSchedule()
     fixed_rate = _fixed_missing_rate(config)
+    epoch_size = (
+        len(loader.dataset) if config.train_rate_mode == "stratified" else None
+    )
+    conversations_seen = 0
     losses: list[float] = []
     cls_losses: list[float] = []
     jepa_losses: list[float] = []
     all_predictions: list[np.ndarray] = []
     all_labels: list[np.ndarray] = []
     rate_counts = {rate: 0 for rate in MISSING_RATES}
+    source_conversation_count = 0
+    masked_view_count = 0
+    model_forward_count = 0
+    rate_conversation_counts = {rate: 0 for rate in MISSING_RATES}
+    realized_missing = {rate: [0, 0] for rate in MISSING_RATES}
+    assignment_digest = hashlib.sha256()
     target_count = 0
     optimizer_steps = 0
     skipped_optimizer_batches = 0
     for batch_index, raw in enumerate(loader):
         data = _move_batch(raw, device)
+        batch_size = len(data[-1])
         if config.train_rate_mode == "all":
             rates = MISSING_RATES
             optimizer.zero_grad(set_to_none=True)
@@ -775,12 +797,50 @@ def train_epoch(
             view = _prepare_view(data, schedules[rate], epoch, dimensions)
             optimizer.zero_grad(set_to_none=True)
             rate_views = ((rate, view),)
+        elif config.train_rate_mode == "stratified":
+            conversation_ids = tuple(str(value) for value in data[-1])
+            assignment = stratified_rates_for_batch(
+                MISSING_RATES,
+                master_seed=config.seed,
+                dataset=config.dataset,
+                fold=config.fold,
+                epoch=epoch,
+                batch_index=batch_index,
+                epoch_size=epoch_size,
+                conversations_seen=conversations_seen,
+                conversation_ids=conversation_ids,
+            )
+            view = _prepare_stratified_view(
+                data,
+                schedules,
+                assignment.rates,
+                epoch,
+                dimensions,
+            )
+            optimizer.zero_grad(set_to_none=True)
+            rate_views = ((None, view),)
+            assignment_digest.update(b"\0")
+            assignment_digest.update(assignment.assignment_hash.encode("ascii"))
+            for conversation_index, rate in enumerate(assignment.rates):
+                rate_conversation_counts[rate] += 1
+                valid_availability = view["availability"][:, conversation_index][
+                    view["umask"][conversation_index].bool()
+                ]
+                realized_missing[rate][0] += int(
+                    valid_availability.eq(0).sum().item()
+                )
+                realized_missing[rate][1] += int(valid_availability.numel())
+            conversations_seen += batch_size
         else:
-            raise ValueError("train_rate_mode must be 'cyclic', 'all', or 'fixed'")
+            raise ValueError(
+                "train_rate_mode must be 'cyclic', 'all', 'fixed', or 'stratified'"
+            )
         teacher = None
         batch_has_backward = False
         for rate, view in rate_views:
-            rate_counts[rate] += 1
+            if rate is not None:
+                rate_counts[rate] += 1
+                rate_conversation_counts[rate] += batch_size
             if config.train_rate_mode == "all" and train_jepa and teacher is None:
                 with torch.no_grad():
                     teacher = model.encode_teacher_targets([view["complete"]])
@@ -792,6 +852,7 @@ def train_epoch(
                 view["lengths"],
                 predict_missing=train_jepa,
             )
+            model_forward_count += 1
             zero = logits.sum() * 0.0
             cls = (
                 _task_loss(
@@ -817,8 +878,10 @@ def train_epoch(
                     regression_aggregation=config.jepa_regression_aggregation,
                     contrastive_prediction_source=config.jepa_contrastive_source,
                 )
-                jepa_rate_weight = _jepa_rate_weight(
-                    rate, config.jepa_rate_weighting
+                jepa_rate_weight = (
+                    1.0
+                    if rate is None
+                    else _jepa_rate_weight(rate, config.jepa_rate_weighting)
                 )
             else:
                 jepa = MissingM3Loss(zero, zero, zero, 0)
@@ -859,6 +922,10 @@ def train_epoch(
             cls_losses.append(float(cls.detach()))
             jepa_losses.append(float(jepa.total.detach()))
             target_count += jepa.target_count
+        source_conversation_count += batch_size
+        masked_view_count += batch_size * (
+            len(MISSING_RATES) if config.train_rate_mode == "all" else 1
+        )
         if not batch_has_backward:
             skipped_optimizer_batches += 1
             continue
@@ -899,6 +966,30 @@ def train_epoch(
         "jepa_loss": float(np.mean(jepa_losses)),
         "jepa_target_count": int(target_count),
         "rate_batch_counts": {str(rate): count for rate, count in rate_counts.items()},
+        "source_conversation_count": source_conversation_count,
+        "masked_view_count": masked_view_count,
+        "model_forward_count": model_forward_count,
+        "rate_conversation_counts": {
+            str(rate): rate_conversation_counts[rate] for rate in MISSING_RATES
+        },
+        "rate_realized_missing_fraction": {
+            str(rate): (
+                realized_missing[rate][0] / realized_missing[rate][1]
+                if realized_missing[rate][1]
+                else None
+            )
+            for rate in MISSING_RATES
+        },
+        "stratified_assignment_hash": (
+            assignment_digest.hexdigest()
+            if config.train_rate_mode == "stratified"
+            else None
+        ),
+        "stratified_rate_algorithm": (
+            STRATIFIED_RATE_ALGORITHM
+            if config.train_rate_mode == "stratified"
+            else None
+        ),
         "optimizer_steps": optimizer_steps,
         "skipped_optimizer_batches": skipped_optimizer_batches,
         "routing": routing_record,
@@ -1390,7 +1481,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument(
-        "--train-rate-mode", choices=("cyclic", "all", "fixed"), default="cyclic"
+        "--train-rate-mode",
+        choices=("cyclic", "all", "fixed", "stratified"),
+        default="cyclic",
     )
     parser.add_argument("--train-missing-rate", type=float, default=None)
     parser.add_argument("--hidden", type=int, default=200)

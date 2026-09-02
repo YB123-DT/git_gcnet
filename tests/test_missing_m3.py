@@ -17,6 +17,7 @@ import gcnet_modality_jepa.model as base_graph_model
 from gcnet_missing_m3.loss import MissingM3Loss, missing_m3_loss
 from gcnet_missing_m3.mixed_rate import (
     MISSING_RATES,
+    STRATIFIED_RATE_ALGORITHM,
     BalancedBatchRateSchedule,
     StratifiedRateAssignment,
     mean_validation_weighted_f1,
@@ -2554,8 +2555,12 @@ class _LifecycleModel(torch.nn.Module):
     ):
         del features, qmask, umask, lengths
         self.predict_missing_flags.append(predict_missing)
-        rate_index = int(availability.item())
-        rate = MISSING_RATES[rate_index]
+        if availability.numel() == 1:
+            rate_index = int(availability.item())
+            rate = MISSING_RATES[rate_index]
+        else:
+            rate_index = 0
+            rate = "stratified"
         self.forward_rates.append(rate)
         if self.events is not None:
             self.events.append(("forward", rate))
@@ -2592,6 +2597,35 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
             "lengths": [1],
         }
 
+    def prepare_stratified_view(
+        data, schedules, conversation_rates, epoch, dimensions
+    ):
+        del schedules, epoch, dimensions
+        conversation_ids = data[-1]
+        batch_size = len(conversation_ids)
+        assert len(conversation_rates) == batch_size
+        prepared_rates.extend(conversation_rates)
+        events.append(("prepare_stratified", tuple(conversation_rates)))
+        sequence_length = 4
+        umask = torch.ones(batch_size, sequence_length)
+        umask[:, -1] = 0
+        availability = torch.ones(sequence_length, batch_size, 3)
+        availability[-1] = 0
+        for batch_index, rate in enumerate(conversation_rates):
+            for missing_index in range(MISSING_RATES.index(rate)):
+                timestep, modality = divmod(missing_index, 3)
+                availability[timestep, batch_index, modality] = 0
+        return {
+            "complete": torch.ones(sequence_length, batch_size, 1),
+            "incomplete": torch.ones(sequence_length, batch_size, 1),
+            "availability": availability,
+            "qmask": torch.ones(sequence_length, batch_size),
+            "umask": umask,
+            "labels": torch.zeros(batch_size, sequence_length),
+            "lengths": [sequence_length - 1] * batch_size,
+            "conversation_ids": list(conversation_ids),
+        }
+
     def jepa_loss(
         predictions,
         teacher,
@@ -2625,6 +2659,9 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
     monkeypatch.setattr(train_gcnet, "_move_batch", lambda raw, device: raw)
     monkeypatch.setattr(train_gcnet, "_prepare_view", prepare_view)
     monkeypatch.setattr(
+        train_gcnet, "_prepare_stratified_view", prepare_stratified_view
+    )
+    monkeypatch.setattr(
         train_gcnet,
         "_task_loss",
         lambda dataset, logits, labels, umask, mosi_task_mode, *args: logits.sum(),
@@ -2646,6 +2683,95 @@ def _install_train_epoch_lifecycle_fakes(monkeypatch):
     )
     monkeypatch.setattr(torch.nn.utils, "clip_grad_norm_", clip_grad_norm)
     return prepared_rates, clipped_gradients, events
+
+
+class _LifecycleLoader:
+    def __init__(self, conversation_ids):
+        self.dataset = tuple(conversation_ids)
+        self.batch = [None] * 9 + [list(conversation_ids)]
+
+    def __iter__(self):
+        yield self.batch
+
+
+def test_stratified_train_uses_one_mixed_view_and_update_per_source_batch(monkeypatch):
+    prepared_rates, clipped_gradients, events = _install_train_epoch_lifecycle_fakes(
+        monkeypatch
+    )
+    conversation_ids = [f"dialog-{index:02d}" for index in range(32)]
+    model = _LifecycleModel(events)
+    optimizer = _CountingOptimizer(model.weight)
+
+    metrics = train_gcnet.train_epoch(
+        model=model,
+        loader=_LifecycleLoader(conversation_ids),
+        optimizer=optimizer,
+        config=TrainConfig(
+            train_rate_mode="stratified",
+            jepa_rate_weighting="uniform",
+        ),
+        schedules={rate: rate for rate in MISSING_RATES},
+        epoch=3,
+        dimensions=(1, 1, 1),
+        device=torch.device("cpu"),
+    )
+
+    assert Counter(prepared_rates) == {rate: 4 for rate in MISSING_RATES}
+    assert len(model.forward_rates) == 1
+    assert model.forward_rates == ["stratified"]
+    assert len(events) == 2
+    assert events[0][0] == "prepare_stratified"
+    assert events[1] == ("forward", "stratified")
+    assert model.teacher_calls == 1
+    assert optimizer.zero_grad_calls == 1
+    assert len(clipped_gradients) == 1
+    assert len(optimizer.step_gradients) == 1
+    assert model.ema_calls == 1
+    assert metrics["source_conversation_count"] == 32
+    assert metrics["masked_view_count"] == 32
+    assert metrics["model_forward_count"] == 1
+    assert metrics["rate_conversation_counts"] == {
+        str(rate): 4 for rate in MISSING_RATES
+    }
+    assert metrics["rate_realized_missing_fraction"] == pytest.approx(
+        {
+            str(rate): rate_index / 9
+            for rate_index, rate in enumerate(MISSING_RATES)
+        }
+    )
+    assert metrics["rate_batch_counts"] == {
+        str(rate): 0 for rate in MISSING_RATES
+    }
+    assignment_hash = metrics["stratified_assignment_hash"]
+    assert len(assignment_hash) == 64
+    assert int(assignment_hash, 16) >= 0
+    assert metrics["stratified_rate_algorithm"] == STRATIFIED_RATE_ALGORITHM
+
+
+def test_stratified_rejects_sparsity_budget_weighting_before_training(monkeypatch):
+    _install_train_epoch_lifecycle_fakes(monkeypatch)
+    model = _LifecycleModel()
+    optimizer = _CountingOptimizer(model.weight)
+    loader = _LifecycleLoader(["dialog-00"])
+
+    with pytest.raises(ValueError, match="stratified.*uniform"):
+        train_gcnet.train_epoch(
+            model=model,
+            loader=loader,
+            optimizer=optimizer,
+            config=TrainConfig(
+                train_rate_mode="stratified",
+                jepa_rate_weighting="sparsity-budget",
+            ),
+            schedules={rate: rate for rate in MISSING_RATES},
+            epoch=0,
+            dimensions=(1, 1, 1),
+            device=torch.device("cpu"),
+        )
+
+    assert optimizer.zero_grad_calls == 0
+    assert model.teacher_calls == 0
+    assert model.forward_rates == []
 
 
 def test_all_train_rate_mode_averages_eight_views_with_one_update_per_batch(monkeypatch):
@@ -3275,6 +3401,11 @@ def test_train_rate_mode_cli_defaults_and_persists_in_run_artifacts(tmp_path):
     ]
     parser = build_parser()
     assert parser.parse_args(required).train_rate_mode == "cyclic"
+    assert (
+        parser.parse_args(required + ["--train-rate-mode", "stratified"])
+        .train_rate_mode
+        == "stratified"
+    )
     args = parser.parse_args(required + ["--train-rate-mode", "all"])
     config = TrainConfig(train_rate_mode=args.train_rate_mode)
     config_path = tmp_path / "config.json"
@@ -3587,6 +3718,10 @@ def test_jepa_only_run_uses_fixed_final_checkpoint_without_evaluation(
 def test_protocol_rates_preserve_eight_rate_lifecycle_for_existing_modes():
     assert train_gcnet._protocol_rates(TrainConfig(train_rate_mode="all")) == MISSING_RATES
     assert train_gcnet._protocol_rates(TrainConfig(train_rate_mode="cyclic")) == MISSING_RATES
+    assert (
+        train_gcnet._protocol_rates(TrainConfig(train_rate_mode="stratified"))
+        == MISSING_RATES
+    )
     assert train_gcnet._protocol_rates(
         TrainConfig(train_rate_mode="fixed", fixed_missing_rate=0.7)
     ) == (0.7,)
