@@ -1,10 +1,13 @@
 import copy
 import json
 import os
+import random
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import asdict
 
+import numpy as np
 import pytest
 import torch
 
@@ -15,8 +18,10 @@ from gcnet_missing_m3.loss import MissingM3Loss, missing_m3_loss
 from gcnet_missing_m3.mixed_rate import (
     MISSING_RATES,
     BalancedBatchRateSchedule,
+    StratifiedRateAssignment,
     mean_validation_weighted_f1,
     select_best_epoch,
+    stratified_rates_for_batch,
 )
 from gcnet_missing_m3.model import (
     ContextualM3Predictor,
@@ -2083,6 +2088,127 @@ def test_balanced_rate_schedule_covers_all_rates_and_rotates_by_epoch():
     assert first == MISSING_RATES
     assert second == MISSING_RATES[1:] + MISSING_RATES[:1]
     assert set(first) == set(MISSING_RATES)
+
+
+def test_stratified_rates_balance_full_and_partial_batches():
+    full_ids = tuple(f"conversation-{index}" for index in range(32))
+    full = stratified_rates_for_batch(
+        MISSING_RATES,
+        master_seed=41,
+        dataset="CMUMOSEI",
+        fold=1,
+        epoch=0,
+        batch_index=0,
+        epoch_size=52,
+        conversations_seen=0,
+        conversation_ids=full_ids,
+    )
+    assert isinstance(full, StratifiedRateAssignment)
+    assert Counter(full.rates) == Counter({rate: 4 for rate in MISSING_RATES})
+
+    tail_ids = tuple(f"conversation-{index}" for index in range(32, 52))
+    tail = stratified_rates_for_batch(
+        MISSING_RATES,
+        master_seed=41,
+        dataset="CMUMOSEI",
+        fold=1,
+        epoch=0,
+        batch_index=1,
+        epoch_size=52,
+        conversations_seen=32,
+        conversation_ids=tail_ids,
+    )
+    tail_counts = Counter(tail.rates)
+    assert set(tail_counts) == set(MISSING_RATES)
+    assert max(tail_counts.values()) - min(tail_counts.values()) == 1
+
+
+def test_stratified_rates_are_deterministic_seeded_and_rng_isolated():
+    kwargs = {
+        "rates": MISSING_RATES,
+        "master_seed": 66,
+        "dataset": "CMUMOSEI",
+        "fold": 1,
+        "epoch": 3,
+        "batch_index": 2,
+        "epoch_size": 24,
+        "conversations_seen": 0,
+        "conversation_ids": tuple(
+            f"conversation-{index}" for index in range(24)
+        ),
+    }
+    random.seed(307)
+    np.random.seed(311)
+    torch.manual_seed(313)
+    python_state = random.getstate()
+    numpy_state = np.random.get_state()
+    torch_state = torch.get_rng_state().clone()
+
+    first = stratified_rates_for_batch(**kwargs)
+    second = stratified_rates_for_batch(**kwargs)
+    changed = stratified_rates_for_batch(
+        **{**kwargs, "master_seed": 67}
+    )
+
+    assert first == second
+    assert changed.rates != first.rates
+    assert changed.assignment_hash != first.assignment_hash
+    assert len(first.assignment_hash) == 64
+    assert random.getstate() == python_state
+    numpy_after = np.random.get_state()
+    assert numpy_after[0] == numpy_state[0]
+    assert np.array_equal(numpy_after[1], numpy_state[1])
+    assert numpy_after[2:] == numpy_state[2:]
+    ASSERT_CLOSE(torch.get_rng_state(), torch_state, rtol=0, atol=0)
+
+
+def test_stratified_rates_tail_surplus_continues_across_epochs():
+    assignments = [
+        stratified_rates_for_batch(
+            MISSING_RATES,
+            master_seed=71,
+            dataset="CMUMOSEI",
+            fold=1,
+            epoch=epoch,
+            batch_index=0,
+            epoch_size=20,
+            conversations_seen=0,
+            conversation_ids=tuple(
+                f"conversation-{index}" for index in range(20)
+            ),
+        )
+        for epoch in range(2)
+    ]
+    counts = [Counter(assignment.rates) for assignment in assignments]
+
+    assert {
+        rate for rate, count in counts[0].items() if count == 3
+    } == set(MISSING_RATES[:4])
+    assert {
+        rate for rate, count in counts[1].items() if count == 3
+    } == set(MISSING_RATES[4:])
+    assert counts[0] + counts[1] == Counter(
+        {rate: 5 for rate in MISSING_RATES}
+    )
+
+
+def test_stratified_rates_small_tail_never_duplicates_conversations():
+    conversation_ids = tuple(f"conversation-{index}" for index in range(5))
+
+    assignment = stratified_rates_for_batch(
+        MISSING_RATES,
+        master_seed=73,
+        dataset="CMUMOSEI",
+        fold=1,
+        epoch=0,
+        batch_index=0,
+        epoch_size=5,
+        conversations_seen=0,
+        conversation_ids=conversation_ids,
+    )
+
+    assert len(assignment.rates) == len(conversation_ids)
+    assert len(set(assignment.rates)) == len(conversation_ids)
 
 
 class _CountingOptimizer:
