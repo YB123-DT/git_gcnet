@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Sequence, Tuple, Union
 
 import torch
@@ -12,9 +13,12 @@ from .model import MODALITIES
 
 
 __all__ = [
+    "OracleState",
     "build_sample_keys",
+    "concatenate_oracle_states",
     "compute_path_output",
     "effective_rank",
+    "extract_oracle_batch",
     "flatten_valid_lbd",
     "restore_named_buffers",
     "shuffle_targets_by_modality",
@@ -24,6 +28,71 @@ __all__ = [
     "state_dict_sha256",
     "tensor_sha256",
 ]
+
+
+@dataclass(frozen=True)
+class OracleState:
+    """Conversation-major tensors collected for frozen oracle paths."""
+
+    sample_keys: Tuple[str, ...]
+    labels: torch.Tensor
+    availability: torch.Tensor
+    graph_hidden: torch.Tensor
+    predicted_latents: torch.Tensor
+    teacher_latents: torch.Tensor
+    target_mask: torch.Tensor
+    native_logits: torch.Tensor
+
+    def __post_init__(self) -> None:
+        keys = tuple(self.sample_keys)
+        object.__setattr__(self, "sample_keys", keys)
+        if len(keys) != len(set(keys)):
+            raise ValueError("duplicate sample key in OracleState")
+        sample_count = len(keys)
+        if self.labels.ndim != 1 or self.labels.shape[0] != sample_count:
+            raise ValueError("labels must have shape [N]")
+        if tuple(self.availability.shape) != (sample_count, len(MODALITIES)):
+            raise ValueError("availability must have shape [N, 3]")
+        if self.graph_hidden.ndim != 2 or self.graph_hidden.shape[0] != sample_count:
+            raise ValueError("graph_hidden must have shape [N, H]")
+        latent_prefix = (sample_count, len(MODALITIES))
+        if (
+            self.predicted_latents.ndim != 3
+            or tuple(self.predicted_latents.shape[:2]) != latent_prefix
+        ):
+            raise ValueError("predicted_latents must have shape [N, 3, D]")
+        if self.teacher_latents.shape != self.predicted_latents.shape:
+            raise ValueError("teacher_latents must match predicted_latents")
+        if tuple(self.target_mask.shape) != latent_prefix:
+            raise ValueError("target_mask must have shape [N, 3]")
+        if self.native_logits.ndim != 2 or self.native_logits.shape[0] != sample_count:
+            raise ValueError("native_logits must have shape [N, C]")
+
+
+def concatenate_oracle_states(states: Sequence[OracleState]) -> OracleState:
+    """Concatenate batch states without changing their metric order."""
+    values = tuple(states)
+    if not values:
+        raise ValueError("states must contain at least one OracleState")
+    if any(not isinstance(state, OracleState) for state in values):
+        raise TypeError("states must contain only OracleState values")
+    sample_keys = tuple(key for state in values for key in state.sample_keys)
+    if len(sample_keys) != len(set(sample_keys)):
+        raise ValueError("duplicate sample key across OracleState values")
+
+    def concatenate(name: str) -> torch.Tensor:
+        return torch.cat([getattr(state, name) for state in values], dim=0)
+
+    return OracleState(
+        sample_keys=sample_keys,
+        labels=concatenate("labels"),
+        availability=concatenate("availability"),
+        graph_hidden=concatenate("graph_hidden"),
+        predicted_latents=concatenate("predicted_latents"),
+        teacher_latents=concatenate("teacher_latents"),
+        target_mask=concatenate("target_mask"),
+        native_logits=concatenate("native_logits"),
+    )
 
 
 def flatten_valid_lbd(value: torch.Tensor, umask: torch.Tensor) -> torch.Tensor:
@@ -276,3 +345,92 @@ def compute_path_output(
     if logits.ndim != 2 or logits.shape[0] != sample_count:
         raise ValueError("classifier must return logits with shape [N, C]")
     return logits, residual
+
+
+@torch.no_grad()
+def extract_oracle_batch(
+    model: nn.Module, view: Mapping[str, Any]
+) -> Tuple[OracleState, Dict[str, float]]:
+    """Extract one batch and audit manual completion against native forward."""
+    buffer_snapshot = snapshot_named_buffers(model)
+    try:
+        if not bool(getattr(model, "classification_completion", False)):
+            raise ValueError("model must enable classification completion")
+
+        incomplete = view["incomplete"]
+        complete = view["complete"]
+        availability = view["availability"]
+        qmask = view["qmask"]
+        umask = view["umask"]
+        labels = view["labels"]
+        lengths = view["lengths"]
+
+        encoded, observed_latents = model.observed_set(
+            incomplete, availability, umask
+        )
+        graph_lbd = model.encode_hidden([encoded], qmask, umask, lengths)
+        predictions = model.missing_predictor(
+            observed_latents, graph_lbd, availability, umask
+        )
+        teacher_lbd = stack_teacher_targets(
+            model.encode_teacher_targets([complete])
+        )
+        native_logits_lbd, native_hidden_lbd, _, returned_predictions = model(
+            [incomplete],
+            availability,
+            qmask,
+            umask,
+            lengths,
+            predict_missing=False,
+        )
+        if returned_predictions is not None:
+            raise RuntimeError("native inference unexpectedly returned predictions")
+
+        graph_hidden = flatten_valid_lbd(graph_lbd, umask)
+        predicted_latents = flatten_valid_lbd(
+            predictions.reg_predictions, umask
+        )
+        teacher_latents = flatten_valid_lbd(teacher_lbd, umask)
+        target_mask = flatten_valid_lbd(predictions.target_mask, umask)
+        native_logits = flatten_valid_lbd(native_logits_lbd, umask)
+        native_hidden = flatten_valid_lbd(native_hidden_lbd, umask)
+        flat_availability = flatten_valid_lbd(availability, umask)
+        flat_labels = flatten_valid_lbd(labels.transpose(0, 1), umask)
+
+        predicted_logits, predicted_residual = compute_path_output(
+            graph_hidden,
+            predicted_latents,
+            target_mask,
+            model.missing_latent_fusion,
+            model.smax_fc,
+        )
+        predicted_hidden = graph_hidden + predicted_residual
+
+        def max_abs_error(left: torch.Tensor, right: torch.Tensor) -> float:
+            if left.shape != right.shape:
+                raise ValueError("manual and native tensors must share a shape")
+            if left.numel() == 0:
+                return 0.0
+            return float((left - right).abs().max().item())
+
+        audit = {
+            "predicted_hidden_max_abs_error": max_abs_error(
+                predicted_hidden, native_hidden
+            ),
+            "predicted_logits_max_abs_error": max_abs_error(
+                predicted_logits, native_logits
+            ),
+        }
+        state = OracleState(
+            sample_keys=build_sample_keys(view["conversation_ids"], umask),
+            labels=flat_labels,
+            availability=flat_availability,
+            graph_hidden=graph_hidden,
+            predicted_latents=predicted_latents,
+            teacher_latents=teacher_latents,
+            target_mask=target_mask,
+            native_logits=native_logits,
+        )
+        return state, audit
+    finally:
+        restore_named_buffers(model, buffer_snapshot)

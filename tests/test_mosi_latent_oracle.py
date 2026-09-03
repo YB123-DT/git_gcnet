@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import hashlib
 from collections import OrderedDict
+from dataclasses import replace
 
 import pytest
 import torch
 
 from gcnet_missing_m3.oracle_diagnostic import (
+    OracleState,
     build_sample_keys,
     compute_path_output,
+    concatenate_oracle_states,
     effective_rank,
+    extract_oracle_batch,
     flatten_valid_lbd,
     restore_named_buffers,
     shuffle_targets_by_modality,
@@ -19,7 +23,11 @@ from gcnet_missing_m3.oracle_diagnostic import (
     state_dict_sha256,
     tensor_sha256,
 )
-from gcnet_missing_m3.model import MODALITIES, MissingLatentResidualFusion
+from gcnet_missing_m3.model import (
+    MODALITIES,
+    MissingLatentResidualFusion,
+    MissingM3GraphModel,
+)
 
 
 ASSERT_CLOSE = getattr(torch.testing, "assert_close", torch.testing.assert_allclose)
@@ -41,6 +49,81 @@ def _historical_effective_rank(value):
         probabilities * probabilities.clamp_min(1e-12).log()
     ).sum()
     return float(entropy.exp().item())
+
+
+def _tiny_completion_model():
+    torch.manual_seed(101)
+    model = MissingM3GraphModel(
+        base_model="LSTM",
+        adim=2,
+        tdim=3,
+        vdim=4,
+        D_e=4,
+        graph_hidden_size=2,
+        n_speakers=2,
+        window_past=1,
+        window_future=1,
+        n_classes=2,
+        dropout=0.0,
+        time_attn=False,
+        no_cuda=True,
+        latent_dim=4,
+        num_experts=2,
+        top_k=1,
+        projector_dropout=0.0,
+        predictor_dropout=0.0,
+        fusion_type="slot",
+        classification_completion=True,
+    ).eval()
+    with torch.no_grad():
+        for projection in model.missing_latent_fusion.target_projections:
+            torch.nn.init.normal_(projection[-1].weight, std=0.2)
+            torch.nn.init.normal_(projection[-1].bias, std=0.2)
+    return model
+
+
+def _oracle_view(all_observed=False):
+    torch.manual_seed(103)
+    complete = torch.randn(3, 2, 9)
+    availability = torch.tensor(
+        [
+            [[1, 0, 1], [0, 1, 1]],
+            [[1, 1, 0], [0, 0, 1]],
+            [[1, 1, 1], [0, 0, 0]],
+        ],
+        dtype=torch.float32,
+    )
+    umask = torch.tensor([[1, 1, 1], [1, 1, 0]], dtype=torch.bool)
+    if all_observed:
+        availability[umask.T] = 1
+    expanded = torch.repeat_interleave(
+        availability, torch.tensor([2, 3, 4]), dim=-1
+    )
+    return {
+        "complete": complete,
+        "incomplete": complete * expanded,
+        "availability": availability,
+        "qmask": torch.tensor([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0]]),
+        "umask": umask,
+        "labels": torch.tensor([[-2.0, -1.0, 0.0], [1.0, 2.0, 99.0]]),
+        "lengths": [3, 2],
+        "conversation_ids": ["vid-a", "vid-b"],
+    }
+
+
+def _oracle_state(prefix, values):
+    count = len(values)
+    value = torch.tensor(values, dtype=torch.float32)
+    return OracleState(
+        sample_keys=tuple(f"{prefix}:{index}" for index in range(count)),
+        labels=value,
+        availability=value[:, None].repeat(1, 3),
+        graph_hidden=value[:, None].repeat(1, 2),
+        predicted_latents=value[:, None, None].repeat(1, 3, 2),
+        teacher_latents=(value + 10)[:, None, None].repeat(1, 3, 2),
+        target_mask=torch.zeros(count, 3, dtype=torch.bool),
+        native_logits=value[:, None].repeat(1, 2),
+    )
 
 
 def test_flatten_and_sample_keys_use_conversation_major_metric_order():
@@ -374,3 +457,133 @@ def test_effective_rank_is_translation_invariant_and_matches_historical_referenc
     assert effective_rank(translated) == pytest.approx(historical, abs=1e-6)
     if torch.cuda.is_available():
         assert effective_rank(value.cuda()) == pytest.approx(historical, abs=1e-6)
+
+
+def test_oracle_state_concatenation_preserves_order_and_rejects_duplicate_keys():
+    left = _oracle_state("left", [1.0, 2.0])
+    right = _oracle_state("right", [3.0, 4.0])
+
+    combined = concatenate_oracle_states([left, right])
+
+    assert combined.sample_keys == (
+        "left:0",
+        "left:1",
+        "right:0",
+        "right:1",
+    )
+    for name in (
+        "labels",
+        "availability",
+        "graph_hidden",
+        "predicted_latents",
+        "teacher_latents",
+        "target_mask",
+        "native_logits",
+    ):
+        assert torch.equal(
+            getattr(combined, name),
+            torch.cat([getattr(left, name), getattr(right, name)], dim=0),
+        )
+    with pytest.raises(ValueError, match="duplicate sample key"):
+        replace(left, sample_keys=("left:0", "left:0"))
+    with pytest.raises(ValueError, match="duplicate sample key"):
+        concatenate_oracle_states([left, _oracle_state("left", [9.0])])
+
+
+def test_extract_oracle_batch_matches_native_completion_and_preserves_buffers():
+    model = _tiny_completion_model()
+    view = _oracle_view()
+    buffers_before = snapshot_named_buffers(model)
+
+    state, audit = extract_oracle_batch(model, view)
+
+    assert state.sample_keys == (
+        "vid-a:0",
+        "vid-a:1",
+        "vid-a:2",
+        "vid-b:0",
+        "vid-b:1",
+    )
+    assert state.labels.shape == (5,)
+    assert state.availability.shape == (5, 3)
+    assert state.graph_hidden.shape == (5, 10)
+    assert state.predicted_latents.shape == (5, 3, 4)
+    assert state.teacher_latents.shape == (5, 3, 4)
+    assert state.target_mask.shape == (5, 3)
+    assert state.native_logits.shape == (5, 2)
+    assert audit["predicted_hidden_max_abs_error"] < 1e-6
+    assert audit["predicted_logits_max_abs_error"] < 1e-6
+    manual_logits, _ = compute_path_output(
+        state.graph_hidden,
+        state.predicted_latents,
+        state.target_mask,
+        model.missing_latent_fusion,
+        model.smax_fc,
+    )
+    ASSERT_CLOSE(manual_logits, state.native_logits, rtol=0, atol=1e-6)
+    for name, buffer in model.named_buffers():
+        assert torch.equal(buffer, buffers_before[name])
+
+
+def test_extract_oracle_batch_complete_targets_only_change_teacher_latents():
+    model = _tiny_completion_model()
+    view = _oracle_view()
+    changed_view = dict(view)
+    changed_complete = view["complete"].clone()
+    valid = view["umask"].T.bool()
+    start = 0
+    for target_index, width in enumerate(model.dimensions):
+        block = changed_complete[..., start : start + width]
+        selected = valid & ~view["availability"][..., target_index].bool()
+        delta = torch.arange(1, width + 1, dtype=block.dtype) * 100.0
+        block[selected] = block[selected] + delta
+        start += width
+    changed_view["complete"] = changed_complete
+
+    original, _ = extract_oracle_batch(model, view)
+    changed, _ = extract_oracle_batch(model, changed_view)
+
+    assert torch.equal(original.graph_hidden, changed.graph_hidden)
+    assert torch.equal(original.predicted_latents, changed.predicted_latents)
+    assert torch.equal(original.target_mask, changed.target_mask)
+    assert torch.equal(original.native_logits, changed.native_logits)
+    assert not torch.equal(
+        original.teacher_latents[original.target_mask],
+        changed.teacher_latents[changed.target_mask],
+    )
+    assert torch.equal(
+        original.teacher_latents[~original.target_mask],
+        changed.teacher_latents[~changed.target_mask],
+    )
+
+
+def test_extract_oracle_batch_rate_zero_has_no_targets_and_equal_paths():
+    model = _tiny_completion_model()
+    state, audit = extract_oracle_batch(model, _oracle_view(all_observed=True))
+
+    assert int(state.target_mask.sum().item()) == 0
+    graph_logits, _ = compute_path_output(
+        state.graph_hidden,
+        None,
+        state.target_mask,
+        model.missing_latent_fusion,
+        model.smax_fc,
+    )
+    predicted_logits, _ = compute_path_output(
+        state.graph_hidden,
+        state.predicted_latents,
+        state.target_mask,
+        model.missing_latent_fusion,
+        model.smax_fc,
+    )
+    teacher_logits, _ = compute_path_output(
+        state.graph_hidden,
+        state.teacher_latents,
+        state.target_mask,
+        model.missing_latent_fusion,
+        model.smax_fc,
+    )
+    for logits in (graph_logits, predicted_logits, teacher_logits):
+        ASSERT_CLOSE(logits, state.native_logits, rtol=0, atol=1e-6)
+    assert audit["predicted_hidden_max_abs_error"] < 1e-6
+    assert audit["predicted_logits_max_abs_error"] < 1e-6
