@@ -20,6 +20,7 @@
 - mask：由 checkpoint 中的 seed 和原 `ConversationMaskSchedule` 重建；
 - 权重：全部冻结，不执行 optimizer，不更新 EMA；
 - shuffle：每个 seed、rate 至少执行 8 个固定置换；若 W-F1 的 Monte Carlo 标准误差超过 0.1 个百分点，自动扩展到 32 个；
+- 环境：pytest 使用已有 `s0` 测试环境；正式数值推理使用 `gcnet-official`。官方训练环境未安装 pytest，不新增依赖。
 
 历史基线代码必须先复现保存结果。当前 HEAD 已包含后续结构变化，不允许作为本诊断的执行基线。
 

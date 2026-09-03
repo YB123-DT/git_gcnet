@@ -55,7 +55,7 @@ def test_flatten_valid_uses_batch_major_metric_order():
 运行：
 
 ```bash
-/data2/yb/reproduction_envs/gcnet-official/bin/python3.8 -m pytest \
+/data2/yb/reproduction_envs/s0/bin/python -m pytest \
   tests/test_mosi_latent_oracle.py -q
 ```
 
@@ -172,7 +172,7 @@ CLI 必须拒绝非 `CMUMOSI`、非 validation split、缺少 completion keys、
 运行：
 
 ```bash
-/data2/yb/reproduction_envs/gcnet-official/bin/python3.8 -m pytest \
+/data2/yb/reproduction_envs/s0/bin/python -m pytest \
   tests/test_mosi_latent_oracle.py tests/test_missing_m3.py -q
 ```
 
@@ -194,7 +194,7 @@ CLI 中所有 NPZ 行都使用 conversation-major 顺序；另用历史 time-maj
 
 - [ ] **步骤 1：同步隔离分支到 biggpu 并运行完整测试**
 
-使用远端官方测试环境运行测试；不得使用 GPU 4。
+使用远端既有 `s0` pytest 环境运行单元测试；正式推理使用 `gcnet-official`。不得安装依赖，不得使用 GPU 4。
 
 - [ ] **步骤 2：运行 5 seeds × 8 rates × 4 paths 的冻结 validation 推理**
 
