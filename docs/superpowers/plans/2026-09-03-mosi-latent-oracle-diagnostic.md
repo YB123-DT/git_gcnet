@@ -221,6 +221,6 @@ rate 0.0 四路 max_abs_error < 1e-6
 
 以 `real_teacher - shuffled_teacher` 作为样本级信息的主对照，并报告 7 个非零 rate 的均值与 0.5--0.7 高缺失均值。`real_teacher - predicted` 只作辅助量，因为它受 teacher-to-fusion 分布外输入混杂。使用 conversation-cluster bootstrap 报告 paired W-F1 delta 的 95% 区间。只有五种子配对效应为正且区间排除 0 时称为强证据；方向一致但区间包含 0 时称为弱证据。每个 seed/rate 先运行 8 个 shuffle；若 shuffle W-F1 的 Monte Carlo 标准误差超过 0.1 个百分点，则自动扩展到 32 个。若 real-teacher 相对 shuffle 没有稳定增量，则记录「直接注入不能区分 teacher 信息与 fusion OOD」，并把冻结 supervised probe 作为独立后续诊断，不修改本轮结论。即便 real-teacher 显著更好，结论也只能是「privileged missing-modal information 有用但当前 predicted residual 未提供」，不能声称现有 observed sources 必然可恢复该信息。
 
-- [ ] **步骤 5：提交结果并推送实验分支**
+- [x] **步骤 5：提交结果并推送实验分支**
 
 Lore commit 必须记录实际命令、通过数、checkpoint 数、结果文件数及未测试的 test split。
