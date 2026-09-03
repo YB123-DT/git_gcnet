@@ -538,6 +538,23 @@ def test_extract_oracle_batch_rejects_local_context_before_computation(monkeypat
         extract_oracle_batch(model, _oracle_view())
 
 
+def test_extract_oracle_batch_rejects_training_without_computation_or_rng_change(
+    monkeypatch,
+):
+    model = _tiny_completion_model().train()
+    view = _oracle_view()
+    rng_before = torch.get_rng_state().clone()
+
+    def fail_if_computed(*_args, **_kwargs):
+        raise AssertionError("training models must be rejected before computation")
+
+    monkeypatch.setattr(model.observed_set, "forward", fail_if_computed)
+
+    with pytest.raises(ValueError, match="evaluation mode"):
+        extract_oracle_batch(model, view)
+    assert torch.equal(torch.get_rng_state(), rng_before)
+
+
 def test_extract_oracle_batch_complete_targets_only_change_teacher_latents():
     model = _tiny_completion_model()
     view = _oracle_view()
