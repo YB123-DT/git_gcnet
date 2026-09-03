@@ -24,7 +24,7 @@
 - 创建：`tests/test_mosi_latent_oracle.py`
 - 创建：`gcnet_missing_m3/oracle_diagnostic.py`
 
-- [ ] **步骤 1：编写确定性 shuffle 与 flatten 的失败测试**
+- [x] **步骤 1：编写确定性 shuffle 与 flatten 的失败测试**
 
 ```python
 def row_multiset(value):
@@ -50,7 +50,7 @@ def test_flatten_valid_uses_batch_major_metric_order():
     )
 ```
 
-- [ ] **步骤 2：运行测试，确认因接口不存在而失败**
+- [x] **步骤 2：运行测试，确认因接口不存在而失败**
 
 运行：
 
@@ -61,7 +61,7 @@ def test_flatten_valid_uses_batch_major_metric_order():
 
 预期：collection error，缺少 `gcnet_missing_m3.oracle_diagnostic`。
 
-- [ ] **步骤 3：实现最少纯函数**
+- [x] **步骤 3：实现最少纯函数**
 
 ```python
 def flatten_valid(value, umask):
@@ -89,11 +89,11 @@ def shuffle_missing_targets(teacher, target_mask, seed):
 
 同一文件实现 `effective_rank(value)`、`tensor_sha256(value)`、`state_dict_sha256(model)`、named-buffer snapshot/restore 和 conversation-cluster paired bootstrap；哈希必须包含 key、dtype、shape 与连续 tensor bytes。shuffle 测试必须断言有效池的 permutation fixed-point count 为 0。
 
-- [ ] **步骤 4：运行 focused tests，确认通过**
+- [x] **步骤 4：运行 focused tests，确认通过**
 
 预期：所有任务 1 测试通过，且没有修改任何核心模型文件。
 
-- [ ] **步骤 5：提交纯诊断操作**
+- [x] **步骤 5：提交纯诊断操作**
 
 提交信息遵循 Lore Commit Protocol，并记录 focused test 结果。
 
@@ -104,7 +104,7 @@ def shuffle_missing_targets(teacher, target_mask, seed):
 - 修改：`gcnet_missing_m3/oracle_diagnostic.py`
 - 创建：`scripts/run_mosi_latent_oracle.py`
 
-- [ ] **步骤 1：编写四路输出的失败测试**
+- [x] **步骤 1：编写四路输出的失败测试**
 
 ```python
 def test_predicted_path_matches_native_completion_forward():
@@ -134,9 +134,9 @@ def test_graph_only_bypasses_fusion_bias():
 
 另加测试：teacher 只填 `target_mask`、所有输出 finite、运行前后 state hash 相同、非持久 routing buffers 被恢复、rate 0 四路等价、conversation bootstrap 不拆分同一对话。
 
-- [ ] **步骤 2：运行新测试，确认因 `compute_oracle_paths` 缺失而失败**
+- [x] **步骤 2：运行新测试，确认因 `compute_oracle_paths` 缺失而失败**
 
-- [ ] **步骤 3：实现一次 batch 收集与全 split 四路计算**
+- [x] **步骤 3：实现一次 batch 收集与全 split 四路计算**
 
 核心数据流固定为：
 
@@ -150,7 +150,7 @@ teacher = torch.stack([teacher_dict[name] for name in MODALITIES], dim=2)
 
 先将 graph、prediction、teacher、target mask、label 和 availability 全部按 `flatten_valid` 收集，并由 conversation ID 与 utterance index 生成 sample key。随后统一构造成 `[N,1,3,D]` 调用原 `missing_latent_fusion`，避免 batch 内 shuffle 和样本顺序错位。测试还必须覆盖全 split shuffle 对 batch 分割方式不敏感，以及修改 complete target 不会改变 predicted 路径。
 
-- [ ] **步骤 4：实现 CLI 与输出 schema**
+- [x] **步骤 4：实现 CLI 与输出 schema**
 
 ```bash
 python scripts/run_mosi_latent_oracle.py \
@@ -167,7 +167,7 @@ python scripts/run_mosi_latent_oracle.py \
 
 CLI 必须拒绝非 `CMUMOSI`、非 validation split、缺少 completion keys、配置与 checkpoint 不一致，以及覆盖非空结果目录。结果还需记录 raw latent、target-specific LayerNorm 后 latent、Linear 投影前后 RMS、tanh 饱和比例、fusion residual 和相对 graph logit delta 的统计，区分表示 OOD 与分类效果。
 
-- [ ] **步骤 5：运行 focused 与历史回归测试**
+- [x] **步骤 5：运行 focused 与历史回归测试**
 
 运行：
 
@@ -178,7 +178,7 @@ CLI 必须拒绝非 `CMUMOSI`、非 validation split、缺少 completion keys、
 
 预期：全部通过；原 `tests/test_missing_m3.py` 保持 60/60 通过。
 
-- [ ] **步骤 6：提交 runner**
+- [x] **步骤 6：提交 runner**
 
 提交信息记录 predicted/native 等价阈值、状态哈希与未运行的正式 validation。
 
@@ -192,15 +192,15 @@ CLI 中所有 NPZ 行都使用 conversation-major 顺序；另用历史 time-maj
 - 生成：`experiments/missing_m3_mosi_latent_oracle_20260903/results/seed_*/rate_*.json`
 - 生成：`experiments/missing_m3_mosi_latent_oracle_20260903/results/seed_*/rate_*.npz`
 
-- [ ] **步骤 1：同步隔离分支到 biggpu 并运行完整测试**
+- [x] **步骤 1：同步隔离分支到 biggpu 并运行完整测试**
 
 使用远端既有 `s0` pytest 环境运行单元测试；正式推理使用 `gcnet-official`。不得安装依赖，不得使用 GPU 4。
 
-- [ ] **步骤 2：运行 5 seeds × 8 rates × 4 paths 的冻结 validation 推理**
+- [x] **步骤 2：运行 5 seeds × 8 rates × 4 paths 的冻结 validation 推理**
 
 使用 `/data2/yb/reproduction_envs/gcnet-official/bin/python3.8`。该步骤不创建 optimizer、不调用 backward、不保存新 checkpoint。
 
-- [ ] **步骤 3：验证 provenance 与结果完整性**
+- [x] **步骤 3：验证 provenance 与结果完整性**
 
 检查：
 
@@ -217,7 +217,7 @@ rate 0.0 四路 max_abs_error < 1e-6
 所有 named buffers 在每个 rate 后已恢复
 ```
 
-- [ ] **步骤 4：写实验结论**
+- [x] **步骤 4：写实验结论**
 
 以 `real_teacher - shuffled_teacher` 作为样本级信息的主对照，并报告 7 个非零 rate 的均值与 0.5--0.7 高缺失均值。`real_teacher - predicted` 只作辅助量，因为它受 teacher-to-fusion 分布外输入混杂。使用 conversation-cluster bootstrap 报告 paired W-F1 delta 的 95% 区间。只有五种子配对效应为正且区间排除 0 时称为强证据；方向一致但区间包含 0 时称为弱证据。每个 seed/rate 先运行 8 个 shuffle；若 shuffle W-F1 的 Monte Carlo 标准误差超过 0.1 个百分点，则自动扩展到 32 个。若 real-teacher 相对 shuffle 没有稳定增量，则记录「直接注入不能区分 teacher 信息与 fusion OOD」，并把冻结 supervised probe 作为独立后续诊断，不修改本轮结论。即便 real-teacher 显著更好，结论也只能是「privileged missing-modal information 有用但当前 predicted residual 未提供」，不能声称现有 observed sources 必然可恢复该信息。
 
