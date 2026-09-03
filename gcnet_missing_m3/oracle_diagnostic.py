@@ -6,7 +6,9 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Sequence, Tuple, Union
 
+import numpy as np
 import torch
+from sklearn.metrics import accuracy_score, f1_score
 from torch import nn
 
 from .model import MODALITIES
@@ -17,9 +19,13 @@ __all__ = [
     "build_sample_keys",
     "concatenate_oracle_states",
     "compute_path_output",
+    "conversation_cluster_bootstrap",
     "effective_rank",
     "extract_oracle_batch",
     "flatten_valid_lbd",
+    "fusion_path_diagnostics",
+    "metric_mean_std",
+    "regression_metrics",
     "restore_named_buffers",
     "shuffle_targets_by_modality",
     "snapshot_named_buffers",
@@ -440,3 +446,319 @@ def extract_oracle_batch(
         return state, audit
     finally:
         restore_named_buffers(model, buffer_snapshot)
+
+
+def _numpy_vector(value: Any, name: str) -> np.ndarray:
+    if torch.is_tensor(value):
+        value = value.detach().to(device="cpu").numpy()
+    array = np.asarray(value)
+    if array.ndim != 1:
+        raise ValueError(f"{name} must be one-dimensional")
+    if array.size == 0:
+        raise ValueError(f"{name} must contain at least one value")
+    try:
+        finite = np.isfinite(array).all()
+    except TypeError as error:
+        raise ValueError(f"{name} must contain finite numeric values") from error
+    if not bool(finite):
+        raise ValueError(f"{name} must contain only finite values")
+    return array.astype(np.float64, copy=False)
+
+
+def regression_metrics(labels: Any, predictions: Any) -> Dict[str, float]:
+    """Return the historical CMU-MOSI regression evaluation metrics."""
+    target = _numpy_vector(labels, "labels")
+    predicted = _numpy_vector(predictions, "predictions")
+    if target.shape[0] != predicted.shape[0]:
+        raise ValueError("labels and predictions must have equal length")
+
+    nonzero = target != 0
+    if bool(nonzero.any()):
+        binary_target = target[nonzero] > 0
+        binary_predicted = predicted[nonzero] > 0
+        weighted_f1 = float(
+            f1_score(binary_target, binary_predicted, average="weighted")
+        )
+        macro_f1 = float(
+            f1_score(binary_target, binary_predicted, average="macro")
+        )
+        accuracy = float(accuracy_score(binary_target, binary_predicted))
+    else:
+        weighted_f1 = 0.0
+        macro_f1 = 0.0
+        accuracy = 0.0
+
+    correlation = (
+        float(np.corrcoef(target, predicted)[0, 1])
+        if target.size >= 2
+        and float(np.std(target)) > 0.0
+        and float(np.std(predicted)) > 0.0
+        else 0.0
+    )
+    return {
+        "weighted_f1": weighted_f1,
+        "macro_f1": macro_f1,
+        "accuracy": accuracy,
+        "mae": float(np.mean(np.abs(target - predicted))),
+        "correlation": correlation,
+    }
+
+
+def _weighted_sign_f1(labels: np.ndarray, predictions: np.ndarray) -> float:
+    """Fast equivalent of sklearn weighted F1 for MOSI sign labels."""
+    selected = labels != 0
+    if not bool(selected.any()):
+        return 0.0
+    target = labels[selected] > 0
+    predicted = predictions[selected] > 0
+    score = 0.0
+    for label in np.unique(np.concatenate((target, predicted))):
+        target_is_label = target == label
+        predicted_is_label = predicted == label
+        true_positive = int(np.sum(target_is_label & predicted_is_label))
+        false_positive = int(np.sum(~target_is_label & predicted_is_label))
+        false_negative = int(np.sum(target_is_label & ~predicted_is_label))
+        denominator = 2 * true_positive + false_positive + false_negative
+        f1 = 0.0 if denominator == 0 else 2.0 * true_positive / denominator
+        score += int(np.sum(target_is_label)) * f1
+    return float(score / target.shape[0])
+
+
+def _rms(value: torch.Tensor) -> float:
+    if value.numel() == 0:
+        return 0.0
+    return float(value.float().square().mean().sqrt().item())
+
+
+def _latent_statistics(value: torch.Tensor, prefix: str) -> Dict[str, float]:
+    if value.numel() == 0:
+        return {
+            f"{prefix}_effective_rank": 0.0,
+            f"{prefix}_channel_std": 0.0,
+            f"{prefix}_rms": 0.0,
+        }
+    channel_std = value.float().std(dim=0, unbiased=False).mean()
+    return {
+        f"{prefix}_effective_rank": effective_rank(value),
+        f"{prefix}_channel_std": float(channel_std.item()),
+        f"{prefix}_rms": _rms(value),
+    }
+
+
+@torch.no_grad()
+def fusion_path_diagnostics(
+    latents: torch.Tensor,
+    target_mask: torch.Tensor,
+    fusion: nn.Module,
+    graph_hidden: torch.Tensor,
+    graph_logits: torch.Tensor,
+    classifier: nn.Module,
+) -> Dict[str, Any]:
+    """Measure latent geometry and its frozen residual/logit contribution."""
+    if latents.ndim != 3 or latents.shape[1] != len(MODALITIES):
+        raise ValueError("latents must have shape [N, 3, D]")
+    sample_count = latents.shape[0]
+    if target_mask.ndim != 2 or tuple(target_mask.shape) != (
+        sample_count,
+        len(MODALITIES),
+    ):
+        raise ValueError("target_mask must have shape [N, 3]")
+    if graph_hidden.ndim != 2 or graph_hidden.shape[0] != sample_count:
+        raise ValueError("graph_hidden must have shape [N, H]")
+    if graph_logits.ndim != 2 or graph_logits.shape[0] != sample_count:
+        raise ValueError("graph_logits must have shape [N, C]")
+    for name, value in (
+        ("latents", latents),
+        ("graph_hidden", graph_hidden),
+        ("graph_logits", graph_logits),
+    ):
+        if not bool(torch.isfinite(value).all()):
+            raise ValueError(f"{name} must contain only finite values")
+    projections = getattr(fusion, "target_projections", None)
+    if projections is None or len(projections) != len(MODALITIES):
+        raise ValueError("fusion must expose three target_projections")
+
+    fusion_buffers = snapshot_named_buffers(fusion)
+    classifier_buffers = snapshot_named_buffers(classifier)
+    try:
+        selected_mask = target_mask.to(device=latents.device, dtype=torch.bool)
+        target_statistics: Dict[str, Dict[str, Union[int, float]]] = {}
+        for target_index, modality in enumerate(MODALITIES):
+            selected = latents[selected_mask[:, target_index], target_index]
+            count = int(selected.shape[0])
+            if count == 0:
+                target_statistics[modality] = {
+                    "count": 0,
+                    "raw_effective_rank": 0.0,
+                    "raw_channel_std": 0.0,
+                    "raw_rms": 0.0,
+                    "layer_norm_effective_rank": 0.0,
+                    "layer_norm_channel_std": 0.0,
+                    "layer_norm_rms": 0.0,
+                    "linear_output_rms": 0.0,
+                    "tanh_saturation_fraction": 0.0,
+                }
+                continue
+            projection = projections[target_index]
+            try:
+                normalized = projection[0](selected)
+                linear_output = projection[1](normalized)
+            except (IndexError, TypeError) as error:
+                raise ValueError(
+                    "each target projection must expose LayerNorm then Linear"
+                ) from error
+            statistics: Dict[str, Union[int, float]] = {"count": count}
+            statistics.update(_latent_statistics(selected, "raw"))
+            statistics.update(_latent_statistics(normalized, "layer_norm"))
+            statistics["linear_output_rms"] = _rms(linear_output)
+            statistics["tanh_saturation_fraction"] = float(
+                (torch.tanh(linear_output).abs() >= 0.95)
+                .float()
+                .mean()
+                .item()
+            )
+            target_statistics[modality] = statistics
+
+        path_logits, residual = compute_path_output(
+            graph_hidden,
+            latents,
+            selected_mask,
+            fusion,
+            classifier,
+        )
+        if path_logits.shape != graph_logits.shape:
+            raise ValueError("path logits and graph_logits must share a shape")
+        logit_shift = path_logits - graph_logits.to(device=path_logits.device)
+        diagnostics: Dict[str, Any] = {
+            "targets": target_statistics,
+            "residual": {
+                "rms": _rms(residual),
+                "mean_l2": float(
+                    residual.float().norm(dim=-1).mean().item()
+                    if residual.shape[0]
+                    else 0.0
+                ),
+            },
+            "logit_shift": {
+                "mean_abs": float(
+                    logit_shift.abs().mean().item()
+                    if logit_shift.numel()
+                    else 0.0
+                ),
+                "max_abs": float(
+                    logit_shift.abs().max().item()
+                    if logit_shift.numel()
+                    else 0.0
+                ),
+                "rms": _rms(logit_shift),
+            },
+        }
+        return diagnostics
+    finally:
+        restore_named_buffers(fusion, fusion_buffers)
+        restore_named_buffers(classifier, classifier_buffers)
+
+
+def conversation_cluster_bootstrap(
+    labels: Any,
+    left_predictions: Any,
+    right_predictions: Any,
+    sample_keys: Sequence[str],
+    seed: int,
+    resamples: int = 2000,
+) -> Dict[str, Union[int, float]]:
+    """Bootstrap a MOSI W-F1 contrast by whole conversation clusters."""
+    target = _numpy_vector(labels, "labels")
+    left = _numpy_vector(left_predictions, "left_predictions")
+    if left.shape[0] != target.shape[0]:
+        raise ValueError("labels and left_predictions must have equal length")
+    if torch.is_tensor(right_predictions):
+        right_predictions = right_predictions.detach().to(device="cpu").numpy()
+    right = np.asarray(right_predictions)
+    if right.ndim == 1:
+        right = right[None, :]
+    if right.ndim != 2:
+        raise ValueError("right_predictions must have shape [N] or [K, N]")
+    if right.shape[0] == 0 or right.shape[1] != target.shape[0]:
+        raise ValueError("right_predictions must contain one or more length-N rows")
+    try:
+        right_is_finite = np.isfinite(right).all()
+    except TypeError as error:
+        raise ValueError(
+            "right_predictions must contain finite numeric values"
+        ) from error
+    if not bool(right_is_finite):
+        raise ValueError("right_predictions must contain only finite values")
+    right = right.astype(np.float64, copy=False)
+    keys = tuple(str(key) for key in sample_keys)
+    if len(keys) != target.shape[0]:
+        raise ValueError("sample_keys must have the same length as labels")
+    if len(keys) != len(set(keys)):
+        raise ValueError("sample_keys must be unique")
+    if not isinstance(resamples, int) or isinstance(resamples, bool) or resamples <= 0:
+        raise ValueError("resamples must be a positive integer")
+
+    cluster_members: Dict[str, list] = {}
+    for index, key in enumerate(keys):
+        pieces = key.rsplit(":", 1)
+        if len(pieces) != 2 or not pieces[0] or not pieces[1]:
+            raise ValueError("sample_keys must end in ':utterance_index'")
+        cluster_members.setdefault(pieces[0], []).append(index)
+    clusters = tuple(
+        np.asarray(indices, dtype=np.int64)
+        for indices in cluster_members.values()
+    )
+
+    def contrast(indices: np.ndarray) -> float:
+        sampled_target = target[indices]
+        left_score = _weighted_sign_f1(sampled_target, left[indices])
+        right_score = float(
+            np.mean(
+                [
+                    _weighted_sign_f1(sampled_target, row[indices])
+                    for row in right
+                ]
+            )
+        )
+        return float(left_score - right_score)
+
+    all_indices = np.arange(target.shape[0], dtype=np.int64)
+    point_estimate = contrast(all_indices)
+    generator = np.random.RandomState(int(seed) % (2 ** 32))
+    replicates = np.empty(resamples, dtype=np.float64)
+    cluster_count = len(clusters)
+    for replicate in range(resamples):
+        draw = generator.randint(0, cluster_count, size=cluster_count)
+        selected = np.concatenate([clusters[index] for index in draw])
+        replicates[replicate] = contrast(selected)
+    return {
+        "point_estimate": point_estimate,
+        "ci_low": float(np.quantile(replicates, 0.025)),
+        "ci_high": float(np.quantile(replicates, 0.975)),
+        "resamples": int(resamples),
+        "conversation_count": int(cluster_count),
+    }
+
+
+def metric_mean_std(
+    records: Sequence[Mapping[str, Union[int, float]]]
+) -> Dict[str, Dict[str, float]]:
+    """Summarize flat metric records with population mean and std."""
+    values = tuple(records)
+    if not values:
+        raise ValueError("records must contain at least one metric mapping")
+    keys = set(values[0])
+    if any(set(record) != keys for record in values[1:]):
+        raise ValueError("records must have the same metric keys")
+    summary: Dict[str, Dict[str, float]] = {}
+    for key in sorted(keys):
+        metric_values = np.asarray(
+            [record[key] for record in values], dtype=np.float64
+        )
+        if not bool(np.isfinite(metric_values).all()):
+            raise ValueError("metric values must be finite")
+        summary[key] = {
+            "mean": float(metric_values.mean()),
+            "std": float(metric_values.std(ddof=0)),
+        }
+    return summary

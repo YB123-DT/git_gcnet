@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections import OrderedDict
 from dataclasses import replace
 
+import numpy as np
 import pytest
 import torch
 
@@ -12,9 +14,13 @@ from gcnet_missing_m3.oracle_diagnostic import (
     build_sample_keys,
     compute_path_output,
     concatenate_oracle_states,
+    conversation_cluster_bootstrap,
     effective_rank,
     extract_oracle_batch,
     flatten_valid_lbd,
+    fusion_path_diagnostics,
+    metric_mean_std,
+    regression_metrics,
     restore_named_buffers,
     shuffle_targets_by_modality,
     snapshot_named_buffers,
@@ -637,3 +643,203 @@ def test_extract_oracle_batch_rate_zero_has_no_targets_and_equal_paths():
         ASSERT_CLOSE(logits, state.native_logits, rtol=0, atol=1e-6)
     assert audit["predicted_hidden_max_abs_error"] < 1e-6
     assert audit["predicted_logits_max_abs_error"] < 1e-6
+
+
+def test_regression_metrics_match_mosi_sign_contract_and_use_all_values_for_mae():
+    labels = torch.tensor([-2.0, -0.5, 0.0, 1.0, 3.0])
+    predictions = torch.tensor([-1.0, 0.25, 100.0, 0.5, -2.0])
+
+    metrics = regression_metrics(labels, predictions)
+
+    # The zero-labelled item is excluded only from the three sign metrics.
+    assert metrics["weighted_f1"] == pytest.approx(0.5)
+    assert metrics["macro_f1"] == pytest.approx(0.5)
+    assert metrics["accuracy"] == pytest.approx(0.5)
+    assert metrics["mae"] == pytest.approx(
+        float(np.mean(np.abs(labels.numpy() - predictions.numpy())))
+    )
+    assert metrics["correlation"] == pytest.approx(
+        float(np.corrcoef(labels.numpy(), predictions.numpy())[0, 1])
+    )
+    assert set(metrics) == {
+        "weighted_f1",
+        "macro_f1",
+        "accuracy",
+        "mae",
+        "correlation",
+    }
+    assert all(type(value) is float for value in metrics.values())
+
+
+@pytest.mark.parametrize(
+    "labels,predictions,error",
+    [
+        ([1.0, 2.0], [[1.0], [2.0]], "one-dimensional"),
+        ([1.0], [1.0, 2.0], "equal length"),
+        ([1.0, float("nan")], [1.0, 2.0], "finite"),
+    ],
+)
+def test_regression_metrics_reject_invalid_inputs(labels, predictions, error):
+    with pytest.raises(ValueError, match=error):
+        regression_metrics(labels, predictions)
+
+
+def test_fusion_path_diagnostics_reports_target_geometry_and_restores_buffers():
+    fusion = MissingLatentResidualFusion(latent_dim=2, hidden_dim=2)
+    with torch.no_grad():
+        for projection in fusion.target_projections:
+            projection[0].weight.fill_(1.0)
+            projection[0].bias.zero_()
+            projection[1].weight.copy_(2.0 * torch.eye(2))
+            projection[1].bias.zero_()
+    fusion.register_buffer("diagnostic_calls", torch.tensor(0), persistent=False)
+
+    def assert_frozen_and_mutate(module, _inputs):
+        assert not torch.is_grad_enabled()
+        module.diagnostic_calls.add_(1)
+
+    fusion.register_forward_pre_hook(assert_frozen_and_mutate)
+    classifier = torch.nn.Linear(2, 1, bias=False)
+    with torch.no_grad():
+        classifier.weight.copy_(torch.tensor([[1.0, -1.0]]))
+    latents = torch.tensor(
+        [
+            [[1.0, 0.0], [0.0, 2.0], [9.0, 9.0]],
+            [[3.0, 0.0], [4.0, 4.0], [8.0, 8.0]],
+            [[5.0, 5.0], [6.0, 6.0], [7.0, 7.0]],
+        ],
+        requires_grad=True,
+    )
+    target_mask = torch.tensor(
+        [[1, 1, 0], [1, 0, 0], [0, 0, 0]], dtype=torch.bool
+    )
+    graph_hidden = torch.zeros(3, 2)
+    graph_logits = classifier(graph_hidden)
+    buffer_before = fusion.diagnostic_calls.clone()
+
+    diagnostics = fusion_path_diagnostics(
+        latents,
+        target_mask,
+        fusion,
+        graph_hidden,
+        graph_logits,
+        classifier,
+    )
+
+    assert fusion.diagnostic_calls.equal(buffer_before)
+    assert diagnostics["targets"]["audio"]["count"] == 2
+    assert diagnostics["targets"]["audio"]["raw_effective_rank"] == pytest.approx(
+        1.0
+    )
+    assert diagnostics["targets"]["audio"]["raw_channel_std"] == pytest.approx(
+        0.5
+    )
+    assert diagnostics["targets"]["audio"]["raw_rms"] == pytest.approx(
+        np.sqrt(2.5)
+    )
+    assert diagnostics["targets"]["audio"][
+        "layer_norm_channel_std"
+    ] == pytest.approx(0.0, abs=1e-5)
+    assert diagnostics["targets"]["audio"]["layer_norm_rms"] == pytest.approx(
+        1.0, abs=1e-4
+    )
+    assert diagnostics["targets"]["audio"]["linear_output_rms"] == pytest.approx(
+        2.0, abs=1e-4
+    )
+    assert diagnostics["targets"]["audio"][
+        "tanh_saturation_fraction"
+    ] == pytest.approx(1.0)
+    assert diagnostics["targets"]["text"]["count"] == 1
+    assert diagnostics["targets"]["visual"] == {
+        "count": 0,
+        "raw_effective_rank": 0.0,
+        "raw_channel_std": 0.0,
+        "raw_rms": 0.0,
+        "layer_norm_effective_rank": 0.0,
+        "layer_norm_channel_std": 0.0,
+        "layer_norm_rms": 0.0,
+        "linear_output_rms": 0.0,
+        "tanh_saturation_fraction": 0.0,
+    }
+    assert diagnostics["residual"]["rms"] > 0.0
+    assert diagnostics["residual"]["mean_l2"] > 0.0
+    assert diagnostics["logit_shift"]["mean_abs"] > 0.0
+    assert diagnostics["logit_shift"]["max_abs"] > 0.0
+    assert diagnostics["logit_shift"]["rms"] > 0.0
+    assert json.loads(json.dumps(diagnostics)) == diagnostics
+
+
+def test_conversation_cluster_bootstrap_resamples_whole_conversations_and_is_deterministic():
+    labels = np.array([-2.0, 1.0, -1.0, 2.0, -3.0, 3.0])
+    left = np.array([-1.0, 2.0, -2.0, 1.0, 1.0, 2.0])
+    right = np.stack(
+        [
+            np.array([1.0, 2.0, -2.0, -1.0, -1.0, 2.0]),
+            np.array([-1.0, -2.0, 2.0, 1.0, -1.0, -2.0]),
+        ]
+    )
+    sample_keys = (
+        "site:dialog-a:0",
+        "site:dialog-a:1",
+        "dialog-b:0",
+        "dialog-c:0",
+        "dialog-c:1",
+        "dialog-c:2",
+    )
+
+    first = conversation_cluster_bootstrap(
+        labels, left, right, sample_keys, seed=17, resamples=1
+    )
+    second = conversation_cluster_bootstrap(
+        labels, left, right, sample_keys, seed=17, resamples=1
+    )
+
+    # Reproduce the one draw explicitly at the conversation level. A row-level
+    # bootstrap cannot satisfy this equality for the same RNG draw.
+    clusters = (
+        np.array([0, 1]),
+        np.array([2]),
+        np.array([3, 4, 5]),
+    )
+    draw = np.random.RandomState(17).randint(0, 3, size=3)
+    selected = np.concatenate([clusters[index] for index in draw])
+    expected_replicate = regression_metrics(labels[selected], left[selected])[
+        "weighted_f1"
+    ] - np.mean(
+        [
+            regression_metrics(labels[selected], row[selected])["weighted_f1"]
+            for row in right
+        ]
+    )
+    expected_point = regression_metrics(labels, left)["weighted_f1"] - np.mean(
+        [regression_metrics(labels, row)["weighted_f1"] for row in right]
+    )
+
+    assert first == second
+    assert first["conversation_count"] == 3
+    assert first["resamples"] == 1
+    assert first["point_estimate"] == pytest.approx(expected_point)
+    assert first["ci_low"] == pytest.approx(expected_replicate)
+    assert first["ci_high"] == pytest.approx(expected_replicate)
+    assert json.loads(json.dumps(first)) == first
+
+
+def test_metric_mean_std_uses_population_std_and_requires_matching_keys():
+    records = [
+        {"weighted_f1": 0.5, "mae": 2},
+        {"weighted_f1": 0.7, "mae": 4},
+        {"weighted_f1": 0.9, "mae": 6},
+    ]
+
+    summary = metric_mean_std(records)
+
+    assert summary == {
+        "mae": {"mean": 4.0, "std": pytest.approx(np.sqrt(8.0 / 3.0))},
+        "weighted_f1": {
+            "mean": pytest.approx(0.7),
+            "std": pytest.approx(np.sqrt(0.08 / 3.0)),
+        },
+    }
+    assert json.loads(json.dumps(summary)) == summary
+    with pytest.raises(ValueError, match="same metric keys"):
+        metric_mean_std([{"a": 1.0}, {"b": 2.0}])
