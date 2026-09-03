@@ -354,6 +354,10 @@ def extract_oracle_batch(
     """Extract one batch and audit manual completion against native forward."""
     buffer_snapshot = snapshot_named_buffers(model)
     try:
+        if bool(getattr(model, "local_context_residual", False)):
+            raise ValueError(
+                "extract_oracle_batch does not support local_context_residual=True"
+            )
         if not bool(getattr(model, "classification_completion", False)):
             raise ValueError("model must enable classification completion")
 

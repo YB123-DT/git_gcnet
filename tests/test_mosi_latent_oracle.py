@@ -525,6 +525,19 @@ def test_extract_oracle_batch_matches_native_completion_and_preserves_buffers():
         assert torch.equal(buffer, buffers_before[name])
 
 
+def test_extract_oracle_batch_rejects_local_context_before_computation(monkeypatch):
+    model = _tiny_completion_model()
+    model.local_context_residual = True
+
+    def fail_if_computed(*_args, **_kwargs):
+        raise AssertionError("local-context models must be rejected before computation")
+
+    monkeypatch.setattr(model.observed_set, "forward", fail_if_computed)
+
+    with pytest.raises(ValueError, match="local_context_residual"):
+        extract_oracle_batch(model, _oracle_view())
+
+
 def test_extract_oracle_batch_complete_targets_only_change_teacher_latents():
     model = _tiny_completion_model()
     view = _oracle_view()
@@ -583,7 +596,27 @@ def test_extract_oracle_batch_rate_zero_has_no_targets_and_equal_paths():
         model.missing_latent_fusion,
         model.smax_fc,
     )
-    for logits in (graph_logits, predicted_logits, teacher_logits):
+    shuffled_teacher, _ = shuffle_targets_by_modality(
+        state.teacher_latents,
+        state.target_mask,
+        master_seed=66,
+        rate=0.0,
+        shuffle_index=0,
+    )
+    shuffled_logits, _ = compute_path_output(
+        state.graph_hidden,
+        shuffled_teacher,
+        state.target_mask,
+        model.missing_latent_fusion,
+        model.smax_fc,
+    )
+    assert torch.equal(shuffled_teacher, state.teacher_latents)
+    for logits in (
+        graph_logits,
+        predicted_logits,
+        teacher_logits,
+        shuffled_logits,
+    ):
         ASSERT_CLOSE(logits, state.native_logits, rtol=0, atol=1e-6)
     assert audit["predicted_hidden_max_abs_error"] < 1e-6
     assert audit["predicted_logits_max_abs_error"] < 1e-6
