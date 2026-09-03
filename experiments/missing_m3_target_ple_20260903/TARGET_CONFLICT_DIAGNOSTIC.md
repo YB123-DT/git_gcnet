@@ -19,15 +19,33 @@ The checkpoint used legacy PyG `GraphConv` state keys. For diagnostic loading on
 
 ## Target co-occurrence
 
-For the first real training batch, rate 0.5 contained 843 valid utterances:
+The full MOSI training split contains 1,284 valid utterances in 52 conversations. Target counts at epoch 44 were:
 
-| Missing target | Count |
-| --- | ---: |
-| Audio | 406 |
-| Text | 396 |
-| Visual | 377 |
+| Missing rate | Missing A | Missing T | Missing V | Conversations containing at least two target types |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.0 | 0 | 0 | 0 | 0 / 52 |
+| 0.1 | 129 | 143 | 129 | 50 / 52 |
+| 0.2 | 266 | 240 | 241 | 52 / 52 |
+| 0.3 | 374 | 358 | 354 | 52 / 52 |
+| 0.4 | 500 | 458 | 471 | 52 / 52 |
+| 0.5 | 580 | 612 | 587 | 52 / 52 |
+| 0.6 | 660 | 692 | 668 | 52 / 52 |
+| 0.7 | 719 | 787 | 738 | 52 / 52 |
 
-All 32 conversations contained at least two different missing-target types. Even at rate 0.1, 29 of 32 conversations contained at least two target types. Therefore target mixing within a batch is confirmed rather than hypothetical.
+The observed-pattern counts were:
+
+| Rate | V (`001`) | T (`010`) | TV (`011`) | A (`100`) | AV (`101`) | AT (`110`) | ATV (`111`) |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0.0 | 0 | 0 | 0 | 0 | 0 | 0 | 1,284 |
+| 0.1 | 16 | 13 | 100 | 12 | 115 | 104 | 924 |
+| 0.2 | 41 | 46 | 179 | 44 | 155 | 151 | 668 |
+| 0.3 | 88 | 78 | 208 | 100 | 170 | 176 | 464 |
+| 0.4 | 153 | 166 | 181 | 133 | 172 | 172 | 307 |
+| 0.5 | 208 | 216 | 156 | 220 | 184 | 151 | 149 |
+| 0.6 | 273 | 278 | 109 | 271 | 148 | 119 | 86 |
+| 0.7 | 340 | 305 | 74 | 356 | 91 | 77 | 41 |
+
+At rate 0.1, 50 of 52 conversations already contained at least two different missing-target types; from rate 0.2 onward this was true for all conversations. Therefore target mixing is confirmed across every nonzero official missing rate rather than only in one selected batch.
 
 In `train_rate_mode=all`, the same conversation batch is evaluated at all eight rates before one `optimizer.step()`. Gradients from all nonzero rates and all three target modalities therefore reach the shared experts in the same update.
 
