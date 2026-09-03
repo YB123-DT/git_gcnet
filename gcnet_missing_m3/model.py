@@ -670,6 +670,21 @@ class LocalContextResidualFusion(nn.Module):
         return residual
 
 
+class TargetPrivateExpertResidual(nn.Module):
+    """Low-rank target-owned capacity added before target-specific heads."""
+
+    def __init__(self, latent_dim: int, rank: int) -> None:
+        super().__init__()
+        if int(rank) <= 0:
+            raise ValueError("rank must be positive")
+        self.down = nn.Linear(latent_dim, int(rank), bias=False)
+        self.up = nn.Linear(int(rank), latent_dim, bias=False)
+        nn.init.zeros_(self.up.weight)
+
+    def forward(self, value: torch.Tensor) -> torch.Tensor:
+        return self.up(F.gelu(self.down(value)))
+
+
 class DualGateTopKMMoE(nn.Module):
     def __init__(
         self,
@@ -678,15 +693,19 @@ class DualGateTopKMMoE(nn.Module):
         top_k: int,
         dropout: float,
         variant: str = "dual-gate",
+        target_private_rank: int = 0,
     ) -> None:
         super().__init__()
         if not 1 <= top_k <= num_experts:
             raise ValueError("top_k must be between one and num_experts")
         if variant not in {"dual-gate", "paper-faithful"}:
             raise ValueError("variant must be 'dual-gate' or 'paper-faithful'")
+        if int(target_private_rank) < 0:
+            raise ValueError("target_private_rank cannot be negative")
         self.top_k = int(top_k)
         self.variant = variant
         self.num_experts = int(num_experts)
+        self.target_private_rank = int(target_private_rank)
         self.source_embedding = nn.Embedding(3, latent_dim)
         self.target_embedding = nn.Embedding(3, latent_dim)
         self.experts = nn.ModuleList(
@@ -708,6 +727,15 @@ class DualGateTopKMMoE(nn.Module):
         self.cl_heads = nn.ModuleList(
             [nn.Linear(latent_dim, latent_dim) for _ in MODALITIES]
         )
+        if self.target_private_rank:
+            self.target_private_experts = nn.ModuleList(
+                [
+                    TargetPrivateExpertResidual(
+                        latent_dim, self.target_private_rank
+                    )
+                    for _ in MODALITIES
+                ]
+            )
         if self.variant == "paper-faithful":
             self.reg_task_embedding = nn.Parameter(torch.empty(latent_dim))
             self.cl_task_embedding = nn.Parameter(torch.empty(latent_dim))
@@ -833,6 +861,12 @@ class DualGateTopKMMoE(nn.Module):
                 self._route(conditioned, self.cl_gate, branch_index=1),
                 experts,
             )
+        if self.target_private_rank:
+            private_residual = self.target_private_experts[target_index](
+                conditioned
+            )
+            reg_hidden = reg_hidden + private_residual
+            cl_hidden = cl_hidden + private_residual
         return self.reg_heads[target_index](reg_hidden), self.cl_heads[target_index](cl_hidden)
 
 
@@ -910,13 +944,19 @@ class ContextualM3Predictor(nn.Module):
         top_k: int = 2,
         dropout: float = 0.1,
         mmoe_variant: str = "dual-gate",
+        target_private_rank: int = 0,
     ) -> None:
         super().__init__()
         self.latent_dim = int(latent_dim)
         self.context_projection = nn.Linear(context_dim, latent_dim)
         self.input_norm = nn.LayerNorm(latent_dim)
         self.mmoe = DualGateTopKMMoE(
-            latent_dim, num_experts, top_k, dropout, variant=mmoe_variant
+            latent_dim,
+            num_experts,
+            top_k,
+            dropout,
+            variant=mmoe_variant,
+            target_private_rank=target_private_rank,
         )
 
     def direction_forward(
@@ -1016,6 +1056,7 @@ class MissingM3GraphModel(GraphModel):
         local_fusion_dropout=0.2,
         graph_branch_mode="both",
         mmoe_variant="dual-gate",
+        target_private_rank=0,
         classification_completion=False,
         representation_type="slot",
         node_interaction_residual=False,
@@ -1132,6 +1173,7 @@ class MissingM3GraphModel(GraphModel):
             top_k=top_k,
             dropout=predictor_dropout,
             mmoe_variant=mmoe_variant,
+            target_private_rank=target_private_rank,
         )
         if representation_type == "track":
             self.track_fusion = PostGraphTrackFusion(

@@ -73,6 +73,7 @@ class TrainConfig:
     mosi_task_mode: str = "regression"
     graph_branch_mode: str = "both"
     mmoe_variant: str = "dual-gate"
+    target_private_rank: int = 0
     classification_completion: bool = False
     representation_type: str = "slot"
     node_interaction_residual: bool = False
@@ -1267,6 +1268,7 @@ def run_experiment(
         local_fusion_dropout=config_value.local_fusion_dropout,
         graph_branch_mode=config_value.graph_branch_mode,
         mmoe_variant=config_value.mmoe_variant,
+        target_private_rank=config_value.target_private_rank,
         classification_completion=config_value.classification_completion,
         representation_type=config_value.representation_type,
         node_interaction_residual=config_value.node_interaction_residual,
@@ -1557,6 +1559,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("dual-gate", "paper-faithful"),
         default="dual-gate",
     )
+    parser.add_argument("--target-private-rank", type=int, default=0)
     parser.add_argument("--classification-completion", action="store_true")
     parser.add_argument(
         "--representation-type",
@@ -1690,6 +1693,7 @@ def main(argv=None) -> None:
         mosi_task_mode=args.mosi_task_mode,
         graph_branch_mode=args.graph_branch_mode,
         mmoe_variant=args.mmoe_variant,
+        target_private_rank=args.target_private_rank,
         classification_completion=args.classification_completion,
         representation_type=args.representation_type,
         node_interaction_residual=args.node_interaction_residual,

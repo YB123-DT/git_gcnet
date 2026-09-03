@@ -161,6 +161,119 @@ def test_paper_faithful_mmoe_variant_is_exposed_by_cli():
     assert args.mmoe_variant == "paper-faithful"
 
 
+def test_target_private_rank_zero_preserves_legacy_parameter_keys():
+    legacy = DualGateTopKMMoE(
+        4, num_experts=2, top_k=1, dropout=0.0
+    )
+    explicit_control = DualGateTopKMMoE(
+        4,
+        num_experts=2,
+        top_k=1,
+        dropout=0.0,
+        target_private_rank=0,
+    )
+
+    assert legacy.state_dict().keys() == explicit_control.state_dict().keys()
+    assert not any(
+        key.startswith("target_private_experts.")
+        for key in explicit_control.state_dict()
+    )
+
+
+def test_target_private_experts_add_only_three_low_rank_residuals():
+    latent_dim = 4
+    private_rank = 3
+    control = DualGateTopKMMoE(
+        latent_dim, num_experts=2, top_k=1, dropout=0.0
+    )
+    treatment = DualGateTopKMMoE(
+        latent_dim,
+        num_experts=2,
+        top_k=1,
+        dropout=0.0,
+        target_private_rank=private_rank,
+    )
+
+    parameter_delta = sum(p.numel() for p in treatment.parameters()) - sum(
+        p.numel() for p in control.parameters()
+    )
+    assert parameter_delta == 3 * 2 * latent_dim * private_rank
+    assert len(treatment.target_private_experts) == 3
+
+
+def test_zero_initialized_target_private_experts_preserve_shared_output():
+    torch.manual_seed(19)
+    control = DualGateTopKMMoE(
+        4, num_experts=2, top_k=1, dropout=0.0
+    ).eval()
+    treatment = DualGateTopKMMoE(
+        4,
+        num_experts=2,
+        top_k=1,
+        dropout=0.0,
+        target_private_rank=2,
+    ).eval()
+    load_result = treatment.load_state_dict(control.state_dict(), strict=False)
+    assert load_result.unexpected_keys == []
+    assert all(
+        key.startswith("target_private_experts.")
+        for key in load_result.missing_keys
+    )
+
+    value = torch.randn(5, 4)
+    for target_index in range(3):
+        control_outputs = control(value, source_index=0, target_index=target_index)
+        treatment_outputs = treatment(
+            value, source_index=0, target_index=target_index
+        )
+        ASSERT_CLOSE(treatment_outputs[0], control_outputs[0], rtol=0, atol=0)
+        ASSERT_CLOSE(treatment_outputs[1], control_outputs[1], rtol=0, atol=0)
+
+
+def test_target_private_gradient_is_isolated_by_missing_target():
+    mmoe = DualGateTopKMMoE(
+        4,
+        num_experts=2,
+        top_k=1,
+        dropout=0.0,
+        target_private_rank=2,
+    )
+    reg, contrastive = mmoe(
+        torch.randn(6, 4), source_index=1, target_index=0
+    )
+    (reg.square().mean() + contrastive.square().mean()).backward()
+
+    audio_private = list(mmoe.target_private_experts[0].parameters())
+    assert any(
+        parameter.grad is not None and parameter.grad.abs().sum() > 0
+        for parameter in audio_private
+    )
+    for target_index in (1, 2):
+        assert all(
+            parameter.grad is None
+            for parameter in mmoe.target_private_experts[target_index].parameters()
+        )
+
+
+def test_target_private_rank_is_exposed_by_cli():
+    args = build_parser().parse_args(
+        [
+            "--audio-feature",
+            "a",
+            "--text-feature",
+            "t",
+            "--video-feature",
+            "v",
+            "--output-dir",
+            "out",
+            "--target-private-rank",
+            "32",
+        ]
+    )
+
+    assert args.target_private_rank == 32
+
+
 def test_missing_latent_residual_averages_only_real_missing_targets_and_zeros_padding():
     class Scale(torch.nn.Module):
         def __init__(self, value):
@@ -817,6 +930,22 @@ def _model_arguments():
         top_k=1,
         predictor_dropout=0.0,
     )
+
+
+def test_graph_model_propagates_target_private_rank_to_predictor():
+    model = MissingM3GraphModel(
+        **_model_arguments(), target_private_rank=3
+    )
+
+    assert model.missing_predictor.mmoe.target_private_rank == 3
+    assert len(model.missing_predictor.mmoe.target_private_experts) == 3
+
+
+def test_negative_target_private_rank_is_rejected():
+    with pytest.raises(ValueError, match="cannot be negative"):
+        MissingM3GraphModel(
+            **_model_arguments(), target_private_rank=-1
+        )
 
 
 def _model_inputs():
