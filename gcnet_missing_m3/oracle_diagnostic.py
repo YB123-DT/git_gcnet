@@ -141,6 +141,8 @@ def restore_named_buffers(
         destination = current[name]
         if destination.shape != saved.shape or destination.dtype != saved.dtype:
             raise ValueError(f"snapshot metadata differs for buffer {name!r}")
+    for name, saved in snapshot.items():
+        destination = current[name]
         destination.copy_(saved.to(device=destination.device))
 
 
@@ -155,6 +157,7 @@ def effective_rank(value: torch.Tensor) -> float:
         return 0.0
     if matrix.shape[0] < 2:
         return 1.0
+    matrix = matrix - matrix.mean(dim=0, keepdim=True)
     if hasattr(torch.linalg, "svdvals"):
         singular_values = torch.linalg.svdvals(matrix)
     else:

@@ -29,6 +29,20 @@ def _row_multiset(value):
     return sorted(tuple(row.tolist()) for row in value)
 
 
+def _historical_effective_rank(value):
+    """Reference from the 2026-08-31 MOSI latent checkpoint audit."""
+    centered = value.float() - value.float().mean(dim=0, keepdim=True)
+    if hasattr(torch.linalg, "svdvals"):
+        singular_values = torch.linalg.svdvals(centered)
+    else:
+        singular_values = torch.svd(centered, some=False).S
+    probabilities = singular_values / singular_values.sum().clamp_min(1e-12)
+    entropy = -(
+        probabilities * probabilities.clamp_min(1e-12).log()
+    ).sum()
+    return float(entropy.exp().item())
+
+
 def test_flatten_and_sample_keys_use_conversation_major_metric_order():
     value = torch.arange(3 * 2 * 2).reshape(3, 2, 2)
     umask = torch.tensor([[1, 1, 0], [1, 0, 1]], dtype=torch.bool)
@@ -272,6 +286,29 @@ def test_tensor_and_state_dict_hashes_are_canonical_and_sensitive_to_metadata():
     assert state_dict_sha256(module) == state_dict_sha256(module.state_dict())
 
 
+def test_tensor_and_state_dict_hashes_match_golden_values_on_available_devices():
+    value = torch.tensor([[1.0, -2.5], [0.0, 3.25]], dtype=torch.float32)
+    state = OrderedDict(
+        [
+            (
+                "z.weight",
+                torch.tensor([[1, -2], [3, 4]], dtype=torch.int16),
+            ),
+            ("a.bias", torch.tensor([0.5, -0.25], dtype=torch.float32)),
+        ]
+    )
+    tensor_digest = "df4e390c73480b1638be2be7326538459b87e0371689e7f997abd16a529af8ca"
+    state_digest = "03b3d46e1ae34015435847c82c7a2932f1ad9462a222403ad15fa0c807f4ec1c"
+
+    assert tensor_sha256(value) == tensor_digest
+    assert state_dict_sha256(state) == state_digest
+    if torch.cuda.is_available():
+        assert tensor_sha256(value.cuda()) == tensor_digest
+        assert state_dict_sha256(
+            OrderedDict((name, tensor.cuda()) for name, tensor in state.items())
+        ) == state_digest
+
+
 def test_named_buffer_snapshot_restores_persistent_and_nonpersistent_buffers():
     module = torch.nn.Module()
     module.register_buffer("persistent", torch.tensor([1.0, 2.0]))
@@ -290,11 +327,50 @@ def test_named_buffer_snapshot_restores_persistent_and_nonpersistent_buffers():
     assert torch.equal(module.child.routing_count, torch.tensor([3.0, 4.0]))
 
 
+@pytest.mark.parametrize("mismatch", ["shape", "dtype"])
+def test_buffer_restore_prevalidates_every_buffer_before_copying(mismatch):
+    module = torch.nn.Module()
+    module.register_buffer("first", torch.tensor([1.0, 2.0]))
+    module.register_buffer("late", torch.tensor([3.0, 4.0]))
+    snapshot = snapshot_named_buffers(module)
+    if mismatch == "shape":
+        snapshot["late"] = snapshot["late"].reshape(2, 1)
+    else:
+        snapshot["late"] = snapshot["late"].to(torch.float64)
+    module.first.fill_(10.0)
+    module.late.fill_(20.0)
+    before_failure = snapshot_named_buffers(module)
+
+    with pytest.raises(ValueError, match="metadata"):
+        restore_named_buffers(module, snapshot)
+
+    for name, buffer in module.named_buffers():
+        assert torch.equal(buffer, before_failure[name])
+
+
 def test_effective_rank_is_finite_for_regular_and_small_inputs():
-    assert effective_rank(torch.eye(3)) == pytest.approx(3.0)
+    assert effective_rank(torch.eye(3)) == pytest.approx(2.0, abs=1e-5)
     assert effective_rank(torch.ones(5, 3)) == pytest.approx(1.0)
     assert effective_rank(torch.randn(1, 4)) == pytest.approx(1.0)
     assert effective_rank(torch.empty(0, 4)) == pytest.approx(0.0)
     assert effective_rank(torch.zeros(4, 3)) == pytest.approx(1.0)
     with pytest.raises(ValueError, match="finite"):
         effective_rank(torch.tensor([[float("nan"), 0.0]]))
+
+
+def test_effective_rank_is_translation_invariant_and_matches_historical_reference():
+    value = torch.tensor(
+        [
+            [0.0, 1.0, 4.0],
+            [1.0, 3.0, 2.0],
+            [2.0, -1.0, 0.0],
+            [4.0, 2.0, 5.0],
+        ]
+    )
+    translated = value + torch.tensor([100.0, -37.0, 12.5])
+    historical = _historical_effective_rank(value)
+
+    assert effective_rank(value) == pytest.approx(historical, abs=1e-6)
+    assert effective_rank(translated) == pytest.approx(historical, abs=1e-6)
+    if torch.cuda.is_available():
+        assert effective_rank(value.cuda()) == pytest.approx(historical, abs=1e-6)
