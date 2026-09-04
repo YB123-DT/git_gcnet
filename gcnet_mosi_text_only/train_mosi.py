@@ -36,6 +36,7 @@ class TextOnlyConfig:
     weight_decay: float = 1e-5
     gradient_clip_norm: float = 1.0
     device: str = "cuda"
+    test_every_epoch: bool = False
 
 
 def text_batch(raw, device):
@@ -51,6 +52,13 @@ def select_best_epoch(records):
     if not records:
         raise ValueError("records must not be empty")
     return int(max(records, key=lambda item: float(item["validation"]["weighted_f1"]))["epoch"])
+
+
+def select_test_oracle(records):
+    if not records or any("test" not in record for record in records):
+        raise ValueError("every record must contain test metrics")
+    best = max(records, key=lambda item: float(item["test"]["weighted_f1"]))
+    return int(best["epoch"]), dict(best["test"])
 
 
 def _run_epoch(model, loader, device, optimizer=None, gradient_clip_norm=0.0):
@@ -126,7 +134,10 @@ def run_experiment(config_value, feature_root, output_dir):
     for epoch in range(1, config_value.epochs + 1):
         train_metrics, _ = _run_epoch(model, train_loader, device, optimizer, config_value.gradient_clip_norm)
         validation_metrics, _ = _run_epoch(model, validation_loader, device)
-        history.append({"epoch": epoch, "train": train_metrics, "validation": validation_metrics})
+        record = {"epoch": epoch, "train": train_metrics, "validation": validation_metrics}
+        if config_value.test_every_epoch:
+            record["test"], _ = _run_epoch(model, test_loader, device)
+        history.append(record)
         write_json(output / "history.json", history)
         score = float(validation_metrics["weighted_f1"])
         if score > best_score:
@@ -151,6 +162,13 @@ def run_experiment(config_value, feature_root, output_dir):
         "runtime_seconds": time.time() - started,
         "collapsed": test_metrics["prediction_std"] < 1e-8 or test_metrics["predicted_sign_count"] < 2,
     }
+    if config_value.test_every_epoch:
+        oracle_epoch, oracle_metrics = select_test_oracle(history)
+        metrics["test_oracle"] = {
+            "best_epoch": oracle_epoch,
+            "metrics": oracle_metrics,
+            "weighted_f1_gap": float(oracle_metrics["weighted_f1"]) - float(test_metrics["weighted_f1"]),
+        }
     write_json(output / "metrics.json", metrics)
     return metrics
 
@@ -162,12 +180,22 @@ def build_parser():
     parser.add_argument("--seed", type=int, default=66)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument("--test-every-epoch", action="store_true")
     return parser
 
 
 def main():
     args = build_parser().parse_args()
-    run_experiment(TextOnlyConfig(seed=args.seed, epochs=args.epochs, device=args.device), args.feature_root, args.output_dir)
+    run_experiment(
+        TextOnlyConfig(
+            seed=args.seed,
+            epochs=args.epochs,
+            device=args.device,
+            test_every_epoch=args.test_every_epoch,
+        ),
+        args.feature_root,
+        args.output_dir,
+    )
 
 
 if __name__ == "__main__":

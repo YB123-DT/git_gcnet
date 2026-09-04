@@ -3,7 +3,7 @@ from pathlib import Path
 import torch
 
 from gcnet_mosi_text_only.run_mosi import SEEDS, build_jobs
-from gcnet_mosi_text_only.train_mosi import select_best_epoch, text_batch
+from gcnet_mosi_text_only.train_mosi import select_best_epoch, select_test_oracle, text_batch
 
 
 class ForbiddenFeature:
@@ -28,6 +28,16 @@ def test_checkpoint_selection_uses_validation_weighted_f1():
         {"epoch": 2, "validation": {"weighted_f1": 0.85, "loss": 0.8}},
     ]
     assert select_best_epoch(history) == 2
+
+
+def test_test_oracle_selects_test_weighted_f1_independently():
+    history = [
+        {"epoch": 1, "validation": {"weighted_f1": 0.90}, "test": {"weighted_f1": 0.80}},
+        {"epoch": 2, "validation": {"weighted_f1": 0.85}, "test": {"weighted_f1": 0.88}},
+    ]
+    epoch, metrics = select_test_oracle(history)
+    assert epoch == 2
+    assert metrics["weighted_f1"] == 0.88
 
 
 def test_runner_builds_exactly_five_text_only_jobs(tmp_path):
