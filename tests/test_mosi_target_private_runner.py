@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.run_mosi_target_private_ab import RATES, _build_jobs, _is_complete, summarize_jobs
+from scripts.run_mosi_target_private_ab import RATES, _build_jobs, _is_complete, main, summarize_jobs
 
 
 def _normalized(command):
@@ -59,3 +59,24 @@ def test_summary_computes_paired_gate(tmp_path):
     assert summary["rate_summary"]["0.5"]["mean_delta"] == pytest.approx(0.01)
     assert summary["nonzero_macro"]["positive_seed_count"] == 5
     assert summary["verdict"]["passes_predefined_gate"] is True
+
+
+def test_resume_with_complete_jobs_writes_terminal_status(tmp_path, monkeypatch):
+    output_root = tmp_path / "out"
+    jobs = _build_jobs(tmp_path, output_root, Path("/python"), Path("/features"), (0,))
+    for job in jobs:
+        _complete(job, delta=0.01 if job.arm == "target-private" else 0.0)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "run_mosi_target_private_ab.py",
+            "--repo-root", str(tmp_path),
+            "--output-root", str(output_root),
+            "--python", "/python",
+            "--feature-root", "/features",
+            "--gpus", "0",
+        ],
+    )
+    assert main() == 0
+    status = json.loads((output_root / "runner_status.json").read_text())
+    assert status == {"pending": 0, "running": [], "failures": []}

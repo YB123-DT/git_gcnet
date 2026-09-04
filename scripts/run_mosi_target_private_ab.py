@@ -204,6 +204,7 @@ def main():
             if code != 0 or not _is_complete(job):
                 failures.append({"arm": job.arm, "seed": job.seed, "gpu": job.gpu, "returncode": code})
             del running[pid]
+    _atomic_json(output_root / "runner_status.json", {"pending": 0, "running": [], "failures": failures})
     summary = summarize_jobs(jobs)
     summary["failures"] = failures
     _atomic_json(output_root / "paired_summary.json", summary)
