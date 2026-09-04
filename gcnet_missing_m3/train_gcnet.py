@@ -1623,7 +1623,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--initial-backbone-checkpoint", default=None)
     parser.add_argument(
         "--fusion-type",
-        choices=("mean", "slot", "raw-residual"),
+        choices=("mean", "slot", "raw-residual", "text-anchor-residual"),
         default="mean",
     )
     parser.add_argument("--local-context-residual", action="store_true")

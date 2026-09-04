@@ -652,6 +652,118 @@ def test_fusion_type_is_validated_and_exposed_by_cli():
     assert args.fusion_type == "slot"
 
 
+def test_text_anchor_residual_starts_from_exact_text_only_node():
+    torch.manual_seed(41)
+    encoder = ObservedSetEncoder(
+        (1, 1, 1),
+        latent_dim=4,
+        dropout=0.0,
+        fusion_type="text-anchor-residual",
+    ).eval()
+    features = torch.randn(2, 1, 3)
+    features[1, 0, 1] = features[0, 0, 1]
+    availability = torch.tensor(
+        [[[0, 1, 0]], [[1, 1, 1]]], dtype=torch.float32
+    )
+
+    output, _ = encoder(features, availability, torch.ones(1, 2))
+
+    ASSERT_CLOSE(output[0], output[1], rtol=0, atol=1e-7)
+
+
+def test_text_anchor_residual_keeps_slot_fallback_when_text_is_missing():
+    torch.manual_seed(43)
+    slot = ObservedSetEncoder(
+        (1, 1, 1), latent_dim=4, dropout=0.0, fusion_type="slot"
+    ).eval()
+    torch.manual_seed(43)
+    anchored = ObservedSetEncoder(
+        (1, 1, 1),
+        latent_dim=4,
+        dropout=0.0,
+        fusion_type="text-anchor-residual",
+    ).eval()
+    shared = {
+        key: value
+        for key, value in anchored.state_dict().items()
+        if not key.startswith("anchor_residual.")
+    }
+    assert shared.keys() == slot.state_dict().keys()
+    for key, value in shared.items():
+        ASSERT_CLOSE(value, slot.state_dict()[key], rtol=0, atol=0)
+    availability = torch.tensor([[[1, 0, 1]]], dtype=torch.float32)
+    features = torch.randn(1, 1, 3)
+    umask = torch.ones(1, 1)
+
+    expected, _ = slot(features, availability, umask)
+    actual, _ = anchored(features, availability, umask)
+
+    ASSERT_CLOSE(actual, expected, rtol=0, atol=0)
+
+
+def test_text_anchor_residual_does_not_read_missing_raw_blocks():
+    torch.manual_seed(47)
+    encoder = ObservedSetEncoder(
+        (2, 3, 4),
+        latent_dim=8,
+        dropout=0.0,
+        fusion_type="text-anchor-residual",
+    ).eval()
+    features = torch.randn(1, 1, 9)
+    changed = features.clone()
+    changed[..., :2] += 10_000
+    changed[..., 5:] -= 10_000
+    availability = torch.tensor([[[0, 1, 0]]], dtype=torch.float32)
+    umask = torch.ones(1, 1)
+
+    first, _ = encoder(features, availability, umask)
+    second, _ = encoder(changed, availability, umask)
+
+    ASSERT_CLOSE(first, second, rtol=0, atol=0)
+
+
+def test_text_anchor_residual_is_bounded_relative_to_anchor_norm():
+    torch.manual_seed(53)
+    encoder = ObservedSetEncoder(
+        (1, 1, 1),
+        latent_dim=4,
+        dropout=0.0,
+        fusion_type="text-anchor-residual",
+    ).eval()
+    with torch.no_grad():
+        encoder.anchor_residual[-1].bias.fill_(100.0)
+    features = torch.randn(2, 1, 3)
+    features[1, 0, 1] = features[0, 0, 1]
+    availability = torch.tensor(
+        [[[0, 1, 0]], [[1, 1, 0]]], dtype=torch.float32
+    )
+
+    output, _ = encoder(features, availability, torch.ones(1, 2))
+    anchor_norm = output[0, 0].norm()
+    residual_norm = (output[1, 0] - output[0, 0]).norm()
+
+    assert residual_norm <= 0.25 * anchor_norm + 1e-6
+
+
+def test_text_anchor_residual_is_exposed_by_cli():
+    args = build_parser().parse_args(
+        [
+            "--audio-feature",
+            "a",
+            "--text-feature",
+            "t",
+            "--video-feature",
+            "v",
+            "--output-dir",
+            "out",
+            "--fusion-type",
+            "text-anchor-residual",
+        ]
+    )
+
+    assert args.fusion_type == "text-anchor-residual"
+
+
 def test_raw_residual_encoder_starts_as_exact_masked_raw_input():
     torch.manual_seed(29)
     encoder = RawResidualObservedEncoder(

@@ -222,8 +222,11 @@ class ObservedSetEncoder(nn.Module):
         super().__init__()
         if len(dimensions) != 3 or any(int(value) <= 0 for value in dimensions):
             raise ValueError("dimensions must contain three positive integers")
-        if fusion_type not in {"mean", "slot"}:
-            raise ValueError("fusion_type must be 'mean' or 'slot'")
+        if fusion_type not in {"mean", "slot", "text-anchor-residual"}:
+            raise ValueError(
+                "fusion_type must be 'mean', 'slot', or "
+                "'text-anchor-residual'"
+            )
         self.dimensions = tuple(int(value) for value in dimensions)
         self.latent_dim = int(latent_dim)
         self.fusion_type = fusion_type
@@ -242,6 +245,18 @@ class ObservedSetEncoder(nn.Module):
             nn.GELU(),
             nn.Dropout(dropout),
         )
+        if fusion_type == "text-anchor-residual":
+            residual_rank = min(64, self.latent_dim)
+            with torch.random.fork_rng(devices=[]):
+                self.anchor_residual = nn.Sequential(
+                    nn.LayerNorm(3 * self.latent_dim),
+                    nn.Linear(3 * self.latent_dim, residual_rank),
+                    nn.GELU(),
+                    nn.Linear(residual_rank, self.latent_dim),
+                )
+            nn.init.zeros_(self.anchor_residual[-1].weight)
+            nn.init.zeros_(self.anchor_residual[-1].bias)
+            self.anchor_residual_ratio = 0.25
 
     def _validate(
         self,
@@ -267,7 +282,7 @@ class ObservedSetEncoder(nn.Module):
             if self.fusion_type == "mean"
             else None
         )
-        slots = [] if self.fusion_type == "slot" else None
+        slots = [] if self.fusion_type != "mean" else None
         start = 0
         for index, (name, width) in enumerate(zip(MODALITIES, self.dimensions)):
             block = features[..., start : start + width]
@@ -302,6 +317,46 @@ class ObservedSetEncoder(nn.Module):
             fusion_input = torch.cat([*slots, pattern], dim=-1)
         node = features.new_zeros(latent_shape)
         node[valid] = self.fusion(fusion_input[valid])
+        if self.fusion_type == "text-anchor-residual":
+            assert slots is not None
+            has_extra = (
+                valid
+                & availability[..., 1].bool()
+                & (
+                    availability[..., 0].bool()
+                    | availability[..., 2].bool()
+                )
+            )
+            if bool(has_extra.any()):
+                zeros = torch.zeros_like(slots[0])
+                text_pattern_id = torch.full_like(pattern_id, 2)
+                anchor_input = torch.cat(
+                    [
+                        zeros,
+                        slots[1],
+                        zeros,
+                        self.pattern_embedding(text_pattern_id),
+                    ],
+                    dim=-1,
+                )
+                anchor = self.fusion(anchor_input[has_extra])
+                observed_set_value = node[has_extra]
+                difference = observed_set_value - anchor
+                raw_residual = self.anchor_residual(
+                    torch.cat(
+                        [anchor, difference, anchor * difference], dim=-1
+                    )
+                )
+                residual_norm = raw_residual.norm(dim=-1, keepdim=True)
+                residual_limit = (
+                    self.anchor_residual_ratio
+                    * anchor.norm(dim=-1, keepdim=True)
+                )
+                residual_scale = torch.minimum(
+                    torch.ones_like(residual_norm),
+                    residual_limit / residual_norm.clamp_min(1e-12),
+                )
+                node[has_extra] = anchor + raw_residual * residual_scale
         return node, latents
 
 
