@@ -395,6 +395,33 @@ def analyze_checkpoint(args: argparse.Namespace, checkpoint_path: Path) -> dict[
     serializable_variants = {
         name: {"metrics": value["metrics"]} for name, value in outputs.items()
     }
+    formal_path = checkpoint_path.parent / "predictions_miss_0p0.npz"
+    formal = np.load(formal_path)
+    replay_prediction = outputs["ATV"]["prediction"].flatten().numpy()
+    replay_labels = outputs["ATV"]["labels"].numpy()
+    if replay_prediction.shape != formal["predictions"].shape:
+        raise ValueError("formal and replay predictions are not aligned")
+    if replay_labels.shape != formal["labels"].shape:
+        raise ValueError("formal and replay labels are not aligned")
+    formal_replay = {
+        "formal_prediction_path": str(formal_path),
+        "label_max_absolute_error": float(
+            np.max(np.abs(replay_labels - formal["labels"]))
+        ),
+        "prediction_mean_absolute_error": float(
+            np.mean(np.abs(replay_prediction - formal["predictions"]))
+        ),
+        "prediction_sign_agreement": float(
+            np.mean((replay_prediction > 0) == (formal["predictions"] > 0))
+        ),
+        "formal_weighted_f1": _metrics(
+            config.dataset,
+            formal["labels"],
+            formal["predictions"],
+            config.mosi_task_mode,
+        )["weighted_f1"],
+        "replay_weighted_f1": outputs["ATV"]["metrics"]["weighted_f1"],
+    }
     return {
         "seed": config.seed,
         "checkpoint": str(checkpoint_path),
@@ -403,6 +430,7 @@ def analyze_checkpoint(args: argparse.Namespace, checkpoint_path: Path) -> dict[
         "test_batches": len(batch_cache),
         "variants": serializable_variants,
         "comparisons": comparisons,
+        "formal_replay": formal_replay,
     }
 
 
@@ -466,6 +494,24 @@ def summarize(results: Sequence[Mapping[str, object]]) -> dict[str, object]:
         "seeds": [result["seed"] for result in results],
         "variants": variants,
         "comparisons": comparisons,
+        "formal_replay": {
+            "formal_weighted_f1_percent_mean": 100.0
+            * _mean(result["formal_replay"]["formal_weighted_f1"] for result in results),
+            "replay_weighted_f1_percent_mean": 100.0
+            * _mean(result["formal_replay"]["replay_weighted_f1"] for result in results),
+            "prediction_mean_absolute_error_mean": _mean(
+                result["formal_replay"]["prediction_mean_absolute_error"]
+                for result in results
+            ),
+            "prediction_sign_agreement_mean": _mean(
+                result["formal_replay"]["prediction_sign_agreement"]
+                for result in results
+            ),
+            "label_max_absolute_error": max(
+                result["formal_replay"]["label_max_absolute_error"]
+                for result in results
+            ),
+        },
     }
 
 

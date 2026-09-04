@@ -29,6 +29,18 @@ rename `lin_l -> lin_rel` and `lin_r -> lin_root`, checks every tensor shape,
 and then requires a strict state load. No parameter is dropped or randomly
 initialized.
 
+### Replay audit
+
+The original training environment is no longer present. Replaying the five
+ATV checkpoints under the available PyG 2.7 environment gives `85.712%`
+W-F1, while the archived original prediction NPZ files give `85.504%`.
+Labels align exactly, prediction signs agree for `99.07%` of utterances, and
+the mean absolute prediction difference is `0.0498`. Thus exact absolute
+replay scores have a small environment drift. Every contrast below remains a
+strict same-checkpoint, same-environment paired intervention; the small net
+deltas must nevertheless be interpreted as diagnostic evidence rather than
+new benchmark results.
+
 ## Fixed-pattern result
 
 | Input | Five-seed test W-F1 (%) |
