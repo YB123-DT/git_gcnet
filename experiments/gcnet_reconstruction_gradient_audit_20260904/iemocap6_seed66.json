@@ -1,0 +1,767 @@
+{
+  "dataset": "IEMOCAPSix",
+  "checkpoint": "/data2/yb/remote_experiments/original_gcnet_iemocap6_stratified_20260902/formal/IEMOCAPSix/seed_66/best.pt",
+  "checkpoint_epoch": 95,
+  "checkpoint_config": {
+    "dataset": "IEMOCAPSix",
+    "fold": 5,
+    "seed": 66,
+    "base_model": "LSTM",
+    "window_past": 2,
+    "window_future": 2,
+    "hidden": 200,
+    "dropout": 0.5,
+    "batch_size": 32,
+    "epochs": 100,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "gradient_clip_norm": 1.0,
+    "time_attention": false,
+    "evaluation_protocol": "official",
+    "validation_fraction": 0.1,
+    "device": "cuda",
+    "train_rate_mode": "stratified",
+    "evaluate_test": true
+  },
+  "feature_root": "/data2/yb/paper/GCNet_TPAMI_modality_jepa_20260818/dataset/IEMOCAP/features",
+  "dimensions": [
+    512,
+    1024,
+    1024
+  ],
+  "gradient_scope": {
+    "hidden": "post-graph shared hidden representation",
+    "backbone": "all parameters except linear_rec and smax_fc",
+    "linear_rec_note": "head row blocks are disjoint and globally orthogonal by construction"
+  },
+  "rates": {
+    "0.0": {
+      "valid_utterances": 1623,
+      "modalities": {
+        "audio": {
+          "missing_utterances": 0,
+          "loss": 0.0,
+          "hidden_gradient_norm_mean": null,
+          "backbone_gradient_norm_mean": null,
+          "aggregate_backbone_gradient_norm": 0.0
+        },
+        "text": {
+          "missing_utterances": 0,
+          "loss": 0.0,
+          "hidden_gradient_norm_mean": null,
+          "backbone_gradient_norm_mean": null,
+          "aggregate_backbone_gradient_norm": 0.0
+        },
+        "visual": {
+          "missing_utterances": 0,
+          "loss": 0.0,
+          "hidden_gradient_norm_mean": null,
+          "backbone_gradient_norm_mean": null,
+          "aggregate_backbone_gradient_norm": 0.0
+        }
+      },
+      "pairs": {
+        "audio-text": {
+          "aggregate_backbone_cosine": null,
+          "batch_backbone_cosine": {
+            "count": 0,
+            "mean": null,
+            "median": null,
+            "negative_fraction": null
+          },
+          "batch_hidden_cosine": {
+            "count": 0,
+            "mean": null,
+            "median": null,
+            "negative_fraction": null
+          },
+          "overlap_hidden_cosine": {
+            "count": 0,
+            "mean": null,
+            "median": null,
+            "negative_fraction": null
+          }
+        },
+        "audio-visual": {
+          "aggregate_backbone_cosine": null,
+          "batch_backbone_cosine": {
+            "count": 0,
+            "mean": null,
+            "median": null,
+            "negative_fraction": null
+          },
+          "batch_hidden_cosine": {
+            "count": 0,
+            "mean": null,
+            "median": null,
+            "negative_fraction": null
+          },
+          "overlap_hidden_cosine": {
+            "count": 0,
+            "mean": null,
+            "median": null,
+            "negative_fraction": null
+          }
+        },
+        "text-visual": {
+          "aggregate_backbone_cosine": null,
+          "batch_backbone_cosine": {
+            "count": 0,
+            "mean": null,
+            "median": null,
+            "negative_fraction": null
+          },
+          "batch_hidden_cosine": {
+            "count": 0,
+            "mean": null,
+            "median": null,
+            "negative_fraction": null
+          },
+          "overlap_hidden_cosine": {
+            "count": 0,
+            "mean": null,
+            "median": null,
+            "negative_fraction": null
+          }
+        }
+      }
+    },
+    "0.1": {
+      "valid_utterances": 1623,
+      "modalities": {
+        "audio": {
+          "missing_utterances": 151,
+          "loss": 0.0007013679714873433,
+          "hidden_gradient_norm_mean": 3.022506643901579e-05,
+          "backbone_gradient_norm_mean": 0.0020517597440630198,
+          "aggregate_backbone_gradient_norm": 3.3298377990722656
+        },
+        "text": {
+          "missing_utterances": 163,
+          "loss": 0.2529947757720947,
+          "hidden_gradient_norm_mean": 0.0006877650739625096,
+          "backbone_gradient_norm_mean": 0.02341914363205433,
+          "aggregate_backbone_gradient_norm": 38.0063591003418
+        },
+        "visual": {
+          "missing_utterances": 169,
+          "loss": 0.03415357321500778,
+          "hidden_gradient_norm_mean": 0.00045987428165972233,
+          "backbone_gradient_norm_mean": 0.017010921612381935,
+          "aggregate_backbone_gradient_norm": 27.61082649230957
+        }
+      },
+      "pairs": {
+        "audio-text": {
+          "aggregate_backbone_cosine": 0.1713234931230545,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.17130163311958313,
+            "median": 0.17130163311958313,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.006388337817043066,
+            "median": 0.006388337817043066,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.05009286850690842,
+            "median": 0.05009286850690842,
+            "negative_fraction": 0.0
+          }
+        },
+        "audio-visual": {
+          "aggregate_backbone_cosine": -0.03465535119175911,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": -0.034656208008527756,
+            "median": -0.034656208008527756,
+            "negative_fraction": 1.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.007906057871878147,
+            "median": 0.007906057871878147,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.16870203614234924,
+            "median": 0.16870203614234924,
+            "negative_fraction": 0.0
+          }
+        },
+        "text-visual": {
+          "aggregate_backbone_cosine": 0.25954779982566833,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.2595476508140564,
+            "median": 0.2595476508140564,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": -0.003338390262797475,
+            "median": -0.003338390262797475,
+            "negative_fraction": 1.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": -0.01963089033961296,
+            "median": -0.01963089033961296,
+            "negative_fraction": 1.0
+          }
+        }
+      }
+    },
+    "0.2": {
+      "valid_utterances": 1623,
+      "modalities": {
+        "audio": {
+          "missing_utterances": 322,
+          "loss": 0.0014447761932387948,
+          "hidden_gradient_norm_mean": 4.37904272985179e-05,
+          "backbone_gradient_norm_mean": 0.004251536913216114,
+          "aggregate_backbone_gradient_norm": 6.900027751922607
+        },
+        "text": {
+          "missing_utterances": 318,
+          "loss": 0.48830944299697876,
+          "hidden_gradient_norm_mean": 0.0009261920349672437,
+          "backbone_gradient_norm_mean": 0.04244433343410492,
+          "aggregate_backbone_gradient_norm": 68.88513946533203
+        },
+        "visual": {
+          "missing_utterances": 307,
+          "loss": 0.06186802312731743,
+          "hidden_gradient_norm_mean": 0.0006277259089984,
+          "backbone_gradient_norm_mean": 0.02425391599535942,
+          "aggregate_backbone_gradient_norm": 39.36564254760742
+        }
+      },
+      "pairs": {
+        "audio-text": {
+          "aggregate_backbone_cosine": 0.18926583230495453,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.18925437331199646,
+            "median": 0.18925437331199646,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.0008988006738945842,
+            "median": 0.0008988006738945842,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.005044234916567802,
+            "median": 0.005044234916567802,
+            "negative_fraction": 0.0
+          }
+        },
+        "audio-visual": {
+          "aggregate_backbone_cosine": -0.17492228746414185,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": -0.17492368817329407,
+            "median": -0.17492368817329407,
+            "negative_fraction": 1.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.01032559759914875,
+            "median": 0.01032559759914875,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.05242690071463585,
+            "median": 0.05242690071463585,
+            "negative_fraction": 0.0
+          }
+        },
+        "text-visual": {
+          "aggregate_backbone_cosine": -0.07448694109916687,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": -0.07448779791593552,
+            "median": -0.07448779791593552,
+            "negative_fraction": 1.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.008743932470679283,
+            "median": 0.008743932470679283,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.044837597757577896,
+            "median": 0.044837597757577896,
+            "negative_fraction": 0.0
+          }
+        }
+      }
+    },
+    "0.3": {
+      "valid_utterances": 1623,
+      "modalities": {
+        "audio": {
+          "missing_utterances": 439,
+          "loss": 0.001975215272977948,
+          "hidden_gradient_norm_mean": 5.121061985846609e-05,
+          "backbone_gradient_norm_mean": 0.005813295021653175,
+          "aggregate_backbone_gradient_norm": 9.434268951416016
+        },
+        "text": {
+          "missing_utterances": 484,
+          "loss": 0.7289303541183472,
+          "hidden_gradient_norm_mean": 0.0011620813747867942,
+          "backbone_gradient_norm_mean": 0.05294937640428543,
+          "aggregate_backbone_gradient_norm": 85.94681549072266
+        },
+        "visual": {
+          "missing_utterances": 480,
+          "loss": 0.10478165000677109,
+          "hidden_gradient_norm_mean": 0.0008298923494294286,
+          "backbone_gradient_norm_mean": 0.043686993420124054,
+          "aggregate_backbone_gradient_norm": 70.90235137939453
+        }
+      },
+      "pairs": {
+        "audio-text": {
+          "aggregate_backbone_cosine": 0.35986971855163574,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.35988447070121765,
+            "median": 0.35988447070121765,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.002078866818919778,
+            "median": 0.002078866818919778,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.009987393394112587,
+            "median": 0.009987393394112587,
+            "negative_fraction": 0.0
+          }
+        },
+        "audio-visual": {
+          "aggregate_backbone_cosine": -0.20699314773082733,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": -0.20697297155857086,
+            "median": -0.20697297155857086,
+            "negative_fraction": 1.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.001948380726389587,
+            "median": 0.001948380726389587,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.008461031131446362,
+            "median": 0.008461031131446362,
+            "negative_fraction": 0.0
+          }
+        },
+        "text-visual": {
+          "aggregate_backbone_cosine": -0.07566145062446594,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": -0.07566849887371063,
+            "median": -0.07566849887371063,
+            "negative_fraction": 1.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.018674032762646675,
+            "median": 0.018674032762646675,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.07152657955884933,
+            "median": 0.07152657955884933,
+            "negative_fraction": 0.0
+          }
+        }
+      }
+    },
+    "0.4": {
+      "valid_utterances": 1623,
+      "modalities": {
+        "audio": {
+          "missing_utterances": 636,
+          "loss": 0.002718708012253046,
+          "hidden_gradient_norm_mean": 5.9732250520028174e-05,
+          "backbone_gradient_norm_mean": 0.007798389997333288,
+          "aggregate_backbone_gradient_norm": 12.656786918640137
+        },
+        "text": {
+          "missing_utterances": 598,
+          "loss": 0.8980399966239929,
+          "hidden_gradient_norm_mean": 0.001275730668567121,
+          "backbone_gradient_norm_mean": 0.0613994337618351,
+          "aggregate_backbone_gradient_norm": 99.64412689208984
+        },
+        "visual": {
+          "missing_utterances": 621,
+          "loss": 0.12332171946763992,
+          "hidden_gradient_norm_mean": 0.0008831486338749528,
+          "backbone_gradient_norm_mean": 0.03108116053044796,
+          "aggregate_backbone_gradient_norm": 50.4415168762207
+        }
+      },
+      "pairs": {
+        "audio-text": {
+          "aggregate_backbone_cosine": -0.15400053560733795,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": -0.15398947894573212,
+            "median": -0.15398947894573212,
+            "negative_fraction": 1.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": -0.003243217011913657,
+            "median": -0.003243217011913657,
+            "negative_fraction": 1.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": -0.009730732999742031,
+            "median": -0.009730732999742031,
+            "negative_fraction": 1.0
+          }
+        },
+        "audio-visual": {
+          "aggregate_backbone_cosine": -0.12008824944496155,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": -0.1200806125998497,
+            "median": -0.1200806125998497,
+            "negative_fraction": 1.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": -0.003951761405915022,
+            "median": -0.003951761405915022,
+            "negative_fraction": 1.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": -0.011059774085879326,
+            "median": -0.011059774085879326,
+            "negative_fraction": 1.0
+          }
+        },
+        "text-visual": {
+          "aggregate_backbone_cosine": 0.13445502519607544,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.13443681597709656,
+            "median": 0.13443681597709656,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.007466251030564308,
+            "median": 0.007466251030564308,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.026887526735663414,
+            "median": 0.026887526735663414,
+            "negative_fraction": 0.0
+          }
+        }
+      }
+    },
+    "0.5": {
+      "valid_utterances": 1623,
+      "modalities": {
+        "audio": {
+          "missing_utterances": 758,
+          "loss": 0.0031909628305584192,
+          "hidden_gradient_norm_mean": 6.466052582254633e-05,
+          "backbone_gradient_norm_mean": 0.009038830175995827,
+          "aggregate_backbone_gradient_norm": 14.67004680633545
+        },
+        "text": {
+          "missing_utterances": 773,
+          "loss": 1.179673194885254,
+          "hidden_gradient_norm_mean": 0.0014687262009829283,
+          "backbone_gradient_norm_mean": 0.06091669201850891,
+          "aggregate_backbone_gradient_norm": 98.8683853149414
+        },
+        "visual": {
+          "missing_utterances": 730,
+          "loss": 0.15638095140457153,
+          "hidden_gradient_norm_mean": 0.0010092060547322035,
+          "backbone_gradient_norm_mean": 0.10413599759340286,
+          "aggregate_backbone_gradient_norm": 169.01885986328125
+        }
+      },
+      "pairs": {
+        "audio-text": {
+          "aggregate_backbone_cosine": 0.07554879039525986,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.07554937154054642,
+            "median": 0.07554937154054642,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": -0.0008158435812219977,
+            "median": -0.0008158435812219977,
+            "negative_fraction": 1.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": -0.0022921599447727203,
+            "median": -0.0022921599447727203,
+            "negative_fraction": 1.0
+          }
+        },
+        "audio-visual": {
+          "aggregate_backbone_cosine": 0.003757024649530649,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.0037571617867797613,
+            "median": 0.0037571617867797613,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.006303607020527124,
+            "median": 0.006303607020527124,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.01835172064602375,
+            "median": 0.01835172064602375,
+            "negative_fraction": 0.0
+          }
+        },
+        "text-visual": {
+          "aggregate_backbone_cosine": -0.3571857511997223,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": -0.35720083117485046,
+            "median": -0.35720083117485046,
+            "negative_fraction": 1.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.00014331265992950648,
+            "median": 0.00014331265992950648,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.00038806666270829737,
+            "median": 0.00038806666270829737,
+            "negative_fraction": 0.0
+          }
+        }
+      }
+    },
+    "0.6": {
+      "valid_utterances": 1623,
+      "modalities": {
+        "audio": {
+          "missing_utterances": 868,
+          "loss": 0.0036784957628697157,
+          "hidden_gradient_norm_mean": 6.90721208229661e-05,
+          "backbone_gradient_norm_mean": 0.01015536766499281,
+          "aggregate_backbone_gradient_norm": 16.481475830078125
+        },
+        "text": {
+          "missing_utterances": 860,
+          "loss": 1.35771644115448,
+          "hidden_gradient_norm_mean": 0.0015799899119883776,
+          "backbone_gradient_norm_mean": 0.06724532693624496,
+          "aggregate_backbone_gradient_norm": 109.14466094970703
+        },
+        "visual": {
+          "missing_utterances": 820,
+          "loss": 0.1500801295042038,
+          "hidden_gradient_norm_mean": 0.0009559909231029451,
+          "backbone_gradient_norm_mean": 0.04855307191610336,
+          "aggregate_backbone_gradient_norm": 78.80419921875
+        }
+      },
+      "pairs": {
+        "audio-text": {
+          "aggregate_backbone_cosine": 0.06704102456569672,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.06704164296388626,
+            "median": 0.06704164296388626,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.00251814816147089,
+            "median": 0.00251814816147089,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.006318977568298578,
+            "median": 0.006318977568298578,
+            "negative_fraction": 0.0
+          }
+        },
+        "audio-visual": {
+          "aggregate_backbone_cosine": 0.01492363028228283,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.014923489652574062,
+            "median": 0.014923489652574062,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.002629200229421258,
+            "median": 0.002629200229421258,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.006632239557802677,
+            "median": 0.006632239557802677,
+            "negative_fraction": 0.0
+          }
+        },
+        "text-visual": {
+          "aggregate_backbone_cosine": 0.24813948571681976,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.24815993010997772,
+            "median": 0.24815993010997772,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.012307323515415192,
+            "median": 0.012307323515415192,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.02925175055861473,
+            "median": 0.02925175055861473,
+            "negative_fraction": 0.0
+          }
+        }
+      }
+    },
+    "0.7": {
+      "valid_utterances": 1623,
+      "modalities": {
+        "audio": {
+          "missing_utterances": 965,
+          "loss": 0.004035759251564741,
+          "hidden_gradient_norm_mean": 7.258578989421949e-05,
+          "backbone_gradient_norm_mean": 0.011320262216031551,
+          "aggregate_backbone_gradient_norm": 18.37276268005371
+        },
+        "text": {
+          "missing_utterances": 925,
+          "loss": 1.4343634843826294,
+          "hidden_gradient_norm_mean": 0.0016085084062069654,
+          "backbone_gradient_norm_mean": 0.06678155064582825,
+          "aggregate_backbone_gradient_norm": 108.38198852539062
+        },
+        "visual": {
+          "missing_utterances": 957,
+          "loss": 0.18442173302173615,
+          "hidden_gradient_norm_mean": 0.0010746854823082685,
+          "backbone_gradient_norm_mean": 0.060952264815568924,
+          "aggregate_backbone_gradient_norm": 98.9283218383789
+        }
+      },
+      "pairs": {
+        "audio-text": {
+          "aggregate_backbone_cosine": 0.14939971268177032,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.14939337968826294,
+            "median": 0.14939337968826294,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.002316780388355255,
+            "median": 0.002316780388355255,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.005382518284022808,
+            "median": 0.005382518284022808,
+            "negative_fraction": 0.0
+          }
+        },
+        "audio-visual": {
+          "aggregate_backbone_cosine": 0.021265920251607895,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.02126648835837841,
+            "median": 0.02126648835837841,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.011579643934965134,
+            "median": 0.011579643934965134,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.026135457679629326,
+            "median": 0.026135457679629326,
+            "negative_fraction": 0.0
+          }
+        },
+        "text-visual": {
+          "aggregate_backbone_cosine": 0.07953999191522598,
+          "batch_backbone_cosine": {
+            "count": 1,
+            "mean": 0.07953892648220062,
+            "median": 0.07953892648220062,
+            "negative_fraction": 0.0
+          },
+          "batch_hidden_cosine": {
+            "count": 1,
+            "mean": 0.0009904475882649422,
+            "median": 0.0009904475882649422,
+            "negative_fraction": 0.0
+          },
+          "overlap_hidden_cosine": {
+            "count": 1,
+            "mean": 0.002157265553250909,
+            "median": 0.002157265553250909,
+            "negative_fraction": 0.0
+          }
+        }
+      }
+    }
+  }
+}
