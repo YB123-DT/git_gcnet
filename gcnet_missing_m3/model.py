@@ -1121,6 +1121,7 @@ class MissingM3GraphModel(GraphModel):
         postgraph_sequence_mode="independent",
         graph_message_calibration="none",
         graph_second_layer="graphconv",
+        postgraph_bilstm_ablation="none",
     ) -> None:
         if readout_type not in {
             "shared",
@@ -1181,6 +1182,7 @@ class MissingM3GraphModel(GraphModel):
             postgraph_sequence_mode=postgraph_sequence_mode,
             graph_message_calibration=graph_message_calibration,
             graph_second_layer=graph_second_layer,
+            postgraph_bilstm_ablation=postgraph_bilstm_ablation,
         )
         self.dimensions = (adim, tdim, vdim)
         self.latent_dim = int(latent_dim)

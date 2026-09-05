@@ -1533,6 +1533,90 @@ def test_graph_second_layer_is_an_explicit_cli_switch():
     )
 
 
+def test_postgraph_bilstm_ablation_duplicates_sequence_and_skips_recurrent(
+    monkeypatch,
+):
+    network = base_graph_model.GraphNetwork(
+        num_features=4,
+        num_relations=3,
+        time_attn=False,
+        hidden_size=3,
+        dropout=0.0,
+        no_cuda=True,
+        postgraph_bilstm_enabled=False,
+    )
+    captured = {}
+
+    def capture_linear_input(module, inputs):
+        captured["value"] = inputs[0]
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("post-graph BiLSTM must not run")
+
+    network.linear.register_forward_pre_hook(capture_linear_input)
+    monkeypatch.setattr(network.grufusion, "forward", fail_if_called)
+    features = torch.randn(3, 4, requires_grad=True)
+    output = network(
+        features,
+        torch.tensor([[0, 1, 2], [1, 2, 0]]),
+        torch.tensor([0, 1, 2]),
+        seq_lengths=[3],
+        umask=torch.ones(1, 3),
+    )
+    first, second = captured["value"].chunk(2, dim=-1)
+    ASSERT_CLOSE(first, second, rtol=0, atol=0)
+    output.sum().backward()
+    assert all(p.grad is None for p in network.grufusion.parameters())
+    assert network.conv1.weight.grad is not None
+
+
+@pytest.mark.parametrize(
+    ("mode", "temporal_enabled", "speaker_enabled"),
+    [
+        ("none", True, True),
+        ("temporal", False, True),
+        ("speaker", True, False),
+    ],
+)
+def test_postgraph_bilstm_ablation_routes_exactly_one_branch(
+    mode,
+    temporal_enabled,
+    speaker_enabled,
+):
+    model = MissingM3GraphModel(
+        **_model_arguments(), postgraph_bilstm_ablation=mode
+    )
+    assert model.graph_net_temporal.postgraph_bilstm_enabled is temporal_enabled
+    assert model.graph_net_speaker.postgraph_bilstm_enabled is speaker_enabled
+
+
+def test_postgraph_bilstm_ablation_is_an_explicit_cli_switch():
+    required = [
+        "--audio-feature", "a",
+        "--text-feature", "t",
+        "--video-feature", "v",
+        "--output-dir", "out",
+    ]
+    parser = build_parser()
+    assert parser.parse_args(required).postgraph_bilstm_ablation == "none"
+    assert TrainConfig().postgraph_bilstm_ablation == "none"
+    assert parser.parse_args(
+        [*required, "--postgraph-bilstm-ablation", "temporal"]
+    ).postgraph_bilstm_ablation == "temporal"
+    assert parser.parse_args(
+        [*required, "--postgraph-bilstm-ablation", "speaker"]
+    ).postgraph_bilstm_ablation == "speaker"
+
+
+def test_postgraph_bilstm_ablation_rejects_shared_recurrent_mode():
+    with pytest.raises(ValueError, match="requires independent"):
+        MissingM3GraphModel(
+            **_model_arguments(),
+            postgraph_sequence_mode="shared-bilstm",
+            postgraph_bilstm_ablation="temporal",
+        )
+
+
 def test_branch_graph_message_calibration_matches_the_bounded_formula():
     network = base_graph_model.GraphNetwork(
         num_features=4,

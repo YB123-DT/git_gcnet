@@ -105,7 +105,8 @@ class GraphNetwork(torch.nn.Module):
                  dropout=0.5, no_cuda=False,
                  recurrent_padding_mode="legacy",
                  graph_message_calibration="none",
-                 graph_second_layer="graphconv"):
+                 graph_second_layer="graphconv",
+                 postgraph_bilstm_enabled=True):
         """
         The Speaker-level context encoder in the form of a 2 layer GCN.
         """
@@ -127,6 +128,7 @@ class GraphNetwork(torch.nn.Module):
         if graph_second_layer not in {"graphconv", "identity"}:
             raise ValueError("unsupported graph_second_layer")
         self.graph_second_layer = graph_second_layer
+        self.postgraph_bilstm_enabled = bool(postgraph_bilstm_enabled)
 
         ## graph modeling
         self.conv1 = RGCNConv(num_features, hidden_size, num_relations)
@@ -186,18 +188,21 @@ class GraphNetwork(torch.nn.Module):
         seqlen = outputs.size(0)
         batch = outputs.size(1)
         outputs = torch.reshape(outputs, (seqlen, batch, -1)) # [seqlen, batch, dim]
-        recurrent = (
-            self.grufusion
-            if postgraph_recurrent is None
-            else postgraph_recurrent
-        )
-        outputs = _run_recurrent(
-            recurrent,
-            outputs,
-            seq_lengths,
-            self.recurrent_padding_mode,
-            umask,
-        ) # [seqlen, batch, dim]
+        if self.postgraph_bilstm_enabled:
+            recurrent = (
+                self.grufusion
+                if postgraph_recurrent is None
+                else postgraph_recurrent
+            )
+            outputs = _run_recurrent(
+                recurrent,
+                outputs,
+                seq_lengths,
+                self.recurrent_padding_mode,
+                umask,
+            ) # [seqlen, batch, 2*dim]
+        else:
+            outputs = torch.cat([outputs, outputs], dim=-1)
 
         ## outputs -> hidden:
         ## sequence attention => [seqlen, batch, d_h]
@@ -244,7 +249,8 @@ class GraphModel(nn.Module):
                  recurrent_padding_mode="legacy",
                  postgraph_sequence_mode="independent",
                  graph_message_calibration="none",
-                 graph_second_layer="graphconv"):
+                 graph_second_layer="graphconv",
+                 postgraph_bilstm_ablation="none"):
         
         super(GraphModel, self).__init__()
 
@@ -269,6 +275,16 @@ class GraphModel(nn.Module):
                 "shared-bilstm requires graph_branch_mode='both'"
             )
         self.postgraph_sequence_mode = postgraph_sequence_mode
+        if postgraph_bilstm_ablation not in {"none", "temporal", "speaker"}:
+            raise ValueError("unsupported postgraph_bilstm_ablation")
+        if (
+            postgraph_bilstm_ablation != "none"
+            and postgraph_sequence_mode != "independent"
+        ):
+            raise ValueError(
+                "postgraph_bilstm_ablation requires independent sequence mode"
+            )
+        self.postgraph_bilstm_ablation = postgraph_bilstm_ablation
         if graph_message_calibration not in {
             "none",
             "branch-layernorm-residual",
@@ -301,13 +317,15 @@ class GraphModel(nn.Module):
         self.graph_net_temporal = GraphNetwork(
             2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
             self.no_cuda, self.recurrent_padding_mode,
-            self.graph_message_calibration, self.graph_second_layer
+            self.graph_message_calibration, self.graph_second_layer,
+            postgraph_bilstm_ablation != "temporal"
         )
         n_relations = n_speakers ** 2
         self.graph_net_speaker = GraphNetwork(
             2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
             self.no_cuda, self.recurrent_padding_mode,
-            self.graph_message_calibration, self.graph_second_layer
+            self.graph_message_calibration, self.graph_second_layer,
+            postgraph_bilstm_ablation != "speaker"
         )
         if self.postgraph_sequence_mode == "shared-bilstm":
             for parameter in self.graph_net_speaker.grufusion.parameters():

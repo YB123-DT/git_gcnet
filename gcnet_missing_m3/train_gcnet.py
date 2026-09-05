@@ -88,6 +88,7 @@ class TrainConfig:
     jepa_rate_weighting: str = "uniform"
     graph_message_calibration: str = "none"
     graph_second_layer: str = "graphconv"
+    postgraph_bilstm_ablation: str = "none"
     fixed_missing_rate: float | None = None
     checkpoint_selection: str = "validation"
     jepa_contrastive_source: str = "contrastive"
@@ -1279,6 +1280,7 @@ def run_experiment(
         postgraph_sequence_mode=config_value.postgraph_sequence_mode,
         graph_message_calibration=config_value.graph_message_calibration,
         graph_second_layer=config_value.graph_second_layer,
+        postgraph_bilstm_ablation=config_value.postgraph_bilstm_ablation,
     ).to(device)
     initialization = None
     frozen_probe = None
@@ -1513,6 +1515,7 @@ def run_experiment(
         "jepa_rate_weighting": config_value.jepa_rate_weighting,
         "graph_message_calibration": config_value.graph_message_calibration,
         "graph_second_layer": config_value.graph_second_layer,
+        "postgraph_bilstm_ablation": config_value.postgraph_bilstm_ablation,
         "train_missing_rate": _fixed_missing_rate(config_value),
         "selection_missing_rates": list(protocol_rates),
         **_readout_provenance(model),
@@ -1611,6 +1614,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--graph-second-layer",
         choices=("graphconv", "identity"),
         default="graphconv",
+    )
+    parser.add_argument(
+        "--postgraph-bilstm-ablation",
+        choices=("none", "temporal", "speaker"),
+        default="none",
     )
     parser.add_argument("--skip-test-evaluation", action="store_true")
     parser.add_argument(
@@ -1715,6 +1723,7 @@ def main(argv=None) -> None:
         jepa_rate_weighting=args.jepa_rate_weighting,
         graph_message_calibration=args.graph_message_calibration,
         graph_second_layer=args.graph_second_layer,
+        postgraph_bilstm_ablation=args.postgraph_bilstm_ablation,
         fixed_missing_rate=args.train_missing_rate,
         checkpoint_selection=args.checkpoint_selection,
         training_objective=args.training_objective,
