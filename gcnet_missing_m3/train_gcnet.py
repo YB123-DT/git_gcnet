@@ -87,6 +87,7 @@ class TrainConfig:
     postgraph_sequence_mode: str = "independent"
     jepa_rate_weighting: str = "uniform"
     graph_message_calibration: str = "none"
+    graph_second_layer: str = "graphconv"
     fixed_missing_rate: float | None = None
     checkpoint_selection: str = "validation"
     jepa_contrastive_source: str = "contrastive"
@@ -1277,6 +1278,7 @@ def run_experiment(
         recurrent_padding_mode=config_value.recurrent_padding_mode,
         postgraph_sequence_mode=config_value.postgraph_sequence_mode,
         graph_message_calibration=config_value.graph_message_calibration,
+        graph_second_layer=config_value.graph_second_layer,
     ).to(device)
     initialization = None
     frozen_probe = None
@@ -1510,6 +1512,7 @@ def run_experiment(
         "postgraph_sequence_mode": config_value.postgraph_sequence_mode,
         "jepa_rate_weighting": config_value.jepa_rate_weighting,
         "graph_message_calibration": config_value.graph_message_calibration,
+        "graph_second_layer": config_value.graph_second_layer,
         "train_missing_rate": _fixed_missing_rate(config_value),
         "selection_missing_rates": list(protocol_rates),
         **_readout_provenance(model),
@@ -1603,6 +1606,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--graph-message-calibration",
         choices=("none", "branch-layernorm-residual"),
         default="none",
+    )
+    parser.add_argument(
+        "--graph-second-layer",
+        choices=("graphconv", "identity"),
+        default="graphconv",
     )
     parser.add_argument("--skip-test-evaluation", action="store_true")
     parser.add_argument(
@@ -1706,6 +1714,7 @@ def main(argv=None) -> None:
         postgraph_sequence_mode=args.postgraph_sequence_mode,
         jepa_rate_weighting=args.jepa_rate_weighting,
         graph_message_calibration=args.graph_message_calibration,
+        graph_second_layer=args.graph_second_layer,
         fixed_missing_rate=args.train_missing_rate,
         checkpoint_selection=args.checkpoint_selection,
         training_objective=args.training_objective,

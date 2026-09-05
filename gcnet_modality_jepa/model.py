@@ -104,7 +104,8 @@ class GraphNetwork(torch.nn.Module):
     def __init__(self, num_features, num_relations, time_attn, hidden_size=64,
                  dropout=0.5, no_cuda=False,
                  recurrent_padding_mode="legacy",
-                 graph_message_calibration="none"):
+                 graph_message_calibration="none",
+                 graph_second_layer="graphconv"):
         """
         The Speaker-level context encoder in the form of a 2 layer GCN.
         """
@@ -123,6 +124,9 @@ class GraphNetwork(torch.nn.Module):
         }:
             raise ValueError("unsupported graph_message_calibration")
         self.graph_message_calibration = graph_message_calibration
+        if graph_second_layer not in {"graphconv", "identity"}:
+            raise ValueError("unsupported graph_second_layer")
+        self.graph_second_layer = graph_second_layer
 
         ## graph modeling
         self.conv1 = RGCNConv(num_features, hidden_size, num_relations)
@@ -168,7 +172,8 @@ class GraphNetwork(torch.nn.Module):
 
         ## graph model: graph => outputs
         out = self.conv1(features, edge_index, edge_type) # [num_features -> hidden_size]
-        out = self.conv2(out, edge_index) # [hidden_size -> hidden_size]
+        if self.graph_second_layer == "graphconv":
+            out = self.conv2(out, edge_index) # [hidden_size -> hidden_size]
         out = self._calibrate_graph_message(out)
         outputs = torch.cat([features, out], dim=-1) # [num_nodes, num_features(16)+hidden_size(8)]
 
@@ -238,7 +243,8 @@ class GraphModel(nn.Module):
                  graph_branch_mode="both",
                  recurrent_padding_mode="legacy",
                  postgraph_sequence_mode="independent",
-                 graph_message_calibration="none"):
+                 graph_message_calibration="none",
+                 graph_second_layer="graphconv"):
         
         super(GraphModel, self).__init__()
 
@@ -269,6 +275,9 @@ class GraphModel(nn.Module):
         }:
             raise ValueError("unsupported graph_message_calibration")
         self.graph_message_calibration = graph_message_calibration
+        if graph_second_layer not in {"graphconv", "identity"}:
+            raise ValueError("unsupported graph_second_layer")
+        self.graph_second_layer = graph_second_layer
         if recurrent_padding_mode not in {"legacy", "packed"}:
             raise ValueError(
                 "recurrent_padding_mode must be 'legacy' or 'packed'"
@@ -292,13 +301,13 @@ class GraphModel(nn.Module):
         self.graph_net_temporal = GraphNetwork(
             2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
             self.no_cuda, self.recurrent_padding_mode,
-            self.graph_message_calibration
+            self.graph_message_calibration, self.graph_second_layer
         )
         n_relations = n_speakers ** 2
         self.graph_net_speaker = GraphNetwork(
             2*D_e, n_relations, self.time_attn, graph_hidden_size, dropout,
             self.no_cuda, self.recurrent_padding_mode,
-            self.graph_message_calibration
+            self.graph_message_calibration, self.graph_second_layer
         )
         if self.postgraph_sequence_mode == "shared-bilstm":
             for parameter in self.graph_net_speaker.grufusion.parameters():

@@ -1460,6 +1460,79 @@ def test_graph_message_calibration_default_is_exactly_none():
         )
 
 
+def test_graph_second_layer_identity_skips_conv2_and_preserves_conv1_gradient(
+    monkeypatch,
+):
+    network = base_graph_model.GraphNetwork(
+        num_features=4,
+        num_relations=3,
+        time_attn=False,
+        hidden_size=4,
+        dropout=0.0,
+        no_cuda=True,
+        graph_second_layer="identity",
+    )
+    features = torch.randn(3, 4, requires_grad=True)
+    edge_index = torch.tensor([[0, 1, 2], [1, 2, 0]])
+    edge_type = torch.tensor([0, 1, 2])
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("conv2 must not run in identity mode")
+
+    monkeypatch.setattr(network.conv2, "forward", fail_if_called)
+    output = network(
+        features,
+        edge_index,
+        edge_type,
+        seq_lengths=[3],
+        umask=torch.ones(1, 3),
+    )
+    output.sum().backward()
+
+    assert network.conv1.weight.grad is not None
+    assert torch.isfinite(network.conv1.weight.grad).all()
+    assert all(parameter.grad is None for parameter in network.conv2.parameters())
+
+
+def test_graph_second_layer_default_is_graphconv_and_routes_both_branches():
+    torch.manual_seed(139)
+    default = MissingM3GraphModel(**_model_arguments()).eval()
+    torch.manual_seed(139)
+    explicit = MissingM3GraphModel(
+        **_model_arguments(), graph_second_layer="graphconv"
+    ).eval()
+    identity = MissingM3GraphModel(
+        **_model_arguments(), graph_second_layer="identity"
+    )
+
+    assert default.state_dict().keys() == explicit.state_dict().keys()
+    for key, value in default.state_dict().items():
+        ASSERT_CLOSE(value, explicit.state_dict()[key], rtol=0, atol=0)
+    assert identity.graph_net_temporal.graph_second_layer == "identity"
+    assert identity.graph_net_speaker.graph_second_layer == "identity"
+    assert "graph_net_temporal.conv2.lin_rel.weight" in identity.state_dict()
+    assert "graph_net_speaker.conv2.lin_rel.weight" in identity.state_dict()
+
+
+def test_graph_second_layer_is_an_explicit_cli_switch():
+    required = [
+        "--audio-feature", "a",
+        "--text-feature", "t",
+        "--video-feature", "v",
+        "--output-dir", "out",
+    ]
+    parser = build_parser()
+
+    assert parser.parse_args(required).graph_second_layer == "graphconv"
+    assert TrainConfig().graph_second_layer == "graphconv"
+    assert (
+        parser.parse_args(
+            [*required, "--graph-second-layer", "identity"]
+        ).graph_second_layer
+        == "identity"
+    )
+
+
 def test_branch_graph_message_calibration_matches_the_bounded_formula():
     network = base_graph_model.GraphNetwork(
         num_features=4,
