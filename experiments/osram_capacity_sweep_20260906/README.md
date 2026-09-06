@@ -1,6 +1,6 @@
 # OSRAM capacity sweep — CMU-MOSI
 
-This directory records a bounded capacity sweep on OSRAM+structured predictor. All variants use the same frozen features, cyclic rate schedule, masks, five seeds (66–70), optimizer, loss, and one-checkpoint 8-rate-mean Test-oracle selection. The per-rate columns are additional independent Test-oracle diagnostics.
+Bounded capacity diagnostics on OSRAM+structured predictor. All variants use the same frozen features, cyclic schedule, masks, five seeds (66–70), optimizer, loss, and one-checkpoint 8-rate-mean Test-oracle selection. Per-rate values are additional independent Test-oracle diagnostics.
 
 **Internal diagnostic only; not a formal paper result.**
 
@@ -14,5 +14,8 @@ H4 control (`heads=4,key/value=32,output=500`) from `experiments/osram_complete_
 | Out700 | 4 | 32 | 32 | 700 | 5,442,577 | 79.823 | -0.225 | 80.556 | -0.097 | 76.195 | -0.083 |
 | H8+Out700 | 8 | 32 | 32 | 700 | 7,181,217 | 80.267 | +0.219 | 80.781 | +0.127 | 76.586 | +0.307 |
 | H8+V64+Out700 | 8 | 32 | 64 | 700 | 9,608,865 | 80.124 | +0.076 | 80.702 | +0.048 | 76.441 | +0.162 |
+| H4-KV64-700 | 4 | 64 | 64 | 700 | 7,181,201 | 80.082 | +0.034 | 80.526 | -0.128 | 76.260 | -0.019 |
+| H4-Output900 | 4 | 32 | 32 | 900 | 6,070,977 | 79.909 | -0.140 | 80.636 | -0.018 | 76.421 | +0.142 |
+| H4-Output1000 | 4 | 32 | 32 | 1000 | 6,415,177 | 79.900 | -0.149 | 80.587 | -0.066 | 76.013 | -0.266 |
 
-Each variant folder contains design/provenance notes, compact raw JSON, and machine-readable summaries. The H8+V64+Output700 follow-up used one retry for seed 69 after a transient CUDA initialization failure.
+Individual folders contain design/provenance notes, compact raw JSON, and CSV summaries.
