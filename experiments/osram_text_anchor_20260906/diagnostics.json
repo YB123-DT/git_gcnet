@@ -1,0 +1,68 @@
+{
+  "experiment": "OSRAM+text-anchor-residual",
+  "status": "internal-diagnostic-only",
+  "selection_protocol": "8-rate-mean-test-oracle",
+  "selection_split": "test-oracle",
+  "dataset": "CMUMOSI",
+  "fold": 1,
+  "seeds": [66, 67, 68, 69, 70],
+  "rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+  "remote_host": "biggpu",
+  "remote_output_root": "/data2/yb/remote_experiments/osram_text_anchor_20260906_retry",
+  "comparison": {
+    "control": "experiments/osram_complete_20260906",
+    "only_changed_setting": "fusion_type: mean -> text-anchor-residual",
+    "mask_sha256_matches_control": true
+  },
+  "parameter_count": {
+    "total": 5159713,
+    "trainable": 4299553
+  },
+  "per_seed": {
+    "66": {
+      "best_epoch": 63,
+      "selection_8rate_mean": 0.799871144959243,
+      "base_context_norm": 25.79386329650879,
+      "gap_context_norm": {"audio": 11.274127960205078, "text": 12.32241439819336, "visual": 12.767770767211914},
+      "gap_base_ratio": {"audio": 0.4370856676491356, "text": 0.4777265916525658, "visual": 0.4949925732505544},
+      "address_residual": {"audio": {"rho": 0.807340703367014, "eta": 0.3165216479591656, "cosine": 0.807913254186207}, "text": {"rho": 0.7849220818522286, "eta": 0.3438747753728583, "cosine": 0.7855953589060043}, "visual": {"rho": 0.7937214006574786, "eta": 0.33556503252976144, "cosine": 0.7943428448040266}},
+      "memory_frobenius_norm": 17.652172088623047
+    },
+    "67": {
+      "best_epoch": 70,
+      "selection_8rate_mean": 0.7910750235825642,
+      "base_context_norm": 18.221195220947266,
+      "gap_context_norm": {"audio": 7.47694730758667, "text": 8.499957084655762, "visual": 8.333821296691895},
+      "gap_base_ratio": {"audio": 0.4103434059578648, "text": 0.4664873506697369, "visual": 0.4573696289204591},
+      "address_residual": {"audio": {"rho": 0.7786402012283965, "eta": 0.35169870234786943, "cosine": 0.7792488185922363}, "text": {"rho": 0.7681871080993737, "eta": 0.3629379928676797, "cosine": 0.7688484185540903}, "visual": {"rho": 0.7844195094600364, "eta": 0.345508376098409, "cosine": 0.7850144062484492}},
+      "memory_frobenius_norm": 12.533459663391113
+    },
+    "68": {
+      "best_epoch": 45,
+      "selection_8rate_mean": 0.7944320846363404,
+      "base_context_norm": 20.280778884887695,
+      "gap_context_norm": {"audio": 8.168752670288086, "text": 11.728482246398926, "visual": 8.841408729553223},
+      "gap_base_ratio": {"audio": 0.4027829856364671, "text": 0.5783053162291736, "visual": 0.43595015653671143},
+      "address_residual": {"audio": {"rho": 0.8814750379467323, "eta": 0.20172488107278116, "cosine": 0.8817826175611498}, "text": {"rho": 0.8744045447438694, "eta": 0.20778726569156952, "cosine": 0.8747493707664507}, "visual": {"rho": 0.8886695230819567, "eta": 0.19126821294122812, "cosine": 0.8889505556043313}},
+      "memory_frobenius_norm": 13.812808990478516
+    },
+    "69": {
+      "best_epoch": 38,
+      "selection_8rate_mean": 0.800803665593846,
+      "base_context_norm": 23.62710952758789,
+      "gap_context_norm": {"audio": 10.332022666931152, "text": 9.94082260131836, "visual": 11.989089965820312},
+      "gap_base_ratio": {"audio": 0.43729524573740597, "text": 0.4207379912346487, "visual": 0.5074293980743352},
+      "address_residual": {"audio": {"rho": 0.8294847017159528, "eta": 0.2536006587022595, "cosine": 0.8301890175463768}, "text": {"rho": 0.8449045424037355, "eta": 0.22573970612301422, "cosine": 0.8455819358707083}, "visual": {"rho": 0.8302494968198044, "eta": 0.2473096084012582, "cosine": 0.8309761843435011}},
+      "memory_frobenius_norm": 16.16107177734375
+    },
+    "70": {
+      "best_epoch": 49,
+      "selection_8rate_mean": 0.8000692101085077,
+      "base_context_norm": 21.139259338378906,
+      "gap_context_norm": {"audio": 8.530614852905273, "text": 9.491616249084473, "visual": 9.315010070800781},
+      "gap_base_ratio": {"audio": 0.40354369641597176, "text": 0.4490042010058594, "visual": 0.4406497844458119},
+      "address_residual": {"audio": {"rho": 0.8305542251697956, "eta": 0.2784409608594183, "cosine": 0.8310441549204877}, "text": {"rho": 0.8311618915799756, "eta": 0.27903261830698994, "cosine": 0.8316558007335524}, "visual": {"rho": 0.8475598368044324, "eta": 0.2509213751154808, "cosine": 0.847991784442618}},
+      "memory_frobenius_norm": 14.470888137817383
+    }
+  }
+}
