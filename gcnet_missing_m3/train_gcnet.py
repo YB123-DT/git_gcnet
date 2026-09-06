@@ -95,6 +95,14 @@ class TrainConfig:
     training_objective: str = "joint"
     initial_backbone_checkpoint: str | None = None
     pretrained_learning_rate: float | None = None
+    backbone_type: str = "gcnet"
+    osram_output_dim: int = 500
+    osram_num_heads: int = 4
+    osram_key_dim: int = 32
+    osram_value_dim: int = 32
+    osram_read_ridge: float = 1e-3
+    osram_write_ridge: float = 1e-3
+    osram_predictor_mode: str = "structured"
 
 
 _TRAINING_OBJECTIVES = {
@@ -194,6 +202,7 @@ def _save_best_checkpoint(
     epoch: int,
     validation_mean_weighted_f1: float | None,
     selection_split: str = "validation",
+    selection_protocol: str | None = None,
 ) -> None:
     validation_score = (
         validation_mean_weighted_f1
@@ -208,6 +217,12 @@ def _save_best_checkpoint(
             "validation_mean_weighted_f1": validation_score,
             "selection_split": selection_split,
             "selection_mean_weighted_f1": validation_mean_weighted_f1,
+            "selection_protocol": selection_protocol
+            or (
+                "8-rate-mean-test-oracle"
+                if selection_split == "test-oracle"
+                else "8-rate-mean-validation"
+            ),
         },
         path,
     )
@@ -1281,6 +1296,14 @@ def run_experiment(
         graph_message_calibration=config_value.graph_message_calibration,
         graph_second_layer=config_value.graph_second_layer,
         postgraph_bilstm_ablation=config_value.postgraph_bilstm_ablation,
+        backbone_type=config_value.backbone_type,
+        osram_output_dim=config_value.osram_output_dim,
+        osram_num_heads=config_value.osram_num_heads,
+        osram_key_dim=config_value.osram_key_dim,
+        osram_value_dim=config_value.osram_value_dim,
+        osram_read_ridge=config_value.osram_read_ridge,
+        osram_write_ridge=config_value.osram_write_ridge,
+        osram_predictor_mode=config_value.osram_predictor_mode,
     ).to(device)
     initialization = None
     frozen_probe = None
@@ -1410,6 +1433,11 @@ def run_experiment(
                 epoch=best_epoch,
                 validation_mean_weighted_f1=best_score,
                 selection_split=config_value.checkpoint_selection,
+                selection_protocol=(
+                    "8-rate-mean-test-oracle"
+                    if config_value.checkpoint_selection == "test-oracle"
+                    else "8-rate-mean-validation"
+                ),
             )
     if jepa_pretraining and config_value.epochs > 0:
         best_epoch = config_value.epochs
@@ -1421,6 +1449,7 @@ def run_experiment(
             epoch=best_epoch,
             validation_mean_weighted_f1=None,
             selection_split="fixed-final",
+            selection_protocol="fixed-final",
         )
     if best_state is None:
         raise RuntimeError("no best checkpoint was selected")
@@ -1474,6 +1503,15 @@ def run_experiment(
     result: Dict[str, object] = {
         "best_epoch": best_epoch,
         "selection_split": selection_split,
+        "selection_protocol": (
+            "8-rate-mean-test-oracle"
+            if selection_split == "test-oracle"
+            else (
+                "8-rate-mean-validation"
+                if selection_split == "validation"
+                else selection_split
+            )
+        ),
         "best_selection_mean_weighted_f1": best_score,
         "best_validation_mean_weighted_f1": (
             best_score
@@ -1516,11 +1554,35 @@ def run_experiment(
         "graph_message_calibration": config_value.graph_message_calibration,
         "graph_second_layer": config_value.graph_second_layer,
         "postgraph_bilstm_ablation": config_value.postgraph_bilstm_ablation,
+        "backbone_type": config_value.backbone_type,
+        "osram_predictor_mode": config_value.osram_predictor_mode,
+        "osram_dimensions": (
+            {
+                "latent_dim": config_value.latent_dim,
+                "output_dim": config_value.osram_output_dim,
+                "num_heads": config_value.osram_num_heads,
+                "key_dim": config_value.osram_key_dim,
+                "value_dim": config_value.osram_value_dim,
+                "read_ridge": config_value.osram_read_ridge,
+                "write_ridge": config_value.osram_write_ridge,
+            }
+            if config_value.backbone_type == "osram"
+            else None
+        ),
         "train_missing_rate": _fixed_missing_rate(config_value),
         "selection_missing_rates": list(protocol_rates),
         **_readout_provenance(model),
     }
     _write_json(output / "metrics.json", result)
+    if config_value.backbone_type == "osram":
+        _write_json(
+            output / "diagnostics.json",
+            {
+                "evaluation_stage": result["evaluation_stage"],
+                "selection_protocol": result["selection_protocol"],
+                "last_batch": getattr(model.osram, "last_diagnostics", {}),
+            },
+        )
     return result
 
 
@@ -1670,6 +1732,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--validation-fraction", type=float, default=0.1)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--num-threads", type=int, default=6)
+    parser.add_argument(
+        "--backbone-type",
+        choices=("gcnet", "osram"),
+        default="gcnet",
+    )
+    parser.add_argument("--osram-output-dim", type=int, default=500)
+    parser.add_argument("--osram-num-heads", type=int, default=4)
+    parser.add_argument("--osram-key-dim", type=int, default=32)
+    parser.add_argument("--osram-value-dim", type=int, default=32)
+    parser.add_argument("--osram-read-ridge", type=float, default=1e-3)
+    parser.add_argument("--osram-write-ridge", type=float, default=1e-3)
+    parser.add_argument(
+        "--osram-predictor-mode",
+        choices=("structured", "legacy-hidden"),
+        default="structured",
+    )
     return parser
 
 
@@ -1729,6 +1807,14 @@ def main(argv=None) -> None:
         training_objective=args.training_objective,
         initial_backbone_checkpoint=args.initial_backbone_checkpoint,
         pretrained_learning_rate=args.pretrained_lr,
+        backbone_type=args.backbone_type,
+        osram_output_dim=args.osram_output_dim,
+        osram_num_heads=args.osram_num_heads,
+        osram_key_dim=args.osram_key_dim,
+        osram_value_dim=args.osram_value_dim,
+        osram_read_ridge=args.osram_read_ridge,
+        osram_write_ridge=args.osram_write_ridge,
+        osram_predictor_mode=args.osram_predictor_mode,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [

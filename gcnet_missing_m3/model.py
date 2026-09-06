@@ -11,6 +11,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from gcnet_modality_jepa.model import GraphModel
+from .osram import OSRAMBackbone
 
 
 MODALITIES = ("audio", "text", "visual")
@@ -1000,10 +1001,24 @@ class ContextualM3Predictor(nn.Module):
         dropout: float = 0.1,
         mmoe_variant: str = "dual-gate",
         target_private_rank: int = 0,
+        structured: bool = False,
     ) -> None:
         super().__init__()
         self.latent_dim = int(latent_dim)
-        self.context_projection = nn.Linear(context_dim, latent_dim)
+        self.context_dim = int(context_dim)
+        self.structured = bool(structured)
+        if self.structured:
+            self.structured_context_projections = nn.ModuleList(
+                [
+                    nn.Sequential(
+                        nn.LayerNorm(2 * self.context_dim),
+                        nn.Linear(2 * self.context_dim, self.latent_dim),
+                    )
+                    for _ in MODALITIES
+                ]
+            )
+        else:
+            self.context_projection = nn.Linear(context_dim, latent_dim)
         self.input_norm = nn.LayerNorm(latent_dim)
         self.mmoe = DualGateTopKMMoE(
             latent_dim,
@@ -1014,6 +1029,33 @@ class ContextualM3Predictor(nn.Module):
             target_private_rank=target_private_rank,
         )
 
+    def structured_contexts(
+        self, base_context: torch.Tensor, gap_context: torch.Tensor
+    ) -> torch.Tensor:
+        """Project ``[C_base; C_gap_q]`` independently for each target q."""
+
+        if not self.structured:
+            raise RuntimeError("structured contexts require structured=True")
+        if base_context.ndim != 3:
+            raise ValueError("base_context must have shape [L, B, context_dim]")
+        if gap_context.shape != (
+            *base_context.shape[:2],
+            len(MODALITIES),
+            self.context_dim,
+        ):
+            raise ValueError("gap_context must have shape [L, B, 3, context_dim]")
+        return torch.stack(
+            [
+                projection(
+                    torch.cat((base_context, gap_context[..., index, :]), dim=-1)
+                )
+                for index, projection in enumerate(
+                    self.structured_context_projections
+                )
+            ],
+            dim=2,
+        )
+
     def direction_forward(
         self,
         source: torch.Tensor,
@@ -1021,7 +1063,10 @@ class ContextualM3Predictor(nn.Module):
         source_index: int,
         target_index: int,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        conditioned = self.input_norm(source + self.context_projection(context))
+        if self.structured:
+            conditioned = self.input_norm(source + context)
+        else:
+            conditioned = self.input_norm(source + self.context_projection(context))
         return self.mmoe(conditioned, source_index, target_index)
 
     def forward(
@@ -1030,13 +1075,30 @@ class ContextualM3Predictor(nn.Module):
         hidden: torch.Tensor,
         availability: torch.Tensor,
         umask: torch.Tensor,
+        osram_context: Mapping[str, torch.Tensor] | None = None,
     ) -> MissingM3Predictions:
         if set(latents) != set(MODALITIES):
             raise ValueError("latents must contain audio, text, and visual")
         length, batch, _ = hidden.shape
         valid = umask.T.bool().reshape(-1)
         flat_availability = availability.reshape(-1, 3).bool()
-        flat_hidden = hidden.reshape(-1, hidden.shape[-1])
+        if self.structured:
+            if osram_context is None:
+                raise ValueError("structured predictor requires osram_context")
+            if set(osram_context) < {"base", "gap"}:
+                raise ValueError("osram_context must contain base and gap")
+            structured = self.structured_contexts(
+                osram_context["base"], osram_context["gap"]
+            )
+            if structured.shape[:2] != hidden.shape[:2]:
+                raise ValueError("OSRAM contexts and hidden leading dimensions differ")
+            flat_structured_context = structured.reshape(
+                -1, len(MODALITIES), self.latent_dim
+            )
+            flat_hidden = None
+        else:
+            flat_hidden = hidden.reshape(-1, hidden.shape[-1])
+            flat_structured_context = None
         flat_latents = {
             name: value.reshape(-1, self.latent_dim) for name, value in latents.items()
         }
@@ -1056,9 +1118,14 @@ class ContextualM3Predictor(nn.Module):
                 indices = torch.nonzero(selected, as_tuple=False).flatten()
                 if indices.numel() == 0:
                     continue
+                direction_context = (
+                    flat_structured_context[indices, target_index]
+                    if self.structured
+                    else flat_hidden[indices]
+                )
                 reg, cl = self.direction_forward(
                     flat_latents[source_name][indices],
-                    flat_hidden[indices],
+                    direction_context,
                     source_index,
                     target_index,
                 )
@@ -1083,7 +1150,7 @@ class ContextualM3Predictor(nn.Module):
 
 
 class MissingM3GraphModel(GraphModel):
-    """Observed-set node encoder followed by the original GCNet graph core."""
+    """Observed-set encoder with a selectable GCNet or OSRAM backbone."""
 
     def __init__(
         self,
@@ -1122,7 +1189,21 @@ class MissingM3GraphModel(GraphModel):
         graph_message_calibration="none",
         graph_second_layer="graphconv",
         postgraph_bilstm_ablation="none",
+        backbone_type="gcnet",
+        osram_output_dim=500,
+        osram_num_heads=4,
+        osram_key_dim=32,
+        osram_value_dim=32,
+        osram_read_ridge=1e-3,
+        osram_write_ridge=1e-3,
+        osram_predictor_mode="structured",
     ) -> None:
+        if backbone_type not in {"gcnet", "osram"}:
+            raise ValueError("backbone_type must be 'gcnet' or 'osram'")
+        if osram_predictor_mode not in {"legacy-hidden", "structured"}:
+            raise ValueError(
+                "osram_predictor_mode must be 'legacy-hidden' or 'structured'"
+            )
         if readout_type not in {
             "shared",
             "availability-low-rank",
@@ -1134,6 +1215,8 @@ class MissingM3GraphModel(GraphModel):
             raise ValueError("readout_rank must be positive")
         if representation_type not in {"slot", "track"}:
             raise ValueError("representation_type must be 'slot' or 'track'")
+        if backbone_type == "osram" and fusion_type == "raw-residual":
+            raise ValueError("OSRAM requires a latent observed-set representation")
         if representation_type == "track" and fusion_type != "slot":
             raise ValueError("track representation requires fusion_type='slot'")
         if representation_type == "track" and local_context_residual:
@@ -1162,30 +1245,53 @@ class MissingM3GraphModel(GraphModel):
             raise ValueError(
                 "node_interaction_residual cannot use classification_completion"
             )
-        super().__init__(
-            base_model,
-            adim,
-            tdim,
-            vdim,
-            D_e,
-            graph_hidden_size,
-            n_speakers,
-            window_past,
-            window_future,
-            n_classes,
-            dropout,
-            time_attn,
-            no_cuda,
-            enable_reconstruction=False,
-            graph_branch_mode=graph_branch_mode,
-            recurrent_padding_mode=recurrent_padding_mode,
-            postgraph_sequence_mode=postgraph_sequence_mode,
-            graph_message_calibration=graph_message_calibration,
-            graph_second_layer=graph_second_layer,
-            postgraph_bilstm_ablation=postgraph_bilstm_ablation,
-        )
+        if backbone_type == "gcnet":
+            super().__init__(
+                base_model,
+                adim,
+                tdim,
+                vdim,
+                D_e,
+                graph_hidden_size,
+                n_speakers,
+                window_past,
+                window_future,
+                n_classes,
+                dropout,
+                time_attn,
+                no_cuda,
+                enable_reconstruction=False,
+                graph_branch_mode=graph_branch_mode,
+                recurrent_padding_mode=recurrent_padding_mode,
+                postgraph_sequence_mode=postgraph_sequence_mode,
+                graph_message_calibration=graph_message_calibration,
+                graph_second_layer=graph_second_layer,
+                postgraph_bilstm_ablation=postgraph_bilstm_ablation,
+            )
+        else:
+            # Do not instantiate the legacy graph/RNN modules for OSRAM.  This
+            # keeps the parameter count and optimizer focused on the selected
+            # backbone rather than retaining a dormant control path.
+            nn.Module.__init__(self)
+            self.no_cuda = no_cuda
+            self.base_model = base_model
+            self.graph_branch_mode = graph_branch_mode
+            self.postgraph_sequence_mode = postgraph_sequence_mode
+            self.postgraph_bilstm_ablation = postgraph_bilstm_ablation
+            self.graph_message_calibration = graph_message_calibration
+            self.graph_second_layer = graph_second_layer
+            self.recurrent_padding_mode = recurrent_padding_mode
+            self.n_speakers = int(n_speakers)
+            self.window_past = int(window_past)
+            self.window_future = int(window_future)
+            self.time_attn = bool(time_attn)
+            self.enable_reconstruction = False
+            self.enable_stability_reconstruction = False
         self.dimensions = (adim, tdim, vdim)
         self.latent_dim = int(latent_dim)
+        self.backbone_type = backbone_type
+        self.osram_predictor_mode = osram_predictor_mode
+        self.fusion_type = fusion_type
         self.representation_type = representation_type
         if representation_type == "track":
             self.observed_set = ModalityTrackEncoder(
@@ -1207,7 +1313,7 @@ class MissingM3GraphModel(GraphModel):
                 fusion_type=fusion_type,
             )
         self.teacher = EMATeacherProjectors(self.observed_set.projectors)
-        if fusion_type != "raw-residual":
+        if backbone_type == "gcnet" and fusion_type != "raw-residual":
             if base_model == "LSTM":
                 self.lstm = nn.LSTM(
                     input_size=latent_dim,
@@ -1224,17 +1330,42 @@ class MissingM3GraphModel(GraphModel):
                     bidirectional=True,
                     dropout=dropout,
                 )
-        hidden_dim = 2 * D_e + graph_hidden_size
+        if backbone_type == "osram":
+            self.osram = OSRAMBackbone(
+                latent_dim=latent_dim,
+                output_dim=osram_output_dim,
+                num_heads=osram_num_heads,
+                key_dim=osram_key_dim,
+                value_dim=osram_value_dim,
+                n_speakers=n_speakers,
+                dropout=dropout,
+                read_ridge=osram_read_ridge,
+                write_ridge=osram_write_ridge,
+            )
+            hidden_dim = int(osram_output_dim)
+            predictor_context_dim = self.osram.context_dim
+        else:
+            hidden_dim = 2 * D_e + graph_hidden_size
+            predictor_context_dim = hidden_dim
+        self.context_dim = hidden_dim
+        if backbone_type == "osram":
+            self.smax_fc = nn.Linear(hidden_dim, n_classes)
         self.missing_predictor = ContextualM3Predictor(
             latent_dim,
-            hidden_dim,
+            predictor_context_dim,
             num_experts=num_experts,
             top_k=top_k,
             dropout=predictor_dropout,
             mmoe_variant=mmoe_variant,
             target_private_rank=target_private_rank,
+            structured=(
+                backbone_type == "osram"
+                and osram_predictor_mode == "structured"
+            ),
         )
         if representation_type == "track":
+            if backbone_type == "osram":
+                raise ValueError("OSRAM does not support track representation")
             self.track_fusion = PostGraphTrackFusion(
                 hidden_dim, projector_dropout
             )
@@ -1298,7 +1429,18 @@ class MissingM3GraphModel(GraphModel):
             encoded = encoded + self.node_interaction(
                 latents, availability, umask
             )
-        if self.representation_type == "track":
+        osram_context = None
+        if self.backbone_type == "osram":
+            graph_hidden, osram_context = self.osram(
+                encoded,
+                latents,
+                availability,
+                qmask,
+                umask,
+                seq_lengths,
+            )
+            self.last_osram_context = osram_context
+        elif self.representation_type == "track":
             track_hidden = {
                 name: self.encode_hidden(
                     [encoded[name]], qmask, umask, seq_lengths
@@ -1312,11 +1454,20 @@ class MissingM3GraphModel(GraphModel):
             graph_hidden = self.encode_hidden(
                 [encoded], qmask, umask, seq_lengths
             )
-        internal_predictions = (
-            self.missing_predictor(latents, graph_hidden, availability, umask)
-            if predict_missing or self.classification_completion
-            else None
-        )
+        internal_predictions = None
+        if predict_missing or self.classification_completion:
+            if self.backbone_type == "osram" and self.missing_predictor.structured:
+                internal_predictions = self.missing_predictor(
+                    latents,
+                    graph_hidden,
+                    availability,
+                    umask,
+                    osram_context=osram_context,
+                )
+            else:
+                internal_predictions = self.missing_predictor(
+                    latents, graph_hidden, availability, umask
+                )
         classification_hidden = graph_hidden
         if self.local_context_residual:
             classification_hidden = graph_hidden + self.local_context_fusion(
