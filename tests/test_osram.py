@@ -50,6 +50,59 @@ def test_osram_returns_fixed_slots_and_hard_masks_missing_context():
     assert torch.isfinite(hidden).all()
 
 
+def test_osram_ablation_modes_isolate_context_slots():
+    full = OSRAMBackbone(
+        latent_dim=8,
+        output_dim=10,
+        num_heads=2,
+        key_dim=3,
+        value_dim=4,
+        n_speakers=2,
+        dropout=0.0,
+        osram_ablation="full",
+    ).eval()
+    local_only = OSRAMBackbone(
+        latent_dim=8,
+        output_dim=10,
+        num_heads=2,
+        key_dim=3,
+        value_dim=4,
+        n_speakers=2,
+        dropout=0.0,
+        osram_ablation="local-only",
+    ).eval()
+    local_base = OSRAMBackbone(
+        latent_dim=8,
+        output_dim=10,
+        num_heads=2,
+        key_dim=3,
+        value_dim=4,
+        n_speakers=2,
+        dropout=0.0,
+        osram_ablation="local-base",
+    ).eval()
+    torch.manual_seed(17)
+    with torch.no_grad():
+        full.emotion_adapter[-1].weight.normal_(0.0, 0.1)
+        full.emotion_adapter[-1].bias.normal_(0.0, 0.1)
+    local_only.load_state_dict(full.state_dict())
+    local_base.load_state_dict(full.state_dict())
+    inputs = _inputs()
+
+    full_hidden, full_contexts = full(*inputs)
+    local_hidden, local_contexts = local_only(*inputs)
+    base_hidden, base_contexts = local_base(*inputs)
+
+    assert torch.count_nonzero(full_contexts["base"][1:3]) > 0
+    assert torch.count_nonzero(full_contexts["gap"][1:3]) > 0
+    assert torch.count_nonzero(local_contexts["base"]) == 0
+    assert torch.count_nonzero(local_contexts["gap"]) == 0
+    assert torch.count_nonzero(base_contexts["gap"]) == 0
+    torch.testing.assert_close(base_contexts["base"], full_contexts["base"])
+    assert not torch.equal(local_hidden, full_hidden)
+    assert not torch.equal(base_hidden, full_hidden)
+
+
 def test_osram_block_write_is_invariant_to_modality_column_permutation():
     model = OSRAMBackbone(
         latent_dim=8,

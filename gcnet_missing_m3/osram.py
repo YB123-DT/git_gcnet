@@ -19,6 +19,7 @@ from torch.nn import functional as F
 
 MODALITIES = ("audio", "text", "visual")
 QUERY_TYPES = ("base", "audio", "text", "visual")
+OSRAM_ABLATIONS = ("full", "local-only", "local-base")
 
 
 def _logit(probability: float) -> float:
@@ -49,8 +50,13 @@ class OSRAMBackbone(nn.Module):
         write_ridge: float = 1e-3,
         alpha_init: float = 0.98,
         beta_init: float = 0.5,
+        osram_ablation: str = "full",
     ) -> None:
         super().__init__()
+        if osram_ablation not in OSRAM_ABLATIONS:
+            raise ValueError(
+                "osram_ablation must be 'full', 'local-only', or 'local-base'"
+            )
         integer_values = {
             "latent_dim": latent_dim,
             "output_dim": output_dim,
@@ -71,6 +77,7 @@ class OSRAMBackbone(nn.Module):
         self.n_speakers = int(n_speakers)
         self.read_ridge = float(read_ridge)
         self.write_ridge = float(write_ridge)
+        self.osram_ablation = osram_ablation
         self.context_dim = 2 * self.num_heads * self.value_dim
 
         self.latent_norm = nn.LayerNorm(self.latent_dim)
@@ -418,15 +425,29 @@ class OSRAMBackbone(nn.Module):
         base_context = torch.cat((base_forward, base_backward), dim=-1)
         gap_context = torch.cat((gap_forward, gap_backward), dim=-1)
 
+        # The ablations disable only the corresponding readout slots.  The
+        # scan itself remains identical so the comparison isolates which
+        # contextual representation reaches the downstream heads without
+        # changing the memory parameterization or training protocol.
+        if self.osram_ablation == "local-only":
+            active_base_context = torch.zeros_like(base_context)
+            active_gap_context = torch.zeros_like(gap_context)
+        elif self.osram_ablation == "local-base":
+            active_base_context = base_context
+            active_gap_context = torch.zeros_like(gap_context)
+        else:
+            active_base_context = base_context
+            active_gap_context = gap_context
+
         local = node + self.local_path(node)
         local = local * valid.unsqueeze(-1).to(local.dtype)
         missing = 1.0 - availability.to(dtype=node.dtype)
         emotion_input = torch.cat(
             (
                 local,
-                base_context,
-                (gap_context * missing.unsqueeze(-1)).reshape(
-                    gap_context.shape[0], gap_context.shape[1], -1
+                active_base_context,
+                (active_gap_context * missing.unsqueeze(-1)).reshape(
+                    active_gap_context.shape[0], active_gap_context.shape[1], -1
                 ),
             ),
             dim=-1,
@@ -437,24 +458,39 @@ class OSRAMBackbone(nn.Module):
         hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
 
         diagnostics: dict[str, object] = {
+            "ablation": self.osram_ablation,
             "memory_alpha": torch.sigmoid(self.alpha_logits)
             .detach()
             .cpu()
             .tolist(),
             "memory_beta": torch.sigmoid(self.beta_logits).detach().cpu().tolist(),
-            "base_context_norm": float(base_context[valid].norm(dim=-1).mean().item())
+            "base_context_norm": float(
+                active_base_context[valid].norm(dim=-1).mean().item()
+            )
             if bool(valid.any())
             else 0.0,
             "gap_context_norm": {
-                name: float(gap_context[..., index, :][valid].norm(dim=-1).mean().item())
+                name: float(
+                    active_gap_context[..., index, :][valid]
+                    .norm(dim=-1)
+                    .mean()
+                    .item()
+                )
                 if bool(valid.any())
                 else 0.0
                 for index, name in enumerate(MODALITIES)
             },
             "gap_base_ratio": {
                 name: float(
-                    gap_context[..., index, :][valid].norm(dim=-1).mean().item()
-                    / base_context[valid].norm(dim=-1).mean().clamp_min(1e-8).item()
+                    active_gap_context[..., index, :][valid]
+                    .norm(dim=-1)
+                    .mean()
+                    .item()
+                    / active_base_context[valid]
+                    .norm(dim=-1)
+                    .mean()
+                    .clamp_min(1e-8)
+                    .item()
                 )
                 if bool(valid.any())
                 else 0.0
@@ -482,8 +518,8 @@ class OSRAMBackbone(nn.Module):
         }
         self.last_diagnostics = diagnostics
         contexts = {
-            "base": base_context,
-            "gap": gap_context,
+            "base": active_base_context,
+            "gap": active_gap_context,
             "local": local,
         }
         return hidden, contexts

@@ -103,6 +103,7 @@ class TrainConfig:
     osram_read_ridge: float = 1e-3
     osram_write_ridge: float = 1e-3
     osram_predictor_mode: str = "structured"
+    osram_ablation: str = "full"
 
 
 _TRAINING_OBJECTIVES = {
@@ -1304,6 +1305,7 @@ def run_experiment(
         osram_read_ridge=config_value.osram_read_ridge,
         osram_write_ridge=config_value.osram_write_ridge,
         osram_predictor_mode=config_value.osram_predictor_mode,
+        osram_ablation=config_value.osram_ablation,
     ).to(device)
     initialization = None
     frozen_probe = None
@@ -1556,6 +1558,7 @@ def run_experiment(
         "postgraph_bilstm_ablation": config_value.postgraph_bilstm_ablation,
         "backbone_type": config_value.backbone_type,
         "osram_predictor_mode": config_value.osram_predictor_mode,
+        "osram_ablation": config_value.osram_ablation,
         "osram_dimensions": (
             {
                 "latent_dim": config_value.latent_dim,
@@ -1748,6 +1751,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("structured", "legacy-hidden"),
         default="structured",
     )
+    parser.add_argument(
+        "--osram-ablation",
+        choices=("full", "local-only", "local-base"),
+        default="full",
+    )
     return parser
 
 
@@ -1815,6 +1823,7 @@ def main(argv=None) -> None:
         osram_read_ridge=args.osram_read_ridge,
         osram_write_ridge=args.osram_write_ridge,
         osram_predictor_mode=args.osram_predictor_mode,
+        osram_ablation=args.osram_ablation,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [
