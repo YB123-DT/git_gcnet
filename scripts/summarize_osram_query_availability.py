@@ -153,6 +153,32 @@ def main() -> None:
         root.parent / "osram_heads8_out700_20260906" / "raw"
     )
     no_availability_scores, no_availability_epochs = strict_scores(root / "raw")
+    (root / "diagnostics.json").write_text(
+        json.dumps(
+            {
+                "selection_protocol": "per-rate-test-oracle",
+                "strict_guard": "8-rate-mean-test-oracle",
+                "conditions": {
+                    "explicit_a_t": "query_use_availability=true",
+                    "no_explicit_a_t": "query_use_availability=false",
+                },
+                "strict_scores": {
+                    str(seed): {
+                        "explicit_a_t": explicit_scores[index],
+                        "no_explicit_a_t": no_availability_scores[index],
+                        "delta": no_availability_scores[index]
+                        - explicit_scores[index],
+                        "explicit_epoch": explicit_epochs[index],
+                        "no_explicit_epoch": no_availability_epochs[index],
+                    }
+                    for index, seed in enumerate(SEEDS)
+                },
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
     high = ["0.5", "0.6", "0.7"]
     lines = [
         "# OSRAM Query availability diagnostic",
@@ -176,6 +202,17 @@ def main() -> None:
         f"| No explicit `a_t` | {100 * mean(no_availability_scores):.3f}% | {no_availability_epochs} |",
         f"| Δ (no explicit − explicit) | {100 * (mean(no_availability_scores) - mean(explicit_scores)):+.3f} percentage points | — |",
         "",
+        "| Seed | Explicit `a_t` | No explicit `a_t` | Δ |",
+        "|---:|---:|---:|---:|",
+    ]
+    for index, seed in enumerate(SEEDS):
+        lines.append(
+            f"| {seed} | {100 * explicit_scores[index]:.3f}% | "
+            f"{100 * no_availability_scores[index]:.3f}% | "
+            f"{100 * (no_availability_scores[index] - explicit_scores[index]):+.3f} |"
+        )
+    lines += [
+        "",
         "| Rate | Explicit `a_t` | No explicit `a_t` | Δ | positive seeds |",
         "|---:|---:|---:|---:|---:|",
     ]
@@ -190,6 +227,13 @@ def main() -> None:
         "The per-rate rows use the requested diagnostic convention in which each",
         "rate is allowed to select its own Test-oracle epoch. The strict table is",
         "the guard using one eight-rate-mean Test-oracle checkpoint per seed.",
+        "",
+        "## Decision",
+        "",
+        "Explicit `a_t` is retained. Removing it lowers the per-rate eight-rate",
+        "mean by 0.573 percentage points and the high-missing mean by 0.746",
+        "points; the strict one-checkpoint guard also drops by 0.626 points.",
+        "This ablation does not support removing availability from the Query.",
         "",
     ]
     (root / "RESULT.md").write_text("\n".join(lines))
