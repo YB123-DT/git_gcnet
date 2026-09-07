@@ -1,6 +1,6 @@
 import torch
 
-from gcnet_missing_m3.osram import OSRAMBackbone
+from gcnet_missing_m3.osram import MODALITIES, OSRAMBackbone
 from gcnet_missing_m3.model import ContextualM3Predictor, MissingM3GraphModel
 
 
@@ -48,6 +48,55 @@ def test_osram_returns_fixed_slots_and_hard_masks_missing_context():
     assert torch.count_nonzero(contexts["gap"][0, 0, 2]) == 0
     assert torch.count_nonzero(hidden[3]) == 0
     assert torch.isfinite(hidden).all()
+
+
+def test_osram_query_availability_switch_only_changes_query_conditioning():
+    explicit = OSRAMBackbone(
+        latent_dim=8,
+        output_dim=10,
+        num_heads=2,
+        key_dim=3,
+        value_dim=4,
+        n_speakers=2,
+        dropout=0.0,
+        query_use_availability=True,
+    ).eval()
+    without = OSRAMBackbone(
+        latent_dim=8,
+        output_dim=10,
+        num_heads=2,
+        key_dim=3,
+        value_dim=4,
+        n_speakers=2,
+        dropout=0.0,
+        query_use_availability=False,
+    ).eval()
+    without.load_state_dict(explicit.state_dict())
+    e, latents, availability, qmask, _umask, _lengths = _inputs()
+
+    explicit_keys, explicit_values, explicit_queries = explicit._project_sequence(
+        e, latents, availability, qmask
+    )
+    without_keys, without_values, without_queries = without._project_sequence(
+        e, latents, availability, qmask
+    )
+    for name in MODALITIES:
+        torch.testing.assert_close(explicit_keys[name], without_keys[name])
+        torch.testing.assert_close(explicit_values[name], without_values[name])
+    assert not torch.equal(explicit_queries, without_queries)
+
+    changed_availability = availability.clone()
+    changed_availability[0, 0] = torch.tensor([0.0, 1.0, 1.0])
+    _, _, explicit_changed_queries = explicit._project_sequence(
+        e, latents, changed_availability, qmask
+    )
+    _, _, without_changed_queries = without._project_sequence(
+        e, latents, changed_availability, qmask
+    )
+    assert not torch.equal(explicit_queries[0, 0], explicit_changed_queries[0, 0])
+    torch.testing.assert_close(
+        without_queries[0, 0], without_changed_queries[0, 0]
+    )
 
 
 def test_osram_ablation_modes_isolate_context_slots():

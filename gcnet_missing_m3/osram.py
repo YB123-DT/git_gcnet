@@ -51,6 +51,7 @@ class OSRAMBackbone(nn.Module):
         alpha_init: float = 0.98,
         beta_init: float = 0.5,
         osram_ablation: str = "full",
+        query_use_availability: bool = True,
     ) -> None:
         super().__init__()
         if osram_ablation not in OSRAM_ABLATIONS:
@@ -78,6 +79,7 @@ class OSRAMBackbone(nn.Module):
         self.read_ridge = float(read_ridge)
         self.write_ridge = float(write_ridge)
         self.osram_ablation = osram_ablation
+        self.query_use_availability = bool(query_use_availability)
         self.context_dim = 2 * self.num_heads * self.value_dim
 
         self.latent_norm = nn.LayerNorm(self.latent_dim)
@@ -218,8 +220,17 @@ class OSRAMBackbone(nn.Module):
             )
             values[name] = value
 
+        # Keep the query projector width fixed for checkpoint compatibility.
+        # The ablation removes only the explicit availability condition from
+        # the query; keys, values, and the hard missing-slot readout remain
+        # unchanged.
+        query_availability = (
+            availability_embed
+            if self.query_use_availability
+            else torch.zeros_like(availability_embed)
+        )
         common_query = torch.cat(
-            (node_value, availability_embed, speaker), dim=-1
+            (node_value, query_availability, speaker), dim=-1
         )
         type_embedding = self.query_type_embedding.weight.view(1, 1, 4, -1)
         query_input = torch.cat(
@@ -459,6 +470,7 @@ class OSRAMBackbone(nn.Module):
 
         diagnostics: dict[str, object] = {
             "ablation": self.osram_ablation,
+            "query_use_availability": self.query_use_availability,
             "memory_alpha": torch.sigmoid(self.alpha_logits)
             .detach()
             .cpu()
