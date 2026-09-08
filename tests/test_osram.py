@@ -25,6 +25,30 @@ def _inputs(latent_dim=8):
     return e, latents, availability, qmask, umask, [3, 3]
 
 
+def test_forward_only_osram_cannot_read_future():
+    model = OSRAMBackbone(latent_dim=8, output_dim=10, num_heads=2,
+                          key_dim=3, value_dim=4, n_speakers=2,
+                          dropout=0.0, bidirectional=False).eval()
+    # Exercise context-to-emotion path, not just its zero initialization.
+    torch.nn.init.normal_(model.emotion_adapter[-1].weight, std=0.1)
+    args = _inputs()
+    hidden, contexts = model(*args)
+    changed = list(args)
+    changed[0] = args[0].clone()
+    changed[0][2, :, 0] += 10
+    changed[1] = {k: v.clone() for k, v in args[1].items()}
+    for value in changed[1].values():
+        value[2, :, 0] += 10
+    future_hidden, future_contexts = model(*changed)
+    torch.testing.assert_close(hidden[:2], future_hidden[:2], rtol=0, atol=0)
+    for name in ("base", "gap"):
+        torch.testing.assert_close(contexts[name][:2], future_contexts[name][:2], rtol=0, atol=0)
+        assert torch.count_nonzero(contexts[name][..., 8:]) == 0
+    assert torch.count_nonzero(contexts["base"][1, :, :8]) > 0
+    hidden.square().sum().backward()
+    assert model.local_skip.weight.grad is not None
+
+
 def test_osram_returns_fixed_slots_and_hard_masks_missing_context():
     model = OSRAMBackbone(
         latent_dim=8,

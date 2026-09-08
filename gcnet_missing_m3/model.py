@@ -1199,6 +1199,7 @@ class MissingM3GraphModel(GraphModel):
         osram_predictor_mode="structured",
         osram_ablation="full",
         osram_query_availability=True,
+        osram_bidirectional=True,
     ) -> None:
         if backbone_type not in {"gcnet", "osram"}:
             raise ValueError("backbone_type must be 'gcnet' or 'osram'")
@@ -1299,6 +1300,7 @@ class MissingM3GraphModel(GraphModel):
         self.osram_predictor_mode = osram_predictor_mode
         self.osram_ablation = osram_ablation
         self.osram_query_availability = bool(osram_query_availability)
+        self.osram_bidirectional = bool(osram_bidirectional)
         self.fusion_type = fusion_type
         self.representation_type = representation_type
         if representation_type == "track":
@@ -1351,6 +1353,7 @@ class MissingM3GraphModel(GraphModel):
                 write_ridge=osram_write_ridge,
                 osram_ablation=osram_ablation,
                 query_use_availability=osram_query_availability,
+                bidirectional=osram_bidirectional,
             )
             hidden_dim = int(osram_output_dim)
             predictor_context_dim = self.osram.context_dim

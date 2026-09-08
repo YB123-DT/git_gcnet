@@ -52,6 +52,7 @@ class OSRAMBackbone(nn.Module):
         beta_init: float = 0.5,
         osram_ablation: str = "full",
         query_use_availability: bool = True,
+        bidirectional: bool = True,
     ) -> None:
         super().__init__()
         if osram_ablation not in OSRAM_ABLATIONS:
@@ -80,6 +81,7 @@ class OSRAMBackbone(nn.Module):
         self.write_ridge = float(write_ridge)
         self.osram_ablation = osram_ablation
         self.query_use_availability = bool(query_use_availability)
+        self.bidirectional = bool(bidirectional)
         self.context_dim = 2 * self.num_heads * self.value_dim
 
         self.latent_norm = nn.LayerNorm(self.latent_dim)
@@ -430,9 +432,16 @@ class OSRAMBackbone(nn.Module):
         base_forward, gap_forward, diag_forward = self._scan(
             keys, values, queries, availability, valid, reverse=False
         )
-        base_backward, gap_backward, diag_backward = self._scan(
-            keys, values, queries, availability, valid, reverse=True
-        )
+        if self.bidirectional:
+            base_backward, gap_backward, diag_backward = self._scan(
+                keys, values, queries, availability, valid, reverse=True
+            )
+        else:
+            # Preserve parameter shapes and fusion slots, without future reads.
+            base_backward = torch.zeros_like(base_forward)
+            gap_backward = torch.zeros_like(gap_forward)
+            diag_backward = {name: {metric: [] for metric in ("rho", "eta", "cosine")}
+                             for name in MODALITIES}
         base_context = torch.cat((base_forward, base_backward), dim=-1)
         gap_context = torch.cat((gap_forward, gap_backward), dim=-1)
 
@@ -471,6 +480,7 @@ class OSRAMBackbone(nn.Module):
         diagnostics: dict[str, object] = {
             "ablation": self.osram_ablation,
             "query_use_availability": self.query_use_availability,
+            "bidirectional": self.bidirectional,
             "memory_alpha": torch.sigmoid(self.alpha_logits)
             .detach()
             .cpu()
