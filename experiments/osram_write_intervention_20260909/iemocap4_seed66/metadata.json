@@ -1,0 +1,1993 @@
+{
+  "checkpoint": "/data2/yb/remote_experiments/osram_forward_only_iemocap_20260908/iemocap4/seed_66/best.pt",
+  "checkpoint_sha256": "79aef3dab7d61aa41dabe5bd9f5cf8044f8c5fbf9c556684986e485f5a7be461",
+  "config": {
+    "dataset": "IEMOCAPFour",
+    "fold": 5,
+    "seed": 66,
+    "base_model": "LSTM",
+    "window_past": 2,
+    "window_future": 2,
+    "hidden": 200,
+    "dropout": 0.5,
+    "batch_size": 32,
+    "epochs": 100,
+    "learning_rate": 0.001,
+    "weight_decay": 1e-05,
+    "latent_dim": 256,
+    "num_experts": 4,
+    "top_k": 2,
+    "projector_dropout": 0.1,
+    "predictor_dropout": 0.1,
+    "fusion_type": "mean",
+    "local_context_residual": false,
+    "local_fusion_hidden_dim": 256,
+    "local_fusion_dropout": 0.2,
+    "jepa_weight": 0.1,
+    "temperature": 0.03,
+    "ema_tau": 0.996,
+    "gradient_clip_norm": 1.0,
+    "time_attention": false,
+    "evaluation_protocol": "official",
+    "validation_fraction": 0.1,
+    "device": "cuda",
+    "train_rate_mode": "cyclic",
+    "mosi_task_mode": "regression",
+    "graph_branch_mode": "both",
+    "mmoe_variant": "dual-gate",
+    "target_private_rank": 0,
+    "classification_completion": false,
+    "representation_type": "slot",
+    "node_interaction_residual": false,
+    "readout_type": "shared",
+    "readout_rank": 8,
+    "evaluate_test": true,
+    "jepa_regression_aggregation": "target",
+    "recurrent_padding_mode": "legacy",
+    "task_regression_loss": "mse",
+    "task_smooth_l1_beta": 1.0,
+    "postgraph_sequence_mode": "independent",
+    "jepa_rate_weighting": "uniform",
+    "graph_message_calibration": "none",
+    "graph_second_layer": "graphconv",
+    "postgraph_bilstm_ablation": "none",
+    "fixed_missing_rate": null,
+    "checkpoint_selection": "test-oracle",
+    "jepa_contrastive_source": "contrastive",
+    "training_objective": "joint",
+    "initial_backbone_checkpoint": null,
+    "pretrained_learning_rate": null,
+    "backbone_type": "osram",
+    "osram_output_dim": 700,
+    "osram_num_heads": 8,
+    "osram_key_dim": 32,
+    "osram_value_dim": 32,
+    "osram_read_ridge": 0.001,
+    "osram_write_ridge": 0.001,
+    "osram_predictor_mode": "structured",
+    "osram_ablation": "full",
+    "osram_query_availability": true,
+    "osram_bidirectional": false
+  },
+  "epoch": 33,
+  "selection_protocol": "8-rate-mean-test-oracle",
+  "dataset": "IEMOCAPFour",
+  "seed": 66,
+  "fold": 5,
+  "rates": [
+    0.0,
+    0.1,
+    0.3,
+    0.5,
+    0.7
+  ],
+  "evaluation_only": true,
+  "new_checkpoint_selection": false,
+  "weights_unchanged": true,
+  "all_mode_masks_equal": true,
+  "complete_input_logits_exact": true,
+  "ridge": 0.001,
+  "device": "cpu",
+  "results": [
+    {
+      "mode": "reference",
+      "rate": 0.0,
+      "batches": 1,
+      "mask_sha256": "a45f9d09035aa3da036bdda925729a3bbf6c031ff6fcc34caa98a066a2f8f47c",
+      "task_metrics": {
+        "weighted_f1": 0.8454389899798852,
+        "macro_f1": 0.8379682301353619,
+        "accuracy": 0.8460918614020951
+      },
+      "retention": {},
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 0,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 9.85891876010694,
+            "min": 0.7551487684249878,
+            "max": 29.880081176757812
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 9.85891876010694,
+            "min": 0.7551487684249878,
+            "max": 29.880081176757812
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 9.85891876010694,
+            "min": 0.7551487684249878,
+            "max": 29.880081176757812
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 1.0,
+            "min": 1.0,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 0.0,
+            "min": 0.0,
+            "max": 0.0
+          }
+        }
+      },
+      "complete_input_logits_exact": true
+    },
+    {
+      "mode": "protected",
+      "rate": 0.0,
+      "batches": 1,
+      "mask_sha256": "a45f9d09035aa3da036bdda925729a3bbf6c031ff6fcc34caa98a066a2f8f47c",
+      "task_metrics": {
+        "weighted_f1": 0.8454389899798852,
+        "macro_f1": 0.8379682301353619,
+        "accuracy": 0.8460918614020951
+      },
+      "retention": {},
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 0,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 9.85891876010694,
+            "min": 0.7551487684249878,
+            "max": 29.880081176757812
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 9.85891876010694,
+            "min": 0.7551487684249878,
+            "max": 29.880081176757812
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 9.85891876010694,
+            "min": 0.7551487684249878,
+            "max": 29.880081176757812
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 1.0,
+            "min": 1.0,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 0.0,
+            "min": 0.0,
+            "max": 0.0
+          }
+        }
+      },
+      "complete_input_logits_exact": true
+    },
+    {
+      "mode": "global",
+      "rate": 0.0,
+      "batches": 1,
+      "mask_sha256": "a45f9d09035aa3da036bdda925729a3bbf6c031ff6fcc34caa98a066a2f8f47c",
+      "task_metrics": {
+        "weighted_f1": 0.8454389899798852,
+        "macro_f1": 0.8379682301353619,
+        "accuracy": 0.8460918614020951
+      },
+      "retention": {},
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 0,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 9.85891876010694,
+            "min": 0.7551487684249878,
+            "max": 29.880081176757812
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 9.85891876010694,
+            "min": 0.7551487684249878,
+            "max": 29.880081176757812
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 9.85891876010694,
+            "min": 0.7551487684249878,
+            "max": 29.880081176757812
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 1.0,
+            "min": 1.0,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 0.0,
+            "min": 0.0,
+            "max": 0.0
+          }
+        }
+      },
+      "complete_input_logits_exact": true
+    },
+    {
+      "mode": "reference",
+      "rate": 0.1,
+      "batches": 1,
+      "mask_sha256": "83ad7e3157dc1cdef2fd2818153c733fad55dcd0c82fc6e1244bd0c49eb5121d",
+      "task_metrics": {
+        "weighted_f1": 0.8408210882392156,
+        "macro_f1": 0.8362998238271743,
+        "accuracy": 0.8412570507655117
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 5,
+            "retention": 1024
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 1024,
+              "mean": 0.04435445681883721,
+              "min": 0.017204901203513145,
+              "max": 1.2394617795944214
+            },
+            "err_post": {
+              "count": 1024,
+              "mean": 0.3456299083700287,
+              "min": 0.018325576558709145,
+              "max": 2.2136473655700684
+            },
+            "decay_damage": {
+              "count": 1024,
+              "mean": 0.01763763455892331,
+              "min": -0.02893805503845215,
+              "max": 0.020351337268948555
+            },
+            "write_damage": {
+              "count": 1024,
+              "mean": 0.3012754517058056,
+              "min": -0.3133566975593567,
+              "max": 2.0864219665527344
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 1,
+            "retention": 1096
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 1096,
+              "mean": 0.058692918971425645,
+              "min": 0.018401334062218666,
+              "max": 1.0725483894348145
+            },
+            "err_post": {
+              "count": 1096,
+              "mean": 0.31729898090732633,
+              "min": 0.013741367496550083,
+              "max": 1.9172101020812988
+            },
+            "decay_damage": {
+              "count": 1096,
+              "mean": 0.016506986925378442,
+              "min": -0.023067593574523926,
+              "max": 0.020271752029657364
+            },
+            "write_damage": {
+              "count": 1096,
+              "mean": 0.25860606164188826,
+              "min": -0.35235780477523804,
+              "max": 1.8948358297348022
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 3,
+            "retention": 888
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 888,
+              "mean": 0.06397389648440252,
+              "min": 0.018391311168670654,
+              "max": 2.7072408199310303
+            },
+            "err_post": {
+              "count": 888,
+              "mean": 0.36786281122398135,
+              "min": 0.017496256157755852,
+              "max": 2.7618889808654785
+            },
+            "decay_damage": {
+              "count": 888,
+              "mean": 0.01647599356517464,
+              "min": -0.05464816093444824,
+              "max": 0.020314302295446396
+            },
+            "write_damage": {
+              "count": 888,
+              "mean": 0.3038889142760151,
+              "min": -0.41162776947021484,
+              "max": 2.321268081665039
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 2736,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 9.219123254584915,
+            "min": 0.2572883665561676,
+            "max": 28.678495407104492
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 9.099920357254053,
+            "min": 0.2514643371105194,
+            "max": 28.678495407104492
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 9.099920354585413,
+            "min": 0.2514643669128418,
+            "max": 28.678495407104492
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9843466745976187,
+            "min": 0.48912519216537476,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 9.053265923554623e-08,
+            "min": 0.0,
+            "max": 3.814697265625e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "protected",
+      "rate": 0.1,
+      "batches": 1,
+      "mask_sha256": "83ad7e3157dc1cdef2fd2818153c733fad55dcd0c82fc6e1244bd0c49eb5121d",
+      "task_metrics": {
+        "weighted_f1": 0.8416916180395899,
+        "macro_f1": 0.8370661765780979,
+        "accuracy": 0.8420628525382756
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 5,
+            "retention": 1024
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 1024,
+              "mean": 0.040225762923910224,
+              "min": 0.013626710511744022,
+              "max": 0.8526479005813599
+            },
+            "err_post": {
+              "count": 1024,
+              "mean": 0.040299641187630186,
+              "min": 0.01367600541561842,
+              "max": 0.8528171181678772
+            },
+            "decay_damage": {
+              "count": 1024,
+              "mean": 0.01667215687848511,
+              "min": -0.015643715858459473,
+              "max": 0.020351337268948555
+            },
+            "write_damage": {
+              "count": 1024,
+              "mean": 7.387826371996198e-05,
+              "min": -0.0009320080280303955,
+              "max": 0.0011612121015787125
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 1,
+            "retention": 1096
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 1096,
+              "mean": 0.05522609785382711,
+              "min": 0.01686599850654602,
+              "max": 1.033017635345459
+            },
+            "err_post": {
+              "count": 1096,
+              "mean": 0.05528591573408322,
+              "min": 0.016862738877534866,
+              "max": 1.0324653387069702
+            },
+            "decay_damage": {
+              "count": 1096,
+              "mean": 0.016668666969903195,
+              "min": -0.015295103192329407,
+              "max": 0.020271752029657364
+            },
+            "write_damage": {
+              "count": 1096,
+              "mean": 5.981788025611508e-05,
+              "min": -0.0007978305220603943,
+              "max": 0.0008536279201507568
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 3,
+            "retention": 888
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 888,
+              "mean": 0.04820926372708568,
+              "min": 0.015031857416033745,
+              "max": 1.1128746271133423
+            },
+            "err_post": {
+              "count": 888,
+              "mean": 0.048265558883531005,
+              "min": 0.015028540045022964,
+              "max": 1.1127479076385498
+            },
+            "decay_damage": {
+              "count": 888,
+              "mean": 0.016156803476750047,
+              "min": -0.01442563533782959,
+              "max": 0.020314302295446396
+            },
+            "write_damage": {
+              "count": 888,
+              "mean": 5.629515644532066e-05,
+              "min": -0.0019243955612182617,
+              "max": 0.0008817967027425766
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 2736,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 9.166127957349627,
+            "min": 0.25718235969543457,
+            "max": 28.676284790039062
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 9.049737210395257,
+            "min": 0.2513607144355774,
+            "max": 28.676284790039062
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 9.049737211499936,
+            "min": 0.2513607144355774,
+            "max": 28.676284790039062
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9844687239812517,
+            "min": 0.48912519216537476,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 9.132814830008482e-08,
+            "min": 0.0,
+            "max": 1.9073486328125e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "global",
+      "rate": 0.1,
+      "batches": 1,
+      "mask_sha256": "83ad7e3157dc1cdef2fd2818153c733fad55dcd0c82fc6e1244bd0c49eb5121d",
+      "task_metrics": {
+        "weighted_f1": 0.8408210882392156,
+        "macro_f1": 0.8362998238271743,
+        "accuracy": 0.8412570507655117
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 5,
+            "retention": 1024
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 1024,
+              "mean": 0.04955439348668733,
+              "min": 0.01608370430767536,
+              "max": 1.1035844087600708
+            },
+            "err_post": {
+              "count": 1024,
+              "mean": 0.31575065633842314,
+              "min": 0.018362069502472878,
+              "max": 1.7371208667755127
+            },
+            "decay_damage": {
+              "count": 1024,
+              "mean": 0.01625641484042717,
+              "min": -0.026101112365722656,
+              "max": 0.020351337268948555
+            },
+            "write_damage": {
+              "count": 1024,
+              "mean": 0.26619626268984575,
+              "min": -0.3086816370487213,
+              "max": 1.6164438724517822
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 1,
+            "retention": 1096
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 1096,
+              "mean": 0.06827272558550819,
+              "min": 0.01477980799973011,
+              "max": 0.9301018714904785
+            },
+            "err_post": {
+              "count": 1096,
+              "mean": 0.294703283526486,
+              "min": 0.013676328584551811,
+              "max": 1.51909339427948
+            },
+            "decay_damage": {
+              "count": 1096,
+              "mean": 0.015548288335269113,
+              "min": -0.02018064260482788,
+              "max": 0.020271752029657364
+            },
+            "write_damage": {
+              "count": 1096,
+              "mean": 0.2264305575942811,
+              "min": -0.4107772707939148,
+              "max": 1.4967279434204102
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 3,
+            "retention": 888
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 888,
+              "mean": 0.06997453931274379,
+              "min": 0.01732552982866764,
+              "max": 2.1581602096557617
+            },
+            "err_post": {
+              "count": 888,
+              "mean": 0.33782274842572707,
+              "min": 0.017901772633194923,
+              "max": 2.2010927200317383
+            },
+            "decay_damage": {
+              "count": 888,
+              "mean": 0.015248396554500334,
+              "min": -0.04293251037597656,
+              "max": 0.020314302295446396
+            },
+            "write_damage": {
+              "count": 888,
+              "mean": 0.26784820899132405,
+              "min": -0.256856232881546,
+              "max": 1.6439281702041626
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 2736,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 9.188767495860048,
+            "min": 0.25726887583732605,
+            "max": 28.583892822265625
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 9.0704412943174,
+            "min": 0.2514452636241913,
+            "max": 28.583892822265625
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 9.070441291816863,
+            "min": 0.25144529342651367,
+            "max": 28.583892822265625
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9843485301253923,
+            "min": 0.48912522196769714,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 9.000433442287153e-08,
+            "min": 0.0,
+            "max": 1.9073486328125e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "reference",
+      "rate": 0.3,
+      "batches": 1,
+      "mask_sha256": "4dd5f6911b6072900e7510168a9e1651f8f0d92894594bd9c3218f45250e1001",
+      "task_metrics": {
+        "weighted_f1": 0.8158030003404434,
+        "macro_f1": 0.8028561793752422,
+        "accuracy": 0.8162771958098308
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 16,
+            "retention": 2904
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 2904,
+              "mean": 0.11142487331491077,
+              "min": 0.018358508124947548,
+              "max": 2.238293409347534
+            },
+            "err_post": {
+              "count": 2904,
+              "mean": 0.3479047166603712,
+              "min": 0.010727341286838055,
+              "max": 2.471684694290161
+            },
+            "decay_damage": {
+              "count": 2904,
+              "mean": 0.01416352384572351,
+              "min": -0.050487518310546875,
+              "max": 0.020351488143205643
+            },
+            "write_damage": {
+              "count": 2904,
+              "mean": 0.23647984333455654,
+              "min": -0.6799534559249878,
+              "max": 2.4508309364318848
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 12,
+            "retention": 2872
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 2872,
+              "mean": 0.0993295224269328,
+              "min": 0.01792132668197155,
+              "max": 1.4261435270309448
+            },
+            "err_post": {
+              "count": 2872,
+              "mean": 0.31466769298647523,
+              "min": 0.013230053707957268,
+              "max": 2.3855364322662354
+            },
+            "decay_damage": {
+              "count": 2872,
+              "mean": 0.014642722225971105,
+              "min": -0.0357661247253418,
+              "max": 0.020320452749729156
+            },
+            "write_damage": {
+              "count": 2872,
+              "mean": 0.2153381704836617,
+              "min": -0.5706737637519836,
+              "max": 2.3628323078155518
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 3,
+            "retention": 2728
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 2728,
+              "mean": 0.09807007357784031,
+              "min": 0.018437854945659637,
+              "max": 2.4599928855895996
+            },
+            "err_post": {
+              "count": 2728,
+              "mean": 0.32676311683311204,
+              "min": 0.014497185125946999,
+              "max": 2.5030789375305176
+            },
+            "decay_damage": {
+              "count": 2728,
+              "mean": 0.014601171430121134,
+              "min": -0.04308605194091797,
+              "max": 0.02039281651377678
+            },
+            "write_damage": {
+              "count": 2728,
+              "mean": 0.22869304326005127,
+              "min": -0.6236941814422607,
+              "max": 2.4816579818725586
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 6512,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 8.020121428276518,
+            "min": 0.09578175842761993,
+            "max": 25.9631290435791
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 7.717576214245173,
+            "min": 0.09488712251186371,
+            "max": 25.9631290435791
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 7.717576212161142,
+            "min": 0.09488711506128311,
+            "max": 25.9631290435791
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9564287391139268,
+            "min": 0.4539753794670105,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 1.968137505648119e-07,
+            "min": 0.0,
+            "max": 2.86102294921875e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "protected",
+      "rate": 0.3,
+      "batches": 1,
+      "mask_sha256": "4dd5f6911b6072900e7510168a9e1651f8f0d92894594bd9c3218f45250e1001",
+      "task_metrics": {
+        "weighted_f1": 0.8217134161914609,
+        "macro_f1": 0.8112392404319125,
+        "accuracy": 0.821917808219178
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 16,
+            "retention": 2904
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 2904,
+              "mean": 0.0717677349242646,
+              "min": 0.01593492180109024,
+              "max": 0.8057181239128113
+            },
+            "err_post": {
+              "count": 2904,
+              "mean": 0.07182078139366423,
+              "min": 0.015951791778206825,
+              "max": 0.8049420118331909
+            },
+            "decay_damage": {
+              "count": 2904,
+              "mean": 0.014177666495672168,
+              "min": -0.017953485250473022,
+              "max": 0.020351488143205643
+            },
+            "write_damage": {
+              "count": 2904,
+              "mean": 5.304646939962856e-05,
+              "min": -0.0014186035841703415,
+              "max": 0.0014700144529342651
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 12,
+            "retention": 2872
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 2872,
+              "mean": 0.085290222902183,
+              "min": 0.016779251396656036,
+              "max": 1.0078245401382446
+            },
+            "err_post": {
+              "count": 2872,
+              "mean": 0.08533198024343419,
+              "min": 0.016797957941889763,
+              "max": 1.0078179836273193
+            },
+            "decay_damage": {
+              "count": 2872,
+              "mean": 0.014878663450380927,
+              "min": -0.017123490571975708,
+              "max": 0.020320452749729156
+            },
+            "write_damage": {
+              "count": 2872,
+              "mean": 4.1757341251192316e-05,
+              "min": -0.001140587031841278,
+              "max": 0.0018995106220245361
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 3,
+            "retention": 2728
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 2728,
+              "mean": 0.07020091451363109,
+              "min": 0.013545224443078041,
+              "max": 1.517815351486206
+            },
+            "err_post": {
+              "count": 2728,
+              "mean": 0.07023658826428293,
+              "min": 0.013520298525691032,
+              "max": 1.5173016786575317
+            },
+            "decay_damage": {
+              "count": 2728,
+              "mean": 0.014249983236645662,
+              "min": -0.021581292152404785,
+              "max": 0.02038070745766163
+            },
+            "write_damage": {
+              "count": 2728,
+              "mean": 3.5673750651852826e-05,
+              "min": -0.001242276281118393,
+              "max": 0.0013640522956848145
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 6512,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 7.891606944926101,
+            "min": 0.10097457468509674,
+            "max": 27.740720748901367
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 7.602207452455036,
+            "min": 0.0996440052986145,
+            "max": 27.740720748901367
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 7.6022074506411705,
+            "min": 0.0996439978480339,
+            "max": 27.740720748901367
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9568079076016939,
+            "min": 0.46846264600753784,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 1.9318752116872648e-07,
+            "min": 0.0,
+            "max": 2.86102294921875e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "global",
+      "rate": 0.3,
+      "batches": 1,
+      "mask_sha256": "4dd5f6911b6072900e7510168a9e1651f8f0d92894594bd9c3218f45250e1001",
+      "task_metrics": {
+        "weighted_f1": 0.8182034180511135,
+        "macro_f1": 0.8062681679157502,
+        "accuracy": 0.8186946011281225
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 16,
+            "retention": 2904
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 2904,
+              "mean": 0.11783066691096986,
+              "min": 0.010687903501093388,
+              "max": 2.035703659057617
+            },
+            "err_post": {
+              "count": 2904,
+              "mean": 0.3183314514438783,
+              "min": 0.010728536173701286,
+              "max": 2.0964691638946533
+            },
+            "decay_damage": {
+              "count": 2904,
+              "mean": 0.012158204451493262,
+              "min": -0.04632234573364258,
+              "max": 0.020351488143205643
+            },
+            "write_damage": {
+              "count": 2904,
+              "mean": 0.2005007845822968,
+              "min": -0.4481317400932312,
+              "max": 2.075350284576416
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 12,
+            "retention": 2872
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 2872,
+              "mean": 0.11696442615300479,
+              "min": 0.015958203002810478,
+              "max": 1.2426726818084717
+            },
+            "err_post": {
+              "count": 2872,
+              "mean": 0.29917112717951044,
+              "min": 0.01317895669490099,
+              "max": 1.9286904335021973
+            },
+            "decay_damage": {
+              "count": 2872,
+              "mean": 0.01277380296474058,
+              "min": -0.03189587593078613,
+              "max": 0.020320452749729156
+            },
+            "write_damage": {
+              "count": 2872,
+              "mean": 0.18220670082221135,
+              "min": -0.41953569650650024,
+              "max": 1.7274888753890991
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 3,
+            "retention": 2728
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 2728,
+              "mean": 0.10632454893412478,
+              "min": 0.015445401892066002,
+              "max": 1.533216953277588
+            },
+            "err_post": {
+              "count": 2728,
+              "mean": 0.2993253689099518,
+              "min": 0.014486891217529774,
+              "max": 1.8537225723266602
+            },
+            "decay_damage": {
+              "count": 2728,
+              "mean": 0.012653982806868873,
+              "min": -0.02479460835456848,
+              "max": 0.020388036966323853
+            },
+            "write_damage": {
+              "count": 2728,
+              "mean": 0.19300082013833056,
+              "min": -0.4256613254547119,
+              "max": 1.7718123197555542
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 6512,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 7.940978189184361,
+            "min": 0.0987580344080925,
+            "max": 25.773832321166992
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 7.642991422406134,
+            "min": 0.09783562272787094,
+            "max": 25.773832321166992
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 7.642991423354718,
+            "min": 0.09783562272787094,
+            "max": 25.773832321166992
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9563877814082394,
+            "min": 0.45764827728271484,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 1.9449557535692533e-07,
+            "min": 0.0,
+            "max": 2.86102294921875e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "reference",
+      "rate": 0.5,
+      "batches": 1,
+      "mask_sha256": "98b854cbef5c8284b504afa1a641de04a06b88c39cf46b45417b5811f2d43dc8",
+      "task_metrics": {
+        "weighted_f1": 0.8032392403302838,
+        "macro_f1": 0.7943652480052412,
+        "accuracy": 0.8033843674456084
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 36,
+            "retention": 4264
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 4264,
+              "mean": 0.14541174902704737,
+              "min": 0.018498532474040985,
+              "max": 2.6983067989349365
+            },
+            "err_post": {
+              "count": 4264,
+              "mean": 0.33037459069673375,
+              "min": 0.014834442175924778,
+              "max": 2.7522778511047363
+            },
+            "decay_damage": {
+              "count": 4264,
+              "mean": 0.012212667335523729,
+              "min": -0.053971052169799805,
+              "max": 0.02035209722816944
+            },
+            "write_damage": {
+              "count": 4264,
+              "mean": 0.18496284150238032,
+              "min": -0.8825421333312988,
+              "max": 2.2661261558532715
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 28,
+            "retention": 4368
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 4368,
+              "mean": 0.1620689082593101,
+              "min": 0.01852245256304741,
+              "max": 2.0766751766204834
+            },
+            "err_post": {
+              "count": 4368,
+              "mean": 0.3438082085830678,
+              "min": 0.011565224267542362,
+              "max": 2.5813021659851074
+            },
+            "decay_damage": {
+              "count": 4368,
+              "mean": 0.012014761238551662,
+              "min": -0.03561234474182129,
+              "max": 0.02035275474190712
+            },
+            "write_damage": {
+              "count": 4368,
+              "mean": 0.18173930049603532,
+              "min": -0.5469679236412048,
+              "max": 2.387633800506592
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 19,
+            "retention": 4408
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 4408,
+              "mean": 0.16112056812068648,
+              "min": 0.018547294661402702,
+              "max": 2.502739906311035
+            },
+            "err_post": {
+              "count": 4408,
+              "mean": 0.3276714824696584,
+              "min": 0.012505551800131798,
+              "max": 2.5496950149536133
+            },
+            "decay_damage": {
+              "count": 4408,
+              "mean": 0.011348937309140883,
+              "min": -0.046955108642578125,
+              "max": 0.020351478829979897
+            },
+            "write_damage": {
+              "count": 4408,
+              "mean": 0.16655091435404262,
+              "min": -0.925165057182312,
+              "max": 2.5299835205078125
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 8400,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 6.969131126109808,
+            "min": 0.0951213538646698,
+            "max": 23.35796356201172
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 6.555094379341075,
+            "min": 0.09075713902711868,
+            "max": 23.35796356201172
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 6.555094374418048,
+            "min": 0.09075712412595749,
+            "max": 23.35796356201172
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9359392971280696,
+            "min": 0.41981878876686096,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 2.3378973329960579e-07,
+            "min": 0.0,
+            "max": 3.814697265625e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "protected",
+      "rate": 0.5,
+      "batches": 1,
+      "mask_sha256": "98b854cbef5c8284b504afa1a641de04a06b88c39cf46b45417b5811f2d43dc8",
+      "task_metrics": {
+        "weighted_f1": 0.8039444279873997,
+        "macro_f1": 0.7950568656520708,
+        "accuracy": 0.8041901692183723
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 36,
+            "retention": 4264
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 4264,
+              "mean": 0.08943679039764059,
+              "min": 0.014698990620672703,
+              "max": 1.1084978580474854
+            },
+            "err_post": {
+              "count": 4264,
+              "mean": 0.08946926812628218,
+              "min": 0.014699122868478298,
+              "max": 1.1085877418518066
+            },
+            "decay_damage": {
+              "count": 4264,
+              "mean": 0.012820862398542267,
+              "min": -0.01832529902458191,
+              "max": 0.02035209722816944
+            },
+            "write_damage": {
+              "count": 4264,
+              "mean": 3.2477728641586724e-05,
+              "min": -0.0013591647148132324,
+              "max": 0.001666119322180748
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 28,
+            "retention": 4368
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 4368,
+              "mean": 0.14170263874648997,
+              "min": 0.012346000410616398,
+              "max": 0.9453982710838318
+            },
+            "err_post": {
+              "count": 4368,
+              "mean": 0.14173432616576648,
+              "min": 0.012337662279605865,
+              "max": 0.945340633392334
+            },
+            "decay_damage": {
+              "count": 4368,
+              "mean": 0.013393023487132711,
+              "min": -0.01616615056991577,
+              "max": 0.02035275474190712
+            },
+            "write_damage": {
+              "count": 4368,
+              "mean": 3.1687419276493485e-05,
+              "min": -0.0010428428649902344,
+              "max": 0.0012163817882537842
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 19,
+            "retention": 4408
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 4408,
+              "mean": 0.09467242899715914,
+              "min": 0.015524858608841896,
+              "max": 1.3710230588912964
+            },
+            "err_post": {
+              "count": 4408,
+              "mean": 0.0947000949838775,
+              "min": 0.01552099920809269,
+              "max": 1.370023488998413
+            },
+            "decay_damage": {
+              "count": 4408,
+              "mean": 0.013512877656566063,
+              "min": -0.016954421997070312,
+              "max": 0.020351478829979897
+            },
+            "write_damage": {
+              "count": 4408,
+              "mean": 2.7665986718369914e-05,
+              "min": -0.0010899081826210022,
+              "max": 0.001200782135128975
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 8400,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 6.771878441352935,
+            "min": 0.09672218561172485,
+            "max": 24.244384765625
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 6.381264708888936,
+            "min": 0.09522213041782379,
+            "max": 24.244384765625
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 6.3812647076559275,
+            "min": 0.0952221229672432,
+            "max": 24.244384765625
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9363040369061046,
+            "min": 0.34837695956230164,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 2.2768923272825266e-07,
+            "min": 0.0,
+            "max": 1.9073486328125e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "global",
+      "rate": 0.5,
+      "batches": 1,
+      "mask_sha256": "98b854cbef5c8284b504afa1a641de04a06b88c39cf46b45417b5811f2d43dc8",
+      "task_metrics": {
+        "weighted_f1": 0.8039512277031977,
+        "macro_f1": 0.794964997183977,
+        "accuracy": 0.8041901692183723
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 36,
+            "retention": 4264
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 4264,
+              "mean": 0.1512040456878825,
+              "min": 0.01478548627346754,
+              "max": 2.345651149749756
+            },
+            "err_post": {
+              "count": 4264,
+              "mean": 0.30207823888192525,
+              "min": 0.014059980399906635,
+              "max": 2.392376661300659
+            },
+            "decay_damage": {
+              "count": 4264,
+              "mean": 0.010117107706789214,
+              "min": -0.04672551155090332,
+              "max": 0.02035209722816944
+            },
+            "write_damage": {
+              "count": 4264,
+              "mean": 0.1508741930920428,
+              "min": -0.7693833112716675,
+              "max": 1.9099388122558594
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 28,
+            "retention": 4368
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 4368,
+              "mean": 0.1901295009596212,
+              "min": 0.016652844846248627,
+              "max": 1.87455415725708
+            },
+            "err_post": {
+              "count": 4368,
+              "mean": 0.3352245632789333,
+              "min": 0.011205663904547691,
+              "max": 2.3631784915924072
+            },
+            "decay_damage": {
+              "count": 4368,
+              "mean": 0.01025869863213555,
+              "min": -0.03143191337585449,
+              "max": 0.02035275474190712
+            },
+            "write_damage": {
+              "count": 4368,
+              "mean": 0.14509506245704892,
+              "min": -0.4584711194038391,
+              "max": 2.157888412475586
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 19,
+            "retention": 4408
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 4408,
+              "mean": 0.16464122001820342,
+              "min": 0.016394570469856262,
+              "max": 1.7410740852355957
+            },
+            "err_post": {
+              "count": 4408,
+              "mean": 0.30014245750800034,
+              "min": 0.015074215829372406,
+              "max": 1.7723886966705322
+            },
+            "decay_damage": {
+              "count": 4408,
+              "mean": 0.009871096322363658,
+              "min": -0.033045172691345215,
+              "max": 0.020351478829979897
+            },
+            "write_damage": {
+              "count": 4408,
+              "mean": 0.13550123735922584,
+              "min": -0.6156465411186218,
+              "max": 1.5477122068405151
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 8400,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 6.861563856978386,
+            "min": 0.09542582929134369,
+            "max": 24.110986709594727
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 6.455786662998757,
+            "min": 0.09363184124231339,
+            "max": 24.110986709594727
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 6.455786665092544,
+            "min": 0.09363182634115219,
+            "max": 24.110986709594727
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9359202828711555,
+            "min": 0.42184847593307495,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 2.292764585504217e-07,
+            "min": 0.0,
+            "max": 3.814697265625e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "reference",
+      "rate": 0.7,
+      "batches": 1,
+      "mask_sha256": "5af626a4503fa4cbae9fcace0c5964d58a2b46b9a6e5aec7ac65e1f3cbaa471f",
+      "task_metrics": {
+        "weighted_f1": 0.7839118954933189,
+        "macro_f1": 0.773567065038815,
+        "accuracy": 0.7848509266720387
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 55,
+            "retention": 5296
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 5296,
+              "mean": 0.21437326634409654,
+              "min": 0.01827281340956688,
+              "max": 2.178046703338623
+            },
+            "err_post": {
+              "count": 5296,
+              "mean": 0.3642303630740598,
+              "min": 0.016447700560092926,
+              "max": 2.5717062950134277
+            },
+            "decay_damage": {
+              "count": 5296,
+              "mean": 0.009554698347399613,
+              "min": -0.03581404685974121,
+              "max": 0.020352080464363098
+            },
+            "write_damage": {
+              "count": 5296,
+              "mean": 0.14985709676337555,
+              "min": -0.8176242113113403,
+              "max": 2.5511622428894043
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 34,
+            "retention": 5296
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 5296,
+              "mean": 0.19952161211430397,
+              "min": 0.01874883845448494,
+              "max": 1.9715787172317505
+            },
+            "err_post": {
+              "count": 5296,
+              "mean": 0.3521725861768919,
+              "min": 0.013371877372264862,
+              "max": 2.1407201290130615
+            },
+            "decay_damage": {
+              "count": 5296,
+              "mean": 0.010306830793334975,
+              "min": -0.03175461292266846,
+              "max": 0.02039269357919693
+            },
+            "write_damage": {
+              "count": 5296,
+              "mean": 0.15265097413363296,
+              "min": -0.8235041499137878,
+              "max": 1.6171972751617432
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 44,
+            "retention": 5584
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 5584,
+              "mean": 0.22749406436123326,
+              "min": 0.018469063565135002,
+              "max": 2.9538533687591553
+            },
+            "err_post": {
+              "count": 5584,
+              "mean": 0.36070041679446974,
+              "min": 0.014328756369650364,
+              "max": 3.0001327991485596
+            },
+            "decay_damage": {
+              "count": 5584,
+              "mean": 0.008960784673604068,
+              "min": -0.05054330825805664,
+              "max": 0.02039254456758499
+            },
+            "write_damage": {
+              "count": 5584,
+              "mean": 0.13320635245525195,
+              "min": -0.738332211971283,
+              "max": 1.972104549407959
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 9272,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 6.1547421098024095,
+            "min": 0.06822271645069122,
+            "max": 24.87986946105957
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 5.649806156379263,
+            "min": 0.055662475526332855,
+            "max": 24.87986946105957
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 5.64980615946441,
+            "min": 0.05566246807575226,
+            "max": 24.87986946105957
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9171432656064137,
+            "min": 0.42955338954925537,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 2.3164566513225976e-07,
+            "min": 0.0,
+            "max": 1.9073486328125e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "protected",
+      "rate": 0.7,
+      "batches": 1,
+      "mask_sha256": "5af626a4503fa4cbae9fcace0c5964d58a2b46b9a6e5aec7ac65e1f3cbaa471f",
+      "task_metrics": {
+        "weighted_f1": 0.782352701063821,
+        "macro_f1": 0.7706489898989899,
+        "accuracy": 0.7832393231265109
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 55,
+            "retention": 5296
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 5296,
+              "mean": 0.12696795572640707,
+              "min": 0.01572868973016739,
+              "max": 1.0280382633209229
+            },
+            "err_post": {
+              "count": 5296,
+              "mean": 0.12699910788409963,
+              "min": 0.015784017741680145,
+              "max": 1.0281859636306763
+            },
+            "decay_damage": {
+              "count": 5296,
+              "mean": 0.01274222224121463,
+              "min": -0.019837141036987305,
+              "max": 0.020352080464363098
+            },
+            "write_damage": {
+              "count": 5296,
+              "mean": 3.11521576925707e-05,
+              "min": -0.000803530216217041,
+              "max": 0.0011590123176574707
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 34,
+            "retention": 5296
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 5296,
+              "mean": 0.17356723386216122,
+              "min": 0.016771500930190086,
+              "max": 1.6218183040618896
+            },
+            "err_post": {
+              "count": 5296,
+              "mean": 0.17359216194923438,
+              "min": 0.01676841452717781,
+              "max": 1.6212443113327026
+            },
+            "decay_damage": {
+              "count": 5296,
+              "mean": 0.012762156036243496,
+              "min": -0.02100539207458496,
+              "max": 0.020352818071842194
+            },
+            "write_damage": {
+              "count": 5296,
+              "mean": 2.4928087073172866e-05,
+              "min": -0.0010883808135986328,
+              "max": 0.0009494572877883911
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 44,
+            "retention": 5584
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 5584,
+              "mean": 0.14438488026133559,
+              "min": 0.016595082357525826,
+              "max": 2.1226296424865723
+            },
+            "err_post": {
+              "count": 5584,
+              "mean": 0.1444054619772066,
+              "min": 0.016649624332785606,
+              "max": 2.1221961975097656
+            },
+            "decay_damage": {
+              "count": 5584,
+              "mean": 0.013115577747975943,
+              "min": -0.03462505340576172,
+              "max": 0.020351478829979897
+            },
+            "write_damage": {
+              "count": 5584,
+              "mean": 2.058171587102222e-05,
+              "min": -0.001972377300262451,
+              "max": 0.0012871026992797852
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 9272,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 5.902628502705698,
+            "min": 0.16946196556091309,
+            "max": 24.737167358398438
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 5.433691348608862,
+            "min": 0.16865020990371704,
+            "max": 24.697725296020508
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 5.433691350441489,
+            "min": 0.16865019500255585,
+            "max": 24.697725296020508
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9174082651043928,
+            "min": 0.429553359746933,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 2.2380109230997483e-07,
+            "min": 0.0,
+            "max": 2.86102294921875e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    },
+    {
+      "mode": "global",
+      "rate": 0.7,
+      "batches": 1,
+      "mask_sha256": "5af626a4503fa4cbae9fcace0c5964d58a2b46b9a6e5aec7ac65e1f3cbaa471f",
+      "task_metrics": {
+        "weighted_f1": 0.7872387587442012,
+        "macro_f1": 0.7760642868420562,
+        "accuracy": 0.7880741337630943
+      },
+      "retention": {
+        "audio": {
+          "counts": {
+            "NO_HISTORY": 55,
+            "retention": 5296
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 5296,
+              "mean": 0.21855510265026185,
+              "min": 0.014242695644497871,
+              "max": 1.5491390228271484
+            },
+            "err_post": {
+              "count": 5296,
+              "mean": 0.3349396643166225,
+              "min": 0.016598375514149666,
+              "max": 2.0475668907165527
+            },
+            "decay_damage": {
+              "count": 5296,
+              "mean": 0.008138681925112927,
+              "min": -0.026690661907196045,
+              "max": 0.020352080464363098
+            },
+            "write_damage": {
+              "count": 5296,
+              "mean": 0.11638456171559974,
+              "min": -0.685863196849823,
+              "max": 1.9122074842453003
+            }
+          }
+        },
+        "text": {
+          "counts": {
+            "NO_HISTORY": 34,
+            "retention": 5296
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 5296,
+              "mean": 0.2319381247574233,
+              "min": 0.015050677582621574,
+              "max": 1.6388798952102661
+            },
+            "err_post": {
+              "count": 5296,
+              "mean": 0.3478141804063957,
+              "min": 0.015751129016280174,
+              "max": 1.9206430912017822
+            },
+            "decay_damage": {
+              "count": 5296,
+              "mean": 0.008880371707414202,
+              "min": -0.030707478523254395,
+              "max": 0.020352818071842194
+            },
+            "write_damage": {
+              "count": 5296,
+              "mean": 0.1158760556739437,
+              "min": -0.6989535689353943,
+              "max": 1.4587827920913696
+            }
+          }
+        },
+        "visual": {
+          "counts": {
+            "NO_HISTORY": 44,
+            "retention": 5584
+          },
+          "metrics": {
+            "err_decay": {
+              "count": 5584,
+              "mean": 0.23626424239385996,
+              "min": 0.01445642951875925,
+              "max": 2.5844035148620605
+            },
+            "err_post": {
+              "count": 5584,
+              "mean": 0.33847597926684303,
+              "min": 0.01683499477803707,
+              "max": 2.622546672821045
+            },
+            "decay_damage": {
+              "count": 5584,
+              "mean": 0.007990987702569041,
+              "min": -0.04106760025024414,
+              "max": 0.020351478829979897
+            },
+            "write_damage": {
+              "count": 5584,
+              "mean": 0.10221173692818859,
+              "min": -0.4605448246002197,
+              "max": 1.6056665182113647
+            }
+          }
+        }
+      },
+      "write_audit": {
+        "records": 9928,
+        "with_protection": 9272,
+        "metrics": {
+          "original_norm": {
+            "count": 9928,
+            "mean": 6.022147421812898,
+            "min": 0.15634296834468842,
+            "max": 24.56371307373047
+          },
+          "protected_norm": {
+            "count": 9928,
+            "mean": 5.531282167290364,
+            "min": 0.15559406578540802,
+            "max": 24.56371307373047
+          },
+          "global_norm": {
+            "count": 9928,
+            "mean": 5.531282174846009,
+            "min": 0.15559402108192444,
+            "max": 24.56371307373047
+          },
+          "global_scale": {
+            "count": 9928,
+            "mean": 0.9170981637779309,
+            "min": 0.42955341935157776,
+            "max": 1.0
+          },
+          "norm_mismatch": {
+            "count": 9928,
+            "mean": 2.2847346487206666e-07,
+            "min": 0.0,
+            "max": 1.9073486328125e-06
+          }
+        }
+      },
+      "complete_input_logits_exact": null
+    }
+  ],
+  "retention_note": "Head-level means; err_post probes future retention, not current prediction."
+}
