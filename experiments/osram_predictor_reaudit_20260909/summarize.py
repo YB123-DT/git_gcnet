@@ -35,7 +35,7 @@ for branch in ("regression", "contrastive"):
                                negative_seeds=sum(x < 0 for x in delta)))
 for name, data in (("summary.csv", summary), ("paired_delta.csv", paired)):
     with (ROOT / name).open("w") as f:
-        w = csv.DictWriter(f, fieldnames=list(data[0]))
+        w = csv.DictWriter(f, fieldnames=list(data[0]), lineterminator="\n")
         w.writeheader()
         w.writerows(data)
 lines = []

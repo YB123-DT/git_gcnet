@@ -113,7 +113,7 @@ def main():
         assert pair[0]["mask_sha256"] == pair[1]["mask_sha256"]
         assert pair[0]["conversation_ids"] == pair[1]["conversation_ids"]
     with (args.output / "per_seed.csv").open("w") as f:
-        writer = csv.DictWriter(f, fieldnames=list(results[0]))
+        writer = csv.DictWriter(f, fieldnames=list(results[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(results)
 
