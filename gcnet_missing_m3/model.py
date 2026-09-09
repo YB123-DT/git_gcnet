@@ -1202,7 +1202,19 @@ class MissingM3GraphModel(GraphModel):
         osram_bidirectional=True,
         osram_forward_slot_reuse=False,
         osram_write_step=1.0,
+        completion_path="none",
     ) -> None:
+        b2_constructor_settings = {k:v for k,v in locals().items() if k not in {"self","__class__"}}
+        if completion_path not in {"none", "pre_osram_b2"}:
+            raise ValueError("completion_path must be none or pre_osram_b2; legacy uses classification_completion")
+        if completion_path == "pre_osram_b2":
+            if classification_completion:
+                raise ValueError("B2 cannot use legacy classification_completion")
+            if (backbone_type != "osram" or osram_bidirectional or osram_forward_slot_reuse
+                    or float(osram_write_step) != .6 or osram_ablation != "full"):
+                raise ValueError("B2 requires full causal OSRAM, no slot reuse, write_step=.6")
+            if fusion_type != "mean" or representation_type != "slot" or node_interaction_residual:
+                raise ValueError("B2 first version requires original mean observed-set nodes")
         if backbone_type not in {"gcnet", "osram"}:
             raise ValueError("backbone_type must be 'gcnet' or 'osram'")
         if osram_predictor_mode not in {"legacy-hidden", "structured"}:
@@ -1299,6 +1311,7 @@ class MissingM3GraphModel(GraphModel):
         self.dimensions = (adim, tdim, vdim)
         self.latent_dim = int(latent_dim)
         self.backbone_type = backbone_type
+        self.completion_path = completion_path
         self.osram_predictor_mode = osram_predictor_mode
         self.osram_ablation = osram_ablation
         self.osram_query_availability = bool(osram_query_availability)
@@ -1423,6 +1436,15 @@ class MissingM3GraphModel(GraphModel):
             self.affine_readout = AvailabilityConditionedAffineReadout(
                 hidden_dim
             )
+        if self.completion_path == "pre_osram_b2":
+            from .b2 import SourceOnlyM3Predictor, CompletedReadFusion
+            self.b2_model_settings = b2_constructor_settings
+            self.source_only_predictor = SourceOnlyM3Predictor(
+                latent_dim, num_experts, top_k, predictor_dropout,
+                mmoe_variant, target_private_rank)
+            self.completed_read_fusion = CompletedReadFusion(latent_dim, projector_dropout)
+            # Keep legacy state keys loadable, but do not optimize the unused predictor.
+            self.missing_predictor.requires_grad_(False)
 
     @staticmethod
     def _feature_tensor(inputfeats) -> torch.Tensor:
@@ -1440,6 +1462,7 @@ class MissingM3GraphModel(GraphModel):
         umask,
         seq_lengths,
         predict_missing=False,
+        completion_predictions_override=None,
     ):
         features = self._feature_tensor(inputfeats)
         encoded, latents = self.observed_set(features, availability, umask)
@@ -1448,6 +1471,18 @@ class MissingM3GraphModel(GraphModel):
                 latents, availability, umask
             )
         osram_context = None
+        internal_predictions = None
+        osram_nodes = {}
+        if self.completion_path == "pre_osram_b2":
+            internal_predictions = self.source_only_predictor(latents, availability, umask)
+            if completion_predictions_override is not None and self.training:
+                raise ValueError("completion override is evaluation-only")
+            reg = (internal_predictions.reg_predictions if completion_predictions_override is None
+                   else completion_predictions_override)
+            read_node = self.completed_read_fusion(encoded, latents, reg, availability, umask)
+            osram_nodes = {"read_node": read_node, "write_node": encoded}
+        elif completion_predictions_override is not None:
+            raise ValueError("completion override requires pre_osram_b2")
         if self.backbone_type == "osram":
             graph_hidden, osram_context = self.osram(
                 encoded,
@@ -1456,6 +1491,7 @@ class MissingM3GraphModel(GraphModel):
                 qmask,
                 umask,
                 seq_lengths,
+                **osram_nodes,
             )
             self.last_osram_context = osram_context
         elif self.representation_type == "track":
@@ -1472,8 +1508,7 @@ class MissingM3GraphModel(GraphModel):
             graph_hidden = self.encode_hidden(
                 [encoded], qmask, umask, seq_lengths
             )
-        internal_predictions = None
-        if predict_missing or self.classification_completion:
+        if self.completion_path != "pre_osram_b2" and (predict_missing or self.classification_completion):
             if self.backbone_type == "osram" and self.missing_predictor.structured:
                 internal_predictions = self.missing_predictor(
                     latents,

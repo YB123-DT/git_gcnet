@@ -203,7 +203,12 @@ class OSRAMBackbone(nn.Module):
         latents: Mapping[str, torch.Tensor],
         availability: torch.Tensor,
         qmask: torch.Tensor,
+        *,
+        read_node: torch.Tensor | None = None,
+        write_node: torch.Tensor | None = None,
     ) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor], torch.Tensor]:
+        read_node = node if read_node is None else read_node
+        write_node = node if write_node is None else write_node
         length, batch = node.shape[:2]
         dtype = node.dtype
         valid_speaker = qmask.to(device=node.device).long()
@@ -214,13 +219,18 @@ class OSRAMBackbone(nn.Module):
         speaker = self.speaker_embedding(valid_speaker.T)
         availability_value = availability.to(dtype=dtype)
         availability_embed = self.availability_embedding(availability_value)
-        node_value = self.node_norm(node)
+        write_node_value = self.node_norm(write_node)
+        # Share the original normalization graph when the two inputs coincide:
+        # the default must preserve both outputs and gradient accumulation exactly.
+        read_node_value = (
+            write_node_value if read_node is write_node else self.node_norm(read_node)
+        )
         keys: dict[str, torch.Tensor] = {}
         values: dict[str, torch.Tensor] = {}
         for name in MODALITIES:
             latent_value = self.latent_norm(latents[name])
             key_input = torch.cat(
-                (latent_value, node_value, availability_embed, speaker), dim=-1
+                (latent_value, write_node_value, availability_embed, speaker), dim=-1
             )
             key = self.key_projectors[name](key_input).view(
                 length, batch, self.num_heads, self.key_dim
@@ -241,7 +251,7 @@ class OSRAMBackbone(nn.Module):
             else torch.zeros_like(availability_embed)
         )
         common_query = torch.cat(
-            (node_value, query_availability, speaker), dim=-1
+            (read_node_value, query_availability, speaker), dim=-1
         )
         type_embedding = self.query_type_embedding.weight.view(1, 1, 4, -1)
         query_input = torch.cat(
@@ -447,7 +457,17 @@ class OSRAMBackbone(nn.Module):
         *,
         collect_memory_retention_diagnostics: bool = False,
         memory_retention_diagnostics=None,
+        read_node: torch.Tensor | None = None,
+        write_node: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """Condition reads/local features separately from real-observation writes.
+
+        Both optional nodes default to ``node``. Completion belongs exclusively
+        in ``read_node``; keys and gap-address projection use ``write_node``,
+        while values continue to use the supplied real modality latents.
+        """
+        read_node = node if read_node is None else read_node
+        write_node = node if write_node is None else write_node
         if collect_memory_retention_diagnostics:
             if self.bidirectional or memory_retention_diagnostics is None:
                 raise ValueError('Retention diagnostics require forward-only and an external collector')
@@ -457,7 +477,8 @@ class OSRAMBackbone(nn.Module):
             node, latents, availability, qmask, umask, seq_lengths
         )
         keys, values, queries = self._project_sequence(
-            node, latents, availability, qmask
+            node, latents, availability, qmask,
+            read_node=read_node, write_node=write_node,
         )
         base_forward, gap_forward, diag_forward = self._scan(
             keys, values, queries, availability, valid, reverse=False,
@@ -491,7 +512,7 @@ class OSRAMBackbone(nn.Module):
             active_base_context = base_context
             active_gap_context = gap_context
 
-        local = node + self.local_path(node)
+        local = read_node + self.local_path(read_node)
         local = local * valid.unsqueeze(-1).to(local.dtype)
         missing = 1.0 - availability.to(dtype=node.dtype)
         emotion_input = torch.cat(

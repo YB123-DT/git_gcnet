@@ -108,6 +108,9 @@ class TrainConfig:
     osram_bidirectional: bool = True
     osram_forward_slot_reuse: bool = False
     osram_write_step: float = 1.0
+    completion_path: str = "none"
+    b2_base_checkpoint: str | None = None
+    b2_pretrain_checkpoint: str | None = None
 
     def __post_init__(self) -> None:
         step = float(self.osram_write_step)
@@ -780,7 +783,7 @@ def train_epoch(
     }
     train_jepa = config.training_objective in {"joint", "jepa-only"}
     model.train()
-    predictor = getattr(model, "missing_predictor", None)
+    predictor = getattr(model, "source_only_predictor", None) if config.completion_path == "pre_osram_b2" else getattr(model, "missing_predictor", None)
     mmoe = getattr(predictor, "mmoe", None)
     if mmoe is not None and train_jepa:
         mmoe.reset_routing_statistics()
@@ -1193,6 +1196,13 @@ def run_experiment(
     visual_root: str,
     output_dir: str | Path,
 ) -> Dict[str, object]:
+    if config_value.completion_path == "pre_osram_b2":
+        if (not config_value.b2_base_checkpoint or not config_value.b2_pretrain_checkpoint
+                or config_value.initial_backbone_checkpoint or config_value.pretrained_learning_rate is not None
+                or config_value.training_objective != "joint" or config_value.train_rate_mode != "cyclic"):
+            raise ValueError("B2 joint cyclic training requires its base and Stage1 checkpoints, no legacy transfer")
+        from .b2_training import validate_stage2_config
+        validate_stage2_config(config_value)
     protocol_rates = _protocol_rates(config_value)
     if config_value.training_objective not in _TRAINING_OBJECTIVES:
         raise ValueError("unsupported training_objective")
@@ -1319,10 +1329,15 @@ def run_experiment(
         osram_query_availability=config_value.osram_query_availability,
         osram_bidirectional=config_value.osram_bidirectional,
         osram_forward_slot_reuse=config_value.osram_forward_slot_reuse,
+        completion_path=config_value.completion_path,
     ).to(device)
     initialization = None
     frozen_probe = None
     frozen_hash_before = None
+    if config_value.completion_path == "pre_osram_b2":
+        from .b2_training import load_b2_initialization
+        initialization = load_b2_initialization(model,config_value.b2_base_checkpoint,
+                                               config_value.b2_pretrain_checkpoint)
     if config_value.initial_backbone_checkpoint is not None:
         initialization = _load_inference_backbone_checkpoint(
             model,
@@ -1608,6 +1623,9 @@ def run_experiment(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--completion-path",choices=("none","pre_osram_b2"),default="none")
+    parser.add_argument("--b2-base-checkpoint",default=None)
+    parser.add_argument("--b2-pretrain-checkpoint",default=None)
     parser.add_argument(
         "--dataset",
         choices=("IEMOCAPFour", "IEMOCAPSix", "CMUMOSI", "CMUMOSEI"),
@@ -1792,6 +1810,9 @@ def main(argv=None) -> None:
     torch.set_num_threads(args.num_threads)
     config_value = TrainConfig(
         dataset=args.dataset,
+        completion_path=args.completion_path,
+        b2_base_checkpoint=args.b2_base_checkpoint,
+        b2_pretrain_checkpoint=args.b2_pretrain_checkpoint,
         fold=args.fold,
         seed=args.seed,
         window_past=args.windowp,
