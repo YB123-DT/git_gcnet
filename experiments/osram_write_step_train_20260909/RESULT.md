@@ -27,6 +27,8 @@ steps cannot silently combine with legacy fixed-step intervention multipliers.
 Verified: 23 OSRAM tests (including historical forward/backward/RNG exact match,
 native.6 vs actual frozen intervention, causal/padding, config restore);
 36 existing CLI/config regressions; 3 runner/evaluation tests. No training smoke.
+Cross-summary tests:8 passed; absent real C/D inputs correctly return PENDING
+without creating a result table. Full paired aggregation remains pending.
 The only warning is an existing PyG deprecation. git diff --check passed.
 
 Remote progress:
@@ -39,3 +41,9 @@ Logs:
 Do not interpret previous frozen curve numbers as this retraining experiment.
 Eta.6 was chosen after seeing Test results; this remains exploratory even if
 retraining improves scores. Do not launch another eta without a new task.
+
+After C/D files are complete, aggregate directly on biggpu with:
+
+```bash
+python experiments/osram_write_step_train_20260909/summarize.py --remote-root /data2/yb/remote_experiments
+```
