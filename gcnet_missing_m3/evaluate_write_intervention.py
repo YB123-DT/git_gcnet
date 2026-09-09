@@ -34,7 +34,18 @@ def build_parser():
     parser.add_argument("--rates", nargs="+", type=float, default=[0., .1, .3, .5, .7])
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--modes", nargs="+", choices=ALLOWED_MODES, default=list(MODES))
+    parser.add_argument("--evaluation-write-step", type=float, default=None,
+                        help="Explicit native write-step override for reference-only cross evaluation.")
     return parser
+
+
+def resolve_evaluation_step(saved_step, override, modes):
+    step = float(saved_step if override is None else override)
+    if not math.isfinite(step) or not 0. <= step <= 1.:
+        raise ValueError("evaluation write step must be finite and in [0,1]")
+    if (float(saved_step) != 1. or override is not None) and list(modes) != ["reference"]:
+        raise ValueError("Native nonunit step/override requires reference-only evaluation; do not double-scale")
+    return step
 
 
 def _accumulate(stats, key, value):
@@ -78,6 +89,9 @@ def main(argv=None):
     torch.set_num_threads(2)
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     cfg = tr.TrainConfig(**checkpoint["config"])
+    saved_write_step = float(getattr(cfg, "osram_write_step", 1.))
+    evaluation_write_step = resolve_evaluation_step(
+        saved_write_step, args.evaluation_write_step, args.modes)
     if cfg.backbone_type != "osram" or cfg.osram_bidirectional or cfg.osram_forward_slot_reuse:
         raise ValueError("Requires unidirectional OSRAM without forward slot reuse")
     tr.set_random_seed(cfg.seed)
@@ -100,6 +114,8 @@ def main(argv=None):
     device = torch.device(args.device)
     model = MissingM3GraphModel(**kwargs).to(device).eval()
     model.load_state_dict(checkpoint["model"], strict=True)
+    # Plain runtime attribute only: keep saved config and all learned weights intact.
+    model.osram.write_step = evaluation_write_step
     initial_state = {key: value.detach().cpu().clone()
                      for key, value in model.state_dict().items()}
     args.output_dir.mkdir(parents=True, exist_ok=False)
@@ -230,6 +246,9 @@ def main(argv=None):
         selection_protocol=checkpoint.get("selection_protocol"),
         dataset=cfg.dataset, seed=cfg.seed, fold=cfg.fold, rates=args.rates,
         evaluation_only=True, new_checkpoint_selection=False, weights_unchanged=True,
+        training_write_step=saved_write_step,
+        evaluation_write_step=evaluation_write_step,
+        evaluation_write_step_override=args.evaluation_write_step,
         all_mode_masks_equal=True, complete_input_logits_exact=True if 0. in args.rates
                                                              and "reference" in args.modes else None,
         complete_input_identity_modes=[m for m in args.modes if m in IDENTITY_MODES]

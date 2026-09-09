@@ -107,6 +107,12 @@ class TrainConfig:
     osram_query_availability: bool = True
     osram_bidirectional: bool = True
     osram_forward_slot_reuse: bool = False
+    osram_write_step: float = 1.0
+
+    def __post_init__(self) -> None:
+        step = float(self.osram_write_step)
+        if not math.isfinite(step) or not 0.0 <= step <= 1.0:
+            raise ValueError("osram_write_step must be finite and between zero and one")
 
 
 _TRAINING_OBJECTIVES = {
@@ -1307,6 +1313,7 @@ def run_experiment(
         osram_value_dim=config_value.osram_value_dim,
         osram_read_ridge=config_value.osram_read_ridge,
         osram_write_ridge=config_value.osram_write_ridge,
+        osram_write_step=config_value.osram_write_step,
         osram_predictor_mode=config_value.osram_predictor_mode,
         osram_ablation=config_value.osram_ablation,
         osram_query_availability=config_value.osram_query_availability,
@@ -1568,6 +1575,7 @@ def run_experiment(
         "osram_query_availability": config_value.osram_query_availability,
         "osram_bidirectional": config_value.osram_bidirectional,
         "osram_forward_slot_reuse": config_value.osram_forward_slot_reuse,
+        "osram_write_step": config_value.osram_write_step,
         "osram_dimensions": (
             {
                 "latent_dim": config_value.latent_dim,
@@ -1755,6 +1763,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--osram-value-dim", type=int, default=32)
     parser.add_argument("--osram-read-ridge", type=float, default=1e-3)
     parser.add_argument("--osram-write-ridge", type=float, default=1e-3)
+    parser.add_argument("--osram-write-step", type=float, default=1.0)
     parser.add_argument(
         "--osram-predictor-mode",
         choices=("structured", "legacy-hidden"),
@@ -1841,6 +1850,7 @@ def main(argv=None) -> None:
         osram_value_dim=args.osram_value_dim,
         osram_read_ridge=args.osram_read_ridge,
         osram_write_ridge=args.osram_write_ridge,
+        osram_write_step=args.osram_write_step,
         osram_predictor_mode=args.osram_predictor_mode,
         osram_ablation=args.osram_ablation,
         osram_query_availability=args.osram_query_availability,

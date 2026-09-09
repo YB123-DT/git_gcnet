@@ -1201,6 +1201,7 @@ class MissingM3GraphModel(GraphModel):
         osram_query_availability=True,
         osram_bidirectional=True,
         osram_forward_slot_reuse=False,
+        osram_write_step=1.0,
     ) -> None:
         if backbone_type not in {"gcnet", "osram"}:
             raise ValueError("backbone_type must be 'gcnet' or 'osram'")
@@ -1353,6 +1354,7 @@ class MissingM3GraphModel(GraphModel):
                 dropout=dropout,
                 read_ridge=osram_read_ridge,
                 write_ridge=osram_write_ridge,
+                write_step=osram_write_step,
                 osram_ablation=osram_ablation,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,

@@ -54,6 +54,7 @@ class OSRAMBackbone(nn.Module):
         query_use_availability: bool = True,
         bidirectional: bool = True,
         forward_slot_reuse: bool = False,
+        write_step: float = 1.0,
     ) -> None:
         super().__init__()
         if osram_ablation not in OSRAM_ABLATIONS:
@@ -72,6 +73,9 @@ class OSRAMBackbone(nn.Module):
             raise ValueError("OSRAM dimensions must be positive")
         if float(read_ridge) <= 0.0 or float(write_ridge) <= 0.0:
             raise ValueError("OSRAM ridge values must be positive")
+        write_step = float(write_step)
+        if not math.isfinite(write_step) or not 0.0 <= write_step <= 1.0:
+            raise ValueError("write_step must be finite and between zero and one")
         self.latent_dim = int(latent_dim)
         self.output_dim = int(output_dim)
         self.num_heads = int(num_heads)
@@ -80,6 +84,7 @@ class OSRAMBackbone(nn.Module):
         self.n_speakers = int(n_speakers)
         self.read_ridge = float(read_ridge)
         self.write_ridge = float(write_ridge)
+        self.write_step = write_step
         self.osram_ablation = osram_ablation
         self.query_use_availability = bool(query_use_availability)
         self.bidirectional = bool(bidirectional)
@@ -311,7 +316,12 @@ class OSRAMBackbone(nn.Module):
         )
         system = gram + self.write_ridge * identity
         solved = torch.linalg.solve(system, k_bar.transpose(-1, -2))
-        return memory + residual @ solved
+        correction = residual @ solved
+        # Keep the legacy arithmetic path exact at the default step. The fixed
+        # scalar scales the correction, without detaching the write gradients.
+        if self.write_step == 1.0:
+            return memory + correction
+        return memory + self.write_step * correction
 
     def _scan(
         self,
