@@ -321,6 +321,7 @@ class OSRAMBackbone(nn.Module):
         availability: torch.Tensor,
         valid: torch.Tensor,
         reverse: bool,
+        retention_diagnostics=None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, list[float]]]:
         length, batch = availability.shape[:2]
         dtype = queries.dtype
@@ -349,6 +350,9 @@ class OSRAMBackbone(nn.Module):
             slot_values = torch.stack(
                 [values[name][time_index] for name in MODALITIES], dim=-1
             )
+            if retention_diagnostics is not None:
+                probe_pre = memory.detach()
+                probe_keys, probe_values = slot_keys.detach(), slot_values.detach()
             # Stacking along the final dimension yields [B,H,d,3].
             slot_keys = slot_keys * availability[time_index].to(dtype).unsqueeze(
                 1
@@ -410,6 +414,10 @@ class OSRAMBackbone(nn.Module):
             memory = torch.where(
                 active.view(batch, 1, 1, 1), memory_candidate, memory
             )
+            if retention_diagnostics is not None:
+                retention_diagnostics.observe(time_index, probe_pre, read_memory,
+                                              memory, probe_keys, probe_values,
+                                              availability[time_index], active)
         return base, gap, diagnostics
 
     @staticmethod
@@ -426,7 +434,15 @@ class OSRAMBackbone(nn.Module):
         qmask: torch.Tensor,
         umask: torch.Tensor,
         seq_lengths: Sequence[int] | None = None,
+        *,
+        collect_memory_retention_diagnostics: bool = False,
+        memory_retention_diagnostics=None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        if collect_memory_retention_diagnostics:
+            if self.bidirectional or memory_retention_diagnostics is None:
+                raise ValueError('Retention diagnostics require forward-only and an external collector')
+            if memory_retention_diagnostics.last_key is not None:
+                raise ValueError('Use a fresh retention collector for each forward/batch')
         valid = self._validate_inputs(
             node, latents, availability, qmask, umask, seq_lengths
         )
@@ -434,7 +450,9 @@ class OSRAMBackbone(nn.Module):
             node, latents, availability, qmask
         )
         base_forward, gap_forward, diag_forward = self._scan(
-            keys, values, queries, availability, valid, reverse=False
+            keys, values, queries, availability, valid, reverse=False,
+            retention_diagnostics=(memory_retention_diagnostics
+                                   if collect_memory_retention_diagnostics else None),
         )
         if self.bidirectional:
             base_backward, gap_backward, diag_backward = self._scan(
