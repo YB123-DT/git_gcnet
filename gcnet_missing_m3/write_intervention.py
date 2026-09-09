@@ -27,11 +27,11 @@ class WriteIntervention:
 
     Global matches its own same-state hypothetical protected update per head.
     Different intervention trajectories need not have equal subsequent norms.
-    Fixed0.9 scales every update, even complete/no-history steps.
+    Fixed-step modes scale every update, even complete/no-history steps.
     Keys are from real observed slots only. No parameter or state_dict additions.
     """
     def __init__(self,backbone,mode,ridge=1e-3):
-        if mode not in ('reference','protected','global','fixed0.9'):raise ValueError(mode)
+        if mode not in ('reference','protected','global','fixed0.95','fixed0.9','fixed0.8'):raise ValueError(mode)
         if backbone.training or backbone.bidirectional:raise ValueError('eval forward-only required')
         self.model=backbone;self.mode=mode;self.ridge=ridge;self.records=[]
         self.observed_records=[]
@@ -56,9 +56,10 @@ class WriteIntervention:
         protected,glob,ratio=protect_update(delta,self.history,mask,self.ridge)
         if self.mode=='reference':
             post=baseline
-        elif self.mode=='fixed0.9':
+        elif self.mode in ('fixed0.95','fixed0.9','fixed0.8'):
             # Unconditional global control, including complete input/no history.
-            post=memory+0.9*delta
+            strength={'fixed0.95':.95,'fixed0.9':.9,'fixed0.8':.8}[self.mode]
+            post=memory+strength*delta
         else:
             update=protected if self.mode=='protected' else glob
             post=torch.where(mask.any(-1)[:,None,None,None],memory+update,baseline)

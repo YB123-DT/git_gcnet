@@ -1,4 +1,4 @@
-"""Evaluate a frozen checkpoint with reference/fixed0.9/global/protected writes.
+"""Evaluate a frozen checkpoint with fixed-step or address-based interventions.
 
 Run as ``python -m gcnet_missing_m3.evaluate_write_intervention --help``.
 No optimizer, checkpoint selection, or training is performed.
@@ -16,6 +16,8 @@ from pathlib import Path
 
 
 MODES = ("reference", "fixed0.9", "global", "protected")
+ALLOWED_MODES = (*MODES, "fixed0.95", "fixed0.8")
+IDENTITY_MODES = ("reference", "global", "protected")
 WRITE_FIT_METRICS = ("err_before", "err_after", "err_original_after", "fit_gain")
 RETENTION_METRICS = ("err_decay", "err_post", "decay_damage", "write_damage")
 AUDIT_METRICS = (
@@ -31,6 +33,7 @@ def build_parser():
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--rates", nargs="+", type=float, default=[0., .1, .3, .5, .7])
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--modes", nargs="+", choices=ALLOWED_MODES, default=list(MODES))
     return parser
 
 
@@ -56,6 +59,10 @@ def _summarize(stats):
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
+    if len(set(args.modes)) != len(args.modes):
+        parser.error("--modes must be distinct")
+    if "reference" in args.modes and args.modes[0] != "reference":
+        parser.error("reference must be first when requested")
     if len(set(args.rates)) != len(args.rates) or any(
         rate not in (0., .1, .3, .5, .7) for rate in args.rates
     ):
@@ -100,7 +107,7 @@ def main(argv=None):
     for rate in args.rates:
         reference_logits = []
         reference_digest = None
-        for mode in MODES:
+        for mode in args.modes:
             # Fresh, frozen official schedule makes the paired mask contract explicit.
             schedule = tr._build_schedule(cfg, "test", rate)
             mask_digest = hashlib.sha256()
@@ -148,12 +155,12 @@ def main(argv=None):
                     logits = output[0]
                     if output[3] is not None:
                         raise RuntimeError("Inference returned missing predictions")
-                    if rate == 0.:
+                    if rate == 0. and "reference" in args.modes and mode in IDENTITY_MODES:
                         if mode == "reference":
                             reference_logits.append(logits.detach().cpu().clone())
-                        elif mode != "fixed0.9" and (batch_index >= len(reference_logits) or not torch.equal(
+                        elif batch_index >= len(reference_logits) or not torch.equal(
                             reference_logits[batch_index], logits.detach().cpu()
-                        )):
+                        ):
                             raise RuntimeError(f"Complete-input logits differ for {mode}, batch {batch_index}")
                     predicted, expected, _ = tr._collect_predictions(
                         cfg.dataset, logits, view["labels"], view["umask"], cfg.mosi_task_mode,
@@ -185,11 +192,11 @@ def main(argv=None):
             if not predictions:
                 raise RuntimeError("Empty test loader")
             digest = mask_digest.hexdigest()
-            if mode == "reference":
+            if mode == args.modes[0]:
                 reference_digest = digest
             elif digest != reference_digest:
                 raise RuntimeError(f"Mask digest differs for rate={rate}, mode={mode}")
-            if rate == 0. and batch_count != len(reference_logits):
+            if rate == 0. and "reference" in args.modes and batch_count != len(reference_logits):
                 raise RuntimeError("Complete-input batch counts differ")
             result = dict(
                 mode=mode, rate=rate, batches=batch_count, mask_sha256=digest,
@@ -204,7 +211,8 @@ def main(argv=None):
                     target: dict(counts=observed_counts[target], metrics=_summarize(observed_stats[target]))
                     for target in sorted(observed_counts)
                 },
-                complete_input_logits_exact=True if rate == 0. and mode != "fixed0.9" else None,
+                complete_input_logits_exact=True if rate == 0. and "reference" in args.modes
+                                            and mode in IDENTITY_MODES else None,
             )
             results.append(result)
             (args.output_dir / f"{stem}_summary.json").write_text(
@@ -222,9 +230,14 @@ def main(argv=None):
         selection_protocol=checkpoint.get("selection_protocol"),
         dataset=cfg.dataset, seed=cfg.seed, fold=cfg.fold, rates=args.rates,
         evaluation_only=True, new_checkpoint_selection=False, weights_unchanged=True,
-        all_mode_masks_equal=True, complete_input_logits_exact=True if 0. in args.rates else None,
-        complete_input_identity_modes=["reference", "protected", "global"],
-        fixed_global_strength=0.9,
+        all_mode_masks_equal=True, complete_input_logits_exact=True if 0. in args.rates
+                                                             and "reference" in args.modes else None,
+        complete_input_identity_modes=[m for m in args.modes if m in IDENTITY_MODES]
+                                      if "reference" in args.modes else [],
+        modes=args.modes,
+        fixed_global_strength=0.9 if "fixed0.9" in args.modes else None,
+        fixed_global_strengths={m: v for m, v in (("fixed0.95", .95), ("fixed0.9", .9),
+                                                ("fixed0.8", .8)) if m in args.modes},
         ridge=.001, device=str(device), results=results,
         retention_note="Head-level means; err_post probes future retention, not current prediction.",
     )
