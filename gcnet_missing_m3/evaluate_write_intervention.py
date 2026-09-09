@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 MODES = ("reference", "fixed0.9", "global", "protected")
-ALLOWED_MODES = (*MODES, "fixed0.95", "fixed0.8")
+ALLOWED_MODES = (*MODES, "fixed0.95", "fixed0.8", "fixed0.6", "fixed0.4", "fixed0.2", "fixed0.0")
 IDENTITY_MODES = ("reference", "global", "protected")
 WRITE_FIT_METRICS = ("err_before", "err_after", "err_original_after", "fit_gain")
 RETENTION_METRICS = ("err_decay", "err_post", "decay_damage", "write_damage")
@@ -237,7 +237,9 @@ def main(argv=None):
         modes=args.modes,
         fixed_global_strength=0.9 if "fixed0.9" in args.modes else None,
         fixed_global_strengths={m: v for m, v in (("fixed0.95", .95), ("fixed0.9", .9),
-                                                ("fixed0.8", .8)) if m in args.modes},
+                                                ("fixed0.8", .8), ("fixed0.6", .6),
+                                                ("fixed0.4", .4), ("fixed0.2", .2),
+                                                ("fixed0.0", 0.)) if m in args.modes},
         ridge=.001, device=str(device), results=results,
         retention_note="Head-level means; err_post probes future retention, not current prediction.",
     )

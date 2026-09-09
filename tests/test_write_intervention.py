@@ -90,6 +90,27 @@ def test_locked_fixed_grid_and_selectable_evaluation_modes():
     assert args.modes==['fixed0.95','fixed0.8']
 
 
+def test_coarse_lower_grid_including_zero_disables_memory():
+    from gcnet_missing_m3.evaluate_write_intervention import build_parser
+    model=OSRAMBackbone(latent_dim=4,output_dim=4,num_heads=1,key_dim=2,value_dim=2,
+                       dropout=0,bidirectional=False).eval()
+    keys=torch.tensor([[[[1.,0.,1.],[0.,1.,0.]]]])
+    values=keys*2;availability=torch.ones(1,3)
+    for eta,mode in ((.6,'fixed0.6'),(.4,'fixed0.4'),(.2,'fixed0.2'),(0.,'fixed0.0')):
+        memory=torch.zeros(1,1,2,2)
+        original=model.block_write(memory,keys,values,availability)
+        with WriteIntervention(model,mode) as audit:
+            audit._reset(model,(None,None,None,None,torch.ones(1,2)),{})
+            post=model.block_write(memory,keys,values,availability)
+            torch.testing.assert_close(post,memory+eta*(original-memory))
+            if eta==0:
+                assert torch.count_nonzero(post)==0
+                assert torch.count_nonzero(model.block_write(post,keys,values,availability))==0
+        args=build_parser().parse_args(['--checkpoint','p','--feature-root','p','--output-dir','q',
+                                       '--modes',mode])
+        assert args.modes==[mode]
+
+
 def test_current_observed_write_fit_matches_actual_post_and_excludes_missing():
     model=OSRAMBackbone(latent_dim=4,output_dim=4,num_heads=1,key_dim=2,value_dim=2,
                        dropout=0,bidirectional=False).eval()

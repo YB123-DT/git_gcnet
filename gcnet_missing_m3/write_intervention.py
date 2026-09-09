@@ -31,7 +31,8 @@ class WriteIntervention:
     Keys are from real observed slots only. No parameter or state_dict additions.
     """
     def __init__(self,backbone,mode,ridge=1e-3):
-        if mode not in ('reference','protected','global','fixed0.95','fixed0.9','fixed0.8'):raise ValueError(mode)
+        if mode not in ('reference','protected','global','fixed0.95','fixed0.9','fixed0.8',
+                        'fixed0.6','fixed0.4','fixed0.2','fixed0.0'):raise ValueError(mode)
         if backbone.training or backbone.bidirectional:raise ValueError('eval forward-only required')
         self.model=backbone;self.mode=mode;self.ridge=ridge;self.records=[]
         self.observed_records=[]
@@ -56,9 +57,10 @@ class WriteIntervention:
         protected,glob,ratio=protect_update(delta,self.history,mask,self.ridge)
         if self.mode=='reference':
             post=baseline
-        elif self.mode in ('fixed0.95','fixed0.9','fixed0.8'):
+        elif self.mode in ('fixed0.95','fixed0.9','fixed0.8','fixed0.6','fixed0.4','fixed0.2','fixed0.0'):
             # Unconditional global control, including complete input/no history.
-            strength={'fixed0.95':.95,'fixed0.9':.9,'fixed0.8':.8}[self.mode]
+            strength={'fixed0.95':.95,'fixed0.9':.9,'fixed0.8':.8,
+                      'fixed0.6':.6,'fixed0.4':.4,'fixed0.2':.2,'fixed0.0':0.}[self.mode]
             post=memory+strength*delta
         else:
             update=protected if self.mode=='protected' else glob
