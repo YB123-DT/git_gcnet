@@ -106,6 +106,7 @@ class TrainConfig:
     osram_ablation: str = "full"
     osram_query_availability: bool = True
     osram_bidirectional: bool = True
+    osram_forward_slot_reuse: bool = False
 
 
 _TRAINING_OBJECTIVES = {
@@ -1310,6 +1311,7 @@ def run_experiment(
         osram_ablation=config_value.osram_ablation,
         osram_query_availability=config_value.osram_query_availability,
         osram_bidirectional=config_value.osram_bidirectional,
+        osram_forward_slot_reuse=config_value.osram_forward_slot_reuse,
     ).to(device)
     initialization = None
     frozen_probe = None
@@ -1565,6 +1567,7 @@ def run_experiment(
         "osram_ablation": config_value.osram_ablation,
         "osram_query_availability": config_value.osram_query_availability,
         "osram_bidirectional": config_value.osram_bidirectional,
+        "osram_forward_slot_reuse": config_value.osram_forward_slot_reuse,
         "osram_dimensions": (
             {
                 "latent_dim": config_value.latent_dim,
@@ -1770,6 +1773,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--osram-bidirectional", action=argparse.BooleanOptionalAction,
                         default=True, help="Enable future-context backward memory scan.")
+    parser.add_argument("--osram-forward-slot-reuse", action=argparse.BooleanOptionalAction,
+                        default=False, help="Reuse past context in both slots; requires no bidirectional scan.")
     return parser
 
 
@@ -1840,6 +1845,7 @@ def main(argv=None) -> None:
         osram_ablation=args.osram_ablation,
         osram_query_availability=args.osram_query_availability,
         osram_bidirectional=args.osram_bidirectional,
+        osram_forward_slot_reuse=args.osram_forward_slot_reuse,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [

@@ -49,6 +49,31 @@ def test_forward_only_osram_cannot_read_future():
     assert model.local_skip.weight.grad is not None
 
 
+def test_forward_slot_reuse_duplicates_context_without_future_reads():
+    model = OSRAMBackbone(latent_dim=8, output_dim=10, num_heads=2,
+                          key_dim=3, value_dim=4, n_speakers=2,
+                          dropout=0.0, bidirectional=False).eval()
+    model.forward_slot_reuse = True
+    args = _inputs()
+    _, contexts = model(*args)
+    for name in ("base", "gap"):
+        torch.testing.assert_close(contexts[name][..., :8], contexts[name][..., 8:], rtol=0, atol=0)
+    model.forward_slot_reuse = False
+    _, zero_contexts = model(*args)
+    for name in ("base", "gap"):
+        torch.testing.assert_close(contexts[name][..., :8], zero_contexts[name][..., :8], rtol=0, atol=0)
+    model.forward_slot_reuse = True
+    changed = list(args)
+    changed[0] = args[0].clone()
+    changed[0][2, :, 0] += 10
+    changed[1] = {k: v.clone() for k, v in args[1].items()}
+    for v in changed[1].values():
+        v[2, :, 0] += 10
+    _, future = model(*changed)
+    for name in ("base", "gap"):
+        torch.testing.assert_close(contexts[name][:2], future[name][:2], rtol=0, atol=0)
+
+
 def test_osram_returns_fixed_slots_and_hard_masks_missing_context():
     model = OSRAMBackbone(
         latent_dim=8,
