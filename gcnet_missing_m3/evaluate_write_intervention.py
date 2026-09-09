@@ -1,4 +1,4 @@
-"""Evaluate one frozen checkpoint with reference/protected/global OSRAM writes.
+"""Evaluate a frozen checkpoint with reference/fixed0.9/global/protected writes.
 
 Run as ``python -m gcnet_missing_m3.evaluate_write_intervention --help``.
 No optimizer, checkpoint selection, or training is performed.
@@ -15,11 +15,12 @@ from dataclasses import asdict
 from pathlib import Path
 
 
-MODES = ("reference", "protected", "global")
+MODES = ("reference", "fixed0.9", "global", "protected")
+WRITE_FIT_METRICS = ("err_before", "err_after", "err_original_after", "fit_gain")
 RETENTION_METRICS = ("err_decay", "err_post", "decay_damage", "write_damage")
 AUDIT_METRICS = (
     "original_norm", "protected_norm", "global_norm", "global_scale",
-    "norm_mismatch",
+    "norm_mismatch", "applied_norm",
 )
 
 
@@ -106,11 +107,14 @@ def main(argv=None):
             predictions, labels = [], []
             retention_stats = defaultdict(dict)
             retention_counts = defaultdict(lambda: defaultdict(int))
+            observed_stats = defaultdict(dict)
+            observed_counts = defaultdict(int)
             audit_stats = {}
             audit_count = protected_count = batch_count = 0
             stem = f"rate{rate:g}_{mode}"
             with gzip.open(args.output_dir / f"{stem}_retention.jsonl.gz", "wt", encoding="utf-8") as stream, \
                  gzip.open(args.output_dir / f"{stem}_writes.jsonl.gz", "wt", encoding="utf-8") as writes, \
+                 gzip.open(args.output_dir / f"{stem}_observed_fit.jsonl.gz", "wt", encoding="utf-8") as fits, \
                  torch.no_grad(), WriteIntervention(model.osram, mode) as audit:
                 def sink(row):
                     stream.write(json.dumps(dict(row, mode=mode)) + "\n")
@@ -134,6 +138,7 @@ def main(argv=None):
                                             memory_retention_diagnostics=collector)
 
                     audit.records.clear()
+                    audit.observed_records.clear()
                     handle = model.osram.register_forward_pre_hook(inject, with_kwargs=True)
                     try:
                         output = model([view["incomplete"]], view["availability"], view["qmask"],
@@ -146,9 +151,9 @@ def main(argv=None):
                     if rate == 0.:
                         if mode == "reference":
                             reference_logits.append(logits.detach().cpu().clone())
-                        elif batch_index >= len(reference_logits) or not torch.equal(
+                        elif mode != "fixed0.9" and (batch_index >= len(reference_logits) or not torch.equal(
                             reference_logits[batch_index], logits.detach().cpu()
-                        ):
+                        )):
                             raise RuntimeError(f"Complete-input logits differ for {mode}, batch {batch_index}")
                     predicted, expected, _ = tr._collect_predictions(
                         cfg.dataset, logits, view["labels"], view["umask"], cfg.mosi_task_mode,
@@ -166,6 +171,15 @@ def main(argv=None):
                         for metric in AUDIT_METRICS:
                             _accumulate(audit_stats, metric, row[metric])
                     audit.records.clear()
+                    for row in audit.observed_records:
+                        fits.write(json.dumps(dict(row, mode=mode, missing_rate=rate,
+                                                   loader_batch_index=batch_index,
+                                                   sample_id=sample_ids[row["batch_index"]])) + "\n")
+                        target = row["target_modality"]
+                        observed_counts[target] += 1
+                        for metric in WRITE_FIT_METRICS:
+                            _accumulate(observed_stats[target], metric, row[metric])
+                    audit.observed_records.clear()
                     batch_count += 1
                     print(f"rate={rate:g} mode={mode} batch={batch_index} writes={audit_count}", flush=True)
             if not predictions:
@@ -186,7 +200,11 @@ def main(argv=None):
                            for target in sorted(retention_counts)},
                 write_audit=dict(records=audit_count, with_protection=protected_count,
                                  metrics=_summarize(audit_stats)),
-                complete_input_logits_exact=True if rate == 0. else None,
+                current_observed_write_fit={
+                    target: dict(counts=observed_counts[target], metrics=_summarize(observed_stats[target]))
+                    for target in sorted(observed_counts)
+                },
+                complete_input_logits_exact=True if rate == 0. and mode != "fixed0.9" else None,
             )
             results.append(result)
             (args.output_dir / f"{stem}_summary.json").write_text(
@@ -205,6 +223,8 @@ def main(argv=None):
         dataset=cfg.dataset, seed=cfg.seed, fold=cfg.fold, rates=args.rates,
         evaluation_only=True, new_checkpoint_selection=False, weights_unchanged=True,
         all_mode_masks_equal=True, complete_input_logits_exact=True if 0. in args.rates else None,
+        complete_input_identity_modes=["reference", "protected", "global"],
+        fixed_global_strength=0.9,
         ridge=.001, device=str(device), results=results,
         retention_note="Head-level means; err_post probes future retention, not current prediction.",
     )
