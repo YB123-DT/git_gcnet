@@ -1,0 +1,91 @@
+# Frozen Flat Base/Gap cross-substitution
+
+**INTERNAL DIAGNOSTIC ONLY.** MOSI seeds 66–70; causal eta=.6; existing `best.pt`.
+No training, no new epoch selection. Existing checkpoints were selected by eight-rate-mean Test oracle;
+they are NOT the per-rate maxima reported in the preceding readout experiment.
+
+One original model forward per batch. Replay only emotion_adapter, local_skip, emotion_norm and smax_fc.
+Normal replay logits are exactly equal; every test mask hash matches the reference.
+Only exactly-one-missing valid utterances are patched. W-F1 excludes labels equal to zero.
+Donor slots remain intact: Base→Gap retains Base; Gap→Base retains the active Gap.
+Raw magnitude and slot positions are preserved; no normalization/learned alignment is added.
+
+| Seed | Existing checkpoint epoch |
+|---|---:|
+| 66 | 30 |
+| 67 | 41 |
+| 68 | 47 |
+| 69 | 46 |
+| 70 | 53 |
+
+## one_missing: five-seed W-F1 mean ± sample SD (%)
+
+| Rate | Nonzero samples per seed | Normal | No Gap | No Base | Base→Gap | Gap→Base |
+|---|---|---|---|---|---|---|
+| 0.0 | 0,0,0,0,0 | N/A | N/A | N/A | N/A | N/A |
+| 0.1 | 165,172,171,153,171 | 80.351 ± 2.535 (n=5) | 79.218 ± 1.538 (n=5) | 78.809 ± 3.284 (n=5) | 80.037 ± 2.360 (n=5) | 79.149 ± 3.272 (n=5) |
+| 0.2 | 255,248,259,250,241 | 79.732 ± 1.482 (n=5) | 78.127 ± 1.983 (n=5) | 77.758 ± 1.514 (n=5) | 79.412 ± 1.527 (n=5) | 78.521 ± 1.106 (n=5) |
+| 0.3 | 291,283,282,288,286 | 79.736 ± 2.472 (n=5) | 79.032 ± 3.312 (n=5) | 78.975 ± 2.489 (n=5) | 79.748 ± 3.079 (n=5) | 79.487 ± 2.398 (n=5) |
+| 0.4 | 287,256,285,273,298 | 78.756 ± 2.429 (n=5) | 78.215 ± 2.209 (n=5) | 77.795 ± 3.039 (n=5) | 77.904 ± 2.225 (n=5) | 78.345 ± 2.839 (n=5) |
+| 0.5 | 249,235,257,220,247 | 79.755 ± 0.911 (n=5) | 78.070 ± 0.954 (n=5) | 78.374 ± 1.021 (n=5) | 79.362 ± 0.723 (n=5) | 79.789 ± 1.145 (n=5) |
+| 0.6 | 203,189,178,163,209 | 78.139 ± 5.840 (n=5) | 78.232 ± 5.770 (n=5) | 77.362 ± 4.946 (n=5) | 78.028 ± 4.838 (n=5) | 77.620 ± 6.075 (n=5) |
+| 0.7 | 120,134,131,140,125 | 77.801 ± 2.835 (n=5) | 77.571 ± 3.353 (n=5) | 77.762 ± 2.060 (n=5) | 78.753 ± 2.586 (n=5) | 77.583 ± 1.618 (n=5) |
+
+## AT: five-seed W-F1 mean ± sample SD (%)
+
+| Rate | Nonzero samples per seed | Normal | No Gap | No Base | Base→Gap | Gap→Base |
+|---|---|---|---|---|---|---|
+| 0.0 | 0,0,0,0,0 | N/A | N/A | N/A | N/A | N/A |
+| 0.1 | 50,55,47,48,54 | 84.616 ± 3.443 (n=5) | 83.937 ± 2.324 (n=5) | 83.455 ± 1.801 (n=5) | 84.928 ± 2.127 (n=5) | 82.197 ± 1.494 (n=5) |
+| 0.2 | 77,75,79,90,80 | 86.630 ± 3.599 (n=5) | 86.494 ± 4.367 (n=5) | 85.222 ± 4.340 (n=5) | 86.334 ± 3.131 (n=5) | 85.620 ± 3.200 (n=5) |
+| 0.3 | 100,95,93,101,82 | 88.786 ± 4.000 (n=5) | 88.587 ± 3.867 (n=5) | 88.375 ± 4.276 (n=5) | 88.947 ± 3.725 (n=5) | 88.567 ± 3.857 (n=5) |
+| 0.4 | 97,86,92,85,104 | 84.838 ± 3.237 (n=5) | 84.665 ± 3.162 (n=5) | 84.678 ± 4.449 (n=5) | 84.603 ± 2.389 (n=5) | 84.286 ± 4.041 (n=5) |
+| 0.5 | 76,77,88,63,85 | 84.454 ± 4.704 (n=5) | 83.944 ± 4.925 (n=5) | 83.907 ± 4.860 (n=5) | 84.399 ± 4.582 (n=5) | 85.061 ± 6.105 (n=5) |
+| 0.6 | 61,67,70,63,75 | 87.942 ± 5.199 (n=5) | 89.152 ± 4.922 (n=5) | 87.324 ± 4.011 (n=5) | 87.650 ± 4.802 (n=5) | 87.317 ± 4.596 (n=5) |
+| 0.7 | 37,44,44,43,52 | 92.242 ± 0.926 (n=5) | 91.799 ± 1.822 (n=5) | 91.188 ± 2.760 (n=5) | 92.124 ± 2.379 (n=5) | 91.188 ± 2.760 (n=5) |
+
+## AV: five-seed W-F1 mean ± sample SD (%)
+
+| Rate | Nonzero samples per seed | Normal | No Gap | No Base | Base→Gap | Gap→Base |
+|---|---|---|---|---|---|---|
+| 0.0 | 0,0,0,0,0 | N/A | N/A | N/A | N/A | N/A |
+| 0.1 | 55,59,53,56,54 | 66.864 ± 8.060 (n=5) | 63.481 ± 6.186 (n=5) | 63.938 ± 6.332 (n=5) | 66.026 ± 6.536 (n=5) | 66.311 ± 7.528 (n=5) |
+| 0.2 | 93,92,86,83,90 | 66.760 ± 2.716 (n=5) | 62.060 ± 1.898 (n=5) | 61.641 ± 2.218 (n=5) | 66.500 ± 1.060 (n=5) | 64.091 ± 1.586 (n=5) |
+| 0.3 | 114,99,92,91,93 | 65.591 ± 4.895 (n=5) | 62.765 ± 8.271 (n=5) | 62.780 ± 4.533 (n=5) | 66.767 ± 5.745 (n=5) | 64.653 ± 3.911 (n=5) |
+| 0.4 | 90,89,89,96,104 | 62.094 ± 6.445 (n=5) | 60.065 ± 4.048 (n=5) | 59.920 ± 6.955 (n=5) | 60.534 ± 7.041 (n=5) | 62.612 ± 7.360 (n=5) |
+| 0.5 | 84,80,83,74,81 | 65.761 ± 3.872 (n=5) | 60.231 ± 4.512 (n=5) | 61.451 ± 4.090 (n=5) | 65.292 ± 5.634 (n=5) | 65.421 ± 3.150 (n=5) |
+| 0.6 | 64,64,44,46,73 | 57.193 ± 11.809 (n=5) | 55.406 ± 8.433 (n=5) | 54.276 ± 9.127 (n=5) | 57.778 ± 8.251 (n=5) | 56.320 ± 11.440 (n=5) |
+| 0.7 | 37,52,45,45,32 | 56.451 ± 3.624 (n=5) | 55.010 ± 6.182 (n=5) | 54.873 ± 7.308 (n=5) | 59.336 ± 2.976 (n=5) | 55.773 ± 6.848 (n=5) |
+
+## TV: five-seed W-F1 mean ± sample SD (%)
+
+| Rate | Nonzero samples per seed | Normal | No Gap | No Base | Base→Gap | Gap→Base |
+|---|---|---|---|---|---|---|
+| 0.0 | 0,0,0,0,0 | N/A | N/A | N/A | N/A | N/A |
+| 0.1 | 60,58,71,49,63 | 88.547 ± 2.924 (n=5) | 88.547 ± 2.924 (n=5) | 87.540 ± 4.130 (n=5) | 88.547 ± 2.924 (n=5) | 87.540 ± 4.130 (n=5) |
+| 0.2 | 85,81,94,77,71 | 87.040 ± 2.532 (n=5) | 86.769 ± 2.622 (n=5) | 87.260 ± 2.400 (n=5) | 86.737 ± 2.194 (n=5) | 87.004 ± 2.507 (n=5) |
+| 0.3 | 77,89,97,96,111 | 85.640 ± 3.003 (n=5) | 85.861 ± 3.218 (n=5) | 85.896 ± 3.515 (n=5) | 84.551 ± 4.333 (n=5) | 85.896 ± 3.515 (n=5) |
+| 0.4 | 100,81,104,92,90 | 89.198 ± 2.468 (n=5) | 88.962 ± 2.849 (n=5) | 87.850 ± 3.275 (n=5) | 88.521 ± 2.666 (n=5) | 87.864 ± 3.281 (n=5) |
+| 0.5 | 89,78,86,83,81 | 88.889 ± 4.874 (n=5) | 88.889 ± 4.874 (n=5) | 88.660 ± 4.352 (n=5) | 88.375 ± 5.188 (n=5) | 88.660 ± 4.352 (n=5) |
+| 0.6 | 78,58,64,54,61 | 85.997 ± 5.724 (n=5) | 85.997 ± 5.724 (n=5) | 86.059 ± 5.536 (n=5) | 85.665 ± 5.627 (n=5) | 86.059 ± 5.536 (n=5) |
+| 0.7 | 46,38,42,52,41 | 82.624 ± 6.548 (n=5) | 82.624 ± 6.548 (n=5) | 83.074 ± 6.793 (n=5) | 83.170 ± 5.654 (n=5) | 82.624 ± 6.548 (n=5) |
+
+## Recovery contrasts
+
+Descriptive equal-rate averages within each seed, then equal-seed averages. Only rates with eligible samples in all five seeds are included.
+Not an eight-rate benchmark score. Recovery is substitution minus the corresponding deletion, not proof of semantic identity.
+
+| Contrast | Mean delta (pp) | SD across seeds | Positive seeds |
+|---|---:|---:|---:|
+| no_gap − normal | -0.829 | 0.446 | 0/5 |
+| no_base − normal | -1.062 | 0.660 | 0/5 |
+| base_to_gap − no_gap | +0.683 | 0.559 | 5/5 |
+| gap_to_base − no_base | +0.523 | 0.433 | 4/5 |
+| base_to_gap − normal | -0.147 | 0.304 | 3/5 |
+| gap_to_base − normal | -0.540 | 0.508 | 0/5 |
+
+Included rates: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7].
+
+Failure to substitute can reflect slot-specific decoding, scaling or off-distribution combinations; it does not establish unrelated semantic content.
+Successful substitution supports functional replaceability in this frozen classifier, not geometric equality.
+No CKA/cosine analysis, model modification or extra training was performed.
