@@ -115,11 +115,11 @@ class TrainConfig:
     b2_pretrain_checkpoint: str | None = None
 
     def __post_init__(self) -> None:
-        if self.osram_readout_fusion not in {"flat", "local-gated"}:
-            raise ValueError("osram_readout_fusion must be flat or local-gated")
-        if self.osram_readout_fusion == "local-gated":
+        if self.osram_readout_fusion not in {"flat", "local-gated", "local-cross-attn"}:
+            raise ValueError("osram_readout_fusion must be flat, local-gated, or local-cross-attn")
+        if self.osram_readout_fusion != "flat":
             if self.backbone_type != "osram":
-                raise ValueError("local-gated requires the osram backbone")
+                raise ValueError(f"{self.osram_readout_fusion} requires the osram backbone")
         if self.checkpoint_selection == "test-oracle-per-rate":
             if self.train_rate_mode == "fixed" or not self.evaluate_test:
                 raise ValueError("test-oracle-per-rate requires all eight rates and test evaluation")
@@ -1206,9 +1206,9 @@ def run_experiment(
     visual_root: str,
     output_dir: str | Path,
 ) -> Dict[str, object]:
-    if (config_value.osram_readout_fusion == "local-gated"
+    if (config_value.osram_readout_fusion != "flat"
             and config_value.checkpoint_selection != "test-oracle-per-rate"):
-        raise ValueError("local-gated requires test-oracle-per-rate selection")
+        raise ValueError(f"{config_value.osram_readout_fusion} requires test-oracle-per-rate selection")
     if config_value.completion_path == "pre_osram_b2":
         if (not config_value.b2_base_checkpoint or not config_value.b2_pretrain_checkpoint
                 or config_value.initial_backbone_checkpoint or config_value.pretrained_learning_rate is not None
@@ -1568,7 +1568,7 @@ def run_experiment(
             if artifacts is None:
                 raise RuntimeError("test artifacts were not collected")
             rate_key = format(rate, ".1f")
-            if config_value.osram_readout_fusion == "local-gated":
+            if config_value.osram_readout_fusion != "flat":
                 selected_diagnostics_by_rate[rate_key] = {
                     "selected_epoch": selected_epoch_by_rate[rate_key],
                     "last_batch": copy.deepcopy(model.osram.last_diagnostics),
@@ -1680,7 +1680,7 @@ def run_experiment(
                 **({
                     "per_rate_scope": "last evaluation batch, not a dataset aggregate",
                     "selected_checkpoint_by_rate": selected_diagnostics_by_rate,
-                } if config_value.osram_readout_fusion == "local-gated" else {}),
+                } if config_value.osram_readout_fusion != "flat" else {}),
             },
         )
     return result
@@ -1847,7 +1847,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--osram-read-ridge", type=float, default=1e-3)
     parser.add_argument("--osram-write-ridge", type=float, default=1e-3)
     parser.add_argument("--osram-write-step", type=float, default=1.0)
-    parser.add_argument("--osram-readout-fusion", choices=("flat", "local-gated"), default="flat")
+    parser.add_argument("--osram-readout-fusion", choices=("flat", "local-gated", "local-cross-attn"), default="flat")
     parser.add_argument(
         "--osram-predictor-mode",
         choices=("structured", "legacy-hidden"),

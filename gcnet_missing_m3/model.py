@@ -1207,13 +1207,13 @@ class MissingM3GraphModel(GraphModel):
         osram_readout_fusion="flat",
     ) -> None:
         b2_constructor_settings = {k:v for k,v in locals().items() if k not in {"self","__class__"}}
-        if osram_readout_fusion not in ("flat", "local-gated"):
-            raise ValueError("osram_readout_fusion must be flat or local-gated")
-        if osram_readout_fusion == "local-gated" and (
+        if osram_readout_fusion not in ("flat", "local-gated", "local-cross-attn"):
+            raise ValueError("osram_readout_fusion must be flat, local-gated, or local-cross-attn")
+        if osram_readout_fusion != "flat" and (
             backbone_type != "osram" or osram_predictor_mode != "structured"
             or completion_path != "none" or classification_completion
         ):
-            raise ValueError("local-gated requires structured OSRAM without completion")
+            raise ValueError(f"{osram_readout_fusion} requires structured OSRAM without completion")
         if completion_path not in {"none", "pre_osram_b2"}:
             raise ValueError("completion_path must be none or pre_osram_b2; legacy uses classification_completion")
         if completion_path == "pre_osram_b2":
