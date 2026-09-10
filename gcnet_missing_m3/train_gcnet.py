@@ -104,6 +104,7 @@ class TrainConfig:
     osram_write_ridge: float = 1e-3
     osram_predictor_mode: str = "structured"
     osram_ablation: str = "full"
+    osram_emotion_ablation: str = "full"
     osram_query_availability: bool = True
     osram_bidirectional: bool = True
     osram_forward_slot_reuse: bool = False
@@ -1326,6 +1327,7 @@ def run_experiment(
         osram_write_step=config_value.osram_write_step,
         osram_predictor_mode=config_value.osram_predictor_mode,
         osram_ablation=config_value.osram_ablation,
+        osram_emotion_ablation=config_value.osram_emotion_ablation,
         osram_query_availability=config_value.osram_query_availability,
         osram_bidirectional=config_value.osram_bidirectional,
         osram_forward_slot_reuse=config_value.osram_forward_slot_reuse,
@@ -1587,6 +1589,7 @@ def run_experiment(
         "backbone_type": config_value.backbone_type,
         "osram_predictor_mode": config_value.osram_predictor_mode,
         "osram_ablation": config_value.osram_ablation,
+        "osram_emotion_ablation": config_value.osram_emotion_ablation,
         "osram_query_availability": config_value.osram_query_availability,
         "osram_bidirectional": config_value.osram_bidirectional,
         "osram_forward_slot_reuse": config_value.osram_forward_slot_reuse,
@@ -1798,6 +1801,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Condition OSRAM queries on the explicit A/T/V availability vector.",
     )
+    parser.add_argument("--osram-emotion-ablation",
+                        choices=("full", "local-only", "local-base", "local-gap"),
+                        default="full", help="Mask only classification readout slots; preserve predictor contexts.")
     parser.add_argument("--osram-bidirectional", action=argparse.BooleanOptionalAction,
                         default=True, help="Enable future-context backward memory scan.")
     parser.add_argument("--osram-forward-slot-reuse", action=argparse.BooleanOptionalAction,
@@ -1874,6 +1880,7 @@ def main(argv=None) -> None:
         osram_write_step=args.osram_write_step,
         osram_predictor_mode=args.osram_predictor_mode,
         osram_ablation=args.osram_ablation,
+        osram_emotion_ablation=args.osram_emotion_ablation,
         osram_query_availability=args.osram_query_availability,
         osram_bidirectional=args.osram_bidirectional,
         osram_forward_slot_reuse=args.osram_forward_slot_reuse,

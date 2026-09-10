@@ -20,6 +20,7 @@ from torch.nn import functional as F
 MODALITIES = ("audio", "text", "visual")
 QUERY_TYPES = ("base", "audio", "text", "visual")
 OSRAM_ABLATIONS = ("full", "local-only", "local-base")
+OSRAM_EMOTION_ABLATIONS = (*OSRAM_ABLATIONS, "local-gap")
 
 
 def _logit(probability: float) -> float:
@@ -55,12 +56,17 @@ class OSRAMBackbone(nn.Module):
         bidirectional: bool = True,
         forward_slot_reuse: bool = False,
         write_step: float = 1.0,
+        osram_emotion_ablation: str = "full",
     ) -> None:
         super().__init__()
         if osram_ablation not in OSRAM_ABLATIONS:
             raise ValueError(
                 "osram_ablation must be 'full', 'local-only', or 'local-base'"
             )
+        if osram_emotion_ablation not in OSRAM_EMOTION_ABLATIONS:
+            raise ValueError("unsupported osram_emotion_ablation")
+        if osram_ablation != "full" and osram_emotion_ablation != "full":
+            raise ValueError("legacy and emotion-only OSRAM ablations cannot be combined")
         integer_values = {
             "latent_dim": latent_dim,
             "output_dim": output_dim,
@@ -86,6 +92,7 @@ class OSRAMBackbone(nn.Module):
         self.write_ridge = float(write_ridge)
         self.write_step = write_step
         self.osram_ablation = osram_ablation
+        self.osram_emotion_ablation = osram_emotion_ablation
         self.query_use_availability = bool(query_use_availability)
         self.bidirectional = bool(bidirectional)
         self.forward_slot_reuse = bool(forward_slot_reuse)
@@ -515,11 +522,19 @@ class OSRAMBackbone(nn.Module):
         local = read_node + self.local_path(read_node)
         local = local * valid.unsqueeze(-1).to(local.dtype)
         missing = 1.0 - availability.to(dtype=node.dtype)
+        # Unlike the legacy switch above, mask ONLY the emotion-fusion inputs.
+        # The returned Base/Gap tensors still supervise the structured predictor.
+        emotion_base = active_base_context
+        emotion_gap = active_gap_context
+        if self.osram_emotion_ablation in ("local-only", "local-gap"):
+            emotion_base = torch.zeros_like(emotion_base)
+        if self.osram_emotion_ablation in ("local-only", "local-base"):
+            emotion_gap = torch.zeros_like(emotion_gap)
         emotion_input = torch.cat(
             (
                 local,
-                active_base_context,
-                (active_gap_context * missing.unsqueeze(-1)).reshape(
+                emotion_base,
+                (emotion_gap * missing.unsqueeze(-1)).reshape(
                     active_gap_context.shape[0], active_gap_context.shape[1], -1
                 ),
             ),
@@ -532,6 +547,7 @@ class OSRAMBackbone(nn.Module):
 
         diagnostics: dict[str, object] = {
             "ablation": self.osram_ablation,
+            "emotion_ablation": self.osram_emotion_ablation,
             "query_use_availability": self.query_use_availability,
             "bidirectional": self.bidirectional,
             "forward_slot_reuse": self.forward_slot_reuse,

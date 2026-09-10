@@ -1203,6 +1203,7 @@ class MissingM3GraphModel(GraphModel):
         osram_forward_slot_reuse=False,
         osram_write_step=1.0,
         completion_path="none",
+        osram_emotion_ablation="full",
     ) -> None:
         b2_constructor_settings = {k:v for k,v in locals().items() if k not in {"self","__class__"}}
         if completion_path not in {"none", "pre_osram_b2"}:
@@ -1225,6 +1226,12 @@ class MissingM3GraphModel(GraphModel):
             raise ValueError(
                 "osram_ablation must be 'full', 'local-only', or 'local-base'"
             )
+        if osram_emotion_ablation != "full" and (
+            backbone_type != "osram" or osram_predictor_mode != "structured"
+            or osram_ablation != "full" or completion_path != "none"
+            or classification_completion
+        ):
+            raise ValueError("emotion-only ablation requires structured OSRAM without legacy/B2 completion")
         if readout_type not in {
             "shared",
             "availability-low-rank",
@@ -1314,6 +1321,7 @@ class MissingM3GraphModel(GraphModel):
         self.completion_path = completion_path
         self.osram_predictor_mode = osram_predictor_mode
         self.osram_ablation = osram_ablation
+        self.osram_emotion_ablation = osram_emotion_ablation
         self.osram_query_availability = bool(osram_query_availability)
         self.osram_bidirectional = bool(osram_bidirectional)
         self.osram_forward_slot_reuse = bool(osram_forward_slot_reuse)
@@ -1369,6 +1377,7 @@ class MissingM3GraphModel(GraphModel):
                 write_ridge=osram_write_ridge,
                 write_step=osram_write_step,
                 osram_ablation=osram_ablation,
+                osram_emotion_ablation=osram_emotion_ablation,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,
