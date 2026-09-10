@@ -1,0 +1,169 @@
+{
+  "backbone_initialization": {
+    "aggregation": "mean-real-observed-sources-per-missing-target-v1",
+    "frozen_space_sha256": "2c9a461d4aa82bc7ca9f1f464a4ec11ba99972eb0f3419f65f9d59fe5769b9ff",
+    "pretrain_checkpoint": "/data2/yb/remote_experiments/osram_b2_20260909/formal/seed_67/stage1/source_only_completion_pretrain.pt",
+    "pretrain_checkpoint_sha256": "298d9f5e27b86875fd89e3ba25902d351f768cdca3b227850c8a3ddc4a8316f7",
+    "pretrain_epoch": 100,
+    "source_checkpoint": "/data2/yb/remote_experiments/osram_write_step_train_20260909/mosi/seed_67/best.pt",
+    "source_checkpoint_sha256": "82a8f04c59eabfb832856f827f54e358d8e973264a25a00ceedef66dcc560918",
+    "source_selection_protocol": "8-rate-mean-test-oracle"
+  },
+  "backbone_type": "osram",
+  "best_epoch": 32,
+  "best_selection_mean_weighted_f1": 0.7873119126710834,
+  "best_validation_mean_weighted_f1": null,
+  "ema_steps": 200,
+  "evaluation_stage": "train-test-oracle",
+  "frozen_completion_integrity": null,
+  "graph_message_calibration": "none",
+  "graph_second_layer": "graphconv",
+  "jepa_contrastive_source": "contrastive",
+  "jepa_rate_weighting": "uniform",
+  "jepa_regression_aggregation": "target",
+  "mask_sha256": {
+    "0.0": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+    "0.1": "22cc6734bd5d1cdf62e460b35f7219921326d3add5f98d0b0a3fc6c6b4125e5f",
+    "0.2": "d4de19b8066688ec953048bd5a48e6801bb74e0f996e6925d3dfe61ec7f2749b",
+    "0.3": "b315c6423a325d0f1e96b67a0180f6cca096ac5b0af07a5a2ea25dc71992afc2",
+    "0.4": "1b356cc608391cbd9278382ed79ac43467164c30c1b81911a83b3089da0b0773",
+    "0.5": "1392c5ca7ea69bfecd51c8ac6242fb63dea6c4c502dc502c5a6ffef78506dd36",
+    "0.6": "c02627907826577103b5c80ee1dc9781dff97318ab1ab9bf314d9d512ff0e84f",
+    "0.7": "28672f7c125402f18ac7ababd2e84c827c2e492604eaf222576db811eca679a6"
+  },
+  "optimizer_parameter_groups": {
+    "default": {
+      "learning_rate": 0.001,
+      "parameter_count": 5793965
+    }
+  },
+  "osram_ablation": "full",
+  "osram_bidirectional": false,
+  "osram_dimensions": {
+    "key_dim": 32,
+    "latent_dim": 256,
+    "num_heads": 8,
+    "output_dim": 700,
+    "read_ridge": 0.001,
+    "value_dim": 32,
+    "write_ridge": 0.001
+  },
+  "osram_forward_slot_reuse": false,
+  "osram_predictor_mode": "structured",
+  "osram_query_availability": true,
+  "osram_write_step": 0.6,
+  "parameter_count": 8372661,
+  "postgraph_bilstm_ablation": "none",
+  "postgraph_sequence_mode": "independent",
+  "readout_parameter_count": 0,
+  "readout_rank": 8,
+  "readout_type": "shared",
+  "recurrent_padding_mode": "legacy",
+  "selection_missing_rates": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7
+  ],
+  "selection_protocol": "8-rate-mean-test-oracle",
+  "selection_split": "test-oracle",
+  "task_regression_loss": "mse",
+  "task_smooth_l1_beta": 1.0,
+  "test": {
+    "0.0": {
+      "accuracy": 0.8612804878048781,
+      "correlation": 0.7951304937074228,
+      "loss": 1.0241703987121582,
+      "macro_f1": 0.8568822207997392,
+      "mae": 0.795120894908905,
+      "mask_sha256": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.210554838180542,
+      "weighted_f1": 0.8607832924042971
+    },
+    "0.1": {
+      "accuracy": 0.8429878048780488,
+      "correlation": 0.7588571714329228,
+      "loss": 1.1763890981674194,
+      "macro_f1": 0.8386963548641997,
+      "mae": 0.8528862595558167,
+      "mask_sha256": "22cc6734bd5d1cdf62e460b35f7219921326d3add5f98d0b0a3fc6c6b4125e5f",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.1699773073196411,
+      "weighted_f1": 0.8427872698306726
+    },
+    "0.2": {
+      "accuracy": 0.8216463414634146,
+      "correlation": 0.7407835008592356,
+      "loss": 1.2461591958999634,
+      "macro_f1": 0.8169568649522669,
+      "mae": 0.8783547282218933,
+      "mask_sha256": "d4de19b8066688ec953048bd5a48e6801bb74e0f996e6925d3dfe61ec7f2749b",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.1501065492630005,
+      "weighted_f1": 0.8215123564202389
+    },
+    "0.3": {
+      "accuracy": 0.7926829268292683,
+      "correlation": 0.692317062442982,
+      "loss": 1.4264392852783203,
+      "macro_f1": 0.7885235332043842,
+      "mae": 0.9498721361160278,
+      "mask_sha256": "b315c6423a325d0f1e96b67a0180f6cca096ac5b0af07a5a2ea25dc71992afc2",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.113072156906128,
+      "weighted_f1": 0.793135034831973
+    },
+    "0.4": {
+      "accuracy": 0.7439024390243902,
+      "correlation": 0.6146611941367309,
+      "loss": 1.6524999141693115,
+      "macro_f1": 0.7392094502498865,
+      "mae": 1.0332568883895874,
+      "mask_sha256": "1b356cc608391cbd9278382ed79ac43467164c30c1b81911a83b3089da0b0773",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0348128080368042,
+      "weighted_f1": 0.7446490508748796
+    },
+    "0.5": {
+      "accuracy": 0.7484756097560976,
+      "correlation": 0.5898520569720743,
+      "loss": 1.7899792194366455,
+      "macro_f1": 0.7449617937498674,
+      "mae": 1.071184754371643,
+      "mask_sha256": "1392c5ca7ea69bfecd51c8ac6242fb63dea6c4c502dc502c5a6ffef78506dd36",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0314778089523315,
+      "weighted_f1": 0.7496164591087696
+    },
+    "0.6": {
+      "accuracy": 0.7362804878048781,
+      "correlation": 0.6152094972936203,
+      "loss": 1.7191033363342285,
+      "macro_f1": 0.7339802866753395,
+      "mae": 1.0385328531265259,
+      "mask_sha256": "c02627907826577103b5c80ee1dc9781dff97318ab1ab9bf314d9d512ff0e84f",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0328630208969116,
+      "weighted_f1": 0.7378265246296498
+    },
+    "0.7": {
+      "accuracy": 0.7469512195121951,
+      "correlation": 0.5924816914302737,
+      "loss": 1.7566819190979004,
+      "macro_f1": 0.7436896860142166,
+      "mae": 1.0666362047195435,
+      "mask_sha256": "28672f7c125402f18ac7ababd2e84c827c2e492604eaf222576db811eca679a6",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9817419052124023,
+      "weighted_f1": 0.7481853132681872
+    }
+  },
+  "train_missing_rate": null,
+  "trainable_parameter_count": 5793965,
+  "training_objective": "joint"
+}
