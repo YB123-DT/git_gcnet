@@ -40,7 +40,7 @@ def patched_inputs(local, base, gap, availability, valid):
 
 
 @torch.no_grad()
-def run(seed, output, input_fn=patched_inputs, modes=MODES):
+def run(seed, output, input_fn=patched_inputs, modes=MODES, context_observer=None):
     from gcnet_missing_m3 import train_gcnet as tr
     from experiments.osram_local_gated_20260910.smoke import make
     from experiments.osram_causal_readout_20260910.run import FULL, FEATURES
@@ -78,6 +78,8 @@ def run(seed, output, input_fn=patched_inputs, modes=MODES):
                              view['umask'], view['lengths'], predict_missing=False)[0]
             ctx = model.last_osram_context
             valid = view['umask'].T.bool()
+            if context_observer is not None:
+                context_observer(seed, rate, ctx, view, valid)
             inputs = input_fn(ctx['local'], ctx['base'], ctx['gap'], view['availability'], valid)
             assert set(inputs) == set(modes)
             # All following computations are readout-only; the scan is never called again.
