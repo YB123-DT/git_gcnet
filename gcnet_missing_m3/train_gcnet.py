@@ -109,11 +109,20 @@ class TrainConfig:
     osram_bidirectional: bool = True
     osram_forward_slot_reuse: bool = False
     osram_write_step: float = 1.0
+    osram_readout_fusion: str = "flat"
     completion_path: str = "none"
     b2_base_checkpoint: str | None = None
     b2_pretrain_checkpoint: str | None = None
 
     def __post_init__(self) -> None:
+        if self.osram_readout_fusion not in {"flat", "local-gated"}:
+            raise ValueError("osram_readout_fusion must be flat or local-gated")
+        if self.osram_readout_fusion == "local-gated":
+            if self.backbone_type != "osram":
+                raise ValueError("local-gated requires the osram backbone")
+        if self.checkpoint_selection == "test-oracle-per-rate":
+            if self.train_rate_mode == "fixed" or not self.evaluate_test:
+                raise ValueError("test-oracle-per-rate requires all eight rates and test evaluation")
         step = float(self.osram_write_step)
         if not math.isfinite(step) or not 0.0 <= step <= 1.0:
             raise ValueError("osram_write_step must be finite and between zero and one")
@@ -1197,6 +1206,9 @@ def run_experiment(
     visual_root: str,
     output_dir: str | Path,
 ) -> Dict[str, object]:
+    if (config_value.osram_readout_fusion == "local-gated"
+            and config_value.checkpoint_selection != "test-oracle-per-rate"):
+        raise ValueError("local-gated requires test-oracle-per-rate selection")
     if config_value.completion_path == "pre_osram_b2":
         if (not config_value.b2_base_checkpoint or not config_value.b2_pretrain_checkpoint
                 or config_value.initial_backbone_checkpoint or config_value.pretrained_learning_rate is not None
@@ -1245,9 +1257,9 @@ def run_experiment(
             raise ValueError(
                 "jepa-only pretraining uses a fixed-final checkpoint"
             )
-    if config_value.checkpoint_selection not in ("validation", "test-oracle"):
+    if config_value.checkpoint_selection not in ("validation", "test-oracle", "test-oracle-per-rate"):
         raise ValueError(
-            "checkpoint_selection must be 'validation' or 'test-oracle'"
+            "checkpoint_selection must be validation, test-oracle, or test-oracle-per-rate"
         )
     shape = _resolve_task_contract(
         config_value.dataset, config_value.mosi_task_mode
@@ -1331,6 +1343,7 @@ def run_experiment(
         osram_query_availability=config_value.osram_query_availability,
         osram_bidirectional=config_value.osram_bidirectional,
         osram_forward_slot_reuse=config_value.osram_forward_slot_reuse,
+        osram_readout_fusion=config_value.osram_readout_fusion,
         completion_path=config_value.completion_path,
     ).to(device)
     initialization = None
@@ -1369,9 +1382,12 @@ def run_experiment(
     test_schedules = _schedules(config_value, "test")
     history: list[Dict[str, object]] = []
     jepa_pretraining = config_value.training_objective == "jepa-only"
-    best_score: float | None = None if jepa_pretraining else -math.inf
-    best_epoch = 0
+    per_rate_oracle = config_value.checkpoint_selection == "test-oracle-per-rate"
+    best_score: float | None = None if jepa_pretraining or per_rate_oracle else -math.inf
+    best_epoch = None if per_rate_oracle else 0
     best_state = None
+    selected_epoch_by_rate: Dict[str, int] = {}
+    selected_score_by_rate: Dict[str, float] = {}
     for epoch in range(config_value.epochs):
         sampler = getattr(train_loader, "sampler", None)
         if sampler is not None and hasattr(sampler, "set_epoch"):
@@ -1439,6 +1455,8 @@ def run_experiment(
             },
             selection_key + "_mean_weighted_f1": selection_mean,
         }
+        if per_rate_oracle:
+            record["mean_is_descriptive_only"] = True
         history.append(record)
         _write_json(output / "history.json", history)
         print(
@@ -1452,6 +1470,23 @@ def run_experiment(
             ),
             flush=True,
         )
+        if per_rate_oracle:
+            for rate in protocol_rates:
+                rate_key = format(rate, ".1f")
+                score = float(selection_metrics[rate]["weighted_f1"])
+                if score > selected_score_by_rate.get(rate_key, -math.inf):
+                    selected_score_by_rate[rate_key] = score
+                    selected_epoch_by_rate[rate_key] = epoch + 1
+                    torch.save({
+                        "model": _state_to_cpu(model),
+                        "config": asdict(config_value),
+                        "epoch": epoch + 1,
+                        "selection_split": "test",
+                        "selection_protocol": "per-rate-test-oracle",
+                        "selection_rate": rate,
+                        "selection_weighted_f1": score,
+                    }, output / ("best_miss_" + rate_key.replace(".", "p") + ".pt"))
+            continue
         if best_score is None:
             raise RuntimeError("emotion checkpoint score was not initialized")
         if selection_mean > best_score:
@@ -1483,9 +1518,13 @@ def run_experiment(
             selection_split="fixed-final",
             selection_protocol="fixed-final",
         )
-    if best_state is None:
+    if per_rate_oracle:
+        if len(selected_epoch_by_rate) != len(protocol_rates):
+            raise RuntimeError("no best checkpoint was selected for every missing rate")
+    elif best_state is None:
         raise RuntimeError("no best checkpoint was selected")
-    model.load_state_dict(best_state, strict=True)
+    else:
+        model.load_state_dict(best_state, strict=True)
     model.to(device)
     frozen_integrity = None
     if frozen_probe is not None:
@@ -1505,8 +1544,15 @@ def run_experiment(
         }
     test_metrics: Dict[str, Dict[str, float]] = {}
     mask_hashes: Dict[str, str] = {}
+    selected_diagnostics_by_rate: Dict[str, object] = {}
     if config_value.evaluate_test:
         for rate in protocol_rates:
+            if per_rate_oracle:
+                checkpoint_path = output / (
+                    "best_miss_" + format(rate, ".1f").replace(".", "p") + ".pt"
+                )
+                checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+                model.load_state_dict(checkpoint["model"], strict=True)
             metrics, artifacts = evaluate_rate(
                 model,
                 test_loader,
@@ -1522,6 +1568,11 @@ def run_experiment(
             if artifacts is None:
                 raise RuntimeError("test artifacts were not collected")
             rate_key = format(rate, ".1f")
+            if config_value.osram_readout_fusion == "local-gated":
+                selected_diagnostics_by_rate[rate_key] = {
+                    "selected_epoch": selected_epoch_by_rate[rate_key],
+                    "last_batch": copy.deepcopy(model.osram.last_diagnostics),
+                }
             test_metrics[rate_key] = metrics
             mask_hashes[rate_key] = str(metrics["mask_sha256"])
             np.savez_compressed(
@@ -1530,12 +1581,15 @@ def run_experiment(
                 **artifacts,
             )
     selection_split = (
-        "fixed-final" if jepa_pretraining else config_value.checkpoint_selection
+        "test" if per_rate_oracle else (
+            "fixed-final" if jepa_pretraining else config_value.checkpoint_selection
+        )
     )
     result: Dict[str, object] = {
         "best_epoch": best_epoch,
         "selection_split": selection_split,
         "selection_protocol": (
+            "per-rate-test-oracle" if per_rate_oracle else (
             "8-rate-mean-test-oracle"
             if selection_split == "test-oracle"
             else (
@@ -1543,7 +1597,7 @@ def run_experiment(
                 if selection_split == "validation"
                 else selection_split
             )
-        ),
+        )),
         "best_selection_mean_weighted_f1": best_score,
         "best_validation_mean_weighted_f1": (
             best_score
@@ -1562,7 +1616,7 @@ def run_experiment(
             if jepa_pretraining
             else (
                 "train-test-oracle"
-                if config_value.checkpoint_selection == "test-oracle"
+                if config_value.checkpoint_selection in {"test-oracle", "test-oracle-per-rate"}
                 else (
                     "train-validation-test"
                     if config_value.evaluate_test
@@ -1594,6 +1648,7 @@ def run_experiment(
         "osram_bidirectional": config_value.osram_bidirectional,
         "osram_forward_slot_reuse": config_value.osram_forward_slot_reuse,
         "osram_write_step": config_value.osram_write_step,
+        "osram_readout_fusion": config_value.osram_readout_fusion,
         "osram_dimensions": (
             {
                 "latent_dim": config_value.latent_dim,
@@ -1611,6 +1666,9 @@ def run_experiment(
         "selection_missing_rates": list(protocol_rates),
         **_readout_provenance(model),
     }
+    if per_rate_oracle:
+        result["selected_epoch_by_rate"] = selected_epoch_by_rate
+        result["selected_weighted_f1_by_rate"] = selected_score_by_rate
     _write_json(output / "metrics.json", result)
     if config_value.backbone_type == "osram":
         _write_json(
@@ -1619,6 +1677,10 @@ def run_experiment(
                 "evaluation_stage": result["evaluation_stage"],
                 "selection_protocol": result["selection_protocol"],
                 "last_batch": getattr(model.osram, "last_diagnostics", {}),
+                **({
+                    "per_rate_scope": "last evaluation batch, not a dataset aggregate",
+                    "selected_checkpoint_by_rate": selected_diagnostics_by_rate,
+                } if config_value.osram_readout_fusion == "local-gated" else {}),
             },
         )
     return result
@@ -1726,7 +1788,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-test-evaluation", action="store_true")
     parser.add_argument(
         "--checkpoint-selection",
-        choices=("validation", "test-oracle"),
+        choices=("validation", "test-oracle", "test-oracle-per-rate"),
         default="validation",
     )
     parser.add_argument(
@@ -1785,6 +1847,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--osram-read-ridge", type=float, default=1e-3)
     parser.add_argument("--osram-write-ridge", type=float, default=1e-3)
     parser.add_argument("--osram-write-step", type=float, default=1.0)
+    parser.add_argument("--osram-readout-fusion", choices=("flat", "local-gated"), default="flat")
     parser.add_argument(
         "--osram-predictor-mode",
         choices=("structured", "legacy-hidden"),
@@ -1884,6 +1947,7 @@ def main(argv=None) -> None:
         osram_query_availability=args.osram_query_availability,
         osram_bidirectional=args.osram_bidirectional,
         osram_forward_slot_reuse=args.osram_forward_slot_reuse,
+        osram_readout_fusion=args.osram_readout_fusion,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [

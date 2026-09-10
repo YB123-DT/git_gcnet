@@ -1,0 +1,14 @@
+# Local-centered gated context integration: approved implementation plan
+
+Goal: replace only emotion readout, leave OSRAM scan and structured JEPA contexts unchanged. User provided exact design; implementation authorized, formal five-seed training NOT authorized yet.
+
+Completion note: all implementation/verification steps below have been completed; see VERIFICATION.md and SMOKE.json. The original checklist is retained as the approved plan. Only the separately authorized formal training remains unlaunched.
+
+- [ ] Add LocalCenteredContextFusion in osram.py: Dinteraction128, type16, shared context LayerNorm/key/value, local LayerNorm/query; four sigmoid gates from q,k,q*k,abs(q-k),type; explicit active mask before projections and gates; sum(g*v)/active_count; zero-init output projection; residual subject + norm, padded outputs0. Context module's local subject projection/norm initialized from existing OSRAM equivalents. Old flat modules remain for checkpoints but are unused/frozen in gated mode. Construct new parameters in an isolated RNG context so shared Student/Teacher/MMoE initialization does not shift.
+- [ ] `osram_readout_fusion=flat|local-gated` default flat in OSRAM/model/config/CLI. Flat instantiates no new module or parameters. Disallow gated with legacy/new ablations or B2/classification completion in this locked experiment. Do not modify historical paths.
+- [ ] Test-first coverage: shapes, active/inactive inputs including padding, initial subject equivalence, gate response, nonzero gradients after zero-init warm-up; exact shared contexts/per-write states/query/key/value; old code parity and config load; no teacher/predictor calls in readout.
+- [ ] New opt-in `checkpoint_selection=test-oracle-per-rate`: each seed/rate chooses maximum test W-F1 earliest tie, saves rate-specific checkpoint and corresponding artifacts. No average participates in checkpoint selection. Existing checkpoint modes remain compatible; gated experiment requires the new mode. Add small deterministic selection tests.
+- [ ] One real MOSI batch only: default dimensions/features, causal eta=.6, gate diagnostics and parameter counts, two updates on same batch to expose zero-initialization gradient delay; no full training. Compare fixed-weight trajectories and inactive-gap invariants. Read actual saved flat checkpoint strict-load.
+- [ ] Verify existing relevant tests once with existing official remote Python and historical sources supplied via environment (remote has no .git). Document files, counts, equations, diagnostics, test results and remaining limitations. Push code/results artifacts; stop before launching 5x100epochs.
+
+Training proposal (not launched): MOSI seeds66–70, original per-seed config except readout and per-rate checkpoint selection,100epochs,cyclic,eta=.6,forward-only. Flat inherited per-rate histories. No loss/LR or capacity sweep.

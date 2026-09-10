@@ -1204,8 +1204,16 @@ class MissingM3GraphModel(GraphModel):
         osram_write_step=1.0,
         completion_path="none",
         osram_emotion_ablation="full",
+        osram_readout_fusion="flat",
     ) -> None:
         b2_constructor_settings = {k:v for k,v in locals().items() if k not in {"self","__class__"}}
+        if osram_readout_fusion not in ("flat", "local-gated"):
+            raise ValueError("osram_readout_fusion must be flat or local-gated")
+        if osram_readout_fusion == "local-gated" and (
+            backbone_type != "osram" or osram_predictor_mode != "structured"
+            or completion_path != "none" or classification_completion
+        ):
+            raise ValueError("local-gated requires structured OSRAM without completion")
         if completion_path not in {"none", "pre_osram_b2"}:
             raise ValueError("completion_path must be none or pre_osram_b2; legacy uses classification_completion")
         if completion_path == "pre_osram_b2":
@@ -1322,6 +1330,7 @@ class MissingM3GraphModel(GraphModel):
         self.osram_predictor_mode = osram_predictor_mode
         self.osram_ablation = osram_ablation
         self.osram_emotion_ablation = osram_emotion_ablation
+        self.osram_readout_fusion = osram_readout_fusion
         self.osram_query_availability = bool(osram_query_availability)
         self.osram_bidirectional = bool(osram_bidirectional)
         self.osram_forward_slot_reuse = bool(osram_forward_slot_reuse)
@@ -1378,6 +1387,7 @@ class MissingM3GraphModel(GraphModel):
                 write_step=osram_write_step,
                 osram_ablation=osram_ablation,
                 osram_emotion_ablation=osram_emotion_ablation,
+                osram_readout_fusion=osram_readout_fusion,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,

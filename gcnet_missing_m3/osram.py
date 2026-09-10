@@ -30,6 +30,85 @@ def _logit(probability: float) -> float:
     return math.log(probability / (1.0 - probability))
 
 
+class LocalCenteredContextFusion(nn.Module):
+    """Local subject plus an active-count-averaged, sigmoid-gated residual.
+
+    Evidence projections are shared across Base and the three target Gaps.
+    This module never reads or writes the recurrent memory or calls a predictor.
+    """
+
+    def __init__(self, local_dim, context_dim, output_dim,
+                 interaction_dim=128, type_dim=16, dropout=0.5):
+        super().__init__()
+        if any(int(d) <= 0 for d in (local_dim, context_dim, output_dim, interaction_dim, type_dim)):
+            raise ValueError("fusion dimensions must be positive")
+        self.local_dim, self.context_dim = int(local_dim), int(context_dim)
+        self.local_norm = nn.LayerNorm(local_dim)
+        self.context_norm = nn.LayerNorm(context_dim)
+        self.query = nn.Linear(local_dim, interaction_dim)
+        self.key = nn.Linear(context_dim, interaction_dim)
+        self.value = nn.Linear(context_dim, interaction_dim)
+        self.evidence_type = nn.Embedding(4, type_dim)
+        self.gate = nn.Sequential(nn.Linear(4 * interaction_dim + type_dim, interaction_dim),
+                                  nn.GELU(), nn.Linear(interaction_dim, 1))
+        self.context_out = nn.Sequential(nn.Dropout(dropout), nn.Linear(interaction_dim, output_dim))
+        self.local_skip = nn.Linear(local_dim, output_dim)
+        self.emotion_norm = nn.LayerNorm(output_dim)
+        nn.init.zeros_(self.context_out[-1].weight)
+        nn.init.zeros_(self.context_out[-1].bias)
+        self.last_diagnostics = {}
+
+    def forward(self, local, base_context, gap_context, availability, umask):
+        if local.ndim != 3 or local.shape[-1] != self.local_dim:
+            raise ValueError("local must be [L,B,local_dim]")
+        length, batch = local.shape[:2]
+        if (base_context.shape != (length, batch, self.context_dim)
+                or gap_context.shape != (length, batch, 3, self.context_dim)
+                or availability.shape != (length, batch, 3)
+                or umask.shape != (batch, length)):
+            raise ValueError("fusion context/mask shapes do not match local")
+        valid = umask.transpose(0, 1).bool()
+        if bool(((availability[valid] != 0) & (availability[valid] != 1)).any()):
+            raise ValueError("availability must be binary on valid utterances")
+        active = torch.cat((valid.unsqueeze(-1),
+                            valid.unsqueeze(-1) & ~availability.bool()), dim=-1)
+        evidence = torch.cat((base_context.unsqueeze(2), gap_context), dim=2)
+        # Mask before normalization as well as after sigmoid: even arbitrary
+        # inactive-slot values cannot leak through affine biases or NaNs.
+        evidence = torch.where(active.unsqueeze(-1), evidence, torch.zeros_like(evidence))
+        safe_local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
+        normalized = self.context_norm(evidence)
+        q = self.query(self.local_norm(safe_local)).unsqueeze(2).expand(-1, -1, 4, -1)
+        k, v = self.key(normalized), self.value(normalized)
+        types = self.evidence_type.weight.view(1, 1, 4, -1).expand(length, batch, -1, -1)
+        interaction = torch.cat((q, k, q * k, (q - k).abs(), types), dim=-1)
+        gates = torch.sigmoid(self.gate(interaction).squeeze(-1))
+        gates = gates.masked_fill(~active, 0)
+        count = active.sum(-1).clamp_min(1).to(v.dtype)
+        delta = (gates.unsqueeze(-1) * v).sum(2) / count.unsqueeze(-1)
+        residual = self.context_out(delta)
+        subject = self.local_skip(safe_local)
+        hidden = self.emotion_norm(subject + residual).masked_fill(~valid.unsqueeze(-1), 0)
+        with torch.no_grad():
+            self.last_active = active.detach()
+            self.last_gates = gates.detach()
+            gate_means = {}
+            for i, name in enumerate(('base', 'gap_audio', 'gap_text', 'gap_visual')):
+                selected = active[..., i]
+                gate_means[name] = float(gates[..., i][selected].mean()) if bool(selected.any()) else None
+            has_valid = bool(valid.any())
+            residual_norm = residual[valid].norm(dim=-1)
+            subject_norm = subject[valid].norm(dim=-1)
+            self.last_diagnostics = {
+                'mean_gate': gate_means,
+                'active_evidence_count_mean': float(active.sum(-1)[valid].float().mean()) if has_valid else None,
+                'context_residual_norm': float(residual_norm.mean()) if has_valid else None,
+                'local_subject_norm': float(subject_norm.mean()) if has_valid else None,
+                'residual_subject_norm_ratio': float((residual_norm / subject_norm.clamp_min(1e-8)).mean()) if has_valid else None,
+            }
+        return hidden
+
+
 class OSRAMBackbone(nn.Module):
     """Bidirectional slot-conditioned associative memory.
 
@@ -57,8 +136,13 @@ class OSRAMBackbone(nn.Module):
         forward_slot_reuse: bool = False,
         write_step: float = 1.0,
         osram_emotion_ablation: str = "full",
+        osram_readout_fusion: str = "flat",
     ) -> None:
         super().__init__()
+        if osram_readout_fusion not in ("flat", "local-gated"):
+            raise ValueError("osram_readout_fusion must be flat or local-gated")
+        if osram_readout_fusion == "local-gated" and (osram_ablation != "full" or osram_emotion_ablation != "full"):
+            raise ValueError("local-gated cannot combine with readout ablations")
         if osram_ablation not in OSRAM_ABLATIONS:
             raise ValueError(
                 "osram_ablation must be 'full', 'local-only', or 'local-base'"
@@ -93,6 +177,7 @@ class OSRAMBackbone(nn.Module):
         self.write_step = write_step
         self.osram_ablation = osram_ablation
         self.osram_emotion_ablation = osram_emotion_ablation
+        self.osram_readout_fusion = osram_readout_fusion
         self.query_use_availability = bool(query_use_availability)
         self.bidirectional = bool(bidirectional)
         self.forward_slot_reuse = bool(forward_slot_reuse)
@@ -158,6 +243,18 @@ class OSRAMBackbone(nn.Module):
         # while still giving the contextual branch a real gradient.
         nn.init.zeros_(self.emotion_adapter[-1].weight)
         nn.init.zeros_(self.emotion_adapter[-1].bias)
+
+        if osram_readout_fusion == "local-gated":
+            # Preserve RNG for downstream Student/Teacher/MMoE construction.
+            with torch.random.fork_rng(devices=[]):
+                self.local_centered_fusion = LocalCenteredContextFusion(
+                    self.latent_dim, self.context_dim, self.output_dim, dropout=dropout)
+            self.local_centered_fusion.local_skip.load_state_dict(self.local_skip.state_dict())
+            self.local_centered_fusion.emotion_norm.load_state_dict(self.emotion_norm.state_dict())
+            # Historical flat keys remain available, without unused optimizer parameters.
+            self.emotion_adapter.requires_grad_(False)
+            self.local_skip.requires_grad_(False)
+            self.emotion_norm.requires_grad_(False)
 
         self.last_diagnostics: dict[str, object] = {}
 
@@ -530,19 +627,23 @@ class OSRAMBackbone(nn.Module):
             emotion_base = torch.zeros_like(emotion_base)
         if self.osram_emotion_ablation in ("local-only", "local-base"):
             emotion_gap = torch.zeros_like(emotion_gap)
-        emotion_input = torch.cat(
-            (
-                local,
-                emotion_base,
-                (emotion_gap * missing.unsqueeze(-1)).reshape(
-                    active_gap_context.shape[0], active_gap_context.shape[1], -1
+        if self.osram_readout_fusion == "local-gated":
+            hidden = self.local_centered_fusion(
+                local, base_context, gap_context, availability, umask)
+        else:
+            emotion_input = torch.cat(
+                (
+                    local,
+                    emotion_base,
+                    (emotion_gap * missing.unsqueeze(-1)).reshape(
+                        active_gap_context.shape[0], active_gap_context.shape[1], -1
+                    ),
                 ),
-            ),
-            dim=-1,
-        )
-        hidden = self.emotion_norm(
-            self.local_skip(local) + self.emotion_adapter(emotion_input)
-        )
+                dim=-1,
+            )
+            hidden = self.emotion_norm(
+                self.local_skip(local) + self.emotion_adapter(emotion_input)
+            )
         hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
 
         diagnostics: dict[str, object] = {
@@ -608,6 +709,8 @@ class OSRAMBackbone(nn.Module):
                 for name in MODALITIES
             },
         }
+        if self.osram_readout_fusion == "local-gated":
+            diagnostics["local_centered_fusion"] = self.local_centered_fusion.last_diagnostics
         self.last_diagnostics = diagnostics
         contexts = {
             "base": active_base_context,

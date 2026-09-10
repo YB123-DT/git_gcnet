@@ -1,0 +1,75 @@
+{
+  "mode": "one-batch smoke only; no full training",
+  "device": "cuda",
+  "source_checkpoint": "/data2/yb/remote_experiments/osram_write_step_train_20260909/mosi/seed_66/best.pt",
+  "conversations": 32,
+  "valid_utterances": 843,
+  "rate": 0.5,
+  "flat_strict_checkpoint_load": true,
+  "flat_config_default": "flat",
+  "memory_equal_every_step": true,
+  "scan_steps": 63,
+  "predictor_and_contexts_equal": true,
+  "forward_teacher_calls": 0,
+  "flat_total_parameters": 7181217,
+  "gated_total_parameters": 7686482,
+  "flat_trainable_parameters": 6321057,
+  "gated_trainable_parameters": 4536214,
+  "added_parameters": 505265,
+  "readout_parameters": 505265,
+  "steps": [
+    {
+      "step": 1,
+      "loss": 1.6867120265960693,
+      "emotion_loss": 1.392143726348877,
+      "jepa_loss": 2.945683002471924,
+      "emotion_gradient_l1": {
+        "query": 0.0,
+        "key": 0.0,
+        "value": 0.0,
+        "gate": 0.0,
+        "context_out": 35.06068730354309
+      },
+      "key_total_gradient_l1": 3.4124066417571157,
+      "diagnostics": {
+        "mean_gate": {
+          "base": 0.4814941883087158,
+          "gap_audio": 0.47961682081222534,
+          "gap_text": 0.4629252552986145,
+          "gap_visual": 0.4939993619918823
+        },
+        "active_evidence_count_mean": 2.3546857833862305,
+        "context_residual_norm": 0.0,
+        "local_subject_norm": 85.44004821777344,
+        "residual_subject_norm_ratio": 0.0
+      }
+    },
+    {
+      "step": 2,
+      "loss": 8.740999221801758,
+      "emotion_loss": 8.42664909362793,
+      "jepa_loss": 3.1434974670410156,
+      "emotion_gradient_l1": {
+        "query": 22.522212356328964,
+        "key": 32.731729939579964,
+        "value": 181.71284580230713,
+        "gate": 73.30999930948019,
+        "context_out": 360.4364261627197
+      },
+      "key_total_gradient_l1": 90.53379122167826,
+      "diagnostics": {
+        "mean_gate": {
+          "base": 0.4923543632030487,
+          "gap_audio": 0.4895462393760681,
+          "gap_text": 0.47298464179039,
+          "gap_visual": 0.5063979029655457
+        },
+        "active_evidence_count_mean": 2.3546857833862305,
+        "context_residual_norm": 0.44636690616607666,
+        "local_subject_norm": 72.27776336669922,
+        "residual_subject_norm_ratio": 0.006448099855333567
+      }
+    }
+  ],
+  "selection_protocol": "per-rate-test-oracle; no epoch selected in smoke"
+}
