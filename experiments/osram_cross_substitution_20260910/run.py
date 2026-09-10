@@ -40,7 +40,7 @@ def patched_inputs(local, base, gap, availability, valid):
 
 
 @torch.no_grad()
-def run(seed, output):
+def run(seed, output, input_fn=patched_inputs, modes=MODES):
     from gcnet_missing_m3 import train_gcnet as tr
     from experiments.osram_local_gated_20260910.smoke import make
     from experiments.osram_causal_readout_20260910.run import FULL, FEATURES
@@ -66,19 +66,20 @@ def run(seed, output):
         checkpoint_selection=cp.get('selection_protocol', cfg.checkpoint_selection),
         protocol='fixed existing checkpoint; no intervention-specific selection',
         scope='exactly one missing modality; AT / AV / TV; nonzero labels for W-F1',
-        label='INTERNAL DIAGNOSTIC ONLY', rows=[], mask_matches={}, max_normal_logit_error=0.)
+        label='INTERNAL DIAGNOSTIC ONLY', modes=list(modes), rows=[], mask_matches={}, max_normal_logit_error=0.)
     for ri in range(8):
         rate = ri/10
         schedule = tr._build_schedule(cfg, 'test', rate)
         labels, masks = [], []
-        predictions = {m: [] for m in MODES}
+        predictions = {m: [] for m in modes}
         for raw in test[cfg.fold-1]:
             view = tr._prepare_view(tr._move_batch(raw, torch.device('cuda')), schedule, 0, tuple(dims))
             original = model([view['incomplete']], view['availability'], view['qmask'],
                              view['umask'], view['lengths'], predict_missing=False)[0]
             ctx = model.last_osram_context
             valid = view['umask'].T.bool()
-            inputs = patched_inputs(ctx['local'], ctx['base'], ctx['gap'], view['availability'], valid)
+            inputs = input_fn(ctx['local'], ctx['base'], ctx['gap'], view['availability'], valid)
+            assert set(inputs) == set(modes)
             # All following computations are readout-only; the scan is never called again.
             for mode, value in inputs.items():
                 hidden = model.osram.emotion_norm(model.osram.local_skip(ctx['local']) +
@@ -100,7 +101,7 @@ def run(seed, output):
                   'AV': eligible & (a[:,1] == 0), 'TV': eligible & (a[:,0] == 0)}
         for group, selected in groups.items():
             n = int((selected & (y != 0)).sum())
-            for mode in MODES:
+            for mode in modes:
                 metrics = tr._metrics(cfg.dataset, y[selected], pred[mode][selected]) if n else None
                 report['rows'].append(dict(seed=seed, rate=rate, group=group, mode=mode,
                     count=int(selected.sum()), nonzero_count=n, metrics=metrics))
