@@ -1,0 +1,182 @@
+{
+  "backbone_initialization": null,
+  "backbone_type": "osram",
+  "best_epoch": null,
+  "best_selection_mean_weighted_f1": null,
+  "best_validation_mean_weighted_f1": null,
+  "ema_steps": 200,
+  "evaluation_stage": "train-test-oracle",
+  "frozen_completion_integrity": null,
+  "graph_message_calibration": "none",
+  "graph_second_layer": "graphconv",
+  "jepa_contrastive_source": "contrastive",
+  "jepa_rate_weighting": "uniform",
+  "jepa_regression_aggregation": "target",
+  "mask_sha256": {
+    "0.0": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+    "0.1": "28cece4ea0be0867695e89603fcbea08a094799411c6104e45b88b3534830426",
+    "0.2": "062dca8a99c7c2648dd293bba5e17b9529a933adb81b864eda13beaf7750beff",
+    "0.3": "535634836d79923d29eaee712d800cade0a657585a3afaee1bc278560a6540ac",
+    "0.4": "1ae1944a68e2a0b8bbfd8e8acdcf4b76a7f18e028b10b4d31075abdc6025a949",
+    "0.5": "5a558876a823dc6ee223ff20f6093d59cd08e259b6bfeca4ed575f53d3abb27e",
+    "0.6": "c6bdc8d6f5ea9809281252f88a49e37f545a0b3d62ab8eb8f0fdd4e10b151ee2",
+    "0.7": "f43ecf9a5a2cc4e17b3a820830d002dcf67a1734de875afdffabae8a7e5b9d0b"
+  },
+  "optimizer_parameter_groups": {
+    "default": {
+      "learning_rate": 0.001,
+      "parameter_count": 4853393
+    }
+  },
+  "osram_ablation": "full",
+  "osram_bidirectional": false,
+  "osram_dimensions": {
+    "key_dim": 32,
+    "latent_dim": 256,
+    "num_heads": 8,
+    "output_dim": 700,
+    "read_ridge": 0.001,
+    "value_dim": 32,
+    "write_ridge": 0.001
+  },
+  "osram_emotion_ablation": "full",
+  "osram_forward_slot_reuse": false,
+  "osram_predictor_mode": "structured",
+  "osram_query_availability": true,
+  "osram_readout_fusion": "flat",
+  "osram_write_step": 0.6,
+  "parameter_count": 8493465,
+  "postgraph_bilstm_ablation": "none",
+  "postgraph_sequence_mode": "independent",
+  "readout_parameter_count": 0,
+  "readout_rank": 8,
+  "readout_type": "shared",
+  "recurrent_padding_mode": "legacy",
+  "selected_epoch_by_rate": {
+    "0.0": 45,
+    "0.1": 35,
+    "0.2": 77,
+    "0.3": 35,
+    "0.4": 35,
+    "0.5": 35,
+    "0.6": 35,
+    "0.7": 51
+  },
+  "selected_weighted_f1_by_rate": {
+    "0.0": 0.8729426638693444,
+    "0.1": 0.8460735980043581,
+    "0.2": 0.8149997120368649,
+    "0.3": 0.8122605261084733,
+    "0.4": 0.7787230191411377,
+    "0.5": 0.7617775819359757,
+    "0.6": 0.7524961890243903,
+    "0.7": 0.7530323088729853
+  },
+  "selection_missing_rates": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7
+  ],
+  "selection_protocol": "per-rate-test-oracle",
+  "selection_split": "test",
+  "task_regression_loss": "mse",
+  "task_smooth_l1_beta": 1.0,
+  "test": {
+    "0.0": {
+      "accuracy": 0.8734756097560976,
+      "correlation": 0.7801487461967176,
+      "loss": 1.310567021369934,
+      "macro_f1": 0.8693186318394228,
+      "mae": 0.9556527137756348,
+      "mask_sha256": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.7355604767799377,
+      "weighted_f1": 0.8729426638693444
+    },
+    "0.1": {
+      "accuracy": 0.8460365853658537,
+      "correlation": 0.7210282137640447,
+      "loss": 1.2552820444107056,
+      "macro_f1": 0.8422983088769086,
+      "mae": 0.8997425436973572,
+      "mask_sha256": "28cece4ea0be0867695e89603fcbea08a094799411c6104e45b88b3534830426",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9779265522956848,
+      "weighted_f1": 0.8460735980043581
+    },
+    "0.2": {
+      "accuracy": 0.8155487804878049,
+      "correlation": 0.698478550373716,
+      "loss": 1.2976744174957275,
+      "macro_f1": 0.8099083500372396,
+      "mae": 0.8896145224571228,
+      "mask_sha256": "062dca8a99c7c2648dd293bba5e17b9529a933adb81b864eda13beaf7750beff",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0753237009048462,
+      "weighted_f1": 0.8149997120368649
+    },
+    "0.3": {
+      "accuracy": 0.8125,
+      "correlation": 0.6738317794513716,
+      "loss": 1.3861076831817627,
+      "macro_f1": 0.8073752587213259,
+      "mae": 0.9415156841278076,
+      "mask_sha256": "535634836d79923d29eaee712d800cade0a657585a3afaee1bc278560a6540ac",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9937371611595154,
+      "weighted_f1": 0.8122605261084733
+    },
+    "0.4": {
+      "accuracy": 0.7804878048780488,
+      "correlation": 0.620095460937001,
+      "loss": 1.553269863128662,
+      "macro_f1": 0.7717996289424861,
+      "mae": 0.9911643266677856,
+      "mask_sha256": "1ae1944a68e2a0b8bbfd8e8acdcf4b76a7f18e028b10b4d31075abdc6025a949",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9894454479217529,
+      "weighted_f1": 0.7787230191411377
+    },
+    "0.5": {
+      "accuracy": 0.7652439024390244,
+      "correlation": 0.6040904760940077,
+      "loss": 1.6083892583847046,
+      "macro_f1": 0.753359375,
+      "mae": 1.0309091806411743,
+      "mask_sha256": "5a558876a823dc6ee223ff20f6093d59cd08e259b6bfeca4ed575f53d3abb27e",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9580970406532288,
+      "weighted_f1": 0.7617775819359757
+    },
+    "0.6": {
+      "accuracy": 0.7560975609756098,
+      "correlation": 0.5867329281846527,
+      "loss": 1.6598929166793823,
+      "macro_f1": 0.7437500000000001,
+      "mae": 1.0326006412506104,
+      "mask_sha256": "c6bdc8d6f5ea9809281252f88a49e37f545a0b3d62ab8eb8f0fdd4e10b151ee2",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9738156795501709,
+      "weighted_f1": 0.7524961890243903
+    },
+    "0.7": {
+      "accuracy": 0.7515243902439024,
+      "correlation": 0.5503842754307317,
+      "loss": 2.045833110809326,
+      "macro_f1": 0.7501302767943729,
+      "mae": 1.1129894256591797,
+      "mask_sha256": "f43ecf9a5a2cc4e17b3a820830d002dcf67a1734de875afdffabae8a7e5b9d0b",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.233492374420166,
+      "weighted_f1": 0.7530323088729853
+    }
+  },
+  "train_missing_rate": null,
+  "trainable_parameter_count": 4853393,
+  "training_objective": "complete-state"
+}

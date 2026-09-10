@@ -1,0 +1,182 @@
+{
+  "backbone_initialization": null,
+  "backbone_type": "osram",
+  "best_epoch": null,
+  "best_selection_mean_weighted_f1": null,
+  "best_validation_mean_weighted_f1": null,
+  "ema_steps": 0,
+  "evaluation_stage": "train-test-oracle",
+  "frozen_completion_integrity": null,
+  "graph_message_calibration": "none",
+  "graph_second_layer": "graphconv",
+  "jepa_contrastive_source": "contrastive",
+  "jepa_rate_weighting": "uniform",
+  "jepa_regression_aggregation": "target",
+  "mask_sha256": {
+    "0.0": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+    "0.1": "eb2795dc2edf8b07135ed297a0d25e9c7cb42530214cbed97f650c76fbd48509",
+    "0.2": "992cda7724b267e584f66b16f96a79efafaaf360f4d9a4abd72130824315403c",
+    "0.3": "2479f1c5c543be6d83a1a43fe04247c688b58cb1ca94ca709199dfff0a868f43",
+    "0.4": "68171473b0f9f645f95ac216dab871fe910e54b4f8c9a01be15d21db34795b76",
+    "0.5": "d42e61495e88243750c9e238cae18b61f31063f90528f3fc353de7fab35d464d",
+    "0.6": "6b52889567e922a3d693c4a6cc057ff1ceb96acaef17527989a70e21abfe1fe7",
+    "0.7": "f1208aad19deff6a211236caa7b64e705390ff94e26bc77d8c86717fbffed9cb"
+  },
+  "optimizer_parameter_groups": {
+    "default": {
+      "learning_rate": 0.001,
+      "parameter_count": 6321057
+    }
+  },
+  "osram_ablation": "full",
+  "osram_bidirectional": false,
+  "osram_dimensions": {
+    "key_dim": 32,
+    "latent_dim": 256,
+    "num_heads": 8,
+    "output_dim": 700,
+    "read_ridge": 0.001,
+    "value_dim": 32,
+    "write_ridge": 0.001
+  },
+  "osram_emotion_ablation": "full",
+  "osram_forward_slot_reuse": false,
+  "osram_predictor_mode": "structured",
+  "osram_query_availability": true,
+  "osram_readout_fusion": "flat",
+  "osram_write_step": 0.6,
+  "parameter_count": 7181217,
+  "postgraph_bilstm_ablation": "none",
+  "postgraph_sequence_mode": "independent",
+  "readout_parameter_count": 0,
+  "readout_rank": 8,
+  "readout_type": "shared",
+  "recurrent_padding_mode": "legacy",
+  "selected_epoch_by_rate": {
+    "0.0": 79,
+    "0.1": 79,
+    "0.2": 79,
+    "0.3": 63,
+    "0.4": 79,
+    "0.5": 39,
+    "0.6": 39,
+    "0.7": 79
+  },
+  "selected_weighted_f1_by_rate": {
+    "0.0": 0.8746649050245099,
+    "0.1": 0.8606961736398836,
+    "0.2": 0.8260436999144509,
+    "0.3": 0.8113878258762106,
+    "0.4": 0.810784375345543,
+    "0.5": 0.7735113573070099,
+    "0.6": 0.7541366879345974,
+    "0.7": 0.7549917143504451
+  },
+  "selection_missing_rates": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7
+  ],
+  "selection_protocol": "per-rate-test-oracle",
+  "selection_split": "test",
+  "task_regression_loss": "mse",
+  "task_smooth_l1_beta": 1.0,
+  "test": {
+    "0.0": {
+      "accuracy": 0.875,
+      "correlation": 0.7856282329176509,
+      "loss": 0.9950739145278931,
+      "macro_f1": 0.8712469362745099,
+      "mae": 0.7909672260284424,
+      "mask_sha256": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0826445817947388,
+      "weighted_f1": 0.8746649050245099
+    },
+    "0.1": {
+      "accuracy": 0.8612804878048781,
+      "correlation": 0.7623971645792998,
+      "loss": 1.0838991403579712,
+      "macro_f1": 0.8567228373179214,
+      "mae": 0.8258979916572571,
+      "mask_sha256": "eb2795dc2edf8b07135ed297a0d25e9c7cb42530214cbed97f650c76fbd48509",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0477056503295898,
+      "weighted_f1": 0.8606961736398836
+    },
+    "0.2": {
+      "accuracy": 0.8262195121951219,
+      "correlation": 0.701238313266591,
+      "loss": 1.2937926054000854,
+      "macro_f1": 0.8215604867573372,
+      "mae": 0.8826573491096497,
+      "mask_sha256": "992cda7724b267e584f66b16f96a79efafaaf360f4d9a4abd72130824315403c",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0387097597122192,
+      "weighted_f1": 0.8260436999144509
+    },
+    "0.3": {
+      "accuracy": 0.8109756097560976,
+      "correlation": 0.670149439355507,
+      "loss": 1.4280824661254883,
+      "macro_f1": 0.8071832214510561,
+      "mae": 0.9211678504943848,
+      "mask_sha256": "2479f1c5c543be6d83a1a43fe04247c688b58cb1ca94ca709199dfff0a868f43",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.1524931192398071,
+      "weighted_f1": 0.8113878258762106
+    },
+    "0.4": {
+      "accuracy": 0.8109756097560976,
+      "correlation": 0.665237151813836,
+      "loss": 1.4172252416610718,
+      "macro_f1": 0.8059078978764018,
+      "mae": 0.9484429359436035,
+      "mask_sha256": "68171473b0f9f645f95ac216dab871fe910e54b4f8c9a01be15d21db34795b76",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9959081411361694,
+      "weighted_f1": 0.810784375345543
+    },
+    "0.5": {
+      "accuracy": 0.774390243902439,
+      "correlation": 0.6190121971280033,
+      "loss": 1.6086913347244263,
+      "macro_f1": 0.7671080406831702,
+      "mae": 1.028191328048706,
+      "mask_sha256": "d42e61495e88243750c9e238cae18b61f31063f90528f3fc353de7fab35d464d",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0896587371826172,
+      "weighted_f1": 0.7735113573070099
+    },
+    "0.6": {
+      "accuracy": 0.7560975609756098,
+      "correlation": 0.584629714050945,
+      "loss": 1.7071681022644043,
+      "macro_f1": 0.7464440321583179,
+      "mae": 1.048072099685669,
+      "mask_sha256": "6b52889567e922a3d693c4a6cc057ff1ceb96acaef17527989a70e21abfe1fe7",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0610610246658325,
+      "weighted_f1": 0.7541366879345974
+    },
+    "0.7": {
+      "accuracy": 0.7560975609756098,
+      "correlation": 0.5881264884467609,
+      "loss": 1.656930685043335,
+      "macro_f1": 0.7479419421150206,
+      "mae": 1.033280849456787,
+      "mask_sha256": "f1208aad19deff6a211236caa7b64e705390ff94e26bc77d8c86717fbffed9cb",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9503626227378845,
+      "weighted_f1": 0.7549917143504451
+    }
+  },
+  "train_missing_rate": null,
+  "trainable_parameter_count": 6321057,
+  "training_objective": "emotion-only"
+}
