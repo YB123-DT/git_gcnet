@@ -1205,7 +1205,16 @@ class MissingM3GraphModel(GraphModel):
         completion_path="none",
         osram_emotion_ablation="full",
         osram_readout_fusion="flat",
+        complete_state_jepa=False,
     ) -> None:
+        self.complete_state_jepa = bool(complete_state_jepa)
+        if complete_state_jepa and (
+            backbone_type != "osram" or osram_bidirectional or osram_forward_slot_reuse
+            or osram_write_step != .6 or osram_readout_fusion != "flat"
+            or completion_path != "none" or classification_completion
+            or local_context_residual or node_interaction_residual
+        ):
+            raise ValueError("complete-state requires unchanged causal eta=.6 Flat without completion")
         b2_constructor_settings = {k:v for k,v in locals().items() if k not in {"self","__class__"}}
         if osram_readout_fusion not in ("flat", "local-gated", "local-cross-attn"):
             raise ValueError("osram_readout_fusion must be flat, local-gated, or local-cross-attn")
@@ -1465,6 +1474,14 @@ class MissingM3GraphModel(GraphModel):
             # Keep legacy state keys loadable, but do not optimize the unused predictor.
             self.missing_predictor.requires_grad_(False)
 
+        if self.complete_state_jepa:
+            from .complete_state import CompleteViewLocalStateJEPA
+            with torch.random.fork_rng(devices=[]):
+                self.state_jepa = CompleteViewLocalStateJEPA(
+                    self.observed_set, self.osram.local_path, hidden_dim, latent_dim)
+            self.missing_predictor.requires_grad_(False)
+            self.teacher.requires_grad_(False)
+
     @staticmethod
     def _feature_tensor(inputfeats) -> torch.Tensor:
         if torch.is_tensor(inputfeats):
@@ -1527,6 +1544,8 @@ class MissingM3GraphModel(GraphModel):
             graph_hidden = self.encode_hidden(
                 [encoded], qmask, umask, seq_lengths
             )
+        if self.complete_state_jepa and predict_missing:
+            raise ValueError("complete-state uses complete_state_loss, not modality predictions")
         if self.completion_path != "pre_osram_b2" and (predict_missing or self.classification_completion):
             if self.backbone_type == "osram" and self.missing_predictor.structured:
                 internal_predictions = self.missing_predictor(
@@ -1582,8 +1601,17 @@ class MissingM3GraphModel(GraphModel):
 
     @torch.no_grad()
     def update_teacher(self, tau: float) -> None:
-        self.teacher.update_from(self.observed_set.projectors, tau)
+        if self.complete_state_jepa:
+            self.state_jepa.update(self.observed_set, self.osram.local_path, tau)
+        else:
+            self.teacher.update_from(self.observed_set.projectors, tau)
         self.ema_step += 1
+
+    def complete_state_loss(self, hidden, complete_features, availability, umask):
+        if not self.complete_state_jepa:
+            raise ValueError("complete-state objective is disabled")
+        return self.state_jepa.loss(hidden, self._feature_tensor(complete_features),
+                                    availability, umask)
 
     def train(self, mode: bool = True) -> "MissingM3GraphModel":
         super().train(mode)

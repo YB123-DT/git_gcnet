@@ -45,10 +45,13 @@ def train(seed):
         source_sha256={n: runner.sha(REPO / n) for n in (
             'gcnet_missing_m3/osram.py','gcnet_missing_m3/model.py',
             'gcnet_missing_m3/train_gcnet.py','experiments/osram_causal_nojepa_20260910/run.py')})
+    if cfg.training_objective == 'complete-state':
+        provenance['source_sha256'].update({n: runner.sha(REPO / n) for n in (
+            'gcnet_missing_m3/complete_state.py', 'experiments/osram_complete_state_20260910/run.py')})
     runner.write_json(output / 'PROVENANCE.json', provenance)
     try:
         torch.set_num_threads(6)
-        print(f'TRAIN seed={seed} Flat emotion-only cyclic eta=.6 epochs=100', flush=True)
+        print(f'TRAIN seed={seed} Flat {cfg.training_objective} cyclic eta=.6 epochs=100', flush=True)
         roots = [str(runner.FEATURES / n) for n in
                  ('wav2vec-large-c-UTT','deberta-large-4-UTT','manet_UTT')]
         run_experiment(cfg, *roots, output_dir=str(output))
