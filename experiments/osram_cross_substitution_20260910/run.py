@@ -9,11 +9,12 @@ import torch
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-MODES = ('normal', 'no_gap', 'no_base', 'base_to_gap', 'gap_to_base')
+MODES = ('normal', 'no_gap', 'no_base', 'base_to_gap', 'gap_to_base',
+         'move_base_to_gap', 'move_gap_to_base', 'swap')
 
 
 def patched_inputs(local, base, gap, availability, valid):
-    """Copy the donor, retain its original slot; intervene only on one-missing rows."""
+    """Copy, move or swap original evidence; intervene only on one-missing rows."""
     missing = ~availability.bool()
     eligible = valid & (missing.sum(-1) == 1)
     active_gap = gap * missing[..., None]
@@ -28,6 +29,12 @@ def patched_inputs(local, base, gap, availability, valid):
             g[eligible] = (base.unsqueeze(-2).expand_as(g) * missing[..., None])[eligible]
         elif mode == 'gap_to_base':
             b[eligible] = active_gap.sum(-2)[eligible]
+        elif mode in ('move_base_to_gap', 'swap'):
+            g[eligible] = (base.unsqueeze(-2).expand_as(g) * missing[..., None])[eligible]
+            b[eligible] = 0 if mode == 'move_base_to_gap' else active_gap.sum(-2)[eligible]
+        elif mode == 'move_gap_to_base':
+            b[eligible] = active_gap.sum(-2)[eligible]
+            g[eligible] = 0
         out[mode] = torch.cat([local, b, g.flatten(-2)], -1)
     return out
 

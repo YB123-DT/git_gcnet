@@ -16,7 +16,8 @@ def test_five_patches_only_change_eligible_slots_without_mutation():
     valid = torch.tensor([[True], [True], [True], [False]])
     snapshots = [x.clone() for x in (local, base, gap)]
     results = module.patched_inputs(local, base, gap, availability, valid)
-    assert set(results) == {'normal', 'no_gap', 'no_base', 'base_to_gap', 'gap_to_base'}
+    assert set(results) == {'normal', 'no_gap', 'no_base', 'base_to_gap', 'gap_to_base',
+                            'move_base_to_gap', 'move_gap_to_base', 'swap'}
     original = torch.cat([local, base, (gap * (1-availability)[...,None]).flatten(-2)], -1)
     assert torch.equal(results['normal'], original)
     for result in results.values():
@@ -29,4 +30,10 @@ def test_five_patches_only_change_eligible_slots_without_mutation():
     assert torch.count_nonzero(results['base_to_gap'][0,0,11:]) == 0
     assert torch.equal(results['gap_to_base'][0,0,2:5], gap[0,0,1])
     assert torch.equal(results['gap_to_base'][...,5:], original[...,5:])
+    assert torch.count_nonzero(results['move_base_to_gap'][0,0,2:5]) == 0
+    assert torch.equal(results['move_base_to_gap'][0,0,5:], results['base_to_gap'][0,0,5:])
+    assert torch.count_nonzero(results['move_gap_to_base'][0,0,5:]) == 0
+    assert torch.equal(results['move_gap_to_base'][0,0,2:5], gap[0,0,1])
+    assert torch.equal(results['swap'][0,0,2:5], gap[0,0,1])
+    assert torch.equal(results['swap'][0,0,5:], results['base_to_gap'][0,0,5:])
     assert all(torch.equal(a,b) for a,b in zip(snapshots,(local,base,gap)))

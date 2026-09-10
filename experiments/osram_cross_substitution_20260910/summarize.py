@@ -6,11 +6,13 @@ from pathlib import Path
 import statistics as st
 
 MODES = ('normal', 'no_gap', 'no_base', 'base_to_gap', 'gap_to_base')
+EXTRA_MODES = ('move_base_to_gap', 'move_gap_to_base', 'swap')
 
 
 def summarize(root):
     reports = [json.loads((root/f'seed{s}.json').read_text()) for s in range(66,71)]
-    assert all(len(r['rows']) == 8*4*5 and all(r['mask_matches'].values()) for r in reports)
+    modes = MODES + EXTRA_MODES if any(row['mode']=='swap' for row in reports[0]['rows']) else MODES
+    assert all(len(r['rows']) == 8*4*len(modes) and all(r['mask_matches'].values()) for r in reports)
     raw = [dict(seed=r['seed'], rate=row['rate'], group=row['group'], mode=row['mode'],
                 count=row['count'], nonzero_count=row['nonzero_count'],
                 weighted_f1=None if row['metrics'] is None else row['metrics']['weighted_f1']*100)
@@ -21,7 +23,7 @@ def summarize(root):
     for group in ('one_missing', 'AT', 'AV', 'TV'):
         for rate in [i/10 for i in range(8)]:
             subset = [x for x in raw if x['group']==group and x['rate']==rate]
-            for mode in MODES:
+            for mode in modes:
                 values = [x['weighted_f1'] for x in subset if x['mode']==mode and x['weighted_f1'] is not None]
                 summary.append(dict(group=group,rate=rate,mode=mode,n_seeds=len(values),
                     mean=None if not values else st.mean(values), sd=None if len(values)<2 else st.stdev(values)))
@@ -34,17 +36,17 @@ def summarize(root):
            'One original model forward per batch. Replay only emotion_adapter, local_skip, emotion_norm and smax_fc.',
            'Normal replay logits are exactly equal; every test mask hash matches the reference.',
            'Only exactly-one-missing valid utterances are patched. W-F1 excludes labels equal to zero.',
-           'Donor slots remain intact: Base→Gap retains Base; Gap→Base retains the active Gap.',
+           'Copy retains the donor; Move zeros the donor; Swap exchanges original Base and the unique active Gap.',
            'Raw magnitude and slot positions are preserved; no normalization/learned alignment is added.', '',
            '| Seed | Existing checkpoint epoch |', '|---|---:|']
     lines += [f"| {r['seed']} | {r['checkpoint_epoch']} |" for r in reports]
     for group in ('one_missing','AT','AV','TV'):
         lines += ['',f'## {group}: five-seed W-F1 mean ± sample SD (%)','',
-            '| Rate | Nonzero samples per seed | Normal | No Gap | No Base | Base→Gap | Gap→Base |',
-            '|---|---|---|---|---|---|---|']
+            '| Rate | Nonzero samples per seed | '+' | '.join(modes)+' |',
+            '|---|---|'+ '---|'*len(modes)]
         for rate in [i/10 for i in range(8)]:
             cells=[]
-            for mode in MODES:
+            for mode in modes:
                 item=next(s for s in summary if s['group']==group and s['rate']==rate and s['mode']==mode)
                 cells.append('N/A' if item['mean'] is None else f"{item['mean']:.3f} ± {item['sd']:.3f} (n={item['n_seeds']})" if item['sd'] is not None else f"{item['mean']:.3f} (n=1)")
             counts=[x['nonzero_count'] for x in raw if x['group']==group and x['rate']==rate and x['mode']=='normal']
@@ -54,7 +56,11 @@ def summarize(root):
         'Not an eight-rate benchmark score. Recovery is substitution minus the corresponding deletion, not proof of semantic identity.', '',
         '| Contrast | Mean delta (pp) | SD across seeds | Positive seeds |', '|---|---:|---:|---:|']
     eligible_rates=[i/10 for i in range(8) if all(next(x for x in raw if x['seed']==s and x['group']=='one_missing' and x['rate']==i/10 and x['mode']=='normal')['nonzero_count']>0 for s in range(66,71))]
-    for a,b in [('no_gap','normal'),('no_base','normal'),('base_to_gap','no_gap'),('gap_to_base','no_base'),('base_to_gap','normal'),('gap_to_base','normal')]:
+    contrasts=[('no_gap','normal'),('no_base','normal'),('base_to_gap','no_gap'),('gap_to_base','no_base'),('base_to_gap','normal'),('gap_to_base','normal')]
+    if 'swap' in modes:
+        contrasts += [('move_base_to_gap','no_gap'),('move_gap_to_base','no_base'),
+                      ('swap','normal'),('move_base_to_gap','no_base'),('move_gap_to_base','no_gap')]
+    for a,b in contrasts:
         delta=[]
         for seed in range(66,71):
             def value(mode,rate):
