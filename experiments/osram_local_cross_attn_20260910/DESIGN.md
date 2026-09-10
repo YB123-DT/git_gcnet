@@ -65,3 +65,19 @@ not dataset-wide averages.
 Remote root: `/data2/yb/remote_experiments/osram_local_cross_attn_20260910` on biggpu.
 GPU2:seeds66/67/68; GPU3:seeds69/70. Launcher PID2564961. Per-process PIDs and
 status in QUEUE.json, logs seedN.log. Existing s0 environment, no new dependencies.
+
+## Completed result and stopping decision
+
+All five seeds completed 100 epochs. All reference/treatment test-mask hashes
+matched; per-rate selected epochs were checked against full histories.
+See [results/RESULT.md](results/RESULT.md) and the per-seed/rate CSV.
+
+Flat eight-rate W-F1: 80.002%; Cross-attention: 79.419% (-0.584 pp).
+High-missing mean: 75.424% versus 74.518% (-0.907 pp).
+All eight rate means decreased and all five seed-level overall deltas were negative.
+STOP this readout candidate; retain Flat. No follow-up tuning launched.
+
+The wider cross-attention exceeds the previous 128d gated result (78.503%),
+but this does not isolate bottleneck width: routing, aggregation and parameter
+counts also differ. Neither compression alone nor an attention benefit is established.
+All results remain exploratory per-rate Test-oracle diagnostics, not formal results.

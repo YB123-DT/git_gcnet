@@ -1,0 +1,182 @@
+{
+  "backbone_initialization": null,
+  "backbone_type": "osram",
+  "best_epoch": null,
+  "best_selection_mean_weighted_f1": null,
+  "best_validation_mean_weighted_f1": null,
+  "ema_steps": 200,
+  "evaluation_stage": "train-test-oracle",
+  "frozen_completion_integrity": null,
+  "graph_message_calibration": "none",
+  "graph_second_layer": "graphconv",
+  "jepa_contrastive_source": "contrastive",
+  "jepa_rate_weighting": "uniform",
+  "jepa_regression_aggregation": "target",
+  "mask_sha256": {
+    "0.0": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+    "0.1": "eb2795dc2edf8b07135ed297a0d25e9c7cb42530214cbed97f650c76fbd48509",
+    "0.2": "992cda7724b267e584f66b16f96a79efafaaf360f4d9a4abd72130824315403c",
+    "0.3": "2479f1c5c543be6d83a1a43fe04247c688b58cb1ca94ca709199dfff0a868f43",
+    "0.4": "68171473b0f9f645f95ac216dab871fe910e54b4f8c9a01be15d21db34795b76",
+    "0.5": "d42e61495e88243750c9e238cae18b61f31063f90528f3fc353de7fab35d464d",
+    "0.6": "6b52889567e922a3d693c4a6cc057ff1ceb96acaef17527989a70e21abfe1fe7",
+    "0.7": "f1208aad19deff6a211236caa7b64e705390ff94e26bc77d8c86717fbffed9cb"
+  },
+  "optimizer_parameter_groups": {
+    "default": {
+      "learning_rate": 0.001,
+      "parameter_count": 5238037
+    }
+  },
+  "osram_ablation": "full",
+  "osram_bidirectional": false,
+  "osram_dimensions": {
+    "key_dim": 32,
+    "latent_dim": 256,
+    "num_heads": 8,
+    "output_dim": 700,
+    "read_ridge": 0.001,
+    "value_dim": 32,
+    "write_ridge": 0.001
+  },
+  "osram_emotion_ablation": "full",
+  "osram_forward_slot_reuse": false,
+  "osram_predictor_mode": "structured",
+  "osram_query_availability": true,
+  "osram_readout_fusion": "local-cross-attn",
+  "osram_write_step": 0.6,
+  "parameter_count": 8388305,
+  "postgraph_bilstm_ablation": "none",
+  "postgraph_sequence_mode": "independent",
+  "readout_parameter_count": 0,
+  "readout_rank": 8,
+  "readout_type": "shared",
+  "recurrent_padding_mode": "legacy",
+  "selected_epoch_by_rate": {
+    "0.0": 46,
+    "0.1": 49,
+    "0.2": 55,
+    "0.3": 46,
+    "0.4": 49,
+    "0.5": 55,
+    "0.6": 55,
+    "0.7": 88
+  },
+  "selected_weighted_f1_by_rate": {
+    "0.0": 0.8729426638693444,
+    "0.1": 0.8551473890665402,
+    "0.2": 0.807522692871034,
+    "0.3": 0.8086129345275687,
+    "0.4": 0.7987804878048781,
+    "0.5": 0.7440242927609132,
+    "0.6": 0.7482866564900805,
+    "0.7": 0.7419676608231331
+  },
+  "selection_missing_rates": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7
+  ],
+  "selection_protocol": "per-rate-test-oracle",
+  "selection_split": "test",
+  "task_regression_loss": "mse",
+  "task_smooth_l1_beta": 1.0,
+  "test": {
+    "0.0": {
+      "accuracy": 0.8734756097560976,
+      "correlation": 0.7713129177012052,
+      "loss": 1.2094454765319824,
+      "macro_f1": 0.8693186318394228,
+      "mae": 0.9114538431167603,
+      "mask_sha256": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.8317969441413879,
+      "weighted_f1": 0.8729426638693444
+    },
+    "0.1": {
+      "accuracy": 0.8551829268292683,
+      "correlation": 0.7433770822458282,
+      "loss": 1.1878712177276611,
+      "macro_f1": 0.851522537268272,
+      "mae": 0.8335240483283997,
+      "mask_sha256": "eb2795dc2edf8b07135ed297a0d25e9c7cb42530214cbed97f650c76fbd48509",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.3813683986663818,
+      "weighted_f1": 0.8551473890665402
+    },
+    "0.2": {
+      "accuracy": 0.8079268292682927,
+      "correlation": 0.6817717513071588,
+      "loss": 1.3760982751846313,
+      "macro_f1": 0.8023699538059851,
+      "mae": 0.9390817284584045,
+      "mask_sha256": "992cda7724b267e584f66b16f96a79efafaaf360f4d9a4abd72130824315403c",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9591348767280579,
+      "weighted_f1": 0.807522692871034
+    },
+    "0.3": {
+      "accuracy": 0.8079268292682927,
+      "correlation": 0.6348817507084186,
+      "loss": 1.6028203964233398,
+      "macro_f1": 0.8047250047250047,
+      "mae": 1.0394726991653442,
+      "mask_sha256": "2479f1c5c543be6d83a1a43fe04247c688b58cb1ca94ca709199dfff0a868f43",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.7774445414543152,
+      "weighted_f1": 0.8086129345275687
+    },
+    "0.4": {
+      "accuracy": 0.7987804878048781,
+      "correlation": 0.630659445976605,
+      "loss": 1.6279494762420654,
+      "macro_f1": 0.7937951858872389,
+      "mae": 0.9875243902206421,
+      "mask_sha256": "68171473b0f9f645f95ac216dab871fe910e54b4f8c9a01be15d21db34795b76",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.274863839149475,
+      "weighted_f1": 0.7987804878048781
+    },
+    "0.5": {
+      "accuracy": 0.7439024390243902,
+      "correlation": 0.6145767310447229,
+      "loss": 1.6029067039489746,
+      "macro_f1": 0.7378097521982414,
+      "mae": 1.0348800420761108,
+      "mask_sha256": "d42e61495e88243750c9e238cae18b61f31063f90528f3fc353de7fab35d464d",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.8934715986251831,
+      "weighted_f1": 0.7440242927609132
+    },
+    "0.6": {
+      "accuracy": 0.7484756097560976,
+      "correlation": 0.5752066042395727,
+      "loss": 1.7156723737716675,
+      "macro_f1": 0.7418622454455046,
+      "mae": 1.0680471658706665,
+      "mask_sha256": "6b52889567e922a3d693c4a6cc057ff1ceb96acaef17527989a70e21abfe1fe7",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.8811953663825989,
+      "weighted_f1": 0.7482866564900805
+    },
+    "0.7": {
+      "accuracy": 0.7469512195121951,
+      "correlation": 0.553712963875457,
+      "loss": 1.7744709253311157,
+      "macro_f1": 0.7321922187792042,
+      "mae": 1.0567060708999634,
+      "mask_sha256": "f1208aad19deff6a211236caa7b64e705390ff94e26bc77d8c86717fbffed9cb",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0293477773666382,
+      "weighted_f1": 0.7419676608231331
+    }
+  },
+  "train_missing_rate": null,
+  "trainable_parameter_count": 5238037,
+  "training_objective": "joint"
+}

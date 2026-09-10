@@ -1,0 +1,182 @@
+{
+  "backbone_initialization": null,
+  "backbone_type": "osram",
+  "best_epoch": null,
+  "best_selection_mean_weighted_f1": null,
+  "best_validation_mean_weighted_f1": null,
+  "ema_steps": 200,
+  "evaluation_stage": "train-test-oracle",
+  "frozen_completion_integrity": null,
+  "graph_message_calibration": "none",
+  "graph_second_layer": "graphconv",
+  "jepa_contrastive_source": "contrastive",
+  "jepa_rate_weighting": "uniform",
+  "jepa_regression_aggregation": "target",
+  "mask_sha256": {
+    "0.0": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+    "0.1": "22cc6734bd5d1cdf62e460b35f7219921326d3add5f98d0b0a3fc6c6b4125e5f",
+    "0.2": "d4de19b8066688ec953048bd5a48e6801bb74e0f996e6925d3dfe61ec7f2749b",
+    "0.3": "b315c6423a325d0f1e96b67a0180f6cca096ac5b0af07a5a2ea25dc71992afc2",
+    "0.4": "1b356cc608391cbd9278382ed79ac43467164c30c1b81911a83b3089da0b0773",
+    "0.5": "1392c5ca7ea69bfecd51c8ac6242fb63dea6c4c502dc502c5a6ffef78506dd36",
+    "0.6": "c02627907826577103b5c80ee1dc9781dff97318ab1ab9bf314d9d512ff0e84f",
+    "0.7": "28672f7c125402f18ac7ababd2e84c827c2e492604eaf222576db811eca679a6"
+  },
+  "optimizer_parameter_groups": {
+    "default": {
+      "learning_rate": 0.001,
+      "parameter_count": 5238037
+    }
+  },
+  "osram_ablation": "full",
+  "osram_bidirectional": false,
+  "osram_dimensions": {
+    "key_dim": 32,
+    "latent_dim": 256,
+    "num_heads": 8,
+    "output_dim": 700,
+    "read_ridge": 0.001,
+    "value_dim": 32,
+    "write_ridge": 0.001
+  },
+  "osram_emotion_ablation": "full",
+  "osram_forward_slot_reuse": false,
+  "osram_predictor_mode": "structured",
+  "osram_query_availability": true,
+  "osram_readout_fusion": "local-cross-attn",
+  "osram_write_step": 0.6,
+  "parameter_count": 8388305,
+  "postgraph_bilstm_ablation": "none",
+  "postgraph_sequence_mode": "independent",
+  "readout_parameter_count": 0,
+  "readout_rank": 8,
+  "readout_type": "shared",
+  "recurrent_padding_mode": "legacy",
+  "selected_epoch_by_rate": {
+    "0.0": 46,
+    "0.1": 33,
+    "0.2": 33,
+    "0.3": 43,
+    "0.4": 34,
+    "0.5": 46,
+    "0.6": 34,
+    "0.7": 33
+  },
+  "selected_weighted_f1_by_rate": {
+    "0.0": 0.8779883164964372,
+    "0.1": 0.8613784575223141,
+    "0.2": 0.8371476973935772,
+    "0.3": 0.8063673024161216,
+    "0.4": 0.7613313799325562,
+    "0.5": 0.7519291107798257,
+    "0.6": 0.757464359154074,
+    "0.7": 0.7606120008783873
+  },
+  "selection_missing_rates": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7
+  ],
+  "selection_protocol": "per-rate-test-oracle",
+  "selection_split": "test",
+  "task_regression_loss": "mse",
+  "task_smooth_l1_beta": 1.0,
+  "test": {
+    "0.0": {
+      "accuracy": 0.8780487804878049,
+      "correlation": 0.7879208726887333,
+      "loss": 1.003940224647522,
+      "macro_f1": 0.8749046529366895,
+      "mae": 0.7849329113960266,
+      "mask_sha256": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.2091808319091797,
+      "weighted_f1": 0.8779883164964372
+    },
+    "0.1": {
+      "accuracy": 0.8612804878048781,
+      "correlation": 0.7216384367624712,
+      "loss": 1.276261568069458,
+      "macro_f1": 0.8580474871294899,
+      "mae": 0.873908281326294,
+      "mask_sha256": "22cc6734bd5d1cdf62e460b35f7219921326d3add5f98d0b0a3fc6c6b4125e5f",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.3223669528961182,
+      "weighted_f1": 0.8613784575223141
+    },
+    "0.2": {
+      "accuracy": 0.836890243902439,
+      "correlation": 0.7207129131650201,
+      "loss": 1.2935259342193604,
+      "macro_f1": 0.8333962322369937,
+      "mae": 0.8792484402656555,
+      "mask_sha256": "d4de19b8066688ec953048bd5a48e6801bb74e0f996e6925d3dfe61ec7f2749b",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.3187181949615479,
+      "weighted_f1": 0.8371476973935772
+    },
+    "0.3": {
+      "accuracy": 0.8094512195121951,
+      "correlation": 0.67135435849432,
+      "loss": 1.4045686721801758,
+      "macro_f1": 0.7993770903316884,
+      "mae": 0.92718505859375,
+      "mask_sha256": "b315c6423a325d0f1e96b67a0180f6cca096ac5b0af07a5a2ea25dc71992afc2",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.1995060443878174,
+      "weighted_f1": 0.8063673024161216
+    },
+    "0.4": {
+      "accuracy": 0.7682926829268293,
+      "correlation": 0.5888148265393027,
+      "loss": 1.68989896774292,
+      "macro_f1": 0.7511877669980437,
+      "mae": 1.0365746021270752,
+      "mask_sha256": "1b356cc608391cbd9278382ed79ac43467164c30c1b81911a83b3089da0b0773",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.1229774951934814,
+      "weighted_f1": 0.7613313799325562
+    },
+    "0.5": {
+      "accuracy": 0.7530487804878049,
+      "correlation": 0.5910018459240403,
+      "loss": 1.6810892820358276,
+      "macro_f1": 0.7447912163914585,
+      "mae": 1.057155728340149,
+      "mask_sha256": "1392c5ca7ea69bfecd51c8ac6242fb63dea6c4c502dc502c5a6ffef78506dd36",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.894202709197998,
+      "weighted_f1": 0.7519291107798257
+    },
+    "0.6": {
+      "accuracy": 0.760670731707317,
+      "correlation": 0.6118301283675004,
+      "loss": 1.6126130819320679,
+      "macro_f1": 0.74907846170713,
+      "mae": 1.0135233402252197,
+      "mask_sha256": "c02627907826577103b5c80ee1dc9781dff97318ab1ab9bf314d9d512ff0e84f",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.1534634828567505,
+      "weighted_f1": 0.757464359154074
+    },
+    "0.7": {
+      "accuracy": 0.760670731707317,
+      "correlation": 0.5938340294024792,
+      "loss": 1.7176610231399536,
+      "macro_f1": 0.7546214563275653,
+      "mae": 1.0510668754577637,
+      "mask_sha256": "28672f7c125402f18ac7ababd2e84c827c2e492604eaf222576db811eca679a6",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.165018916130066,
+      "weighted_f1": 0.7606120008783873
+    }
+  },
+  "train_missing_rate": null,
+  "trainable_parameter_count": 5238037,
+  "training_objective": "joint"
+}
