@@ -1206,7 +1206,17 @@ class MissingM3GraphModel(GraphModel):
         osram_emotion_ablation="full",
         osram_readout_fusion="flat",
         complete_state_jepa=False,
+        write_state_completion=False,
     ) -> None:
+        self.write_state_completion=bool(write_state_completion)
+        if write_state_completion and (
+            complete_state_jepa or backbone_type!='osram' or osram_bidirectional
+            or osram_forward_slot_reuse or osram_write_step!=.6 or osram_readout_fusion!='flat'
+            or completion_path!='none' or classification_completion or local_context_residual
+            or node_interaction_residual or representation_type!='slot' or fusion_type!='mean'
+            or osram_ablation!='full' or osram_emotion_ablation!='full'
+        ):
+            raise ValueError('write-state requires causal eta=.6 mean Flat without other completion')
         self.complete_state_jepa = bool(complete_state_jepa)
         if complete_state_jepa and (
             backbone_type != "osram" or osram_bidirectional or osram_forward_slot_reuse
@@ -1482,6 +1492,13 @@ class MissingM3GraphModel(GraphModel):
             self.missing_predictor.requires_grad_(False)
             self.teacher.requires_grad_(False)
 
+        if self.write_state_completion:
+            from .write_state import WriteStateCompletion
+            with torch.random.fork_rng(devices=[]):
+                self.write_state=WriteStateCompletion(self.observed_set,self.osram,hidden_dim,latent_dim)
+            self.missing_predictor.requires_grad_(False)
+            self.teacher.requires_grad_(False)
+
     @staticmethod
     def _feature_tensor(inputfeats) -> torch.Tensor:
         if torch.is_tensor(inputfeats):
@@ -1509,6 +1526,8 @@ class MissingM3GraphModel(GraphModel):
         osram_context = None
         internal_predictions = None
         osram_nodes = {}
+        if self.write_state_completion:
+            osram_nodes['write_completion']=self.write_state.begin(encoded,latents,availability,umask.T.bool())
         if self.completion_path == "pre_osram_b2":
             internal_predictions = self.source_only_predictor(latents, availability, umask)
             if completion_predictions_override is not None and self.training:
@@ -1544,7 +1563,7 @@ class MissingM3GraphModel(GraphModel):
             graph_hidden = self.encode_hidden(
                 [encoded], qmask, umask, seq_lengths
             )
-        if self.complete_state_jepa and predict_missing:
+        if (self.complete_state_jepa or self.write_state_completion) and predict_missing:
             raise ValueError("complete-state uses complete_state_loss, not modality predictions")
         if self.completion_path != "pre_osram_b2" and (predict_missing or self.classification_completion):
             if self.backbone_type == "osram" and self.missing_predictor.structured:
@@ -1601,7 +1620,9 @@ class MissingM3GraphModel(GraphModel):
 
     @torch.no_grad()
     def update_teacher(self, tau: float) -> None:
-        if self.complete_state_jepa:
+        if self.write_state_completion:
+            self.write_state.update(self.observed_set,self.osram,tau)
+        elif self.complete_state_jepa:
             self.state_jepa.update(self.observed_set, self.osram.local_path, tau)
         else:
             self.teacher.update_from(self.observed_set.projectors, tau)
@@ -1612,6 +1633,10 @@ class MissingM3GraphModel(GraphModel):
             raise ValueError("complete-state objective is disabled")
         return self.state_jepa.loss(hidden, self._feature_tensor(complete_features),
                                     availability, umask)
+
+    def write_state_loss(self, complete_features, availability, qmask, umask):
+        if not self.write_state_completion:raise ValueError('write-state disabled')
+        return self.write_state.loss(self._feature_tensor(complete_features),availability,qmask,umask)
 
     def train(self, mode: bool = True) -> "MissingM3GraphModel":
         super().train(mode)

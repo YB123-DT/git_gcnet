@@ -115,6 +115,14 @@ class TrainConfig:
     b2_pretrain_checkpoint: str | None = None
 
     def __post_init__(self) -> None:
+        if self.training_objective == "write-state":
+            if (self.backbone_type != "osram" or self.osram_bidirectional
+                    or self.osram_forward_slot_reuse or self.osram_write_step != 0.6
+                    or self.osram_readout_fusion != "flat"
+                    or self.completion_path != "none" or self.classification_completion
+                    or self.initial_backbone_checkpoint is not None
+                    or self.jepa_rate_weighting != "uniform"):
+                raise ValueError("write-state requires causal flat OSRAM with write step 0.6, no completion or legacy transfer, and uniform loss weighting")
         if self.training_objective == "complete-state":
             if (self.backbone_type != "osram" or self.osram_bidirectional
                     or self.osram_readout_fusion != "flat"
@@ -138,6 +146,7 @@ class TrainConfig:
 _TRAINING_OBJECTIVES = {
     "joint",
     "complete-state",
+    "write-state",
     "jepa-only",
     "emotion-only",
     "frozen-completion",
@@ -797,11 +806,13 @@ def train_epoch(
     train_emotion = config.training_objective in {
         "joint",
         "complete-state",
+        "write-state",
         "emotion-only",
         "frozen-completion",
     }
     train_jepa = config.training_objective in {"joint", "jepa-only"}
     train_state = config.training_objective == "complete-state"
+    train_write_state = config.training_objective == "write-state"
     model.train()
     predictor = getattr(model, "source_only_predictor", None) if config.completion_path == "pre_osram_b2" else getattr(model, "missing_predictor", None)
     mmoe = getattr(predictor, "mmoe", None)
@@ -941,7 +952,24 @@ def train_epoch(
                 if train_emotion
                 else zero
             )
-            if train_state:
+            if train_write_state:
+                write_loss, write_count = model.write_state_loss(
+                    view["complete"], view["availability"], view["qmask"], view["umask"]
+                )
+                valid_write_mask = (
+                    view["availability"].eq(0)
+                    & view["umask"].transpose(0, 1).bool().unsqueeze(-1)
+                )
+                if rate is None:
+                    for conversation_index, conversation_rate in enumerate(conversation_rates):
+                        rate_jepa_target_counts[conversation_rate] += int(
+                            valid_write_mask[:, conversation_index].sum().item()
+                        )
+                else:
+                    rate_jepa_target_counts[rate] += write_count
+                jepa = MissingM3Loss(write_loss, write_loss, zero, write_count)
+                jepa_rate_weight = 1.0
+            elif train_state:
                 state_loss, state_count = model.complete_state_loss(
                     hidden, view["complete"], view["availability"], view["umask"]
                 )
@@ -993,7 +1021,7 @@ def train_epoch(
             else:
                 jepa = MissingM3Loss(zero, zero, zero, 0)
                 jepa_rate_weight = 0.0
-            if config.training_objective in {"joint", "complete-state"}:
+            if config.training_objective in {"joint", "complete-state", "write-state"}:
                 loss = cls + config.jepa_weight * jepa_rate_weight * jepa.total
             elif config.training_objective == "jepa-only":
                 loss = jepa_rate_weight * jepa.total
@@ -1043,7 +1071,7 @@ def train_epoch(
             )
         optimizer.step()
         optimizer_steps += 1
-        if train_jepa or train_state:
+        if train_jepa or train_state or train_write_state:
             model.update_teacher(config.ema_tau)
     if (
         config.train_rate_mode == "stratified"
@@ -1084,6 +1112,8 @@ def train_epoch(
         "jepa_target_count": int(target_count),
         **({"state_loss": float(np.mean(jepa_losses)),
             "state_target_count": int(target_count)} if train_state else {}),
+        **({"write_state_loss": float(np.mean(jepa_losses)),
+            "write_state_target_count": int(target_count)} if train_write_state else {}),
         "rate_batch_counts": {str(rate): count for rate, count in rate_counts.items()},
         "source_conversation_count": source_conversation_count,
         "masked_view_count": masked_view_count,
@@ -1376,6 +1406,7 @@ def run_experiment(
         osram_readout_fusion=config_value.osram_readout_fusion,
         completion_path=config_value.completion_path,
         complete_state_jepa=config_value.training_objective == "complete-state",
+        write_state_completion=config_value.training_objective == "write-state",
     ).to(device)
     initialization = None
     frozen_probe = None
@@ -1827,6 +1858,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=(
             "joint",
             "complete-state",
+            "write-state",
             "jepa-only",
             "emotion-only",
             "frozen-completion",

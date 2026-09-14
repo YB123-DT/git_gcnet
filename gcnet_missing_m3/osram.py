@@ -514,6 +514,7 @@ class OSRAMBackbone(nn.Module):
         valid: torch.Tensor,
         reverse: bool,
         retention_diagnostics=None,
+        write_completion=None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, list[float]]]:
         length, batch = availability.shape[:2]
         dtype = queries.dtype
@@ -596,11 +597,16 @@ class OSRAMBackbone(nn.Module):
                     * identity_mask[time_index].unsqueeze(-1)
                 )
 
+            write_keys, write_values, write_mask = slot_keys, slot_values, availability[time_index]
+            if write_completion is not None:
+                write_keys, write_values, write_mask = write_completion(
+                    time_index, base_read.reshape(batch,-1).clone(),
+                    gap[time_index].clone(), slot_keys, slot_values)
             memory_candidate = self.block_write(
                 read_memory,
-                slot_keys,
-                slot_values,
-                availability[time_index],
+                write_keys,
+                write_values,
+                write_mask,
                 beta=beta,
             )
             memory = torch.where(
@@ -631,15 +637,21 @@ class OSRAMBackbone(nn.Module):
         memory_retention_diagnostics=None,
         read_node: torch.Tensor | None = None,
         write_node: torch.Tensor | None = None,
+        write_completion=None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Condition reads/local features separately from real-observation writes.
 
         Both optional nodes default to ``node``. Completion belongs exclusively
         in ``read_node``; keys and gap-address projection use ``write_node``,
         while values continue to use the supplied real modality latents.
+        This describes B2 read completion. The separate opt-in ``write_completion``
+        callback instead replaces missing write slots AFTER reads; it never changes
+        current queries or the observed addresses used for Gap residualization.
         """
         read_node = node if read_node is None else read_node
         write_node = node if write_node is None else write_node
+        if write_completion is not None and (self.bidirectional or collect_memory_retention_diagnostics):
+            raise ValueError('Predicted writes require causal scan without legacy retention collector')
         if collect_memory_retention_diagnostics:
             if self.bidirectional or memory_retention_diagnostics is None:
                 raise ValueError('Retention diagnostics require forward-only and an external collector')
@@ -656,6 +668,7 @@ class OSRAMBackbone(nn.Module):
             keys, values, queries, availability, valid, reverse=False,
             retention_diagnostics=(memory_retention_diagnostics
                                    if collect_memory_retention_diagnostics else None),
+            write_completion=write_completion,
         )
         if self.bidirectional:
             base_backward, gap_backward, diag_backward = self._scan(
