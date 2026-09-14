@@ -113,8 +113,25 @@ class TrainConfig:
     completion_path: str = "none"
     b2_base_checkpoint: str | None = None
     b2_pretrain_checkpoint: str | None = None
+    teacher_mode: str = "ema"
+    teacher_checkpoint: str | None = None
 
     def __post_init__(self) -> None:
+        if self.teacher_mode not in {"ema", "pretrained-frozen"}:
+            raise ValueError("teacher_mode must be ema or pretrained-frozen")
+        if self.teacher_mode == "ema" and self.teacher_checkpoint is not None:
+            raise ValueError("teacher_checkpoint requires pretrained-frozen teacher_mode")
+        if self.teacher_mode == "pretrained-frozen":
+            if (not self.teacher_checkpoint or self.training_objective != "joint"
+                    or self.backbone_type != "osram" or self.osram_bidirectional
+                    or self.osram_write_step != .6 or self.osram_forward_slot_reuse
+                    or self.fusion_type != "mean" or self.osram_readout_fusion != "flat"
+                    or self.osram_predictor_mode != "structured"
+                    or self.osram_ablation != "full" or self.osram_emotion_ablation != "full"
+                    or self.local_context_residual or self.node_interaction_residual
+                    or self.readout_type != "shared" or self.classification_completion
+                    or self.completion_path != "none" or self.initial_backbone_checkpoint is not None):
+                raise ValueError("pretrained-frozen requires a teacher checkpoint and joint causal mean/flat structured OSRAM at write step 0.6 without other interventions")
         if self.training_objective == "future-state":
             if (self.backbone_type != "osram" or self.osram_bidirectional
                     or self.osram_forward_slot_reuse or self.osram_write_step != 0.6
@@ -1104,7 +1121,7 @@ def train_epoch(
             )
         optimizer.step()
         optimizer_steps += 1
-        if train_jepa or train_state or train_write_state or train_future_state:
+        if (train_jepa or train_state or train_write_state or train_future_state) and config.teacher_mode == "ema":
             model.update_teacher(config.ema_tau)
     if (
         config.train_rate_mode == "stratified"
@@ -1449,7 +1466,23 @@ def run_experiment(
         complete_state_jepa=config_value.training_objective == "complete-state",
         write_state_completion=config_value.training_objective == "write-state",
         future_state_jepa=config_value.training_objective == "future-state",
+        teacher_mode=config_value.teacher_mode,
+        teacher_checkpoint=config_value.teacher_checkpoint,
     ).to(device)
+    teacher_hash_before = (
+        model.teacher_integrity() if config_value.teacher_mode == "pretrained-frozen" else None
+    )
+    if config_value.teacher_mode == "pretrained-frozen" and not teacher_hash_before:
+        raise RuntimeError("pretrained-frozen teacher integrity hash is missing")
+    if config_value.teacher_mode == "pretrained-frozen":
+        source_config = model.teacher_provenance.get("source_config", {})
+        for field in ("dataset", "fold", "seed", "latent_dim"):
+            expected = getattr(config_value, field)
+            actual = source_config.get(field)
+            if actual != expected:
+                raise ValueError(
+                    f"pretrained-frozen teacher {field} mismatch: source={actual!r}, current={expected!r}"
+                )
     initialization = None
     frozen_probe = None
     frozen_hash_before = None
@@ -1622,6 +1655,11 @@ def run_experiment(
             selection_split="fixed-final",
             selection_protocol="fixed-final",
         )
+    # Check the final training state before a best-checkpoint restore could hide
+    # accidental changes to the supposedly frozen target coordinate system.
+    if (teacher_hash_before is not None
+            and model.teacher_integrity() != teacher_hash_before):
+        raise RuntimeError("pretrained-frozen teacher changed during training")
     if per_rate_oracle:
         if len(selected_epoch_by_rate) != len(protocol_rates):
             raise RuntimeError("no best checkpoint was selected for every missing rate")
@@ -1684,6 +1722,12 @@ def run_experiment(
                 / ("predictions_miss_" + rate_key.replace(".", "p") + ".npz"),
                 **artifacts,
             )
+    teacher_integrity = None
+    if teacher_hash_before is not None:
+        teacher_hash_after = model.teacher_integrity()
+        if teacher_hash_after != teacher_hash_before:
+            raise RuntimeError("pretrained-frozen teacher changed during checkpoint selection/evaluation")
+        teacher_integrity = {"before": teacher_hash_before, "after": teacher_hash_after, "unchanged": True}
     selection_split = (
         "test" if per_rate_oracle else (
             "fixed-final" if jepa_pretraining else config_value.checkpoint_selection
@@ -1729,6 +1773,9 @@ def run_experiment(
             )
         ),
         "training_objective": config_value.training_objective,
+        "teacher_mode": config_value.teacher_mode,
+        "teacher_provenance": getattr(model, "teacher_provenance", None),
+        "teacher_integrity": teacher_integrity,
         "backbone_initialization": initialization,
         "frozen_completion_integrity": frozen_integrity,
         "optimizer_parameter_groups": optimizer_group_provenance,
@@ -1792,6 +1839,8 @@ def run_experiment(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--teacher-mode", choices=("ema", "pretrained-frozen"), default="ema")
+    parser.add_argument("--teacher-checkpoint", default=None)
     parser.add_argument("--completion-path",choices=("none","pre_osram_b2"),default="none")
     parser.add_argument("--b2-base-checkpoint",default=None)
     parser.add_argument("--b2-pretrain-checkpoint",default=None)
@@ -2012,6 +2061,8 @@ def main(argv=None) -> None:
         jepa_regression_aggregation=args.jepa_regression_aggregation,
         jepa_contrastive_source=args.jepa_contrastive_source,
         ema_tau=args.ema_tau,
+        teacher_mode=args.teacher_mode,
+        teacher_checkpoint=args.teacher_checkpoint,
         gradient_clip_norm=args.gradient_clip_norm,
         time_attention=args.time_attn,
         evaluation_protocol=args.evaluation_protocol,

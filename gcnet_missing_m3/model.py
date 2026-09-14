@@ -1208,7 +1208,26 @@ class MissingM3GraphModel(GraphModel):
         complete_state_jepa=False,
         write_state_completion=False,
         future_state_jepa=False,
+        teacher_mode='ema',
+        teacher_checkpoint=None,
     ) -> None:
+        if teacher_mode not in {'ema', 'pretrained-frozen'}:
+            raise ValueError('teacher_mode must be ema or pretrained-frozen')
+        if (teacher_mode == 'pretrained-frozen') != (teacher_checkpoint is not None):
+            raise ValueError('pretrained-frozen requires teacher_checkpoint; ema must not load one')
+        if teacher_mode == 'pretrained-frozen' and (
+            complete_state_jepa or write_state_completion or future_state_jepa
+            or backbone_type != 'osram' or osram_bidirectional or osram_forward_slot_reuse
+            or osram_write_step != .6 or osram_readout_fusion != 'flat'
+            or completion_path != 'none' or classification_completion
+            or osram_predictor_mode != 'structured' or representation_type != 'slot'
+            or fusion_type != 'mean' or local_context_residual or node_interaction_residual
+            or readout_type != 'shared' or osram_ablation != 'full'
+            or osram_emotion_ablation != 'full' or not osram_query_availability
+        ):
+            raise ValueError('pretrained-frozen requires original joint causal .6 mean/Flat without completion')
+        self.teacher_mode = teacher_mode
+        self.teacher_provenance = None
         self.future_state_jepa = bool(future_state_jepa)
         if future_state_jepa and (
             complete_state_jepa or write_state_completion or backbone_type != 'osram'
@@ -1520,6 +1539,11 @@ class MissingM3GraphModel(GraphModel):
             self.missing_predictor.requires_grad_(False)
             self.teacher.requires_grad_(False)
 
+        if self.teacher_mode == 'pretrained-frozen':
+            from .pretrained_teacher import load_pretrained_teacher
+            # Loading after all online initialization preserves shared RNG/weights.
+            self.teacher_provenance = load_pretrained_teacher(self.teacher, teacher_checkpoint)
+
     @staticmethod
     def _feature_tensor(inputfeats) -> torch.Tensor:
         if torch.is_tensor(inputfeats):
@@ -1643,6 +1667,8 @@ class MissingM3GraphModel(GraphModel):
 
     @torch.no_grad()
     def update_teacher(self, tau: float) -> None:
+        if self.teacher_mode == 'pretrained-frozen':
+            return  # requires_grad=False alone does NOT prevent manual EMA writes.
         if self.future_state_jepa:
             self.future_state.update(self.observed_set, self.osram.local_path, tau)
         elif self.write_state_completion:
@@ -1652,6 +1678,12 @@ class MissingM3GraphModel(GraphModel):
         else:
             self.teacher.update_from(self.observed_set.projectors, tau)
         self.ema_step += 1
+
+    def teacher_integrity(self):
+        if self.teacher_mode != 'pretrained-frozen':
+            return None
+        from .pretrained_teacher import state_sha256
+        return state_sha256(self.teacher.state_dict())
 
     def complete_state_loss(self, hidden, complete_features, availability, umask):
         if not self.complete_state_jepa:
