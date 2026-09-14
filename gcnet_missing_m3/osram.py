@@ -515,6 +515,7 @@ class OSRAMBackbone(nn.Module):
         reverse: bool,
         retention_diagnostics=None,
         write_completion=None,
+        post_write_observer=None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, list[float]]]:
         length, batch = availability.shape[:2]
         dtype = queries.dtype
@@ -612,6 +613,10 @@ class OSRAMBackbone(nn.Module):
             memory = torch.where(
                 active.view(batch, 1, 1, 1), memory_candidate, memory
             )
+            if post_write_observer is not None:
+                # Differentiable read-only observer: its return is ignored and
+                # a clone prevents callback mutation of persistent memory.
+                post_write_observer(time_index, memory.clone(), active.clone())
             if retention_diagnostics is not None:
                 retention_diagnostics.observe(time_index, probe_pre, read_memory,
                                               memory, probe_keys, probe_values,
@@ -638,6 +643,7 @@ class OSRAMBackbone(nn.Module):
         read_node: torch.Tensor | None = None,
         write_node: torch.Tensor | None = None,
         write_completion=None,
+        post_write_observer=None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Condition reads/local features separately from real-observation writes.
 
@@ -650,6 +656,8 @@ class OSRAMBackbone(nn.Module):
         """
         read_node = node if read_node is None else read_node
         write_node = node if write_node is None else write_node
+        if post_write_observer is not None and self.bidirectional:
+            raise ValueError('Post-write state observer requires a causal scan')
         if write_completion is not None and (self.bidirectional or collect_memory_retention_diagnostics):
             raise ValueError('Predicted writes require causal scan without legacy retention collector')
         if collect_memory_retention_diagnostics:
@@ -669,6 +677,7 @@ class OSRAMBackbone(nn.Module):
             retention_diagnostics=(memory_retention_diagnostics
                                    if collect_memory_retention_diagnostics else None),
             write_completion=write_completion,
+            post_write_observer=post_write_observer,
         )
         if self.bidirectional:
             base_backward, gap_backward, diag_backward = self._scan(
