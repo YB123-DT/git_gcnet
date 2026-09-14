@@ -72,7 +72,9 @@ def train(seed):
     print(f'COMPLETE seed={seed}', flush=True)
 
 
-def launch():
+def launch(gpus=(2, 2, 2, 3, 3)):
+    if len(gpus) != len(SEEDS):
+        raise ValueError('One GPU assignment is required per seed')
     # Validate every inherited config before creating any GPU process.
     for seed in SEEDS:
         configuration(seed)
@@ -84,7 +86,7 @@ def launch():
     with manifest.open('x') as handle:
         json.dump(state, handle)
     children = []
-    for seed, gpu in zip(SEEDS, (2, 2, 2, 3, 3)):
+    for seed, gpu in zip(SEEDS, gpus):
         log_path = ROOT / f'seed{seed}.log'
         with log_path.open('x') as log:
             env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), OMP_NUM_THREADS='6',

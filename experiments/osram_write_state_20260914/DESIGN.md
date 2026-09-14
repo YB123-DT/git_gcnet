@@ -93,3 +93,15 @@ their existing base64 source inputs because remote code mirror has no .git;
 those24 tests then passed, including all three initially blocked checks. Only
 the existing PyG deprecation warning remains. Independent read-only review found
 no blocking causal/autograd/target-isolation issues. git diff --check clean.
+
+## Training authorized 2026-09-14
+
+User subsequently requested launch. Five from-scratch MOSI seeds66–70,
+100epochs, cyclic rates0.0–0.7, same feature/mask/optimizer/LR/batch configuration.
+Each seed×rate independently selects best Test W-F1, earliest tie. Reference
+Joint/Emotion-only/State results inherited; no baseline retraining. Internal
+Test-oracle diagnostic only, not formal results.
+run.py reuses the existing launcher with GPU5 seeds66/67/68 and GPU6 seeds69/70;
+GPU0–3 occupied and GPU4 intentionally avoided. Exclusive QUEUE/output paths
+prevent duplicate launching. Run-specific provenance includes WSC source hashes.
+Training status and process IDs live in remote QUEUE.json and launcher.log.

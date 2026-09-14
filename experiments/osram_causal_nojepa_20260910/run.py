@@ -48,6 +48,9 @@ def train(seed):
     if cfg.training_objective == 'complete-state':
         provenance['source_sha256'].update({n: runner.sha(REPO / n) for n in (
             'gcnet_missing_m3/complete_state.py', 'experiments/osram_complete_state_20260910/run.py')})
+    if cfg.training_objective == 'write-state':
+        provenance['source_sha256'].update({n: runner.sha(REPO / n) for n in (
+            'gcnet_missing_m3/write_state.py', 'experiments/osram_write_state_20260914/run.py')})
     runner.write_json(output / 'PROVENANCE.json', provenance)
     try:
         torch.set_num_threads(6)
