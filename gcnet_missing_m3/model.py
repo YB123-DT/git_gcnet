@@ -1210,7 +1210,19 @@ class MissingM3GraphModel(GraphModel):
         future_state_jepa=False,
         teacher_mode='ema',
         teacher_checkpoint=None,
+        target_space='all-modalities',
+        text_subspace_checkpoint=None,
+        training_objective='joint',
     ) -> None:
+        if target_space not in {'all-modalities', 'full-text', 'predictable-subspace'}:
+            raise ValueError('unsupported target_space')
+        if (target_space == 'predictable-subspace') != (text_subspace_checkpoint is not None):
+            raise ValueError('text_subspace_checkpoint is required only for predictable-subspace')
+        if target_space != 'all-modalities' and (
+            training_objective != 'joint' or teacher_mode != 'pretrained-frozen'
+        ):
+            raise ValueError('text target spaces require joint and pretrained-frozen teacher')
+        self.target_space = target_space
         if teacher_mode not in {'ema', 'pretrained-frozen'}:
             raise ValueError('teacher_mode must be ema or pretrained-frozen')
         if (teacher_mode == 'pretrained-frozen') != (teacher_checkpoint is not None):
@@ -1544,6 +1556,15 @@ class MissingM3GraphModel(GraphModel):
             # Loading after all online initialization preserves shared RNG/weights.
             self.teacher_provenance = load_pretrained_teacher(self.teacher, teacher_checkpoint)
 
+        self.text_subspace = None
+        self.text_subspace_provenance = None
+        if self.target_space == 'predictable-subspace':
+            from .text_subspace import load_frozen_subspace
+            # R is training-only and must not perturb any shared initialization/RNG.
+            with torch.random.fork_rng(devices=[]):
+                self.text_subspace, self.text_subspace_provenance = load_frozen_subspace(
+                    text_subspace_checkpoint, self.teacher_integrity(), latent_dim)
+
     @staticmethod
     def _feature_tensor(inputfeats) -> torch.Tensor:
         if torch.is_tensor(inputfeats):
@@ -1685,6 +1706,12 @@ class MissingM3GraphModel(GraphModel):
         from .pretrained_teacher import state_sha256
         return state_sha256(self.teacher.state_dict())
 
+    def text_subspace_integrity(self):
+        if self.text_subspace is None:
+            return None
+        from .pretrained_teacher import state_sha256
+        return state_sha256(self.text_subspace.state_dict())
+
     def complete_state_loss(self, hidden, complete_features, availability, umask):
         if not self.complete_state_jepa:
             raise ValueError("complete-state objective is disabled")
@@ -1703,4 +1730,6 @@ class MissingM3GraphModel(GraphModel):
     def train(self, mode: bool = True) -> "MissingM3GraphModel":
         super().train(mode)
         self.teacher.train(False)
+        if self.text_subspace is not None:
+            self.text_subspace.train(False)
         return self

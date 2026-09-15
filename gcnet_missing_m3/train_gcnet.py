@@ -115,8 +115,22 @@ class TrainConfig:
     b2_pretrain_checkpoint: str | None = None
     teacher_mode: str = "ema"
     teacher_checkpoint: str | None = None
+    target_space: str = "all-modalities"
+    text_subspace_checkpoint: str | None = None
 
     def __post_init__(self) -> None:
+        if self.target_space not in {"all-modalities", "full-text", "predictable-subspace"}:
+            raise ValueError("unsupported target_space")
+        if (self.target_space == "predictable-subspace") != (self.text_subspace_checkpoint is not None):
+            raise ValueError("text_subspace_checkpoint is required only for predictable-subspace")
+        if self.target_space != "all-modalities" and (
+                self.training_objective != "joint" or self.teacher_mode != "pretrained-frozen"
+                or self.jepa_weight != .1 or self.temperature != .03
+                or self.jepa_rate_weighting != "uniform"
+                or self.jepa_regression_aggregation != "target"
+                or self.jepa_contrastive_source != "contrastive"
+                or self.b2_base_checkpoint is not None or self.b2_pretrain_checkpoint is not None):
+            raise ValueError("text target spaces require frozen-teacher joint training with unchanged JEPA weights and no B2")
         if self.teacher_mode not in {"ema", "pretrained-frozen"}:
             raise ValueError("teacher_mode must be ema or pretrained-frozen")
         if self.teacher_mode == "ema" and self.teacher_checkpoint is not None:
@@ -272,6 +286,7 @@ def _save_best_checkpoint(
     validation_mean_weighted_f1: float | None,
     selection_split: str = "validation",
     selection_protocol: str | None = None,
+    text_subspace_provenance: Mapping[str, object] | None = None,
 ) -> None:
     validation_score = (
         validation_mean_weighted_f1
@@ -282,6 +297,7 @@ def _save_best_checkpoint(
         {
             "model": model_state,
             "config": asdict(config_value),
+            "text_subspace_provenance": text_subspace_provenance,
             "epoch": epoch,
             "validation_mean_weighted_f1": validation_score,
             "selection_split": selection_split,
@@ -1042,6 +1058,8 @@ def train_epoch(
                     predictions.target_mask
                     & view["umask"].transpose(0, 1).bool().unsqueeze(-1)
                 )
+                if config.target_space != "all-modalities":
+                    valid_target_mask = valid_target_mask[..., 1:2]
                 if rate is None:
                     for conversation_index, conversation_rate in enumerate(
                         conversation_rates
@@ -1056,13 +1074,18 @@ def train_epoch(
                 if teacher is None:
                     with torch.no_grad():
                         teacher = model.encode_teacher_targets([view["complete"]])
-                jepa = missing_m3_loss(
-                    predictions,
-                    teacher,
-                    temperature=config.temperature,
-                    regression_aggregation=config.jepa_regression_aggregation,
-                    contrastive_prediction_source=config.jepa_contrastive_source,
-                )
+                if config.target_space == "all-modalities":
+                    jepa = missing_m3_loss(
+                        predictions,
+                        teacher,
+                        temperature=config.temperature,
+                        regression_aggregation=config.jepa_regression_aggregation,
+                        contrastive_prediction_source=config.jepa_contrastive_source,
+                    )
+                else:
+                    from .text_subspace import text_jepa_loss
+                    jepa = text_jepa_loss(predictions, teacher, model.text_subspace,
+                                          temperature=config.temperature)
                 jepa_rate_weight = (
                     1.0
                     if rate is None
@@ -1468,7 +1491,14 @@ def run_experiment(
         future_state_jepa=config_value.training_objective == "future-state",
         teacher_mode=config_value.teacher_mode,
         teacher_checkpoint=config_value.teacher_checkpoint,
+        target_space=config_value.target_space,
+        text_subspace_checkpoint=config_value.text_subspace_checkpoint,
+        training_objective=config_value.training_objective,
     ).to(device)
+    text_subspace_hash_before = (
+        model.text_subspace_integrity()
+        if config_value.target_space == "predictable-subspace" else None
+    )
     teacher_hash_before = (
         model.teacher_integrity() if config_value.teacher_mode == "pretrained-frozen" else None
     )
@@ -1617,6 +1647,7 @@ def run_experiment(
                     torch.save({
                         "model": _state_to_cpu(model),
                         "config": asdict(config_value),
+                        "text_subspace_provenance": getattr(model, "text_subspace_provenance", None),
                         "epoch": epoch + 1,
                         "selection_split": "test",
                         "selection_protocol": "per-rate-test-oracle",
@@ -1636,6 +1667,7 @@ def run_experiment(
                 config_value=config_value,
                 epoch=best_epoch,
                 validation_mean_weighted_f1=best_score,
+                text_subspace_provenance=getattr(model, "text_subspace_provenance", None),
                 selection_split=config_value.checkpoint_selection,
                 selection_protocol=(
                     "8-rate-mean-test-oracle"
@@ -1660,6 +1692,9 @@ def run_experiment(
     if (teacher_hash_before is not None
             and model.teacher_integrity() != teacher_hash_before):
         raise RuntimeError("pretrained-frozen teacher changed during training")
+    if (text_subspace_hash_before is not None
+            and model.text_subspace_integrity() != text_subspace_hash_before):
+        raise RuntimeError("frozen text subspace changed during training")
     if per_rate_oracle:
         if len(selected_epoch_by_rate) != len(protocol_rates):
             raise RuntimeError("no best checkpoint was selected for every missing rate")
@@ -1728,6 +1763,9 @@ def run_experiment(
         if teacher_hash_after != teacher_hash_before:
             raise RuntimeError("pretrained-frozen teacher changed during checkpoint selection/evaluation")
         teacher_integrity = {"before": teacher_hash_before, "after": teacher_hash_after, "unchanged": True}
+    if (text_subspace_hash_before is not None
+            and model.text_subspace_integrity() != text_subspace_hash_before):
+        raise RuntimeError("frozen text subspace changed during checkpoint selection/evaluation")
     selection_split = (
         "test" if per_rate_oracle else (
             "fixed-final" if jepa_pretraining else config_value.checkpoint_selection
@@ -1776,6 +1814,13 @@ def run_experiment(
         "teacher_mode": config_value.teacher_mode,
         "teacher_provenance": getattr(model, "teacher_provenance", None),
         "teacher_integrity": teacher_integrity,
+        "target_space": config_value.target_space,
+        "text_subspace_provenance": getattr(model, "text_subspace_provenance", None),
+        "text_subspace_integrity": (
+            {"before": text_subspace_hash_before, "after": model.text_subspace_integrity(),
+             "unchanged": model.text_subspace_integrity() == text_subspace_hash_before}
+            if text_subspace_hash_before is not None else None
+        ),
         "backbone_initialization": initialization,
         "frozen_completion_integrity": frozen_integrity,
         "optimizer_parameter_groups": optimizer_group_provenance,
@@ -1841,6 +1886,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--teacher-mode", choices=("ema", "pretrained-frozen"), default="ema")
     parser.add_argument("--teacher-checkpoint", default=None)
+    parser.add_argument("--target-space", choices=("all-modalities", "full-text", "predictable-subspace"), default="all-modalities")
+    parser.add_argument("--text-subspace-checkpoint", default=None)
     parser.add_argument("--completion-path",choices=("none","pre_osram_b2"),default="none")
     parser.add_argument("--b2-base-checkpoint",default=None)
     parser.add_argument("--b2-pretrain-checkpoint",default=None)
@@ -2063,6 +2110,8 @@ def main(argv=None) -> None:
         ema_tau=args.ema_tau,
         teacher_mode=args.teacher_mode,
         teacher_checkpoint=args.teacher_checkpoint,
+        target_space=args.target_space,
+        text_subspace_checkpoint=args.text_subspace_checkpoint,
         gradient_clip_norm=args.gradient_clip_norm,
         time_attention=args.time_attn,
         evaluation_protocol=args.evaluation_protocol,
