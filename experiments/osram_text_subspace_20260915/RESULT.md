@@ -4,6 +4,8 @@ Branch: `feature/osram-complete`; implementation base: `423b7b9`.
 
 **Implementation verified; scientific effectiveness NOT established. No full five-seed training was started.**
 
+Follow-up [no-update dynamics audit](DYNAMICS.md): Teacher Text validation erank is already1.644 and initial random R0 gives1.462, versus selected R1.841. The low rank is **not evidence of collapse induced by the two Stage1 updates**. The audit also measures all four R gradient terms and actual weighted Stage2 shared gradients.
+
 ## Approved gradient correction
 
 ```python
