@@ -1,0 +1,186 @@
+{
+  "experiment": "fixed-teacher Stage-2: regression-only vs reg+NCE vs no-JEPA",
+  "dataset": "CMUMOSI",
+  "fold": 1,
+  "teacher_mode": "pretrained-frozen",
+  "missing_rates": [
+    "0.0",
+    "0.1",
+    "0.2",
+    "0.3",
+    "0.4",
+    "0.5",
+    "0.6",
+    "0.7"
+  ],
+  "seeds": [
+    66,
+    67,
+    68,
+    69,
+    70
+  ],
+  "selection_protocol": "per-rate-test-oracle",
+  "label": "INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT",
+  "groups": {
+    "reg+NCE": {
+      "key": "reg_plus_nce",
+      "n_seeds": 5,
+      "per_rate_mean_percent": {
+        "0.0": 87.34625300213376,
+        "0.1": 85.1063035285096,
+        "0.2": 82.50383396205885,
+        "0.3": 81.45588333875618,
+        "0.4": 78.1281202032753,
+        "0.5": 76.01080845378388,
+        "0.6": 75.60866474301096,
+        "0.7": 74.67591601145963
+      },
+      "macro8_mean_percent": 80.10447290537353,
+      "macro8_sd_percent": 0.48686698302138487,
+      "macro_high_mean_percent": 75.43179640275149,
+      "macro_high_sd_percent": 0.5517198544913208,
+      "per_seed_macro8_percent": {
+        "66": 80.26356457528705,
+        "67": 79.89167504878534,
+        "68": 80.48496630676915,
+        "69": 80.5239148576106,
+        "70": 79.35824373841547
+      },
+      "per_seed_high_percent": {
+        "66": 75.10369862556708,
+        "67": 75.50599175140982,
+        "68": 75.46514962055798,
+        "69": 76.27657515237843,
+        "70": 74.80756686384412
+      }
+    },
+    "reg-only": {
+      "key": "reg_only",
+      "n_seeds": 5,
+      "per_rate_mean_percent": {
+        "0.0": 87.51634535638003,
+        "0.1": 84.99931653856002,
+        "0.2": 82.74003221218489,
+        "0.3": 80.94784611825379,
+        "0.4": 78.62578101568843,
+        "0.5": 76.5144963221798,
+        "0.6": 75.81393173460933,
+        "0.7": 74.14456828962682
+      },
+      "macro8_mean_percent": 80.16278969843539,
+      "macro8_sd_percent": 0.5452936168756432,
+      "macro_high_mean_percent": 75.49099878213865,
+      "macro_high_sd_percent": 0.609618758230654,
+      "per_seed_macro8_percent": {
+        "66": 80.97040021031589,
+        "67": 80.35372943735273,
+        "68": 80.12932166312746,
+        "69": 79.81039435686968,
+        "70": 79.5501028245112
+      },
+      "per_seed_high_percent": {
+        "66": 75.94378690761633,
+        "67": 75.98854616363897,
+        "68": 74.65444308683685,
+        "69": 75.8388750334956,
+        "70": 75.02934271910549
+      }
+    },
+    "no-JEPA": {
+      "key": "no_jepa",
+      "n_seeds": 5,
+      "per_rate_mean_percent": {
+        "0.0": 87.32341065072627,
+        "0.1": 84.96087049766918,
+        "0.2": 82.21291888970214,
+        "0.3": 80.93765432411051,
+        "0.4": 78.61869658964585,
+        "0.5": 76.52329890251306,
+        "0.6": 75.53513005194147,
+        "0.7": 74.49216794056731
+      },
+      "macro8_mean_percent": 80.07551848085947,
+      "macro8_sd_percent": 0.4524421299614871,
+      "macro_high_mean_percent": 75.51686563167395,
+      "macro_high_sd_percent": 0.6159848317608554,
+      "per_seed_macro8_percent": {
+        "66": 80.82770924240813,
+        "67": 79.76129347079404,
+        "68": 79.9254352735251,
+        "69": 80.14409082765451,
+        "70": 79.71906358991558
+      },
+      "per_seed_high_percent": {
+        "66": 76.08799198640175,
+        "67": 75.59823527896503,
+        "68": 74.9052435278746,
+        "69": 76.13283499288765,
+        "70": 74.86002237224069
+      }
+    }
+  },
+  "pairwise": {
+    "reg_only_minus_reg_plus_nce": {
+      "definition": "reg-only minus reg+NCE",
+      "n": 5,
+      "mean_delta_percent_points": 0.058316793061865546,
+      "sd_delta_percent_points": 0.5849169081207132,
+      "paired_t_pvalue": 0.834505375082033,
+      "wilcoxon_pvalue": 1.0,
+      "positive_seeds": 3,
+      "ci95_percent_points": [
+        -0.6678370418312207,
+        0.7844706279549518
+      ],
+      "per_seed_delta_percent_points": {
+        "66": 0.7068356350288352,
+        "67": 0.4620543885673789,
+        "68": -0.3556446436416838,
+        "69": -0.7135205007409273,
+        "70": 0.19185908609572477
+      }
+    },
+    "reg_only_minus_no_jepa": {
+      "definition": "reg-only minus no-JEPA",
+      "n": 5,
+      "mean_delta_percent_points": 0.08727121757591716,
+      "sd_delta_percent_points": 0.35872360336135606,
+      "paired_t_pvalue": 0.61534622259582,
+      "wilcoxon_pvalue": 0.8125,
+      "positive_seeds": 3,
+      "ci95_percent_points": [
+        -0.3580715595450964,
+        0.5326139946969307
+      ],
+      "per_seed_delta_percent_points": {
+        "66": 0.14269096790775482,
+        "67": 0.5924359665586798,
+        "68": 0.20388638960235905,
+        "69": -0.3336964707848278,
+        "70": -0.1689607654043801
+      }
+    },
+    "reg_plus_nce_minus_no_jepa": {
+      "definition": "reg+NCE minus no-JEPA",
+      "n": 5,
+      "mean_delta_percent_points": 0.028954424514051613,
+      "sd_delta_percent_points": 0.4792178533709258,
+      "paired_t_pvalue": 0.8990557754501236,
+      "wilcoxon_pvalue": 1.0,
+      "positive_seeds": 3,
+      "ci95_percent_points": [
+        -0.5659777395989309,
+        0.6238865886270342
+      ],
+      "per_seed_delta_percent_points": {
+        "66": -0.5641446671210804,
+        "67": 0.1303815779913009,
+        "68": 0.5595310332440429,
+        "69": 0.37982402995609954,
+        "70": -0.36081985150010487
+      }
+    }
+  },
+  "conclusion": "reg-only did not stably outperform either reg+NCE or no-JEPA; the +0.058pp vs reg+NCE is within seed noise."
+}
