@@ -35,7 +35,7 @@ def test_teacher_default_and_cli_roundtrip():
 @pytest.mark.parametrize("override", [
     {"teacher_checkpoint": None}, {"teacher_checkpoint": ""},
     {"training_objective": "complete-state"}, {"training_objective": "write-state"},
-    {"training_objective": "future-state"}, {"training_objective": "emotion-only"},
+    {"training_objective": "future-state"},
     {"backbone_type": "gcnet"}, {"osram_bidirectional": True}, {"osram_write_step": 1.0},
     {"osram_forward_slot_reuse": True}, {"osram_predictor_mode": "legacy-hidden"},
     {"fusion_type": "slot"}, {"osram_readout_fusion": "local-gated"},
@@ -47,6 +47,18 @@ def test_teacher_default_and_cli_roundtrip():
 def test_pretrained_teacher_rejects_unapproved_architectures(override):
     with pytest.raises(ValueError, match="pretrained-frozen"):
         config(**override)
+
+
+def test_pretrained_teacher_allows_fixed_teacher_no_jepa_control():
+    cfg = config(training_objective="emotion-only")
+    assert cfg.training_objective == "emotion-only"
+    assert cfg.teacher_mode == "pretrained-frozen"
+
+
+def test_pretrained_teacher_allows_regression_only_candidate():
+    cfg = config(training_objective="joint-reg-only")
+    assert cfg.training_objective == "joint-reg-only"
+    assert cfg.teacher_mode == "pretrained-frozen"
 
 
 def test_ema_mode_does_not_silently_ignore_checkpoint():

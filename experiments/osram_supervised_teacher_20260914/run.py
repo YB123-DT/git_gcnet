@@ -20,20 +20,24 @@ def teacher_config(base):
                    teacher_mode='ema',teacher_checkpoint=None,initial_backbone_checkpoint=None)
 
 
-def student_config(base,path):
-    return replace(base,training_objective='joint',train_rate_mode='cyclic',fixed_missing_rate=None,
+def student_config(base,path,training_objective='joint'):
+    if training_objective not in {'joint','joint-reg-only','emotion-only'}:
+        raise ValueError('student objective must be joint, joint-reg-only, or emotion-only')
+    return replace(base,training_objective=training_objective,train_rate_mode='cyclic',
+                   fixed_missing_rate=None,
                    checkpoint_selection='test-oracle-per-rate',evaluate_test=True,
                    teacher_mode='pretrained-frozen',teacher_checkpoint=str(path),
                    initial_backbone_checkpoint=None)
 
 
-def run(stage,seed):
+def run(stage,seed,student_objective='joint'):
     import torch
     from gcnet_missing_m3.train_gcnet import run_experiment
     from gcnet_missing_m3.pretrained_teacher import export_teacher_projectors, read_source
     base,source,_=configuration(seed)
     teacher_path=ROOT/'teacher'/f'seed_{seed}'/'teacher_projectors.pt'
-    cfg=teacher_config(base) if stage=='teacher' else student_config(base,teacher_path)
+    cfg=(teacher_config(base) if stage=='teacher'
+         else student_config(base,teacher_path,student_objective))
     if stage=='student':
         checkpoint,_,_=read_source(teacher_path)
         if checkpoint.get('diagnostic_only',False):
@@ -41,13 +45,19 @@ def run(stage,seed):
         cost_path=teacher_path.parent/'COST.json'
         if not cost_path.exists():
             raise ValueError('Stage1 cost/provenance is required before Stage2')
-    output=ROOT/stage/f'seed_{seed}'
+    if stage=='teacher':
+        output=ROOT/'teacher'/f'seed_{seed}'
+    else:
+        student_dir={'joint':'student','joint-reg-only':'student-reg-only',
+                     'emotion-only':'student-emotion-only'}[student_objective]
+        output=ROOT/student_dir/f'seed_{seed}'
     output.mkdir(parents=True,exist_ok=False)
     start=time.monotonic()
     provenance=dict(stage=stage,status='running',started_utc=datetime.now(timezone.utc).isoformat(),
                     from_scratch=True,student_backbone_transfer=False,reference=str(source),
                     config=asdict(cfg),source_sha256={name:runner.sha(REPO/name) for name in (
-                        'gcnet_missing_m3/model.py','gcnet_missing_m3/pretrained_teacher.py',
+                        'gcnet_missing_m3/loss.py','gcnet_missing_m3/model.py',
+                        'gcnet_missing_m3/pretrained_teacher.py',
                         'gcnet_missing_m3/train_gcnet.py',
                         'experiments/osram_supervised_teacher_20260914/run.py')})
     runner.write_json(output/'PROVENANCE.json',provenance)
@@ -80,12 +90,16 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--stage',required=True,choices=('teacher','student'))
     p.add_argument('--seed',required=True,type=int,choices=runner.SEEDS)
+    p.add_argument('--student-objective',
+                   choices=('joint','joint-reg-only','emotion-only'),
+                   default='joint',help='Stage-2 auxiliary objective')
     p.add_argument('--check',action='store_true',help='Print config only, never train')
     args=p.parse_args()
     if args.check:
         base,_,_=configuration(args.seed)
         cfg=(teacher_config(base) if args.stage=='teacher' else
-             student_config(base,ROOT/'teacher'/f'seed_{args.seed}'/'teacher_projectors.pt'))
+             student_config(base,ROOT/'teacher'/f'seed_{args.seed}'/'teacher_projectors.pt',
+                            args.student_objective))
         print(json.dumps(asdict(cfg),indent=2))
     else:
-        run(args.stage,args.seed)
+        run(args.stage,args.seed,args.student_objective)

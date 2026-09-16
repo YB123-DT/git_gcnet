@@ -135,8 +135,19 @@ class TrainConfig:
             raise ValueError("teacher_mode must be ema or pretrained-frozen")
         if self.teacher_mode == "ema" and self.teacher_checkpoint is not None:
             raise ValueError("teacher_checkpoint requires pretrained-frozen teacher_mode")
+        if self.training_objective == "joint-reg-only":
+            if (self.teacher_mode != "pretrained-frozen"
+                    or self.jepa_weight != 0.1
+                    or self.target_space != "all-modalities"):
+                raise ValueError(
+                    "joint-reg-only requires pretrained-frozen teacher, "
+                    "all-modalities targets, and jepa_weight=0.1"
+                )
         if self.teacher_mode == "pretrained-frozen":
-            if (not self.teacher_checkpoint or self.training_objective != "joint"
+            if (not self.teacher_checkpoint
+                    or self.training_objective not in {
+                        "joint", "joint-reg-only", "emotion-only"
+                    }
                     or self.backbone_type != "osram" or self.osram_bidirectional
                     or self.osram_write_step != .6 or self.osram_forward_slot_reuse
                     or self.fusion_type != "mean" or self.osram_readout_fusion != "flat"
@@ -145,7 +156,7 @@ class TrainConfig:
                     or self.local_context_residual or self.node_interaction_residual
                     or self.readout_type != "shared" or self.classification_completion
                     or self.completion_path != "none" or self.initial_backbone_checkpoint is not None):
-                raise ValueError("pretrained-frozen requires a teacher checkpoint and joint causal mean/flat structured OSRAM at write step 0.6 without other interventions")
+                raise ValueError("pretrained-frozen requires a teacher checkpoint and joint/joint-reg-only/emotion-only causal mean/flat structured OSRAM at write step 0.6 without other interventions")
         if self.training_objective == "future-state":
             if (self.backbone_type != "osram" or self.osram_bidirectional
                     or self.osram_forward_slot_reuse or self.osram_write_step != 0.6
@@ -187,6 +198,7 @@ class TrainConfig:
 
 _TRAINING_OBJECTIVES = {
     "joint",
+    "joint-reg-only",
     "complete-state",
     "write-state",
     "future-state",
@@ -850,13 +862,14 @@ def train_epoch(
         raise ValueError("unsupported training_objective")
     train_emotion = config.training_objective in {
         "joint",
+        "joint-reg-only",
         "complete-state",
         "write-state",
         "future-state",
         "emotion-only",
         "frozen-completion",
     }
-    train_jepa = config.training_objective in {"joint", "jepa-only"}
+    train_jepa = config.training_objective in {"joint", "joint-reg-only", "jepa-only"}
     train_state = config.training_objective == "complete-state"
     train_write_state = config.training_objective == "write-state"
     train_future_state = config.training_objective == "future-state"
@@ -1075,13 +1088,14 @@ def train_epoch(
                     with torch.no_grad():
                         teacher = model.encode_teacher_targets([view["complete"]])
                 if config.target_space == "all-modalities":
-                    jepa = missing_m3_loss(
-                        predictions,
-                        teacher,
+                    loss_kwargs = dict(
                         temperature=config.temperature,
                         regression_aggregation=config.jepa_regression_aggregation,
                         contrastive_prediction_source=config.jepa_contrastive_source,
                     )
+                    if config.training_objective == "joint-reg-only":
+                        loss_kwargs["include_contrastive"] = False
+                    jepa = missing_m3_loss(predictions, teacher, **loss_kwargs)
                 else:
                     from .text_subspace import text_jepa_loss
                     jepa = text_jepa_loss(predictions, teacher, model.text_subspace,
@@ -1094,7 +1108,13 @@ def train_epoch(
             else:
                 jepa = MissingM3Loss(zero, zero, zero, 0)
                 jepa_rate_weight = 0.0
-            if config.training_objective in {"joint", "complete-state", "write-state", "future-state"}:
+            if config.training_objective in {
+                "joint",
+                "joint-reg-only",
+                "complete-state",
+                "write-state",
+                "future-state",
+            }:
                 loss = cls + config.jepa_weight * jepa_rate_weight * jepa.total
             elif config.training_objective == "jepa-only":
                 loss = jepa_rate_weight * jepa.total
@@ -1365,7 +1385,7 @@ def run_experiment(
             raise ValueError(
                 "pretrained_learning_rate requires initial_backbone_checkpoint"
             )
-        if config_value.training_objective != "joint":
+        if config_value.training_objective not in {"joint", "joint-reg-only"}:
             raise ValueError(
                 "pretrained_learning_rate is only valid for joint training"
             )
@@ -1995,6 +2015,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--training-objective",
         choices=(
             "joint",
+            "joint-reg-only",
             "complete-state",
             "write-state",
             "future-state",

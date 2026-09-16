@@ -40,6 +40,7 @@ def missing_m3_loss(
     temperature: float = 0.03,
     regression_aggregation: str = "target",
     contrastive_prediction_source: str = "contrastive",
+    include_contrastive: bool = True,
 ) -> MissingM3Loss:
     if temperature <= 0:
         raise ValueError("temperature must be positive")
@@ -81,7 +82,7 @@ def missing_m3_loss(
                 target_regression,
                 accumulate=True,
             )
-        if target.shape[0] >= 2:
+        if include_contrastive and target.shape[0] >= 2:
             contrastive_prediction = (
                 reg_prediction
                 if contrastive_prediction_source == "regression"
@@ -102,10 +103,17 @@ def missing_m3_loss(
             regression_sum[predicted_utterance]
             / target_counts[predicted_utterance].to(regression_sum.dtype)
         ).mean()
-    if contrastive_values:
+    contrastive = zero
+    if not include_contrastive:
+        # Regression-only candidate: keep the original effective coefficient.
+        # In joint training ``jepa_weight`` multiplies a total of
+        # ``0.5 * regression + 0.5 * contrastive``; returning only
+        # ``0.5 * regression`` therefore preserves the original 0.05
+        # effective regression weight when ``jepa_weight == 0.1``.
+        total = 0.5 * regression
+    elif contrastive_values:
         contrastive = torch.stack(contrastive_values).mean()
         total = 0.5 * regression + 0.5 * contrastive
     else:
-        contrastive = zero
         total = regression
     return MissingM3Loss(total, regression, contrastive, target_count)
