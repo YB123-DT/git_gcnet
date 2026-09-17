@@ -22,7 +22,7 @@ from gcnet_missing_m3.model import MissingM3GraphModel
 FEATURE_NAMES = ("wav2vec-large-c-UTT", "deberta-large-4-UTT", "manet_UTT")
 RATES = tuple(f"{i/10:.1f}" for i in range(8))
 SEEDS = (66, 67, 68, 69, 70)
-MODES = ("Normal", "Zero", "Shuffle", "Oracle-Fusion")
+MODES = ("Normal", "Zero", "Shuffle", "Oracle-Fusion", "Oracle-Span")
 
 
 def weighted_f1(labels: np.ndarray, predictions: np.ndarray) -> float:
@@ -58,7 +58,7 @@ def collect_pass(model, views, dims, device):
     """Run one normal forward pass and collect PAM state and text latents."""
     normal_overrides, zero_overrides, oracle_overrides = [], [], []
     original_zhats, masks, labels, normal_preds = [], [], [], []
-    normal_labels = []
+    real_texts, text_avail = [], []
     missing_vectors, oracle_vectors = [], []
     coverage_num = 0
     coverage_den = 0
@@ -90,6 +90,8 @@ def collect_pass(model, views, dims, device):
         oracle_overrides.append(oracle)
         original_zhats.append(z_hat)
         masks.append(tm)
+        real_texts.append(real_text)
+        text_avail.append(view["availability"][..., 1])
         # Collect all T-missing vectors in global order for shuffle.
         for t, b in tm.nonzero(as_tuple=False).tolist():
             missing_vectors.append(z_hat[t, b].cpu())
@@ -105,6 +107,8 @@ def collect_pass(model, views, dims, device):
         oracle_overrides=oracle_overrides,
         original_zhats=original_zhats,
         masks=masks,
+        real_texts=real_texts,
+        text_avail=text_avail,
         labels=np.concatenate(labels) if labels else np.zeros(0),
         normal_preds=np.concatenate(normal_preds) if normal_preds else np.zeros(0),
         missing_vectors=missing_vectors,
@@ -129,6 +133,33 @@ def shuffled_overrides(original_zhats, masks, missing_vectors, seed=1234):
             cursor += 1
         result.append(clone)
     return result
+
+
+def oracle_span_overrides(real_texts, text_avail, masks, lam=1e-3):
+    """Ridge span of previous real observed Text latents for each T-missing step."""
+    spans = []
+    available = 0
+    total = 0
+    for real, avail, tm in zip(real_texts, text_avail, masks):
+        span = torch.zeros_like(real)
+        for b in range(real.shape[1]):
+            previous = []
+            for t in range(real.shape[0]):
+                if not bool(tm[t, b]):
+                    continue
+                total += 1
+                cols = real[:t, b][avail[:t, b] > 0]  # [n,D]
+                if cols.numel() == 0:
+                    continue
+                available += 1
+                target = real[t, b]  # [D]
+                v = cols.transpose(0, 1)  # [D,n]
+                gram = v.transpose(0, 1) @ v + lam * torch.eye(v.shape[1], device=v.device, dtype=v.dtype)
+                rhs = v.transpose(0, 1) @ target
+                coeff = torch.linalg.solve(gram, rhs)
+                span[t, b] = v @ coeff
+        spans.append(span)
+    return spans, available, total
 
 
 def run_mode(model, views, overrides, device):
@@ -197,11 +228,15 @@ def evaluate_seed(root, seed, device):
         shuffle = shuffled_overrides(
             collected["original_zhats"], collected["masks"], collected["missing_vectors"]
         )
+        span, span_available, span_total = oracle_span_overrides(
+            collected["real_texts"], collected["text_avail"], collected["masks"], lam=1e-3
+        )
         mode_outputs = {}
         mode_outputs["Normal"] = (collected["normal_preds"], collected["labels"])
         mode_outputs["Zero"] = run_mode(model, views, collected["zero_overrides"], device)
         mode_outputs["Shuffle"] = run_mode(model, views, shuffle, device)
         mode_outputs["Oracle-Fusion"] = run_mode(model, views, collected["oracle_overrides"], device)
+        mode_outputs["Oracle-Span"] = run_mode(model, views, span, device)
         for mode in MODES:
             preds, labels = mode_outputs[mode]
             rows.append(
@@ -214,6 +249,8 @@ def evaluate_seed(root, seed, device):
                     prior_write_coverage=(collected["coverage_num"] / collected["coverage_den"]
                                           if collected["coverage_den"] else None),
                     t_missing_count=collected["coverage_den"],
+                    span_available_count=span_available if mode == "Normal" else None,
+                    span_total_count=span_total if mode == "Normal" else None,
                 )
             )
             if mode == "Zero":
@@ -231,9 +268,12 @@ def summarize(rows):
         vals = [r["weighted_f1"] for r in rows if r["mode"] == mode]
         groups[mode] = dict(mean=float(np.nanmean(vals)) * 100.0, sd=float(np.nanstd(vals, ddof=1)) * 100.0)
     cov = [float(r["prior_write_coverage"]) for r in rows if r["mode"] == "Normal" and r.get("prior_write_coverage") is not None]
+    span_avail = [r["span_available_count"] for r in rows if r["mode"] == "Normal" and r.get("span_available_count") is not None]
+    span_total = [r["span_total_count"] for r in rows if r["mode"] == "Normal" and r.get("span_total_count") is not None]
     summary = {
         "modes": groups,
         "prior_write_coverage_mean": float(np.mean(cov)) if cov else None,
+        "span_available_ratio": (float(sum(span_avail)) / float(sum(span_total))) if span_total and sum(span_total) else None,
         "normal_minus_zero_abs_mean": float(np.nanmean([abs(r["weighted_f1"] - [x for x in rows if x["seed"] == r["seed"] and x["rate"] == r["rate"] and x["mode"] == "Zero"][0]["weighted_f1"]) for r in rows if r["mode"] == "Normal"])) * 100.0,
     }
     return summary
@@ -253,10 +293,11 @@ def main():
         all_rows.extend(rows)
         print(f"seed {seed} done", flush=True)
     (args.output / "per_seed_rate.csv").write_text(
-        "group,seed,rate,mode,weighted_f1,prior_write_coverage,t_missing_count,normal_minus_zero_abs\n"
+        "group,seed,rate,mode,weighted_f1,prior_write_coverage,t_missing_count,normal_minus_zero_abs,span_available_count,span_total_count\n"
         + "\n".join(
             f"{r['group']},{r['seed']},{r['rate']},{r['mode']},{r['weighted_f1']},"
-            f"{r.get('prior_write_coverage','')},{r.get('t_missing_count','')},{r.get('normal_minus_zero_abs','')}"
+            f"{r.get('prior_write_coverage','')},{r.get('t_missing_count','')},{r.get('normal_minus_zero_abs','')},"
+            f"{r.get('span_available_count','')},{r.get('span_total_count','')}"
             for r in all_rows
         )
         + "\n"
