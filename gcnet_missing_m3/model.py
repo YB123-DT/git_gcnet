@@ -14,6 +14,7 @@ from gcnet_modality_jepa.model import GraphModel
 from .osram import OSRAMBackbone
 from .pam import TextConditionedPAMMemory
 from .pam_episodic import ExplicitEpisodicTextMemory
+from .pam_address import ExplicitAddressTextMemory
 
 
 MODALITIES = ("audio", "text", "visual")
@@ -1281,11 +1282,13 @@ class MissingM3GraphModel(GraphModel):
         ):
             raise ValueError(f"{osram_readout_fusion} requires structured OSRAM without completion")
         if completion_path not in {
-            "none", "pre_osram_b2", "pam-text", "pam-episodic-text"
+            "none", "pre_osram_b2", "pam-text", "pam-episodic-text",
+            "pam-address-text",
         }:
             raise ValueError(
                 "completion_path must be none, pre_osram_b2, pam-text, "
-                "or pam-episodic-text; legacy uses classification_completion"
+                "pam-episodic-text, or pam-address-text; legacy uses "
+                "classification_completion"
             )
         if completion_path == "pre_osram_b2":
             if classification_completion:
@@ -1295,7 +1298,7 @@ class MissingM3GraphModel(GraphModel):
                 raise ValueError("B2 requires full causal OSRAM, no slot reuse, write_step=.6")
             if fusion_type != "mean" or representation_type != "slot" or node_interaction_residual:
                 raise ValueError("B2 first version requires original mean observed-set nodes")
-        if completion_path in {"pam-text", "pam-episodic-text"}:
+        if completion_path in {"pam-text", "pam-episodic-text", "pam-address-text"}:
             if (backbone_type != "osram" or osram_bidirectional or osram_forward_slot_reuse
                     or float(osram_write_step) != .6 or osram_readout_fusion != "flat"
                     or osram_ablation != "full" or osram_emotion_ablation != "full"
@@ -1556,7 +1559,7 @@ class MissingM3GraphModel(GraphModel):
             self.completed_read_fusion = CompletedReadFusion(latent_dim, projector_dropout)
             # Keep legacy state keys loadable, but do not optimize the unused predictor.
             self.missing_predictor.requires_grad_(False)
-        if self.completion_path in {"pam-text", "pam-episodic-text"}:
+        if self.completion_path in {"pam-text", "pam-episodic-text", "pam-address-text"}:
             from .b2 import CompletedReadFusion
             with torch.random.fork_rng(devices=[]):
                 if self.completion_path == "pam-text":
@@ -1565,8 +1568,16 @@ class MissingM3GraphModel(GraphModel):
                         key_dim=self.pam_key_dim,
                         dropout=predictor_dropout,
                     )
-                else:
+                elif self.completion_path == "pam-episodic-text":
                     self.pam_episodic_memory = ExplicitEpisodicTextMemory(
+                        latent_dim=latent_dim,
+                        context_dim=self.osram.context_dim,
+                        key_dim=self.pam_key_dim,
+                        ridge=1e-3,
+                        dropout=predictor_dropout,
+                    )
+                else:
+                    self.pam_address_memory = ExplicitAddressTextMemory(
                         latent_dim=latent_dim,
                         context_dim=self.osram.context_dim,
                         key_dim=self.pam_key_dim,
@@ -1634,6 +1645,7 @@ class MissingM3GraphModel(GraphModel):
         seq_lengths,
         predict_missing=False,
         completion_predictions_override=None,
+        pam_target_text=None,
     ):
         features = self._feature_tensor(inputfeats)
         encoded, latents = self.observed_set(features, availability, umask)
@@ -1656,7 +1668,7 @@ class MissingM3GraphModel(GraphModel):
                    else completion_predictions_override)
             read_node = self.completed_read_fusion(encoded, latents, reg, availability, umask)
             osram_nodes = {"read_node": read_node, "write_node": encoded}
-        elif self.completion_path in {"pam-text", "pam-episodic-text"}:
+        elif self.completion_path in {"pam-text", "pam-episodic-text", "pam-address-text"}:
             if predict_missing or self.classification_completion:
                 raise ValueError(
                     "PAM completion uses its own predictive memory and does "
@@ -1673,10 +1685,17 @@ class MissingM3GraphModel(GraphModel):
                     base_context, gap_context = self.osram.causal_read_contexts(
                         encoded, latents, availability, qmask, umask, seq_lengths
                     )
-                pam_outputs = self.pam_episodic_memory(
-                    latents, availability, umask,
-                    base_context, gap_context[..., 1, :],
-                )
+                if self.completion_path == "pam-episodic-text":
+                    pam_outputs = self.pam_episodic_memory(
+                        latents, availability, umask,
+                        base_context, gap_context[..., 1, :],
+                    )
+                else:
+                    pam_outputs = self.pam_address_memory(
+                        latents, availability, umask,
+                        base_context, gap_context[..., 1, :],
+                        target_text=pam_target_text,
+                    )
             self.last_pam_outputs = pam_outputs
             zero_slot = encoded.new_zeros(
                 (*availability.shape[:2], self.latent_dim)
