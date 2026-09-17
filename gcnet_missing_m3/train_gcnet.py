@@ -1346,6 +1346,8 @@ def evaluate_rate(
     all_signed_logits: list[np.ndarray] = []
     all_availability: list[np.ndarray] = []
     all_full_availability: list[np.ndarray] = []
+    all_pam_predictions: list[np.ndarray] = []
+    all_pam_targets: list[np.ndarray] = []
     for raw in loader:
         data = _move_batch(raw, device)
         view = _prepare_view(data, schedule, epoch=0, dimensions=dimensions)
@@ -1359,6 +1361,18 @@ def evaluate_rate(
         )
         if predictions is not None:
             raise RuntimeError("inference path must not return missing predictions")
+        if collect and model.completion_path == "pam-text":
+            pam = getattr(model, "last_pam_outputs", None)
+            if pam is None:
+                raise RuntimeError("pam-text evaluation did not expose PAM outputs")
+            teacher = model.encode_teacher_targets([view["complete"]])
+            pam_mask = pam["text_missing_mask"] & view["umask"].transpose(0, 1).bool()
+            all_pam_predictions.append(
+                pam["z_hat_text"][pam_mask].detach().cpu().numpy()
+            )
+            all_pam_targets.append(
+                teacher["text"][pam_mask].detach().cpu().numpy()
+            )
         loss = _task_loss(
             dataset,
             logits,
@@ -1416,6 +1430,9 @@ def evaluate_rate(
             artifacts["continuous_labels"] = continuous_labels_array
         if task == "soft-ordinal":
             artifacts["signed_logits"] = np.concatenate(all_signed_logits)
+        if model.completion_path == "pam-text":
+            artifacts["pam_prediction_text"] = np.concatenate(all_pam_predictions)
+            artifacts["pam_target_text"] = np.concatenate(all_pam_targets)
         full_availability_array = np.concatenate(all_full_availability)
         metrics["mask_sha256"] = _sha256_tensor(
             torch.from_numpy(full_availability_array)
