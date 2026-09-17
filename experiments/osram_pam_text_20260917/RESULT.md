@@ -81,3 +81,24 @@ PAM-T: T-missing = **65.4033**, T-present = **86.0295**.
 - Remote root: `/data2/yb/remote_experiments/osram_pam_text_20260917`
 - Selection: per-rate Test-oracle; 5 seeds × 8 rates = 40 jobs, COMPLETE 2026-09-17T07:35:41Z.
 - Machine-readable: `results/summary.json`, `results/per_seed_rate.csv`, `results/pattern_per_seed.csv`.
+
+## Inference ablation
+
+Four-mode inference on the same checkpoints and test masks:
+
+| Mode | nonzero-rate macro W-F1 |
+|---|---:|
+| Normal | 79.0871 |
+| Zero | 77.9831 |
+| Shuffle | 78.0395 |
+| Oracle-Fusion | 81.4504 |
+
+- Normal − Zero = `+1.1041 pp`
+- Normal − Shuffle = `+1.0476 pp`
+- Oracle − Normal = `+2.3633 pp`
+- prior-write coverage = `85.52%`
+
+This is closest to **fusion can use Text, but PAM did not predict it well**:
+the completion path is used and carries some sample-specific information, but
+real Text latent through the same interface is much better.  See
+`INFERENCE_ABLATION.md`.
