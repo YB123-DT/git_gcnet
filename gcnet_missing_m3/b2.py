@@ -90,11 +90,16 @@ class CompletedReadFusion(nn.Module):
         filled = torch.where(availability.bool().unsqueeze(-1),observed,predictions)
         return torch.where(valid[...,None,None],filled,torch.zeros_like(filled))
 
-    def forward(self,observed_node,latents,reg_predictions,availability,umask):
-        filled = self.fill_slots(latents,reg_predictions,availability,umask)
-        if observed_node.shape != filled.shape[:2]+(self.latent_dim,):
+    def forward(self, observed_node, latents, reg_predictions, availability,
+                umask, active_mask=None):
+        filled = self.fill_slots(latents, reg_predictions, availability, umask)
+        if observed_node.shape != filled.shape[:2] + (self.latent_dim,):
             raise ValueError("observed_node shape differs from latents")
         active = umask.T.bool() & (availability == 0).any(-1)
+        if active_mask is not None:
+            if active_mask.shape != active.shape:
+                raise ValueError("active_mask must have shape [L,B]")
+            active = active & active_mask.bool()
         correction = torch.zeros_like(observed_node)
         if bool(active.any()):
             status = torch.stack((availability,1-availability),dim=-1).to(filled.dtype)

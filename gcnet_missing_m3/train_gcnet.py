@@ -111,6 +111,8 @@ class TrainConfig:
     osram_write_step: float = 1.0
     osram_readout_fusion: str = "flat"
     completion_path: str = "none"
+    pam_key_dim: int = 64
+    pam_loss_weight: float = 0.05
     b2_base_checkpoint: str | None = None
     b2_pretrain_checkpoint: str | None = None
     teacher_mode: str = "ema"
@@ -131,6 +133,34 @@ class TrainConfig:
                 or self.jepa_contrastive_source != "contrastive"
                 or self.b2_base_checkpoint is not None or self.b2_pretrain_checkpoint is not None):
             raise ValueError("text target spaces require frozen-teacher joint training with unchanged JEPA weights and no B2")
+        if self.training_objective == "pam-text" or self.completion_path == "pam-text":
+            if self.training_objective != "pam-text" or self.completion_path != "pam-text":
+                raise ValueError(
+                    "pam-text requires both training_objective=pam-text and "
+                    "completion_path=pam-text"
+                )
+            if (self.teacher_mode != "ema" or self.teacher_checkpoint is not None
+                    or self.target_space != "all-modalities"
+                    or self.text_subspace_checkpoint is not None
+                    or self.backbone_type != "osram" or self.osram_bidirectional
+                    or self.osram_forward_slot_reuse or self.osram_write_step != .6
+                    or self.osram_readout_fusion != "flat"
+                    or self.osram_predictor_mode != "structured"
+                    or self.osram_ablation != "full"
+                    or self.osram_emotion_ablation != "full"
+                    or self.fusion_type != "mean"
+                    or self.representation_type != "slot"
+                    or self.local_context_residual or self.node_interaction_residual
+                    or self.readout_type != "shared"
+                    or self.classification_completion
+                    or self.b2_base_checkpoint is not None
+                    or self.b2_pretrain_checkpoint is not None):
+                raise ValueError(
+                    "pam-text requires causal eta=.6 mean/Flat structured OSRAM, "
+                    "EMA teacher, all-modalities targets, and no legacy/state/frozen modules"
+                )
+            if int(self.pam_key_dim) <= 0 or float(self.pam_loss_weight) < 0:
+                raise ValueError("pam_key_dim must be positive and pam_loss_weight nonnegative")
         if self.teacher_mode not in {"ema", "pretrained-frozen"}:
             raise ValueError("teacher_mode must be ema or pretrained-frozen")
         if self.teacher_mode == "ema" and self.teacher_checkpoint is not None:
@@ -199,6 +229,7 @@ class TrainConfig:
 _TRAINING_OBJECTIVES = {
     "joint",
     "joint-reg-only",
+    "pam-text",
     "complete-state",
     "write-state",
     "future-state",
@@ -863,6 +894,7 @@ def train_epoch(
     train_emotion = config.training_objective in {
         "joint",
         "joint-reg-only",
+        "pam-text",
         "complete-state",
         "write-state",
         "future-state",
@@ -870,6 +902,7 @@ def train_epoch(
         "frozen-completion",
     }
     train_jepa = config.training_objective in {"joint", "joint-reg-only", "jepa-only"}
+    train_pam = config.training_objective == "pam-text"
     train_state = config.training_objective == "complete-state"
     train_write_state = config.training_objective == "write-state"
     train_future_state = config.training_objective == "future-state"
@@ -1012,7 +1045,38 @@ def train_epoch(
                 if train_emotion
                 else zero
             )
-            if train_future_state:
+            if train_pam:
+                pam = getattr(model, "last_pam_outputs", None)
+                if pam is None:
+                    raise RuntimeError("pam-text forward did not expose last_pam_outputs")
+                if teacher is None:
+                    with torch.no_grad():
+                        teacher = model.encode_teacher_targets([view["complete"]])
+                target_text = teacher["text"]
+                mask = pam["text_missing_mask"] & view["umask"].transpose(0, 1).bool()
+                count = int(mask.sum().item())
+                if count:
+                    pam_loss = torch.nn.functional.smooth_l1_loss(
+                        pam["z_hat_text"][mask], target_text[mask].detach()
+                    )
+                else:
+                    pam_loss = zero
+                if rate is None:
+                    for conversation_index, conversation_rate in enumerate(conversation_rates):
+                        valid = view["umask"][conversation_index].bool()
+                        source = (
+                            view["availability"][:, conversation_index, 0]
+                            | view["availability"][:, conversation_index, 2]
+                        ).bool()
+                        text_missing = view["availability"][:, conversation_index, 1].eq(0)
+                        rate_jepa_target_counts[conversation_rate] += int(
+                            (valid & source & text_missing).sum().item()
+                        )
+                else:
+                    rate_jepa_target_counts[rate] += count
+                jepa = MissingM3Loss(pam_loss, pam_loss, zero, count)
+                jepa_rate_weight = 1.0
+            elif train_future_state:
                 future_loss, future_count = model.future_state_loss(
                     view["complete"], view["umask"]
                 )
@@ -1108,7 +1172,9 @@ def train_epoch(
             else:
                 jepa = MissingM3Loss(zero, zero, zero, 0)
                 jepa_rate_weight = 0.0
-            if config.training_objective in {
+            if config.training_objective == "pam-text":
+                loss = cls + config.pam_loss_weight * jepa.total
+            elif config.training_objective in {
                 "joint",
                 "joint-reg-only",
                 "complete-state",
@@ -1164,7 +1230,7 @@ def train_epoch(
             )
         optimizer.step()
         optimizer_steps += 1
-        if (train_jepa or train_state or train_write_state or train_future_state) and config.teacher_mode == "ema":
+        if (train_jepa or train_state or train_write_state or train_future_state or train_pam) and config.teacher_mode == "ema":
             model.update_teacher(config.ema_tau)
     if (
         config.train_rate_mode == "stratified"
@@ -1506,6 +1572,8 @@ def run_experiment(
         osram_forward_slot_reuse=config_value.osram_forward_slot_reuse,
         osram_readout_fusion=config_value.osram_readout_fusion,
         completion_path=config_value.completion_path,
+        pam_key_dim=config_value.pam_key_dim,
+        pam_loss_weight=config_value.pam_loss_weight,
         complete_state_jepa=config_value.training_objective == "complete-state",
         write_state_completion=config_value.training_objective == "write-state",
         future_state_jepa=config_value.training_objective == "future-state",
@@ -1908,7 +1976,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--teacher-checkpoint", default=None)
     parser.add_argument("--target-space", choices=("all-modalities", "full-text", "predictable-subspace"), default="all-modalities")
     parser.add_argument("--text-subspace-checkpoint", default=None)
-    parser.add_argument("--completion-path",choices=("none","pre_osram_b2"),default="none")
+    parser.add_argument("--completion-path",choices=("none","pre_osram_b2","pam-text"),default="none")
+    parser.add_argument("--pam-key-dim", type=int, default=64)
+    parser.add_argument("--pam-loss-weight", type=float, default=0.05)
     parser.add_argument("--b2-base-checkpoint",default=None)
     parser.add_argument("--b2-pretrain-checkpoint",default=None)
     parser.add_argument(
@@ -2016,6 +2086,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=(
             "joint",
             "joint-reg-only",
+            "pam-text",
             "complete-state",
             "write-state",
             "future-state",
@@ -2104,6 +2175,8 @@ def main(argv=None) -> None:
     config_value = TrainConfig(
         dataset=args.dataset,
         completion_path=args.completion_path,
+        pam_key_dim=args.pam_key_dim,
+        pam_loss_weight=args.pam_loss_weight,
         b2_base_checkpoint=args.b2_base_checkpoint,
         b2_pretrain_checkpoint=args.b2_pretrain_checkpoint,
         fold=args.fold,

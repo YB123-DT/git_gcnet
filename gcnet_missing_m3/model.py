@@ -12,6 +12,7 @@ from torch.nn import functional as F
 
 from gcnet_modality_jepa.model import GraphModel
 from .osram import OSRAMBackbone
+from .pam import TextConditionedPAMMemory
 
 
 MODALITIES = ("audio", "text", "visual")
@@ -1203,6 +1204,8 @@ class MissingM3GraphModel(GraphModel):
         osram_forward_slot_reuse=False,
         osram_write_step=1.0,
         completion_path="none",
+        pam_key_dim=64,
+        pam_loss_weight=0.05,
         osram_emotion_ablation="full",
         osram_readout_fusion="flat",
         complete_state_jepa=False,
@@ -1276,8 +1279,11 @@ class MissingM3GraphModel(GraphModel):
             or completion_path != "none" or classification_completion
         ):
             raise ValueError(f"{osram_readout_fusion} requires structured OSRAM without completion")
-        if completion_path not in {"none", "pre_osram_b2"}:
-            raise ValueError("completion_path must be none or pre_osram_b2; legacy uses classification_completion")
+        if completion_path not in {"none", "pre_osram_b2", "pam-text"}:
+            raise ValueError(
+                "completion_path must be none, pre_osram_b2, or pam-text; "
+                "legacy uses classification_completion"
+            )
         if completion_path == "pre_osram_b2":
             if classification_completion:
                 raise ValueError("B2 cannot use legacy classification_completion")
@@ -1286,6 +1292,24 @@ class MissingM3GraphModel(GraphModel):
                 raise ValueError("B2 requires full causal OSRAM, no slot reuse, write_step=.6")
             if fusion_type != "mean" or representation_type != "slot" or node_interaction_residual:
                 raise ValueError("B2 first version requires original mean observed-set nodes")
+        if completion_path == "pam-text":
+            if (backbone_type != "osram" or osram_bidirectional or osram_forward_slot_reuse
+                    or float(osram_write_step) != .6 or osram_readout_fusion != "flat"
+                    or osram_ablation != "full" or osram_emotion_ablation != "full"
+                    or osram_predictor_mode != "structured"
+                    or fusion_type != "mean" or representation_type != "slot"
+                    or local_context_residual or node_interaction_residual
+                    or readout_type != "shared" or classification_completion
+                    or complete_state_jepa or write_state_completion or future_state_jepa
+                    or teacher_mode != "ema" or teacher_checkpoint is not None
+                    or target_space != "all-modalities"
+                    or text_subspace_checkpoint is not None):
+                raise ValueError(
+                    "pam-text requires causal eta=.6 mean/Flat structured OSRAM, "
+                    "EMA teacher, and no legacy/state/B2/frozen-teacher modules"
+                )
+            if int(pam_key_dim) <= 0 or float(pam_loss_weight) < 0:
+                raise ValueError("pam_key_dim must be positive and pam_loss_weight nonnegative")
         if backbone_type not in {"gcnet", "osram"}:
             raise ValueError("backbone_type must be 'gcnet' or 'osram'")
         if osram_predictor_mode not in {"legacy-hidden", "structured"}:
@@ -1389,6 +1413,8 @@ class MissingM3GraphModel(GraphModel):
         self.latent_dim = int(latent_dim)
         self.backbone_type = backbone_type
         self.completion_path = completion_path
+        self.pam_key_dim = int(pam_key_dim)
+        self.pam_loss_weight = float(pam_loss_weight)
         self.osram_predictor_mode = osram_predictor_mode
         self.osram_ablation = osram_ablation
         self.osram_emotion_ablation = osram_emotion_ablation
@@ -1526,6 +1552,19 @@ class MissingM3GraphModel(GraphModel):
             self.completed_read_fusion = CompletedReadFusion(latent_dim, projector_dropout)
             # Keep legacy state keys loadable, but do not optimize the unused predictor.
             self.missing_predictor.requires_grad_(False)
+        if self.completion_path == "pam-text":
+            from .b2 import CompletedReadFusion
+            with torch.random.fork_rng(devices=[]):
+                self.pam_text_memory = TextConditionedPAMMemory(
+                    latent_dim=latent_dim,
+                    key_dim=self.pam_key_dim,
+                    dropout=predictor_dropout,
+                )
+                self.completed_read_fusion = CompletedReadFusion(
+                    latent_dim, projector_dropout
+                )
+            self.missing_predictor.requires_grad_(False)
+            self.last_pam_outputs = None
 
         if self.complete_state_jepa:
             from .complete_state import CompleteViewLocalStateJEPA
@@ -1603,6 +1642,29 @@ class MissingM3GraphModel(GraphModel):
             reg = (internal_predictions.reg_predictions if completion_predictions_override is None
                    else completion_predictions_override)
             read_node = self.completed_read_fusion(encoded, latents, reg, availability, umask)
+            osram_nodes = {"read_node": read_node, "write_node": encoded}
+        elif self.completion_path == "pam-text":
+            if predict_missing or self.classification_completion:
+                raise ValueError(
+                    "pam-text uses its own predictive memory and does not call "
+                    "the ContextualM3Predictor"
+                )
+            pam_outputs = self.pam_text_memory(latents, availability, umask)
+            self.last_pam_outputs = pam_outputs
+            zero_slot = encoded.new_zeros(
+                (*availability.shape[:2], self.latent_dim)
+            )
+            reg = torch.stack(
+                (zero_slot, pam_outputs["z_hat_text"], zero_slot), dim=2
+            )
+            read_node = self.completed_read_fusion(
+                encoded,
+                latents,
+                reg,
+                availability,
+                umask,
+                active_mask=pam_outputs["text_missing_mask"],
+            )
             osram_nodes = {"read_node": read_node, "write_node": encoded}
         elif completion_predictions_override is not None:
             raise ValueError("completion override requires pre_osram_b2")
