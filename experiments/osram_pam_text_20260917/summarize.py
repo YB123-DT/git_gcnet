@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 import numpy as np
-from sklearn.metrics import f1_score
 
 RATES = tuple(f'{i / 10:.1f}' for i in range(8))
 PATTERNS = ('A', 'T', 'V', 'AT', 'AV', 'TV', 'ATV')
@@ -15,7 +14,21 @@ HIGH = {'0.5', '0.6', '0.7'}
 def weighted_f1(labels, predictions):
     labels = np.asarray(labels) > 0
     predictions = np.asarray(predictions) > 0
-    return float(f1_score(labels, predictions, average='weighted'))
+    scores = []
+    weights = []
+    for cls in (False, True):
+        support = int(np.sum(labels == cls))
+        if support == 0:
+            continue
+        tp = int(np.sum((labels == cls) & (predictions == cls)))
+        fp = int(np.sum((labels != cls) & (predictions == cls)))
+        fn = int(np.sum((labels == cls) & (predictions != cls)))
+        precision = tp / (tp + fp) if tp + fp else 0.0
+        recall = tp / (tp + fn) if tp + fn else 0.0
+        f1 = 2.0 * precision * recall / (precision + recall) if precision + recall else 0.0
+        scores.append(f1)
+        weights.append(support)
+    return float(np.average(scores, weights=weights)) if weights else 0.0
 
 
 def pam_quality(prediction, target):
@@ -56,8 +69,9 @@ def read_group(root, group):
                                      weighted_f1=(weighted_f1(labels[selected], predictions[selected]) * 100.0
                                                   if bool(selected.any()) else None)))
             if group == 'PAM-T':
-                quality.append(dict(seed=seed, rate=rate,
-                                    **pam_quality(artifact['pam_prediction_text'], artifact['pam_target_text'])))
+                if 'pam_prediction_text' in artifact.files and 'pam_target_text' in artifact.files:
+                    quality.append(dict(seed=seed, rate=rate,
+                                        **pam_quality(artifact['pam_prediction_text'], artifact['pam_target_text'])))
     return rows, patterns, quality
 
 
@@ -106,6 +120,11 @@ def main():
             'PAM-T': aggregate(pam_rows)['high-missing-mean']['mean'],
         },
         'pam_quality': quality,
+        'pam_quality_note': (
+            'Original full-run NPZ files did not save pam_prediction_text/pam_target_text; '
+            'task and pattern metrics are complete, PAM cosine/std diagnostics require '
+            'a separate evaluation-only pass with the fixed trainer.'
+        ) if not quality else '',
     }
     (args.output / 'per_seed_rate.csv').write_text(
         'group,seed,rate,weighted_f1,selected_epoch,selection_protocol\n' +

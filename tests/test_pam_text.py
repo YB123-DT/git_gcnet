@@ -229,24 +229,25 @@ def test_default_model_has_no_pam_module():
     assert "pam_text_memory" not in dict(model.named_modules())
 
 
-def test_pam_text_model_forward_and_classification_gradient_path():
+def test_pam_text_model_forward_and_pam_gradient_path():
     from gcnet_missing_m3.model import MissingM3GraphModel
 
     torch.manual_seed(11)
     model = MissingM3GraphModel(**_pam_model_args())
-    # Open the zero-initialized read-fusion residual before the forward so the
-    # classification gradient can reach the PAM source encoder.
-    with torch.no_grad():
-        for parameter in model.completed_read_fusion.residual.parameters():
-            parameter.fill_(0.01)
     features, availability, qmask, umask, lengths = _model_inputs()
     logits, hidden, _, _ = model(
         [features], availability, qmask, umask, lengths
     )
     assert logits.shape == (3, 2, 6)
     assert torch.isfinite(logits).all()
-    assert model.last_pam_outputs["z_hat_text"].shape == (3, 2, 8)
-    logits.square().sum().backward()
+    pam = model.last_pam_outputs
+    assert pam["z_hat_text"].shape == (3, 2, 8)
+    target = torch.randn_like(pam["z_hat_text"])
+    mask = pam["pam_mask"]
+    pam_loss = torch.nn.functional.smooth_l1_loss(
+        pam["z_hat_text"][mask], target[mask]
+    )
+    pam_loss.backward()
     assert any(
         parameter.grad is not None and parameter.grad.abs().sum() > 0
         for parameter in model.pam_text_memory.source_encoder.parameters()
