@@ -133,11 +133,15 @@ class TrainConfig:
                 or self.jepa_contrastive_source != "contrastive"
                 or self.b2_base_checkpoint is not None or self.b2_pretrain_checkpoint is not None):
             raise ValueError("text target spaces require frozen-teacher joint training with unchanged JEPA weights and no B2")
-        if self.training_objective == "pam-text" or self.completion_path == "pam-text":
-            if self.training_objective != "pam-text" or self.completion_path != "pam-text":
+        if (self.training_objective in {"pam-text", "pam-episodic-text"}
+                or self.completion_path in {"pam-text", "pam-episodic-text"}):
+            if (self.training_objective != self.completion_path
+                    or self.training_objective not in {
+                        "pam-text", "pam-episodic-text"
+                    }):
                 raise ValueError(
-                    "pam-text requires both training_objective=pam-text and "
-                    "completion_path=pam-text"
+                    "PAM completion requires matching training_objective and "
+                    "completion_path in {pam-text, pam-episodic-text}"
                 )
             if (self.teacher_mode != "ema" or self.teacher_checkpoint is not None
                     or self.target_space != "all-modalities"
@@ -156,8 +160,9 @@ class TrainConfig:
                     or self.b2_base_checkpoint is not None
                     or self.b2_pretrain_checkpoint is not None):
                 raise ValueError(
-                    "pam-text requires causal eta=.6 mean/Flat structured OSRAM, "
-                    "EMA teacher, all-modalities targets, and no legacy/state/frozen modules"
+                    "PAM completion requires causal eta=.6 mean/Flat structured "
+                    "OSRAM, EMA teacher, all-modalities targets, and no "
+                    "legacy/state/frozen modules"
                 )
             if int(self.pam_key_dim) <= 0 or float(self.pam_loss_weight) < 0:
                 raise ValueError("pam_key_dim must be positive and pam_loss_weight nonnegative")
@@ -230,6 +235,7 @@ _TRAINING_OBJECTIVES = {
     "joint",
     "joint-reg-only",
     "pam-text",
+    "pam-episodic-text",
     "complete-state",
     "write-state",
     "future-state",
@@ -895,6 +901,7 @@ def train_epoch(
         "joint",
         "joint-reg-only",
         "pam-text",
+        "pam-episodic-text",
         "complete-state",
         "write-state",
         "future-state",
@@ -902,7 +909,7 @@ def train_epoch(
         "frozen-completion",
     }
     train_jepa = config.training_objective in {"joint", "joint-reg-only", "jepa-only"}
-    train_pam = config.training_objective == "pam-text"
+    train_pam = config.training_objective in {"pam-text", "pam-episodic-text"}
     train_state = config.training_objective == "complete-state"
     train_write_state = config.training_objective == "write-state"
     train_future_state = config.training_objective == "future-state"
@@ -1048,7 +1055,7 @@ def train_epoch(
             if train_pam:
                 pam = getattr(model, "last_pam_outputs", None)
                 if pam is None:
-                    raise RuntimeError("pam-text forward did not expose last_pam_outputs")
+                    raise RuntimeError("PAM forward did not expose last_pam_outputs")
                 if teacher is None:
                     with torch.no_grad():
                         teacher = model.encode_teacher_targets([view["complete"]])
@@ -1172,7 +1179,7 @@ def train_epoch(
             else:
                 jepa = MissingM3Loss(zero, zero, zero, 0)
                 jepa_rate_weight = 0.0
-            if config.training_objective == "pam-text":
+            if config.training_objective in {"pam-text", "pam-episodic-text"}:
                 loss = cls + config.pam_loss_weight * jepa.total
             elif config.training_objective in {
                 "joint",
@@ -1348,6 +1355,8 @@ def evaluate_rate(
     all_full_availability: list[np.ndarray] = []
     all_pam_predictions: list[np.ndarray] = []
     all_pam_targets: list[np.ndarray] = []
+    all_pam_bank_sizes: list[np.ndarray] = []
+    all_pam_bank_nonempty: list[np.ndarray] = []
     for raw in loader:
         data = _move_batch(raw, device)
         view = _prepare_view(data, schedule, epoch=0, dimensions=dimensions)
@@ -1361,10 +1370,10 @@ def evaluate_rate(
         )
         if predictions is not None:
             raise RuntimeError("inference path must not return missing predictions")
-        if collect and model.completion_path == "pam-text":
+        if collect and model.completion_path in {"pam-text", "pam-episodic-text"}:
             pam = getattr(model, "last_pam_outputs", None)
             if pam is None:
-                raise RuntimeError("pam-text evaluation did not expose PAM outputs")
+                raise RuntimeError("PAM evaluation did not expose PAM outputs")
             teacher = model.encode_teacher_targets([view["complete"]])
             pam_mask = pam["text_missing_mask"] & view["umask"].transpose(0, 1).bool()
             all_pam_predictions.append(
@@ -1373,6 +1382,13 @@ def evaluate_rate(
             all_pam_targets.append(
                 teacher["text"][pam_mask].detach().cpu().numpy()
             )
+            if "bank_size" in pam:
+                all_pam_bank_sizes.append(
+                    pam["bank_size"][pam_mask].detach().cpu().numpy()
+                )
+                all_pam_bank_nonempty.append(
+                    pam["bank_nonempty"][pam_mask].detach().cpu().numpy()
+                )
         loss = _task_loss(
             dataset,
             logits,
@@ -1430,9 +1446,16 @@ def evaluate_rate(
             artifacts["continuous_labels"] = continuous_labels_array
         if task == "soft-ordinal":
             artifacts["signed_logits"] = np.concatenate(all_signed_logits)
-        if model.completion_path == "pam-text":
+        if model.completion_path in {"pam-text", "pam-episodic-text"}:
             artifacts["pam_prediction_text"] = np.concatenate(all_pam_predictions)
             artifacts["pam_target_text"] = np.concatenate(all_pam_targets)
+            if all_pam_bank_sizes:
+                artifacts["pam_history_text_count"] = np.concatenate(
+                    all_pam_bank_sizes
+                )
+                artifacts["pam_bank_nonempty"] = np.concatenate(
+                    all_pam_bank_nonempty
+                )
         full_availability_array = np.concatenate(all_full_availability)
         metrics["mask_sha256"] = _sha256_tensor(
             torch.from_numpy(full_availability_array)
@@ -1993,7 +2016,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--teacher-checkpoint", default=None)
     parser.add_argument("--target-space", choices=("all-modalities", "full-text", "predictable-subspace"), default="all-modalities")
     parser.add_argument("--text-subspace-checkpoint", default=None)
-    parser.add_argument("--completion-path",choices=("none","pre_osram_b2","pam-text"),default="none")
+    parser.add_argument("--completion-path",choices=("none","pre_osram_b2","pam-text","pam-episodic-text"),default="none")
     parser.add_argument("--pam-key-dim", type=int, default=64)
     parser.add_argument("--pam-loss-weight", type=float, default=0.05)
     parser.add_argument("--b2-base-checkpoint",default=None)
@@ -2104,6 +2127,7 @@ def build_parser() -> argparse.ArgumentParser:
             "joint",
             "joint-reg-only",
             "pam-text",
+            "pam-episodic-text",
             "complete-state",
             "write-state",
             "future-state",

@@ -808,3 +808,48 @@ class OSRAMBackbone(nn.Module):
             "local": local,
         }
         return hidden, contexts
+
+    def causal_read_contexts(
+        self,
+        node: torch.Tensor,
+        latents: Mapping[str, torch.Tensor],
+        availability: torch.Tensor,
+        qmask: torch.Tensor,
+        umask: torch.Tensor,
+        seq_lengths: Sequence[int] | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return observed-only causal Base/Gap contexts without persistence.
+
+        The returned contexts are the same forward-scan slots used by
+        :meth:`forward` for a causal OSRAM (the backward half is zero).  This
+        method is read-only: it performs only the read-before-write scan on the
+        real observed set, never runs the emotion adapter, and never stores
+        memory outside the call.  It is intended for completion query
+        construction where future information and predicted writes must not
+        leak into the address.
+        """
+
+        if self.bidirectional:
+            raise ValueError("causal_read_contexts requires a causal OSRAM")
+        if self.osram_ablation != "full" or self.osram_emotion_ablation != "full":
+            raise ValueError("causal_read_contexts requires full OSRAM reads")
+        valid = self._validate_inputs(
+            node, latents, availability, qmask, umask, seq_lengths
+        )
+        keys, values, queries = self._project_sequence(
+            node,
+            latents,
+            availability,
+            qmask,
+            read_node=node,
+            write_node=node,
+        )
+        base_forward, gap_forward, _ = self._scan(
+            keys, values, queries, availability, valid, reverse=False
+        )
+        # Match ``OSRAMBackbone.forward`` slot width for a causal scan: the
+        # second direction is a zero block and is present only so the context
+        # width is unchanged (256 for the MOSI configuration).
+        base_context = torch.cat((base_forward, torch.zeros_like(base_forward)), dim=-1)
+        gap_context = torch.cat((gap_forward, torch.zeros_like(gap_forward)), dim=-1)
+        return base_context, gap_context

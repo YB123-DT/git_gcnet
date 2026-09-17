@@ -288,7 +288,7 @@ def test_pam_text_config_and_cli_roundtrip():
     )
     assert config.pam_key_dim == 64
     assert config.pam_loss_weight == 0.05
-    with pytest.raises(ValueError, match="pam-text requires both"):
+    with pytest.raises(ValueError, match="matching training_objective"):
         TrainConfig(
             training_objective="joint",
             completion_path="pam-text",
