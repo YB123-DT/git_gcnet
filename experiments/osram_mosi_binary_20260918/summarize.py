@@ -33,10 +33,12 @@ def load_predictions(root: Path, seed: int, rate: str):
         return {name: data[name].copy() for name in data.files}
 
 
-def binary_wf1(labels, predictions):
+def binary_wf1(labels, predictions, *, filter_zero=True):
     labels = np.asarray(labels)
     predictions = np.asarray(predictions)
-    selected = np.isfinite(labels) & np.isfinite(predictions) & (labels != 0)
+    selected = np.isfinite(labels) & np.isfinite(predictions)
+    if filter_zero:
+        selected &= labels != 0
     if not selected.any():
         return None
     return float(
@@ -75,7 +77,16 @@ def pattern_rows():
             for rate in RATES:
                 data = load_predictions(root, seed, rate)
                 availability = data["availability"]
-                labels = data["labels"]
+                metric_labels = data["labels"]
+                # Binary evaluation stores class labels (0/1) in ``labels``;
+                # neutral MOSI labels must be filtered using the preserved
+                # continuous labels, otherwise every negative example would
+                # be mistaken for label==0 and removed from the audit.
+                selection_labels = (
+                    data.get("continuous_labels", metric_labels)
+                    if variant == "Binary"
+                    else metric_labels
+                )
                 predictions = data["predictions"]
                 pattern_ids = (
                     availability[:, 0].astype(int) * 4
@@ -87,11 +98,11 @@ def pattern_rows():
                     if not selected.any():
                         continue
                     stores[variant][name]["count"] += int(selected.sum())
-                    stores[variant][name]["excluded"] += int((selected & (labels == 0)).sum())
-                    kept = selected & (labels != 0)
-                    stores[variant][name]["labels"].extend(labels[kept].tolist())
+                    stores[variant][name]["excluded"] += int((selected & (selection_labels == 0)).sum())
+                    kept = selected & (selection_labels != 0)
+                    stores[variant][name]["labels"].extend(metric_labels[kept].tolist())
                     stores[variant][name]["predictions"].extend(predictions[kept].tolist())
-                    score = binary_wf1(labels[selected], predictions[selected])
+                    score = binary_wf1(metric_labels[kept], predictions[kept], filter_zero=False)
                     if score is not None:
                         rows.append(
                             {
@@ -100,7 +111,7 @@ def pattern_rows():
                                 "rate": rate,
                                 "pattern": name,
                                 "total_count": int(selected.sum()),
-                                "excluded_label_zero": int((selected & (labels == 0)).sum()),
+                                "excluded_label_zero": int((selected & (selection_labels == 0)).sum()),
                                 "count": int(kept.sum()),
                                 "weighted_f1": score,
                             }
@@ -111,9 +122,9 @@ def pattern_rows():
 def aggregate_store(store, names):
     labels = np.asarray([value for name in names for value in store[name]["labels"]])
     predictions = np.asarray([value for name in names for value in store[name]["predictions"]])
-    sample_pooled = binary_wf1(labels, predictions)
+    sample_pooled = binary_wf1(labels, predictions, filter_zero=False)
     pattern_scores = [
-        binary_wf1(store[name]["labels"], store[name]["predictions"])
+        binary_wf1(store[name]["labels"], store[name]["predictions"], filter_zero=False)
         for name in names
         if store[name]["labels"]
     ]
