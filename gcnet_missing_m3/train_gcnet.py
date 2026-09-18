@@ -55,6 +55,12 @@ class TrainConfig:
     epochs: int = 100
     learning_rate: float = 1e-3
     weight_decay: float = 1e-5
+    optimizer: str = "adam"
+    lr_schedule: str = "constant"
+    warmup_ratio: float = 0.05
+    backbone_lr_multiplier: float = 1.0
+    projector_lr_multiplier: float = 1.0
+    classifier_lr_multiplier: float = 1.0
     latent_dim: int = 256
     num_experts: int = 4
     top_k: int = 2
@@ -136,6 +142,16 @@ class TrainConfig:
         if (not math.isfinite(forced_text_probability)
                 or not 0.0 <= forced_text_probability <= 1.0):
             raise ValueError("uniform_forced_text_probability must be between zero and one")
+        if self.optimizer not in {"adam", "adamw"}:
+            raise ValueError("optimizer must be adam or adamw")
+        if self.lr_schedule not in {"constant", "cosine"}:
+            raise ValueError("lr_schedule must be constant or cosine")
+        if not math.isfinite(float(self.warmup_ratio)) or not 0.0 <= float(self.warmup_ratio) < 1.0:
+            raise ValueError("warmup_ratio must be in [0, 1)")
+        for name in ("backbone_lr_multiplier", "projector_lr_multiplier", "classifier_lr_multiplier"):
+            value = float(getattr(self, name))
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError(f"{name} must be positive and finite")
         if (self.target_space == "predictable-subspace") != (self.text_subspace_checkpoint is not None):
             raise ValueError("text_subspace_checkpoint is required only for predictable-subspace")
         if self.target_space != "all-modalities" and (
@@ -532,15 +548,40 @@ def _optimizer_parameter_groups(
         if parameter.requires_grad
     ]
     if config_value.pretrained_learning_rate is None:
-        parameters = [parameter for _, parameter in trainable]
-        return [
-            {"params": parameters, "lr": config_value.learning_rate}
-        ], {
-            "default": {
-                "learning_rate": config_value.learning_rate,
-                "parameter_count": sum(value.numel() for value in parameters),
-            }
+        multipliers = {
+            "backbone": float(config_value.backbone_lr_multiplier),
+            "projector": float(config_value.projector_lr_multiplier),
+            "classifier": float(config_value.classifier_lr_multiplier),
+            "predictor": 1.0,
+            "other": 1.0,
         }
+        grouped: Dict[str, list[tuple[str, torch.nn.Parameter]]] = {}
+        for name, parameter in trainable:
+            if name.startswith("osram."):
+                block = "backbone"
+            elif name.startswith("observed_set."):
+                block = "projector"
+            elif name.startswith(("smax_fc.", "conditioned_readout.", "affine_readout.")):
+                block = "classifier"
+            elif name.startswith(("missing_predictor.", "source_only_predictor.")):
+                block = "predictor"
+            else:
+                block = "other"
+            grouped.setdefault(block, []).append((name, parameter))
+        groups = []
+        provenance = {}
+        for block in ("backbone", "projector", "classifier", "predictor", "other"):
+            values = grouped.get(block, [])
+            if not values:
+                continue
+            lr = config_value.learning_rate * multipliers[block]
+            groups.append({"params": [parameter for _, parameter in values], "lr": lr})
+            provenance[block] = {
+                "learning_rate": lr,
+                "multiplier": multipliers[block],
+                "parameter_count": sum(parameter.numel() for _, parameter in values),
+            }
+        return groups, provenance
 
     fresh = [
         (name, parameter)
@@ -592,6 +633,32 @@ def _readout_provenance(model: MissingM3GraphModel) -> Dict[str, object]:
             else sum(parameter.numel() for parameter in module.parameters())
         ),
     }
+
+
+def _apply_epoch_learning_rate(
+    optimizer: torch.optim.Optimizer,
+    config_value: TrainConfig,
+    epoch_index: int,
+) -> None:
+    """Apply an optional epoch-level warmup/cosine multiplier.
+
+    Keeping this as an explicit update avoids changing the default constant
+    learning-rate path and makes the effective schedule reproducible in the
+    experiment provenance.
+    """
+    if config_value.lr_schedule == "constant":
+        return
+    total_epochs = max(1, int(config_value.epochs))
+    warmup_epochs = max(1, int(round(config_value.warmup_ratio * total_epochs)))
+    step = int(epoch_index) + 1
+    if step <= warmup_epochs:
+        factor = step / warmup_epochs
+    else:
+        progress = (step - warmup_epochs) / max(1, total_epochs - warmup_epochs)
+        factor = 0.5 * (1.0 + math.cos(math.pi * min(1.0, progress)))
+    for group in optimizer.param_groups:
+        base_lr = group.setdefault("_schedule_base_lr", float(group["lr"]))
+        group["lr"] = base_lr * factor
 
 
 def _sha256_tensor(value: torch.Tensor) -> str:
@@ -2157,7 +2224,8 @@ def run_experiment(
     optimizer_groups, optimizer_group_provenance = _optimizer_parameter_groups(
         model, config_value
     )
-    optimizer = torch.optim.Adam(
+    optimizer_cls = torch.optim.AdamW if config_value.optimizer == "adamw" else torch.optim.Adam
+    optimizer = optimizer_cls(
         optimizer_groups,
         weight_decay=config_value.weight_decay,
     )
@@ -2182,6 +2250,7 @@ def run_experiment(
     selected_epoch_by_rate: Dict[str, int] = {}
     selected_score_by_rate: Dict[str, float] = {}
     for epoch in range(config_value.epochs):
+        _apply_epoch_learning_rate(optimizer, config_value, epoch)
         sampler = getattr(train_loader, "sampler", None)
         if sampler is not None and hasattr(sampler, "set_epoch"):
             sampler.set_epoch(epoch)
@@ -2460,6 +2529,12 @@ def run_experiment(
         "recurrent_padding_mode": config_value.recurrent_padding_mode,
         "task_regression_loss": config_value.task_regression_loss,
         "task_smooth_l1_beta": config_value.task_smooth_l1_beta,
+        "optimizer": config_value.optimizer,
+        "lr_schedule": config_value.lr_schedule,
+        "warmup_ratio": config_value.warmup_ratio,
+        "backbone_lr_multiplier": config_value.backbone_lr_multiplier,
+        "projector_lr_multiplier": config_value.projector_lr_multiplier,
+        "classifier_lr_multiplier": config_value.classifier_lr_multiplier,
         "postgraph_sequence_mode": config_value.postgraph_sequence_mode,
         "jepa_rate_weighting": config_value.jepa_rate_weighting,
         "emotion_loss_mode": config_value.emotion_loss_mode,
@@ -2659,6 +2734,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--pretrained-lr", type=float, default=None)
     parser.add_argument("--l2", type=float, default=1e-5)
+    parser.add_argument("--optimizer", choices=("adam", "adamw"), default="adam")
+    parser.add_argument("--lr-schedule", choices=("constant", "cosine"), default="constant")
+    parser.add_argument("--warmup-ratio", type=float, default=0.05)
+    parser.add_argument("--backbone-lr-multiplier", type=float, default=1.0)
+    parser.add_argument("--projector-lr-multiplier", type=float, default=1.0)
+    parser.add_argument("--classifier-lr-multiplier", type=float, default=1.0)
     parser.add_argument("--dropout", type=float, default=0.5)
     parser.add_argument("--jepa-weight", type=float, default=0.1)
     parser.add_argument("--temperature", type=float, default=0.03)
@@ -2746,6 +2827,12 @@ def main(argv=None) -> None:
         epochs=args.epochs,
         learning_rate=args.lr,
         weight_decay=args.l2,
+        optimizer=args.optimizer,
+        lr_schedule=args.lr_schedule,
+        warmup_ratio=args.warmup_ratio,
+        backbone_lr_multiplier=args.backbone_lr_multiplier,
+        projector_lr_multiplier=args.projector_lr_multiplier,
+        classifier_lr_multiplier=args.classifier_lr_multiplier,
         latent_dim=args.latent_dim,
         num_experts=args.num_experts,
         top_k=args.top_k,
