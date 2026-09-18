@@ -25,6 +25,7 @@ RUNNER = Path(__file__).resolve()
 EXPECTED = tuple(item["id"] for item in SPECS)
 FIRST_WAVES = tuple(item["id"] for item in SPECS[:60])
 FOLLOWUP_IDS = tuple(item["id"] for item in SPECS[60:])
+SELECTED_ROOT = Path("/data2/yb/remote_experiments/osram_mosi_hparam_verify_selected_20260918")
 
 
 def _repair_completed() -> tuple[int, list[str]]:
@@ -116,9 +117,17 @@ def main() -> None:
                 handle.flush()
             if complete == 90:
                 summarize = RUNNER.with_name("summarize.py")
+                selected = RUNNER.with_name("verify_selected.py")
                 verify = RUNNER.with_name("verify_top.py")
                 subprocess.run([PYTHON, str(summarize), "--root", str(ROOT)], check=True)
-                subprocess.run([PYTHON, str(verify), "--launch", "--top", "5"], check=True)
+                selected_queue = SELECTED_ROOT / "QUEUE.json"
+                if not selected_queue.exists():
+                    subprocess.run([PYTHON, str(selected), "--launch"], check=True)
+                elif json.loads(selected_queue.read_text()).get("status") != "complete":
+                    raise RuntimeError(f"shortlist verification is not complete: {selected_queue}")
+                top_queue = Path("/data2/yb/remote_experiments/osram_mosi_hparam_verify_20260918/QUEUE.json")
+                if not top_queue.exists():
+                    subprocess.run([PYTHON, str(verify), "--launch", "--top", "5"], check=True)
                 handle.write(f"{datetime.now(timezone.utc).isoformat()} top-five verification finished\n")
                 handle.flush()
                 return
