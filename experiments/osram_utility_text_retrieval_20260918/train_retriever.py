@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse, json, math, random
 from pathlib import Path
 import numpy as np
+from sklearn.metrics import f1_score
 import torch
 from torch import nn
 from torch.nn import functional as F
