@@ -60,7 +60,9 @@ def run(variant: str, seed: int) -> None:
 
     cfg, reference = variant_config(seed, variant)
     output = ROOT / variant / f"seed_{seed}"
-    output.mkdir(parents=True, exist_ok=False)
+    if (output / "metrics.json").exists():
+        raise FileExistsError(f"refusing to overwrite completed run: {output}")
+    output.mkdir(parents=True, exist_ok=True)
     provenance = {
         "status": "running",
         "started_utc": datetime.now(timezone.utc).isoformat(),
@@ -118,4 +120,3 @@ if __name__ == "__main__":
     parser.add_argument("--seed", choices=nojepa.runner.SEEDS, type=int, required=True)
     args = parser.parse_args()
     run(args.variant, args.seed)
-
