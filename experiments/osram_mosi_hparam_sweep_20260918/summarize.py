@@ -76,9 +76,9 @@ def write_report(rows: list[dict[str, object]], root: Path) -> None:
         writer.writeheader()
         writer.writerows(write_rows)
     payload = {
-        "status": "complete" if len(rows) == 60 else "partial",
+        "status": "complete" if len(rows) == 90 else "partial",
         "completed_configs": len(rows),
-        "expected_configs": 60,
+        "expected_configs": 90,
         "selection_protocol": "per-rate-test-oracle",
         "label": "INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT",
         "rows": rows,
@@ -99,7 +99,7 @@ def main() -> None:
     args = parser.parse_args()
     rows = collect(args.root)
     write_report(rows, args.root)
-    print(f"completed={len(rows)}/60")
+    print(f"completed={len(rows)}/90")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Repair completed screen artifacts, summarize all 60 configs, and launch top-5 verification."""
+"""Repair completed screen artifacts, extend the queue, and launch top-5 verification."""
 
 from __future__ import annotations
 
@@ -21,7 +21,9 @@ from experiments.osram_mosi_hparam_sweep_20260918.run import (
 
 PYTHON = "/data2/yb/reproduction_envs/s0/bin/python3.10"
 RUNNER = Path(__file__).resolve()
-EXPECTED = tuple(f"cfg{i:02d}" for i in range(1, 61))
+EXPECTED = tuple(f"cfg{i:02d}" for i in range(1, 91))
+FIRST_WAVES = tuple(f"cfg{i:02d}" for i in range(1, 61))
+FOLLOWUP_IDS = tuple(f"cfg{i:02d}" for i in range(61, 91))
 
 
 def _repair_completed() -> tuple[int, list[str]]:
@@ -64,15 +66,55 @@ def _repair_completed() -> tuple[int, list[str]]:
     return complete, pending
 
 
+def _launch_followup() -> None:
+    queue_path = ROOT / "FOLLOWUP_QUEUE.json"
+    if queue_path.exists():
+        return
+    buckets = {1: [], 2: [], 3: []}
+    for index, spec_id in enumerate(FOLLOWUP_IDS):
+        buckets[(index % 3) + 1].append(spec_id)
+    tasks = []
+    for gpu, spec_ids in buckets.items():
+        for spec_id in spec_ids:
+            log_path = ROOT / f"gpu{gpu}_{spec_id}.log"
+            log = log_path.open("a")
+            env = dict(
+                CUDA_VISIBLE_DEVICES=str(gpu),
+                OMP_NUM_THREADS="2",
+                MKL_NUM_THREADS="2",
+                PYTHONPATH=str(REPO),
+            )
+            child = subprocess.Popen(
+                [PYTHON, "-u", str(RUNNER.with_name("run.py")), "--train", spec_id],
+                cwd=REPO,
+                env=env,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+            log.close()
+            tasks.append({"gpu": gpu, "spec_id": spec_id, "pid": child.pid,
+                          "log": str(log_path), "status": "running"})
+    queue_path.write_text(json.dumps({
+        "status": "running",
+        "started_utc": datetime.now(timezone.utc).isoformat(),
+        "configs": list(FOLLOWUP_IDS),
+        "tasks": tasks,
+    }, indent=2) + "\n")
+
+
 def main() -> None:
     log = ROOT / "WATCHER.log"
     ROOT.mkdir(parents=True, exist_ok=True)
     with log.open("a") as handle:
         while True:
             complete, pending = _repair_completed()
-            handle.write(f"{datetime.now(timezone.utc).isoformat()} complete={complete}/60 pending={pending}\n")
+            handle.write(f"{datetime.now(timezone.utc).isoformat()} complete={complete}/90 pending={pending}\n")
             handle.flush()
-            if complete == 60:
+            if complete >= len(FIRST_WAVES) and not (ROOT / "FOLLOWUP_QUEUE.json").exists():
+                _launch_followup()
+                handle.write(f"{datetime.now(timezone.utc).isoformat()} launched follow-up cfg61-cfg90\n")
+                handle.flush()
+            if complete == 90:
                 summarize = RUNNER.with_name("summarize.py")
                 verify = RUNNER.with_name("verify_top.py")
                 subprocess.run([PYTHON, str(summarize), "--root", str(ROOT)], check=True)

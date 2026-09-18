@@ -37,7 +37,7 @@ def _spec(identifier: str, group: str, **overrides: Any) -> dict[str, Any]:
     return {"id": identifier, "group": group, "overrides": overrides}
 
 
-# Sixty intentionally coarse configurations.  They cover the requested
+# Ninety intentionally coarse configurations.  They cover the requested
 # learning-rate, batch, optimizer, regularization, schedule, clipping, epoch,
 # and capacity ranges without attempting the infeasible full Cartesian product.
 # The launcher runs ten configurations concurrently on each GPU, in waves.
@@ -162,6 +162,74 @@ SPECS: tuple[dict[str, Any], ...] = (
     _spec("cfg60_adam_lr1e3_cosine_clip5_cls05", "schedule",
           learning_rate=1e-3, lr_schedule="cosine", warmup_ratio=.05,
           gradient_clip_norm=5.0, classifier_lr_multiplier=.5),
+
+    # Follow-up coverage for axes that are intentionally sparse above:
+    # batch_size=4, projector dropout, stronger block-LR ratios, and capacity
+    # boundaries.  These are a third queue wave, not duplicates of cfg01-60.
+    _spec("cfg61_lr3e4_b4_d3", "optimization", learning_rate=3e-4,
+          batch_size=4, dropout=.3),
+    _spec("cfg62_lr1e3_b4_d5", "optimization", learning_rate=1e-3,
+          batch_size=4, dropout=.5),
+    _spec("cfg63_adamw_lr3e4_b4_wd1e4", "optimization", optimizer="adamw",
+          learning_rate=3e-4, batch_size=4, weight_decay=1e-4, dropout=.3),
+    _spec("cfg64_adam_cosine_lr1e3_b4", "schedule", learning_rate=1e-3,
+          batch_size=4, lr_schedule="cosine", warmup_ratio=.05),
+    _spec("cfg65_lr3e4_projdrop1", "optimization", learning_rate=3e-4,
+          projector_dropout=.1),
+    _spec("cfg66_lr3e4_projdrop2", "optimization", learning_rate=3e-4,
+          projector_dropout=.2),
+    _spec("cfg67_adamw_cosine_projdrop1", "schedule", optimizer="adamw",
+          learning_rate=3e-4, weight_decay=1e-4, lr_schedule="cosine",
+          warmup_ratio=.05, projector_dropout=.1),
+    _spec("cfg68_adamw_cosine_projdrop2", "schedule", optimizer="adamw",
+          learning_rate=3e-4, weight_decay=1e-4, lr_schedule="cosine",
+          warmup_ratio=.05, projector_dropout=.2),
+    _spec("cfg69_lr1e4_b16_d1_proj1", "optimization", learning_rate=1e-4,
+          batch_size=16, dropout=.1, projector_dropout=.1),
+    _spec("cfg70_lr3e4_b16_d5_proj2", "optimization", learning_rate=3e-4,
+          batch_size=16, dropout=.5, projector_dropout=.2),
+    _spec("cfg71_lr1e3_wd1e6_d0", "optimization", learning_rate=1e-3,
+          weight_decay=1e-6, dropout=0.0),
+    _spec("cfg72_lr1e3_wd1e2_d0", "optimization", learning_rate=1e-3,
+          weight_decay=1e-2, dropout=0.0),
+    _spec("cfg73_lr3e5_b4_d1", "optimization", learning_rate=3e-5,
+          batch_size=4, dropout=.1),
+    _spec("cfg74_lr3e3_b4_clip05", "optimization", learning_rate=3e-3,
+          batch_size=4, gradient_clip_norm=.5),
+    _spec("cfg75_adam_cosine_lr1e4_b8_clip5", "schedule", learning_rate=1e-4,
+          batch_size=8, lr_schedule="cosine", warmup_ratio=.05,
+          gradient_clip_norm=5.0),
+    _spec("cfg76_adamw_lr3e3_wd1e3_d1", "schedule", optimizer="adamw",
+          learning_rate=3e-3, weight_decay=1e-3, dropout=.1),
+    _spec("cfg77_adamw_lr3e5_wd0_d5", "optimization", optimizer="adamw",
+          learning_rate=3e-5, weight_decay=0.0, dropout=.5),
+    _spec("cfg78_lr3e4_block025_proj4", "optimization", learning_rate=3e-4,
+          backbone_lr_multiplier=.25, projector_lr_multiplier=4.0),
+    _spec("cfg79_lr3e4_block2_proj05", "optimization", learning_rate=3e-4,
+          backbone_lr_multiplier=2.0, projector_lr_multiplier=.5),
+    _spec("cfg80_lr1e3_block2_proj05_cls05", "optimization", learning_rate=1e-3,
+          backbone_lr_multiplier=2.0, projector_lr_multiplier=.5,
+          classifier_lr_multiplier=.5),
+    _spec("cfg81_out700_kv16", "capacity", osram_output_dim=700,
+          osram_key_dim=16, osram_value_dim=16),
+    _spec("cfg82_out700_kv48", "capacity", osram_output_dim=700,
+          osram_key_dim=48, osram_value_dim=48),
+    _spec("cfg83_heads4_out1024_kv32", "capacity", osram_num_heads=4,
+          osram_output_dim=1024),
+    _spec("cfg84_out1600_kv64", "capacity", osram_output_dim=1600,
+          osram_key_dim=64, osram_value_dim=64),
+    _spec("cfg85_lat320_out700_kv32", "capacity", latent_dim=320,
+          osram_output_dim=700),
+    _spec("cfg86_lat512_out1024_kv48", "capacity", latent_dim=512,
+          osram_output_dim=1024, osram_key_dim=48, osram_value_dim=48),
+    _spec("cfg87_heads2_out700_kv32", "capacity", osram_num_heads=2,
+          osram_output_dim=700),
+    _spec("cfg88_heads8_out1600_kv64", "capacity", osram_output_dim=1600,
+          osram_key_dim=64, osram_value_dim=64),
+    _spec("cfg89_heads16_out1400_kv48", "capacity", osram_num_heads=16,
+          osram_output_dim=1400, osram_key_dim=48, osram_value_dim=48),
+    _spec("cfg90_lat512_out1600_kv64", "capacity", latent_dim=512,
+          osram_output_dim=1600, osram_key_dim=64, osram_value_dim=64),
 )
 
 SPEC_BY_ID = {item["id"]: item for item in SPECS}
