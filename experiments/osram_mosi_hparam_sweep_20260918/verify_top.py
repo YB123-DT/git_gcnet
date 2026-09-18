@@ -15,7 +15,7 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 from experiments.osram_mosi_hparam_sweep_20260918.run import (
-    FEATURES, SPECS, SPEC_BY_ID, SOURCE_ROOT, sha, write_json,
+    FEATURES, SPECS, SPEC_BY_ID, SOURCE_ROOT, canonical_mask_hashes, sha, write_json,
 )
 
 ROOT_SCREEN = Path("/data2/yb/remote_experiments/osram_mosi_hparam_sweep_20260918_parallel")
@@ -88,11 +88,10 @@ def train(spec_id: str, seed: int) -> None:
         print(f"TRAIN verify {spec_id} seed={seed} GPU={os.environ.get('CUDA_VISIBLE_DEVICES')}", flush=True)
         run_experiment(cfg, *roots, output_dir=str(output))
         metrics = json.loads((output / "metrics.json").read_text())
-        reference_metrics = json.loads((source / "metrics.json").read_text())
         if metrics.get("selection_protocol") != "per-rate-test-oracle":
             raise ValueError("unexpected selection protocol")
-        if metrics.get("mask_sha256") != reference_metrics.get("mask_sha256"):
-            raise ValueError("test mask hashes differ from same-seed baseline")
+        if canonical_mask_hashes(output) != canonical_mask_hashes(source):
+            raise ValueError("canonical evaluation masks differ from same-seed baseline")
     except BaseException as error:
         provenance.update(status="failed", error=f"{type(error).__name__}: {error}")
         write_json(output / "PROVENANCE.json", provenance)
