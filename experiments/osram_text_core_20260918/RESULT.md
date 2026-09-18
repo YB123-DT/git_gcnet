@@ -20,18 +20,39 @@ High-missing (.5/.6/.7): no-JEPA 75.52%, Text-Core 75.41%.
 
 ## T-missing vs T-present
 
-| group | no-JEPA | Text-Core |
-|---|---:|---:|
-| T-missing | 64.90 | 65.41 |
-| T-present | 85.34 | 84.34 |
+W-F1 excludes label==0. `pattern-macro` first averages valid W-F1 within each pattern, then averages patterns; `sample-pooled` concatenates the underlying valid samples before computing W-F1.
+
+| group | aggregation | no-JEPA | Text-Core | delta | valid samples (no-JEPA/Text-Core) |
+|---|---|---:|---:|---:|---:|
+| T-missing | pattern_macro | 65.42 | 66.05 | +0.63 | 8401/8401 |
+| T-missing | sample_pooled | 66.18 | 66.73 | +0.55 | 8401/8401 |
+| T-present | pattern_macro | 86.33 | 85.41 | -0.92 | 17839/17839 |
+| T-present | sample_pooled | 86.67 | 86.04 | -0.63 | 17839/17839 |
+
+## Seven-pattern summary
+
+| pattern | aggregation | no-JEPA | Text-Core | delta |
+|---|---|---:|---:|---:|
+| A | pattern-macro | 65.93 | 66.27 | +0.34 |
+| A | sample-pooled | 66.26 | 66.68 | +0.42 |
+| T | pattern-macro | 85.10 | 83.27 | -1.83 |
+| T | sample-pooled | 86.28 | 85.55 | -0.73 |
+| V | pattern-macro | 65.03 | 66.05 | +1.02 |
+| V | sample-pooled | 65.58 | 66.50 | +0.92 |
+| AT | pattern-macro | 85.97 | 86.28 | +0.31 |
+| AT | sample-pooled | 85.71 | 86.14 | +0.43 |
+| AV | pattern-macro | 65.29 | 65.82 | +0.52 |
+| AV | sample-pooled | 66.65 | 67.02 | +0.37 |
+| TV | pattern-macro | 86.60 | 85.79 | -0.81 |
+| TV | sample-pooled | 86.71 | 86.02 | -0.69 |
+| ATV | pattern-macro | 87.66 | 86.30 | -1.36 |
+| ATV | sample-pooled | 87.03 | 86.16 | -0.86 |
 
 ## Task-slot diagnostics
 
 Real Text slot W-F1: 85.17%
 Predicted Text slot W-F1: 65.40%
-Centered cosine (predicted vs complete Text task slot): 0.1402
-Prediction/target std ratio: 0.8636
+Centered cosine (old per-sample protocol; T-missing only): 0.1027±0.0346
+Prediction/target std ratio (T-missing only; old mean-channel population-std protocol): 0.8289±0.1090
 
-## Seven-pattern details
-
-See `pattern_per_seed.csv`; the key Text-missing patterns are A, V and AV.
+`pattern_per_seed.csv` excludes label==0 from `count` and W-F1 and records the excluded count explicitly.
