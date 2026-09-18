@@ -1243,6 +1243,11 @@ def train_epoch(
     train_write_state = config.training_objective == "write-state"
     train_future_state = config.training_objective == "future-state"
     model.train()
+    if config.osram_readout_fusion == "modality-track-residual":
+        # The frozen no-JEPA anchor must be deterministic while the new
+        # residual branch keeps its own dropout active during optimization.
+        model.eval()
+        model.osram.modality_track_residual.train()
     predictor = getattr(model, "source_only_predictor", None) if config.completion_path == "pre_osram_b2" else getattr(model, "missing_predictor", None)
     mmoe = getattr(predictor, "mmoe", None)
     if mmoe is not None and train_jepa:
