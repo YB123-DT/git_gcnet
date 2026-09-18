@@ -1299,8 +1299,12 @@ class MissingM3GraphModel(GraphModel):
         ):
             raise ValueError("complete-state requires unchanged causal eta=.6 Flat without completion")
         b2_constructor_settings = {k:v for k,v in locals().items() if k not in {"self","__class__"}}
-        if osram_readout_fusion not in ("flat", "local-gated", "local-cross-attn"):
-            raise ValueError("osram_readout_fusion must be flat, local-gated, or local-cross-attn")
+        if osram_readout_fusion not in (
+            "flat", "local-gated", "local-cross-attn", "modality-tracks"
+        ):
+            raise ValueError(
+                "osram_readout_fusion must be flat, local-gated, local-cross-attn, or modality-tracks"
+            )
         if osram_readout_fusion != "flat" and (
             backbone_type != "osram" or osram_predictor_mode != "structured"
             or completion_path != "none" or classification_completion
@@ -1663,6 +1667,9 @@ class MissingM3GraphModel(GraphModel):
                 qmask,
                 umask,
                 seq_lengths,
+                **({
+                    "modality_embeddings": self.observed_set.modality_embedding.weight
+                } if self.osram_readout_fusion == "modality-tracks" else {}),
                 **osram_nodes,
             )
             self.last_osram_context = osram_context

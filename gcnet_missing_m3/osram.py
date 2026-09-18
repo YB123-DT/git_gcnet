@@ -97,6 +97,76 @@ class LocalCrossAttentionFusion(nn.Module):
         return hidden
 
 
+class ModalityTrackFlatFusion(nn.Module):
+    """Flat emotion readout over modality-local tracks and OSRAM evidence.
+
+    The OSRAM scan remains responsible for the fused node, keys, values and
+    queries.  This readout only replaces the classification-side local input:
+    each observed modality gets a shared local transform, while missing tracks
+    are hard-zeroed before concatenating Base, masked Gap slots and availability
+    into one flat MLP input.
+    """
+
+    def __init__(self, local_dim, context_dim, output_dim, dropout=0.5):
+        super().__init__()
+        self.local_dim = int(local_dim)
+        self.context_dim = int(context_dim)
+        input_dim = 3 * self.local_dim + 4 * self.context_dim + 3
+        self.emotion_adapter = nn.Sequential(
+            nn.LayerNorm(input_dim),
+            nn.Linear(input_dim, int(output_dim)),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(int(output_dim), int(output_dim)),
+        )
+        self.emotion_norm = nn.LayerNorm(int(output_dim))
+        self.last_diagnostics = {}
+
+    def forward(self, tracks, base_context, gap_context, availability, umask):
+        if tracks.ndim != 4 or tracks.shape[2:] != (3, self.local_dim):
+            raise ValueError("tracks must be [L,B,3,local_dim]")
+        length, batch = tracks.shape[:2]
+        if (base_context.shape != (length, batch, self.context_dim)
+                or gap_context.shape != (length, batch, 3, self.context_dim)
+                or availability.shape != (length, batch, 3)
+                or umask.shape != (batch, length)):
+            raise ValueError("track fusion context/mask shapes do not match tracks")
+        valid = umask.transpose(0, 1).bool()
+        if bool(((availability[valid] != 0) & (availability[valid] != 1)).any()):
+            raise ValueError("availability must be binary on valid utterances")
+        observed = availability.to(dtype=tracks.dtype)
+        missing = 1.0 - observed
+        masked_gap = torch.where(
+            missing.bool().unsqueeze(-1), gap_context, torch.zeros_like(gap_context)
+        )
+        safe_tracks = torch.where(
+            observed.bool().unsqueeze(-1), tracks, torch.zeros_like(tracks)
+        )
+        fusion_input = torch.cat(
+            (
+                safe_tracks.reshape(length, batch, -1),
+                base_context,
+                masked_gap.reshape(length, batch, -1),
+                observed,
+            ),
+            dim=-1,
+        )
+        hidden = self.emotion_norm(self.emotion_adapter(fusion_input))
+        hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
+        with torch.no_grad():
+            self.last_diagnostics = {
+                "local_track_norm": {
+                    name: float(safe_tracks[..., index, :][valid].norm(dim=-1).mean())
+                    if bool(valid.any()) else 0.0
+                    for index, name in enumerate(MODALITIES)
+                },
+                "active_evidence_count_mean": float(
+                    (1 + missing.sum(dim=-1))[valid].mean()
+                ) if bool(valid.any()) else None,
+            }
+        return hidden
+
+
 class LocalCenteredContextFusion(nn.Module):
     """Local subject plus an active-count-averaged, sigmoid-gated residual.
 
@@ -206,8 +276,12 @@ class OSRAMBackbone(nn.Module):
         osram_readout_fusion: str = "flat",
     ) -> None:
         super().__init__()
-        if osram_readout_fusion not in ("flat", "local-gated", "local-cross-attn"):
-            raise ValueError("osram_readout_fusion must be flat, local-gated or local-cross-attn")
+        if osram_readout_fusion not in (
+            "flat", "local-gated", "local-cross-attn", "modality-tracks"
+        ):
+            raise ValueError(
+                "osram_readout_fusion must be flat, local-gated, local-cross-attn, or modality-tracks"
+            )
         if osram_readout_fusion != "flat" and (osram_ablation != "full" or osram_emotion_ablation != "full"):
             raise ValueError("local-gated cannot combine with readout ablations")
         if osram_ablation not in OSRAM_ABLATIONS:
@@ -314,11 +388,18 @@ class OSRAMBackbone(nn.Module):
         if osram_readout_fusion != "flat":
             # Preserve RNG for downstream Student/Teacher/MMoE construction.
             with torch.random.fork_rng(devices=[]):
-                fusion_cls = LocalCenteredContextFusion if osram_readout_fusion == "local-gated" else LocalCrossAttentionFusion
-                self.local_centered_fusion = fusion_cls(
-                    self.latent_dim, self.context_dim, self.output_dim, dropout=dropout)
-            self.local_centered_fusion.local_skip.load_state_dict(self.local_skip.state_dict())
-            self.local_centered_fusion.emotion_norm.load_state_dict(self.emotion_norm.state_dict())
+                if osram_readout_fusion == "local-gated":
+                    self.local_centered_fusion = LocalCenteredContextFusion(
+                        self.latent_dim, self.context_dim, self.output_dim, dropout=dropout)
+                elif osram_readout_fusion == "local-cross-attn":
+                    self.local_centered_fusion = LocalCrossAttentionFusion(
+                        self.latent_dim, self.context_dim, self.output_dim, dropout=dropout)
+                else:
+                    self.modality_track_fusion = ModalityTrackFlatFusion(
+                        self.latent_dim, self.context_dim, self.output_dim, dropout=dropout)
+            if osram_readout_fusion != "modality-tracks":
+                self.local_centered_fusion.local_skip.load_state_dict(self.local_skip.state_dict())
+                self.local_centered_fusion.emotion_norm.load_state_dict(self.emotion_norm.state_dict())
             # Historical flat keys remain available, without unused optimizer parameters.
             self.emotion_adapter.requires_grad_(False)
             self.local_skip.requires_grad_(False)
@@ -645,6 +726,7 @@ class OSRAMBackbone(nn.Module):
         write_completion=None,
         post_write_observer=None,
         context_read_residual=None,
+        modality_embeddings: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Condition reads/local features separately from real-observation writes.
 
@@ -729,7 +811,23 @@ class OSRAMBackbone(nn.Module):
             local_input = read_node + residual
         local = local_input + self.local_path(local_input)
         local = local * valid.unsqueeze(-1).to(local.dtype)
-        if self.osram_readout_fusion != "flat":
+        if self.osram_readout_fusion == "modality-tracks":
+            if modality_embeddings is None:
+                raise ValueError("modality-tracks readout requires modality_embeddings")
+            if modality_embeddings.shape != (len(MODALITIES), self.latent_dim):
+                raise ValueError("modality_embeddings must be [3, latent_dim]")
+            tracks = []
+            for index, name in enumerate(MODALITIES):
+                track_input = latents[name] + modality_embeddings[index].view(1, 1, -1)
+                track = self.local_path(track_input)
+                track = track * availability[..., index : index + 1].to(track.dtype)
+                track = track * valid.unsqueeze(-1).to(track.dtype)
+                tracks.append(track)
+            track_local = torch.stack(tracks, dim=2)
+            hidden = self.modality_track_fusion(
+                track_local, base_context, gap_context, availability, umask
+            )
+        elif self.osram_readout_fusion != "flat":
             hidden = self.local_centered_fusion(
                 local, base_context, gap_context, availability, umask)
         else:
@@ -811,7 +909,9 @@ class OSRAMBackbone(nn.Module):
                 for name in MODALITIES
             },
         }
-        if self.osram_readout_fusion != "flat":
+        if self.osram_readout_fusion == "modality-tracks":
+            diagnostics["modality_track_fusion"] = self.modality_track_fusion.last_diagnostics
+        elif self.osram_readout_fusion != "flat":
             diagnostics["local_centered_fusion"] = self.local_centered_fusion.last_diagnostics
         self.last_diagnostics = diagnostics
         contexts = {

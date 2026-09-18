@@ -217,8 +217,12 @@ class TrainConfig:
                     or self.initial_backbone_checkpoint is not None
                     or self.jepa_rate_weighting != "uniform"):
                 raise ValueError("complete-state requires causal flat OSRAM without completion or legacy transfer, and uniform loss weighting")
-        if self.osram_readout_fusion not in {"flat", "local-gated", "local-cross-attn"}:
-            raise ValueError("osram_readout_fusion must be flat, local-gated, or local-cross-attn")
+        if self.osram_readout_fusion not in {
+            "flat", "local-gated", "local-cross-attn", "modality-tracks"
+        }:
+            raise ValueError(
+                "osram_readout_fusion must be flat, local-gated, local-cross-attn, or modality-tracks"
+            )
         if self.osram_readout_fusion != "flat":
             if self.backbone_type != "osram":
                 raise ValueError(f"{self.osram_readout_fusion} requires the osram backbone")
@@ -2615,7 +2619,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--osram-read-ridge", type=float, default=1e-3)
     parser.add_argument("--osram-write-ridge", type=float, default=1e-3)
     parser.add_argument("--osram-write-step", type=float, default=1.0)
-    parser.add_argument("--osram-readout-fusion", choices=("flat", "local-gated", "local-cross-attn"), default="flat")
+    parser.add_argument(
+        "--osram-readout-fusion",
+        choices=("flat", "local-gated", "local-cross-attn", "modality-tracks"),
+        default="flat",
+    )
     parser.add_argument(
         "--osram-predictor-mode",
         choices=("structured", "legacy-hidden"),
