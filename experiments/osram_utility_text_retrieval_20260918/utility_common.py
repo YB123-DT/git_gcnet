@@ -184,6 +184,13 @@ def query_utility_from_batch(model, cfg, view: Mapping[str, torch.Tensor], batch
             context = q_context.new_zeros((q_count, q_context.shape[1]))
         context[q_index] = q_context
 
+    valid_flat = umask.T.bool()
+    full_scores = normal_scores[valid_flat]
+    full_labels = labels.T[valid_flat]
+    full_availability = availability[valid_flat]
+    full_positions = torch.full((*valid_flat.shape,), -1, dtype=torch.long, device=device)
+    full_positions[valid_flat] = torch.arange(full_scores.shape[0], device=device)
+    full_index = full_positions[ts, bs] if query_specs else torch.zeros(0, dtype=torch.long, device=device)
     return {
         'context': context.detach().cpu(),
         'values': values.detach().cpu(),
@@ -196,4 +203,8 @@ def query_utility_from_batch(model, cfg, view: Mapping[str, torch.Tensor], batch
         'query_t': query_t.cpu(),
         'query_b': query_b.cpu(),
         'batch_index': torch.full((q_count,), int(batch_index), dtype=torch.long),
+        'full_index': full_index.cpu(),
+        'full_scores': full_scores.detach().cpu(),
+        'full_labels': full_labels.detach().cpu(),
+        'full_availability': full_availability.detach().cpu(),
     }

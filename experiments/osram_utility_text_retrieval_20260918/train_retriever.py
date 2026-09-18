@@ -1,6 +1,6 @@
 """Train a utility retriever from cached frozen-Reader candidate utilities."""
 from __future__ import annotations
-import argparse, json, math
+import argparse, json, math, random
 from pathlib import Path
 import numpy as np
 import torch
@@ -65,18 +65,14 @@ def masked_softmax(logits, mask, temperature=0.1):
     return F.softmax(logits,dim=1)*mask.float()
 
 def weighted_f1(labels,predictions):
-    labels=np.asarray(labels)>0; predictions=np.asarray(predictions)>0
-    scores=[]; weights=[]
-    for cls in (False,True):
-        support=int((labels==cls).sum())
-        if support==0: continue
-        tp=int(((labels==cls)&(predictions==cls)).sum()); fp=int(((labels!=cls)&(predictions==cls)).sum()); fn=int(((labels==cls)&(predictions!=cls)).sum())
-        prec=tp/(tp+fp) if tp+fp else 0.0; rec=tp/(tp+fn) if tp+fn else 0.0
-        scores.append(2*prec*rec/(prec+rec) if prec+rec else 0.0); weights.append(support)
-    return float(np.average(scores,weights=weights)) if weights else 0.0
+    labels=np.asarray(labels); predictions=np.asarray(predictions)
+    nz=labels!=0
+    labels=labels[nz]>0; predictions=predictions[nz]>0
+    if labels.size==0: return 0.0
+    return float(f1_score(labels,predictions,average='weighted'))
 
 def load_cache(seed,rate,split):
-    p=ROOT/'utility_cache_valid'/f'seed_{seed}'/f'rate_{rate_tag(rate)}'/f'{split}.pt'
+    p=ROOT/'utility_cache_v2'/f'seed_{seed}'/f'rate_{rate_tag(rate)}'/f'{split}.pt'
     if not p.exists():
         return None
     return torch.load(p,map_location='cpu',weights_only=False)['tensors']
@@ -132,7 +128,19 @@ def evaluate(retriever,batch,method,mode):
         pred=infer(r,batch,mode)
         return weighted_f1(batch['labels'].cpu().numpy(),pred.cpu().numpy())
 
+
+def evaluate_full(retriever,batch,mode='Soft'):
+    """Full split W-F1 with T-present frozen Reader predictions preserved."""
+    retriever.eval()
+    with torch.no_grad():
+        r=retriever(batch['context'],batch['values'],batch['mask'])
+        pred_missing=infer(r,batch,mode)
+        full=batch['full_scores'].clone()
+        full[batch['full_index']]=pred_missing
+        return weighted_f1(batch['full_labels'].cpu().numpy(),full.cpu().numpy())
+
 def train_one(seed,rate,method,device,epochs=100,batch_size=128):
+    torch.manual_seed(seed); np.random.seed(seed); random.seed(seed)
     tr=load_cache(seed,rate,'train'); va=load_cache(seed,rate,'validation')
     if tr is None or va is None:
         return float('nan'), [], None
@@ -151,12 +159,12 @@ def train_one(seed,rate,method,device,epochs=100,batch_size=128):
             torch.nn.utils.clip_grad_norm_(retriever.parameters(),1.0)
             optimizer.step()
         val_batch=batch_to_device(va,device)
-        score=evaluate(retriever,val_batch,method,'Soft')
+        score=evaluate_full(retriever,val_batch,mode='Soft')
         history.append(float(score))
         if score>best:
             best=score; best_state={k:v.detach().cpu().clone() for k,v in retriever.state_dict().items()}
     retriever.load_state_dict(best_state)
-    out_dir=ROOT/'methods_valid'/method/f'seed_{seed}'
+    out_dir=ROOT/'methods_valid_v2'/method/f'seed_{seed}'
     out_dir.mkdir(parents=True,exist_ok=True)
     ckpt=out_dir/f'rate_{rate_tag(rate)}.pt'
     torch.save({'state_dict':best_state,'method':method,'seed':seed,'rate':rate,'validation_soft_wf1':best,'history':history,'context_dim':context_dim},ckpt)
@@ -179,7 +187,7 @@ def train_one(seed,rate,method,device,epochs=100,batch_size=128):
             artifacts['losses']=batch['losses'].detach().cpu().numpy()
             artifacts['mask']=batch['mask'].detach().cpu().numpy()
             artifacts['r']=r.detach().cpu().numpy()
-    odd=ROOT/'retrieval_artifacts_valid'/method/f'seed_{seed}'
+    odd=ROOT/'retrieval_artifacts_v2'/method/f'seed_{seed}'
     odd.mkdir(parents=True,exist_ok=True)
     np.savez_compressed(odd/f'rate_{rate_tag(rate)}.npz',**artifacts)
     return best,rows,ckpt
