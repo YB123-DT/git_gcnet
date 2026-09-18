@@ -11,8 +11,11 @@ from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO))
+
 from experiments.osram_mosi_hparam_sweep_20260918.run import (
-    FEATURES, REPO, SPECS, SPEC_BY_ID, SOURCE_ROOT, sha, write_json,
+    FEATURES, SPECS, SPEC_BY_ID, SOURCE_ROOT, sha, write_json,
 )
 
 ROOT_SCREEN = Path("/data2/yb/remote_experiments/osram_mosi_hparam_sweep_20260918_parallel")
