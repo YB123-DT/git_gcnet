@@ -24,7 +24,7 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[2]
 REMOTE = Path("/data2/yb/remote_experiments")
 SOURCE_ROOT = REMOTE / "osram_causal_nojepa_20260910/mosi"
-ROOT = REMOTE / "osram_mosi_hparam_sweep_20260918"
+ROOT = REMOTE / "osram_mosi_hparam_sweep_20260918_parallel"
 FEATURES = Path("/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset/CMUMOSI/features")
 SEED = 66
 GPU_ASSIGNMENT = (1, 2, 3)
@@ -35,10 +35,10 @@ def _spec(identifier: str, group: str, **overrides: Any) -> dict[str, Any]:
     return {"id": identifier, "group": group, "overrides": overrides}
 
 
-# Thirty intentionally coarse configurations.  The first ten probe optimizer,
-# regularization and batch size; the second ten probe OSRAM capacity; the last
-# ten probe optimizer/schedule and the longer training budget.  This is a
-# screening grid, not a claim that these values are already optimal.
+# Sixty intentionally coarse configurations.  They cover the requested
+# learning-rate, batch, optimizer, regularization, schedule, clipping, epoch,
+# and capacity ranges without attempting the infeasible full Cartesian product.
+# The launcher runs ten configurations concurrently on each GPU, in waves.
 SPECS: tuple[dict[str, Any], ...] = (
     _spec("cfg01_baseline", "optimization"),
     _spec("cfg02_lr3e4", "optimization", learning_rate=3e-4),
@@ -94,6 +94,72 @@ SPECS: tuple[dict[str, Any], ...] = (
     _spec("cfg30_long400_adamw_cosine", "schedule", optimizer="adamw",
           lr_schedule="cosine", warmup_ratio=.05, learning_rate=3e-4,
           weight_decay=1e-4, epochs=400, gradient_clip_norm=5.0),
+
+    _spec("cfg31_lr3e5_b32_d5", "optimization", learning_rate=3e-5),
+    _spec("cfg32_lr3e5_b16_d3", "optimization", learning_rate=3e-5,
+          batch_size=16, dropout=.3),
+    _spec("cfg33_lr1e4_b32_d1", "optimization", learning_rate=1e-4,
+          dropout=.1),
+    _spec("cfg34_lr3e4_b32_d0", "optimization", learning_rate=3e-4,
+          dropout=0.0),
+    _spec("cfg35_lr1e3_b32_d0", "optimization", learning_rate=1e-3,
+          dropout=0.0),
+    _spec("cfg36_lr3e3_b16_d5", "optimization", learning_rate=3e-3,
+          batch_size=16),
+    _spec("cfg37_lr3e4_wd0_d3", "optimization", learning_rate=3e-4,
+          weight_decay=0.0, dropout=.3),
+    _spec("cfg38_lr3e4_wd1e6_d3", "optimization", learning_rate=3e-4,
+          weight_decay=1e-6, dropout=.3),
+    _spec("cfg39_lr3e4_wd1e2_d3", "optimization", learning_rate=3e-4,
+          weight_decay=1e-2, dropout=.3),
+    _spec("cfg40_lr1e3_proj2_bb05_cls1p5", "optimization", learning_rate=1e-3,
+          backbone_lr_multiplier=.5, projector_lr_multiplier=2.0,
+          classifier_lr_multiplier=1.5),
+
+    _spec("cfg41_out500_kv32", "capacity", osram_output_dim=500),
+    _spec("cfg42_out900_kv32", "capacity", osram_output_dim=900),
+    _spec("cfg43_out1100_kv32", "capacity", osram_output_dim=1100),
+    _spec("cfg44_out1400_kv48", "capacity", osram_output_dim=1400,
+          osram_key_dim=48, osram_value_dim=48),
+    _spec("cfg45_lat320_out900_kv40", "capacity", latent_dim=320,
+          osram_output_dim=900, osram_key_dim=40, osram_value_dim=40),
+    _spec("cfg46_lat384_out1400_kv64", "capacity", latent_dim=384,
+          osram_output_dim=1400, osram_key_dim=64, osram_value_dim=64),
+    _spec("cfg47_lat512_out1400_kv32", "capacity", latent_dim=512,
+          osram_output_dim=1400),
+    _spec("cfg48_heads4_out1400_kv32", "capacity", osram_num_heads=4,
+          osram_output_dim=1400),
+    _spec("cfg49_heads8_out1024_kv64", "capacity", osram_output_dim=1024,
+          osram_key_dim=64, osram_value_dim=64),
+    _spec("cfg50_heads16_out1024_kv64", "capacity", osram_num_heads=16,
+          osram_output_dim=1024, osram_key_dim=64, osram_value_dim=64),
+
+    _spec("cfg51_adamw_lr1e4_cosine200", "schedule", optimizer="adamw",
+          learning_rate=1e-4, weight_decay=1e-4, lr_schedule="cosine",
+          warmup_ratio=.05, epochs=200),
+    _spec("cfg52_adam_lr1e4_cosine200", "schedule", learning_rate=1e-4,
+          lr_schedule="cosine", warmup_ratio=.05, epochs=200),
+    _spec("cfg53_adamw_lr3e4_cosine200", "schedule", optimizer="adamw",
+          learning_rate=3e-4, weight_decay=1e-4, lr_schedule="cosine",
+          warmup_ratio=.05, epochs=200),
+    _spec("cfg54_adam_lr3e4_constant200", "schedule", learning_rate=3e-4,
+          epochs=200, gradient_clip_norm=1.0),
+    _spec("cfg55_adamw_lr1e3_constant200", "schedule", optimizer="adamw",
+          learning_rate=1e-3, weight_decay=1e-4, epochs=200),
+    _spec("cfg56_adam_lr1e3_constant400", "schedule", learning_rate=1e-3,
+          epochs=400),
+    _spec("cfg57_adamw_lr1e4_cosine400", "schedule", optimizer="adamw",
+          learning_rate=1e-4, weight_decay=1e-4, lr_schedule="cosine",
+          warmup_ratio=.05, epochs=400),
+    _spec("cfg58_adam_lr3e3_clip05", "schedule", learning_rate=3e-3,
+          gradient_clip_norm=.5),
+    _spec("cfg59_adamw_lr3e4_cosine_clip05", "schedule", optimizer="adamw",
+          learning_rate=3e-4, weight_decay=1e-4, lr_schedule="cosine",
+          warmup_ratio=.05, gradient_clip_norm=.5,
+          backbone_lr_multiplier=.5, projector_lr_multiplier=2.0),
+    _spec("cfg60_adam_lr1e3_cosine_clip5_cls05", "schedule",
+          learning_rate=1e-3, lr_schedule="cosine", warmup_ratio=.05,
+          gradient_clip_norm=5.0, classifier_lr_multiplier=.5),
 )
 
 SPEC_BY_ID = {item["id"]: item for item in SPECS}
@@ -239,14 +305,12 @@ def train(spec_id: str) -> None:
 
 
 def _worker(spec_ids: list[str], gpu: int) -> None:
+    """Backward-compatible serial worker for manual recovery runs."""
     env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), OMP_NUM_THREADS="6",
                MKL_NUM_THREADS="6", PYTHONPATH=str(REPO))
     os.environ.update(env)
     for spec_id in spec_ids:
-        try:
-            train(spec_id)
-        except BaseException as error:
-            print(f"FAILED {spec_id}: {type(error).__name__}: {error}", flush=True)
+        train(spec_id)
 
 
 def launch() -> None:
@@ -265,29 +329,37 @@ def launch() -> None:
     buckets = [list() for _ in GPU_ASSIGNMENT]
     for index, item in enumerate(SPECS):
         buckets[index % len(buckets)].append(item["id"])
-    children = []
-    for gpu, spec_ids in zip(GPU_ASSIGNMENT, buckets):
-        log_path = ROOT / f"gpu{gpu}.log"
-        log = log_path.open("a")
-        env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), OMP_NUM_THREADS="6",
-                   MKL_NUM_THREADS="6", PYTHONPATH=str(REPO))
-        child = subprocess.Popen(
-            [sys.executable, "-u", __file__, "--worker", *spec_ids], cwd=REPO,
-            env=env, stdout=log, stderr=subprocess.STDOUT,
-        )
-        row = {"gpu": gpu, "pid": child.pid, "spec_ids": spec_ids,
-               "log": str(log_path), "status": "running"}
-        queue["workers"].append(row)
-        children.append((child, log, row))
-        print(f"START GPU={gpu} PID={child.pid} specs={spec_ids}", flush=True)
     queue["status"] = "running"
-    write_json(ROOT / "QUEUE.json", queue)
-    for child, log, row in children:
-        row["exit_code"] = child.wait()
-        row["status"] = "complete" if row["exit_code"] == 0 else "failed"
-        log.close()
+    wave_size = 10
+    failed = False
+    for wave_start in range(0, max(len(bucket) for bucket in buckets), wave_size):
+        children = []
+        wave = {"wave": wave_start // wave_size + 1, "tasks": []}
+        for gpu, spec_ids in zip(GPU_ASSIGNMENT, buckets):
+            for spec_id in spec_ids[wave_start:wave_start + wave_size]:
+                log_path = ROOT / f"gpu{gpu}_{spec_id}.log"
+                log = log_path.open("a")
+                env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(gpu), OMP_NUM_THREADS="2",
+                           MKL_NUM_THREADS="2", PYTHONPATH=str(REPO))
+                child = subprocess.Popen(
+                    [sys.executable, "-u", __file__, "--train", spec_id], cwd=REPO,
+                    env=env, stdout=log, stderr=subprocess.STDOUT,
+                )
+                row = {"gpu": gpu, "pid": child.pid, "spec_id": spec_id,
+                       "log": str(log_path), "status": "running", "wave": wave["wave"]}
+                queue["workers"].append(row)
+                wave["tasks"].append(row)
+                children.append((child, log, row))
+                print(f"START wave={wave['wave']} GPU={gpu} PID={child.pid} spec={spec_id}", flush=True)
+        queue.setdefault("waves", []).append(wave)
         write_json(ROOT / "QUEUE.json", queue)
-    queue["status"] = "complete" if all(row["exit_code"] == 0 for _, _, row in children) else "failed"
+        for child, log, row in children:
+            row["exit_code"] = child.wait()
+            row["status"] = "complete" if row["exit_code"] == 0 else "failed"
+            failed = failed or row["exit_code"] != 0
+            log.close()
+            write_json(ROOT / "QUEUE.json", queue)
+    queue["status"] = "failed" if failed else "complete"
     queue["completed_utc"] = datetime.now(timezone.utc).isoformat()
     write_json(ROOT / "QUEUE.json", queue)
 

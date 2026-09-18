@@ -10,7 +10,7 @@ import statistics
 from pathlib import Path
 
 RATES = tuple(f"{i / 10:.1f}" for i in range(8))
-ROOT = Path("/data2/yb/remote_experiments/osram_mosi_hparam_sweep_20260918")
+ROOT = Path("/data2/yb/remote_experiments/osram_mosi_hparam_sweep_20260918_parallel")
 
 
 def _best_record(path: Path) -> dict[str, object]:
@@ -76,9 +76,9 @@ def write_report(rows: list[dict[str, object]], root: Path) -> None:
         writer.writeheader()
         writer.writerows(write_rows)
     payload = {
-        "status": "complete" if len(rows) == 30 else "partial",
+        "status": "complete" if len(rows) == 60 else "partial",
         "completed_configs": len(rows),
-        "expected_configs": 30,
+        "expected_configs": 60,
         "selection_protocol": "per-rate-test-oracle",
         "label": "INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT",
         "rows": rows,
@@ -99,7 +99,7 @@ def main() -> None:
     args = parser.parse_args()
     rows = collect(args.root)
     write_report(rows, args.root)
-    print(f"completed={len(rows)}/30")
+    print(f"completed={len(rows)}/60")
 
 
 if __name__ == "__main__":
