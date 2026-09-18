@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 
 REPO = Path(__file__).resolve().parents[2]
 REMOTE = Path("/data2/yb/remote_experiments")
@@ -176,6 +178,19 @@ def write_json(path: Path, value: object) -> None:
     temporary.replace(path)
 
 
+def canonical_mask_hashes(output: Path) -> dict[str, str]:
+    """Hash mask rows independent of DataLoader batch/order serialization."""
+    result = {}
+    for rate in RATES:
+        key = rate.replace(".", "p")
+        path = output / f"predictions_miss_{key}.npz"
+        with np.load(path) as archive:
+            availability = archive["availability"].astype(np.float32, copy=False)
+        ordered = availability[np.lexsort((availability[:, 2], availability[:, 1], availability[:, 0]))]
+        result[rate] = hashlib.sha256(ordered.tobytes()).hexdigest()
+    return result
+
+
 def _reference_config():
     from gcnet_missing_m3.train_gcnet import TrainConfig
 
@@ -292,9 +307,9 @@ def train(spec_id: str) -> None:
         metrics = json.loads((output / "metrics.json").read_text())
         if metrics.get("selection_protocol") != "per-rate-test-oracle":
             raise ValueError("unexpected selection protocol")
-        reference_metrics = json.loads((source / "metrics.json").read_text())
-        if metrics.get("mask_sha256") != reference_metrics.get("mask_sha256"):
-            raise ValueError("evaluation mask hashes differ from no-JEPA reference")
+        reference_output = source
+        if canonical_mask_hashes(output) != canonical_mask_hashes(reference_output):
+            raise ValueError("canonical evaluation masks differ from no-JEPA reference")
     except BaseException as error:
         provenance.update(status="failed", error=f"{type(error).__name__}: {error}")
         write_json(output / "PROVENANCE.json", provenance)
