@@ -122,6 +122,7 @@ class TrainConfig:
     teacher_checkpoint: str | None = None
     target_space: str = "all-modalities"
     text_subspace_checkpoint: str | None = None
+    text_core: bool = False
 
     def __post_init__(self) -> None:
         if self.target_space not in {"all-modalities", "full-text", "predictable-subspace"}:
@@ -140,6 +141,25 @@ class TrainConfig:
                 or self.jepa_contrastive_source != "contrastive"
                 or self.b2_base_checkpoint is not None or self.b2_pretrain_checkpoint is not None):
             raise ValueError("text target spaces require frozen-teacher joint training with unchanged JEPA weights and no B2")
+        if self.text_core and (
+            self.training_objective != "emotion-only"
+            or self.backbone_type != "osram"
+            or self.osram_bidirectional
+            or self.osram_forward_slot_reuse
+            or self.osram_write_step != 0.6
+            or self.osram_readout_fusion != "flat"
+            or self.fusion_type != "mean"
+            or self.completion_path != "none"
+            or self.classification_completion
+            or self.target_space != "all-modalities"
+            or self.teacher_mode != "ema"
+            or self.teacher_checkpoint is not None
+            or self.emotion_loss_mode != "sample-mean"
+        ):
+            raise ValueError(
+                "text-core requires emotion-only causal eta=.6 mean/Flat OSRAM "
+                "with no JEPA, completion, teacher transfer, or group weighting"
+            )
         if self.teacher_mode not in {"ema", "pretrained-frozen"}:
             raise ValueError("teacher_mode must be ema or pretrained-frozen")
         if self.teacher_mode == "ema" and self.teacher_checkpoint is not None:
@@ -764,6 +784,8 @@ def _task_loss(
         )
     prediction = logits.transpose(0, 1).reshape(-1)
     target = labels.reshape(-1).to(dtype=prediction.dtype)
+    if not bool(selected.any()):
+        return prediction.sum() * 0.0
     if task_regression_loss == "mse":
         return torch.nn.functional.mse_loss(
             prediction[selected], target[selected]
@@ -1025,6 +1047,10 @@ def train_epoch(
     losses: list[float] = []
     cls_losses: list[float] = []
     jepa_losses: list[float] = []
+    text_core_losses: list[float] = []
+    text_core_self_losses: list[float] = []
+    text_core_pred_losses: list[float] = []
+    text_core_align_losses: list[float] = []
     all_predictions: list[np.ndarray] = []
     all_labels: list[np.ndarray] = []
     rate_counts = {rate: 0 for rate in MISSING_RATES}
@@ -1147,6 +1173,52 @@ def train_epoch(
                 if train_emotion
                 else (zero, {})
             )
+            text_core_loss = zero
+            text_core_self = zero
+            text_core_pred = zero
+            text_core_align = zero
+            if config.text_core:
+                text_core_output = getattr(model, "last_text_core", None)
+                if text_core_output is None:
+                    raise RuntimeError("text-core forward did not expose task-space outputs")
+                valid_mask = view["umask"].bool()
+                text_observed_mask = (
+                    valid_mask & view["availability"][..., 1].bool().T
+                )
+                text_missing_mask = valid_mask & ~view["availability"][..., 1].bool().T
+                source_exists_mask = (
+                    view["availability"][..., (0, 2)].bool().any(dim=-1).T
+                )
+                align_mask = text_observed_mask & source_exists_mask
+                text_core_self = _task_loss(
+                    config.dataset,
+                    text_core_output["real_logits"],
+                    view["labels"],
+                    text_observed_mask,
+                    config.mosi_task_mode,
+                    config.task_regression_loss,
+                    config.task_smooth_l1_beta,
+                )
+                text_core_pred = _task_loss(
+                    config.dataset,
+                    text_core_output["pred_logits"],
+                    view["labels"],
+                    text_missing_mask,
+                    config.mosi_task_mode,
+                    config.task_regression_loss,
+                    config.task_smooth_l1_beta,
+                )
+                align_positions = align_mask.T
+                if bool(align_positions.any()):
+                    text_core_align = torch.nn.functional.smooth_l1_loss(
+                        text_core_output["u_pred"][align_positions],
+                        text_core_output["u_true"][align_positions],
+                    )
+                text_core_loss = (
+                    0.25 * text_core_self
+                    + 0.5 * text_core_pred
+                    + 0.1 * text_core_align
+                )
             if train_future_state:
                 future_loss, future_count = model.future_state_loss(
                     view["complete"], view["umask"]
@@ -1243,7 +1315,9 @@ def train_epoch(
             else:
                 jepa = MissingM3Loss(zero, zero, zero, 0)
                 jepa_rate_weight = 0.0
-            if config.training_objective in {
+            if config.text_core:
+                loss = cls + text_core_loss
+            elif config.training_objective in {
                 "joint",
                 "joint-reg-only",
                 "complete-state",
@@ -1284,6 +1358,11 @@ def train_epoch(
             losses.append(float(loss.detach()))
             cls_losses.append(float(cls.detach()))
             jepa_losses.append(float(jepa.total.detach()))
+            if config.text_core:
+                text_core_losses.append(float(text_core_loss.detach()))
+                text_core_self_losses.append(float(text_core_self.detach()))
+                text_core_pred_losses.append(float(text_core_pred.detach()))
+                text_core_align_losses.append(float(text_core_align.detach()))
             target_count += jepa.target_count
         source_conversation_count += batch_size
         masked_view_count += batch_size * (
@@ -1337,6 +1416,12 @@ def train_epoch(
         "loss": float(np.mean(losses)),
         "classification_loss": float(np.mean(cls_losses)),
         "jepa_loss": float(np.mean(jepa_losses)),
+        **({
+            "text_core_loss": float(np.mean(text_core_losses)),
+            "text_core_self_loss": float(np.mean(text_core_self_losses)),
+            "text_core_pred_loss": float(np.mean(text_core_pred_losses)),
+            "text_core_align_loss": float(np.mean(text_core_align_losses)),
+        } if config.text_core else {}),
         "jepa_target_count": int(target_count),
         **({"state_loss": float(np.mean(jepa_losses)),
             "state_target_count": int(target_count)} if train_state else {}),
@@ -1423,6 +1508,13 @@ def evaluate_rate(
     all_signed_logits: list[np.ndarray] = []
     all_availability: list[np.ndarray] = []
     all_full_availability: list[np.ndarray] = []
+    all_text_core_pred_u: list[np.ndarray] = []
+    all_text_core_target_u: list[np.ndarray] = []
+    all_text_core_observed: list[np.ndarray] = []
+    all_text_core_real_pred: list[np.ndarray] = []
+    all_text_core_real_labels: list[np.ndarray] = []
+    all_text_core_missing_pred: list[np.ndarray] = []
+    all_text_core_missing_labels: list[np.ndarray] = []
     for raw in loader:
         data = _move_batch(raw, device)
         view = _prepare_view(data, schedule, epoch=0, dimensions=dimensions)
@@ -1474,6 +1566,43 @@ def evaluate_rate(
             all_availability.append(
                 metric_availability[selected].cpu().numpy()
             )
+            text_core_module = getattr(model, "text_core", None)
+            text_core_output = getattr(model, "last_text_core", None)
+            if text_core_module is not None:
+                if text_core_output is None:
+                    raise RuntimeError("text-core evaluation did not expose task-space outputs")
+                complete_parts = torch.split(view["complete"], dimensions, dim=-1)
+                complete_text_latent = model.observed_set.projectors["text"](
+                    complete_parts[1]
+                )
+                target_u = text_core_module.encoder(complete_text_latent)
+                observed_mask = valid & text_core_output["text_observed"]
+                missing_mask = valid & ~text_core_output["text_observed"]
+                real_pred, real_labels, _ = _collect_predictions(
+                    dataset,
+                    text_core_output["real_logits"],
+                    view["labels"],
+                    observed_mask.T,
+                    mosi_task_mode,
+                )
+                missing_pred, missing_labels, _ = _collect_predictions(
+                    dataset,
+                    text_core_output["pred_logits"],
+                    view["labels"],
+                    missing_mask.T,
+                    mosi_task_mode,
+                )
+                all_text_core_pred_u.append(
+                    text_core_output["u_pred"][valid].cpu().numpy()
+                )
+                all_text_core_target_u.append(target_u[valid].cpu().numpy())
+                all_text_core_observed.append(
+                    text_core_output["text_observed"][valid].cpu().numpy()
+                )
+                all_text_core_real_pred.append(real_pred)
+                all_text_core_real_labels.append(real_labels)
+                all_text_core_missing_pred.append(missing_pred)
+                all_text_core_missing_labels.append(missing_labels)
     predictions_array = np.concatenate(all_predictions)
     labels_array = np.concatenate(all_labels)
     continuous_labels_array = np.concatenate(all_continuous_labels)
@@ -1497,6 +1626,54 @@ def evaluate_rate(
         metrics["mask_sha256"] = _sha256_tensor(
             torch.from_numpy(full_availability_array)
         )
+        if getattr(model, "text_core", None) is not None:
+            predicted_u = np.concatenate(all_text_core_pred_u, axis=0)
+            target_u = np.concatenate(all_text_core_target_u, axis=0)
+            observed_flags = np.concatenate(all_text_core_observed, axis=0).astype(bool)
+            missing_flags = ~observed_flags
+            metrics["text_core_real_slot"] = (
+                _metrics(
+                    dataset,
+                    np.concatenate(all_text_core_real_labels),
+                    np.concatenate(all_text_core_real_pred),
+                    mosi_task_mode,
+                )
+                if all_text_core_real_pred and sum(
+                    values.size for values in all_text_core_real_pred
+                )
+                else None
+            )
+            metrics["text_core_predicted_slot"] = (
+                _metrics(
+                    dataset,
+                    np.concatenate(all_text_core_missing_labels),
+                    np.concatenate(all_text_core_missing_pred),
+                    mosi_task_mode,
+                )
+                if all_text_core_missing_pred and sum(
+                    values.size for values in all_text_core_missing_pred
+                )
+                else None
+            )
+            if int(missing_flags.sum()) >= 2:
+                pred_missing = predicted_u[missing_flags]
+                target_missing = target_u[missing_flags]
+                pred_centered = pred_missing - pred_missing.mean(axis=0, keepdims=True)
+                target_centered = target_missing - target_missing.mean(axis=0, keepdims=True)
+                metrics["text_core_centered_cosine"] = float(
+                    np.sum(pred_centered * target_centered)
+                    / (np.linalg.norm(pred_centered) * np.linalg.norm(target_centered) + 1e-8)
+                )
+            else:
+                metrics["text_core_centered_cosine"] = None
+            metrics["text_core_observed_count"] = int(observed_flags.sum())
+            metrics["text_core_missing_count"] = int(missing_flags.sum())
+            metrics["text_core_pred_target_std_ratio"] = float(
+                np.std(predicted_u) / (np.std(target_u) + 1e-8)
+            )
+            artifacts["text_core_pred_u"] = predicted_u
+            artifacts["text_core_target_u"] = target_u
+            artifacts["text_core_text_observed"] = observed_flags
     return metrics, artifacts
 
 
@@ -1657,6 +1834,7 @@ def run_experiment(
         target_space=config_value.target_space,
         text_subspace_checkpoint=config_value.text_subspace_checkpoint,
         training_objective=config_value.training_objective,
+        text_core=config_value.text_core,
     ).to(device)
     text_subspace_hash_before = (
         model.text_subspace_integrity()
@@ -2059,6 +2237,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--teacher-checkpoint", default=None)
     parser.add_argument("--target-space", choices=("all-modalities", "full-text", "predictable-subspace"), default="all-modalities")
     parser.add_argument("--text-subspace-checkpoint", default=None)
+    parser.add_argument(
+        "--text-core",
+        action="store_true",
+        help="Train the 64-d Text-Core task slot on the causal OSRAM read path.",
+    )
     parser.add_argument("--completion-path",choices=("none","pre_osram_b2"),default="none")
     parser.add_argument("--b2-base-checkpoint",default=None)
     parser.add_argument("--b2-pretrain-checkpoint",default=None)
@@ -2335,6 +2518,7 @@ def main(argv=None) -> None:
         osram_bidirectional=args.osram_bidirectional,
         osram_forward_slot_reuse=args.osram_forward_slot_reuse,
         osram_readout_fusion=args.osram_readout_fusion,
+        text_core=args.text_core,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [

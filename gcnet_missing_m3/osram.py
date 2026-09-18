@@ -644,6 +644,7 @@ class OSRAMBackbone(nn.Module):
         write_node: torch.Tensor | None = None,
         write_completion=None,
         post_write_observer=None,
+        context_read_residual=None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Condition reads/local features separately from real-observation writes.
 
@@ -653,6 +654,9 @@ class OSRAMBackbone(nn.Module):
         This describes B2 read completion. The separate opt-in ``write_completion``
         callback instead replaces missing write slots AFTER reads; it never changes
         current queries or the observed addresses used for Gap residualization.
+        ``context_read_residual`` is evaluated after the causal memory read and
+        before the local path/readout. It can shape the current representation,
+        but it cannot change the already-completed persistent write.
         """
         read_node = node if read_node is None else read_node
         write_node = node if write_node is None else write_node
@@ -706,8 +710,6 @@ class OSRAMBackbone(nn.Module):
             active_base_context = base_context
             active_gap_context = gap_context
 
-        local = read_node + self.local_path(read_node)
-        local = local * valid.unsqueeze(-1).to(local.dtype)
         missing = 1.0 - availability.to(dtype=node.dtype)
         # Unlike the legacy switch above, mask ONLY the emotion-fusion inputs.
         # The returned Base/Gap tensors still supervise the structured predictor.
@@ -717,6 +719,16 @@ class OSRAMBackbone(nn.Module):
             emotion_base = torch.zeros_like(emotion_base)
         if self.osram_emotion_ablation in ("local-only", "local-base"):
             emotion_gap = torch.zeros_like(emotion_gap)
+        local_input = read_node
+        if context_read_residual is not None:
+            residual = context_read_residual(active_base_context, active_gap_context)
+            if not torch.is_tensor(residual) or residual.shape != read_node.shape:
+                raise ValueError(
+                    "context_read_residual must return [L, B, latent_dim]"
+                )
+            local_input = read_node + residual
+        local = local_input + self.local_path(local_input)
+        local = local * valid.unsqueeze(-1).to(local.dtype)
         if self.osram_readout_fusion != "flat":
             hidden = self.local_centered_fusion(
                 local, base_context, gap_context, availability, umask)

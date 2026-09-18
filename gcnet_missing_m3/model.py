@@ -12,6 +12,7 @@ from torch.nn import functional as F
 
 from gcnet_modality_jepa.model import GraphModel
 from .osram import OSRAMBackbone
+from .text_core import TextCore
 
 
 MODALITIES = ("audio", "text", "visual")
@@ -1213,6 +1214,7 @@ class MissingM3GraphModel(GraphModel):
         target_space='all-modalities',
         text_subspace_checkpoint=None,
         training_objective='joint',
+        text_core=False,
     ) -> None:
         if target_space not in {'all-modalities', 'full-text', 'predictable-subspace'}:
             raise ValueError('unsupported target_space')
@@ -1240,6 +1242,34 @@ class MissingM3GraphModel(GraphModel):
             raise ValueError('pretrained-frozen requires original joint causal .6 mean/Flat without completion')
         self.teacher_mode = teacher_mode
         self.teacher_provenance = None
+        self.text_core_enabled = bool(text_core)
+        if self.text_core_enabled and (
+            training_objective != "emotion-only"
+            or backbone_type != "osram"
+            or osram_bidirectional
+            or osram_forward_slot_reuse
+            or float(osram_write_step) != 0.6
+            or osram_readout_fusion != "flat"
+            or fusion_type != "mean"
+            or completion_path != "none"
+            or classification_completion
+            or complete_state_jepa
+            or write_state_completion
+            or future_state_jepa
+            or local_context_residual
+            or node_interaction_residual
+            or osram_ablation != "full"
+            or osram_emotion_ablation != "full"
+            or not osram_query_availability
+            or readout_type != "shared"
+            or target_space != "all-modalities"
+            or teacher_mode != "ema"
+            or teacher_checkpoint is not None
+        ):
+            raise ValueError(
+                "text-core requires emotion-only causal eta=.6 mean/Flat OSRAM "
+                "without JEPA, completion, or readout interventions"
+            )
         self.future_state_jepa = bool(future_state_jepa)
         if future_state_jepa and (
             complete_state_jepa or write_state_completion or backbone_type != 'osram'
@@ -1393,6 +1423,8 @@ class MissingM3GraphModel(GraphModel):
         self.osram_ablation = osram_ablation
         self.osram_emotion_ablation = osram_emotion_ablation
         self.osram_readout_fusion = osram_readout_fusion
+        self.text_core = None
+        self.last_text_core = None
         self.osram_query_availability = bool(osram_query_availability)
         self.osram_bidirectional = bool(osram_bidirectional)
         self.osram_forward_slot_reuse = bool(osram_forward_slot_reuse)
@@ -1456,6 +1488,13 @@ class MissingM3GraphModel(GraphModel):
             )
             hidden_dim = int(osram_output_dim)
             predictor_context_dim = self.osram.context_dim
+            if self.text_core_enabled:
+                # Keep the baseline initialization of all pre-existing paths
+                # unchanged; Text-Core owns only its newly added parameters.
+                with torch.random.fork_rng(devices=[]):
+                    self.text_core = TextCore(
+                        latent_dim, self.osram.context_dim, dropout=predictor_dropout
+                    )
         else:
             hidden_dim = 2 * D_e + graph_hidden_size
             predictor_context_dim = hidden_dim
@@ -1592,6 +1631,7 @@ class MissingM3GraphModel(GraphModel):
         osram_context = None
         internal_predictions = None
         osram_nodes = {}
+        self.last_text_core = None
         if self.future_state_jepa and self.training:
             osram_nodes['post_write_observer'] = self.future_state.begin(encoded, umask.T.bool())
         if self.write_state_completion:
@@ -1606,6 +1646,15 @@ class MissingM3GraphModel(GraphModel):
             osram_nodes = {"read_node": read_node, "write_node": encoded}
         elif completion_predictions_override is not None:
             raise ValueError("completion override requires pre_osram_b2")
+        if self.text_core is not None:
+            def _text_core_read_residual(base_context, gap_context):
+                output = self.text_core(
+                    latents, availability, umask, base_context, gap_context
+                )
+                self.last_text_core = output
+                return output["read_residual"]
+
+            osram_nodes["context_read_residual"] = _text_core_read_residual
         if self.backbone_type == "osram":
             graph_hidden, osram_context = self.osram(
                 encoded,
