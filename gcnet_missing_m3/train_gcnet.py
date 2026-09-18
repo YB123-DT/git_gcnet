@@ -123,6 +123,7 @@ class TrainConfig:
     target_space: str = "all-modalities"
     text_subspace_checkpoint: str | None = None
     text_core: bool = False
+    uniform_forced_text_probability: float = 0.25
 
     def __post_init__(self) -> None:
         if self.target_space not in {"all-modalities", "full-text", "predictable-subspace"}:
@@ -131,6 +132,10 @@ class TrainConfig:
             raise ValueError("emotion_loss_mode must be sample-mean, pattern-balanced, or pattern-groupdro")
         if not math.isfinite(float(self.group_dro_eta)) or float(self.group_dro_eta) < 0:
             raise ValueError("group_dro_eta must be finite and nonnegative")
+        forced_text_probability = float(self.uniform_forced_text_probability)
+        if (not math.isfinite(forced_text_probability)
+                or not 0.0 <= forced_text_probability <= 1.0):
+            raise ValueError("uniform_forced_text_probability must be between zero and one")
         if (self.target_space == "predictable-subspace") != (self.text_subspace_checkpoint is not None):
             raise ValueError("text_subspace_checkpoint is required only for predictable-subspace")
         if self.target_space != "all-modalities" and (
@@ -575,10 +580,10 @@ def _protocol_rates(config: TrainConfig) -> tuple[float, ...]:
     fixed_rate = _fixed_missing_rate(config)
     if config.train_rate_mode == "fixed":
         return (fixed_rate,)
-    if config.train_rate_mode in {"cyclic", "all", "stratified"}:
+    if config.train_rate_mode in {"cyclic", "all", "stratified", "uniform-forced-text"}:
         return MISSING_RATES
     raise ValueError(
-        "train_rate_mode must be 'cyclic', 'all', 'fixed', or 'stratified'"
+        "train_rate_mode must be 'cyclic', 'all', 'fixed', 'stratified', or 'uniform-forced-text'"
     )
 
 
@@ -726,6 +731,119 @@ def _prepare_view(
         host_availability,
         guest_availability,
         dimensions,
+    )
+
+
+def _uniform_forced_text_mask_tensors(
+    config: TrainConfig,
+    data: Sequence[object],
+    epoch: int,
+    batch_index: int,
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, object]]:
+    """Sample continuous per-utterance rates with an optional Text force.
+
+    Each valid utterance receives an independent ``r ~ U(0, 1)`` and each
+    modality is retained with probability ``1-r``.  Text is then forced
+    missing with the configured probability.  Empty rows are repaired by
+    retaining one modality, while preserving a forced Text omission whenever
+    possible.  The host and guest masks are generated independently, just as
+    the official schedule generates side-specific masks.
+    """
+    umask = data[7]
+    conversation_ids = [str(value) for value in data[-1]]
+    qmask = data[6]
+    if umask.ndim != 2 or qmask.shape != umask.shape:
+        raise ValueError("umask and qmask must both have shape [batch, sequence]")
+    batch_size, sequence_length = umask.shape
+    if len(conversation_ids) != batch_size:
+        raise ValueError("conversation IDs must match the umask batch size")
+    forced_probability = float(config.uniform_forced_text_probability)
+    root_seed = SeedBundle(config.seed).derive("uniform_forced_text_mask")
+    digest = hashlib.sha256()
+    side_tensors: list[torch.Tensor] = []
+    forced_tensors: list[torch.Tensor] = []
+    sampled_rate_sum = 0.0
+    sampled_rate_count = 0
+    for side in ("host", "guest"):
+        conversations = []
+        forced_conversations = []
+        for batch_index_in_batch, conversation_id in enumerate(conversation_ids):
+            valid_length = int(umask[batch_index_in_batch].sum().item())
+            if valid_length < 1:
+                raise ValueError("every conversation must contain a valid utterance")
+            payload = json.dumps(
+                {
+                    "algorithm": "uniform-missing-rate-forced-text-v1",
+                    "dataset": config.dataset,
+                    "fold": config.fold,
+                    "seed": root_seed,
+                    "epoch": int(epoch),
+                    "batch_index": int(batch_index),
+                    "conversation_id": conversation_id,
+                    "side": side,
+                    "forced_text_probability": format(forced_probability, ".17g"),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            seed = int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
+            rng = np.random.default_rng(seed)
+            sampled_rates = rng.random(valid_length)
+            availability = rng.random((valid_length, 3)) >= sampled_rates[:, None]
+            forced_text = rng.random(valid_length) < forced_probability
+            availability[forced_text, 1] = False
+            empty_rows = np.flatnonzero(~availability.any(axis=1))
+            if empty_rows.size:
+                for row in empty_rows.tolist():
+                    choices = (0, 2) if forced_text[row] else (0, 1, 2)
+                    retained = int(rng.choice(choices))
+                    availability[row, retained] = True
+            padded = np.zeros((sequence_length, 3), dtype=np.uint8)
+            padded[:valid_length] = availability.astype(np.uint8, copy=False)
+            forced_padded = np.zeros(sequence_length, dtype=np.bool_)
+            forced_padded[:valid_length] = forced_text
+            conversations.append(torch.as_tensor(padded))
+            forced_conversations.append(torch.as_tensor(forced_padded))
+            sampled_rate_sum += float(sampled_rates.sum())
+            sampled_rate_count += valid_length
+            digest.update(payload)
+            digest.update(b"\0")
+            digest.update(padded.tobytes(order="C"))
+        side_tensors.append(torch.stack(conversations, dim=1).to(device=umask.device))
+        forced_tensors.append(torch.stack(forced_conversations, dim=1).to(device=umask.device))
+    host_availability, guest_availability = side_tensors
+    host_forced, guest_forced = forced_tensors
+    selected_forced = torch.where(qmask.transpose(0, 1).bool(), guest_forced, host_forced)
+    return (
+        host_availability,
+        guest_availability,
+        {
+            "sampled_rate_sum": sampled_rate_sum,
+            "sampled_rate_count": sampled_rate_count,
+            "selected_forced_text": selected_forced,
+            "mask_hash": digest.hexdigest(),
+        },
+    )
+
+
+def _prepare_uniform_forced_text_view(
+    config: TrainConfig,
+    data: Sequence[object],
+    epoch: int,
+    batch_index: int,
+    dimensions: tuple[int, int, int],
+) -> tuple[dict[str, object], dict[str, object]]:
+    host_availability, guest_availability, audit = _uniform_forced_text_mask_tensors(
+        config, data, epoch, batch_index
+    )
+    return (
+        _prepare_view_from_primary_masks(
+            data,
+            host_availability,
+            guest_availability,
+            dimensions,
+        ),
+        audit,
     )
 
 
@@ -1062,6 +1180,13 @@ def train_epoch(
     rate_valid_utterance_counts = {rate: 0 for rate in MISSING_RATES}
     rate_jepa_target_counts = {rate: 0 for rate in MISSING_RATES}
     assignment_digest = hashlib.sha256()
+    uniform_mask_digest = hashlib.sha256()
+    uniform_sampled_rate_sum = 0.0
+    uniform_sampled_rate_count = 0
+    uniform_forced_text_count = 0
+    uniform_forced_text_valid_count = 0
+    uniform_missing_count = 0
+    uniform_modality_count = 0
     target_count = 0
     optimizer_steps = 0
     skipped_optimizer_batches = 0
@@ -1124,9 +1249,25 @@ def train_epoch(
                 )
                 realized_missing[rate][1] += int(valid_availability.numel())
             conversations_seen += batch_size
+        elif config.train_rate_mode == "uniform-forced-text":
+            view, uniform_audit = _prepare_uniform_forced_text_view(
+                config, data, epoch, batch_index, dimensions
+            )
+            optimizer.zero_grad(set_to_none=True)
+            rate_views = ((None, view),)
+            uniform_mask_digest.update(uniform_audit["mask_hash"].encode("ascii"))
+            uniform_mask_digest.update(b"\0")
+            uniform_sampled_rate_sum += float(uniform_audit["sampled_rate_sum"])
+            uniform_sampled_rate_count += int(uniform_audit["sampled_rate_count"])
+            valid_rows = view["umask"].transpose(0, 1).bool()
+            uniform_missing_count += int((view["availability"].eq(0) & valid_rows.unsqueeze(-1)).sum().item())
+            uniform_modality_count += int(valid_rows.sum().item() * 3)
+            selected_forced = uniform_audit["selected_forced_text"]
+            uniform_forced_text_count += int(selected_forced[valid_rows].sum().item())
+            uniform_forced_text_valid_count += int(valid_rows.sum().item())
         else:
             raise ValueError(
-                "train_rate_mode must be 'cyclic', 'all', 'fixed', or 'stratified'"
+                "train_rate_mode must be 'cyclic', 'all', 'fixed', 'stratified', or 'uniform-forced-text'"
             )
         teacher = None
         batch_has_backward = False
@@ -1469,6 +1610,28 @@ def train_epoch(
         "stratified_rate_algorithm": (
             STRATIFIED_RATE_ALGORITHM
             if config.train_rate_mode == "stratified"
+            else None
+        ),
+        "uniform_forced_text_probability": (
+            float(config.uniform_forced_text_probability)
+            if config.train_rate_mode == "uniform-forced-text"
+            else None
+        ),
+        "uniform_sampled_rate_mean": (
+            uniform_sampled_rate_sum / uniform_sampled_rate_count
+            if uniform_sampled_rate_count else None
+        ),
+        "uniform_realized_missing_fraction": (
+            uniform_missing_count / uniform_modality_count
+            if uniform_modality_count else None
+        ),
+        "uniform_forced_text_fraction": (
+            uniform_forced_text_count / uniform_forced_text_valid_count
+            if uniform_forced_text_valid_count else None
+        ),
+        "uniform_mask_hash": (
+            uniform_mask_digest.hexdigest()
+            if config.train_rate_mode == "uniform-forced-text"
             else None
         ),
         "optimizer_steps": optimizer_steps,
@@ -2271,7 +2434,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument(
         "--train-rate-mode",
-        choices=("cyclic", "all", "fixed", "stratified"),
+        choices=("cyclic", "all", "fixed", "stratified", "uniform-forced-text"),
         default="cyclic",
     )
     parser.add_argument("--train-missing-rate", type=float, default=None)
