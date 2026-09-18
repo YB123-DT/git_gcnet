@@ -4378,21 +4378,30 @@ def test_mosi_task_mode_cli_defaults_to_regression_and_accepts_binary_for_mosi()
     )
     assert args.dataset == "CMUMOSI"
     assert args.mosi_task_mode == "binary"
+    three_class = parser.parse_args(
+        required + ["--dataset", "CMUMOSI", "--mosi-task-mode", "three-class"]
+    )
+    assert three_class.mosi_task_mode == "three-class"
 
 
 def test_mosi_task_mode_binary_contract_is_restricted_to_cmumosi():
     with pytest.raises(ValueError, match="CMUMOSI"):
         train_gcnet._resolve_task_contract("IEMOCAPSix", "binary")
+    with pytest.raises(ValueError, match="CMUMOSI"):
+        train_gcnet._resolve_task_contract("IEMOCAPSix", "three-class")
 
 
 def test_mosi_task_mode_contract_selects_regression_or_binary_shape():
     regression = train_gcnet._resolve_task_contract("CMUMOSI", "regression")
     binary = train_gcnet._resolve_task_contract("CMUMOSI", "binary")
+    three_class = train_gcnet._resolve_task_contract("CMUMOSI", "three-class")
 
     assert regression["task"] == "regression"
     assert regression["num_classes"] == 1
     assert binary["task"] == "binary"
     assert binary["num_classes"] == 2
+    assert three_class["task"] == "three-class"
+    assert three_class["num_classes"] == 3
 
 
 def test_mosi_soft_ordinal_contract_uses_single_signed_logit():
@@ -4882,6 +4891,48 @@ def test_mosi_binary_prediction_collection_excludes_zero_and_padding():
     assert predictions.tolist() == [0, 1]
     assert metric_labels.tolist() == [0, 1]
     assert continuous_labels.tolist() == [-2.0, 1.5]
+
+
+def test_mosi_three_class_loss_keeps_neutral_as_class_one():
+    logits = torch.tensor(
+        [
+            [[5.0, -2.0, -3.0]],
+            [[-2.0, 5.0, -3.0]],
+            [[-3.0, -2.0, 5.0]],
+        ]
+    )
+    labels = torch.tensor([[-2.0, 0.0, 1.5]])
+    umask = torch.ones(1, 3)
+    expected = torch.nn.functional.cross_entropy(
+        logits[:, 0], torch.tensor([0, 1, 2])
+    )
+
+    actual = _task_loss(
+        "CMUMOSI", logits, labels, umask, mosi_task_mode="three-class"
+    )
+
+    ASSERT_CLOSE(actual, expected)
+
+
+def test_mosi_three_class_nonzero_metrics_compare_only_negative_positive_logits():
+    logits = torch.tensor(
+        [
+            [[6.0, 9.0, 1.0]],  # neutral wins 3-way, negative wins Non0 tie-break
+            [[1.0, 9.0, 6.0]],  # neutral wins 3-way, positive wins Non0 tie-break
+            [[1.0, 0.0, 6.0]],  # positive
+            [[6.0, 0.0, 1.0]],  # negative
+        ]
+    )
+    labels = torch.tensor([[-2.0, 2.0, 2.0, -2.0]])
+    umask = torch.ones(1, 4)
+
+    predictions, metric_labels, continuous = train_gcnet._collect_predictions(
+        "CMUMOSI", logits, labels, umask, mosi_task_mode="three-class"
+    )
+
+    assert predictions.tolist() == [0, 1, 1, 0]
+    assert metric_labels.tolist() == [0, 1, 1, 0]
+    assert continuous.tolist() == [-2.0, 2.0, 2.0, -2.0]
 
 
 def test_mosi_binary_metrics_use_direct_class_arrays_without_regression_fields():

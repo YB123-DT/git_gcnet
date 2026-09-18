@@ -296,16 +296,18 @@ def _dataset_shape(dataset: str) -> Dict[str, object]:
 
 
 def _resolve_task_contract(dataset: str, mode: str) -> Dict[str, object]:
-    if mode not in ("regression", "binary", "soft-ordinal"):
+    if mode not in ("regression", "binary", "three-class", "soft-ordinal"):
         raise ValueError("unsupported MOSI task mode: {}".format(mode))
     contract = _dataset_shape(dataset)
-    if mode in ("binary", "soft-ordinal"):
+    if mode in ("binary", "three-class", "soft-ordinal"):
         if dataset != "CMUMOSI":
             raise ValueError(
                 "{} task mode is only supported for CMUMOSI".format(mode)
             )
     if mode == "binary":
         contract.update(task="binary", num_classes=2)
+    elif mode == "three-class":
+        contract.update(task="three-class", num_classes=3)
     elif mode == "soft-ordinal":
         contract.update(task="soft-ordinal", num_classes=1)
     return contract
@@ -884,7 +886,7 @@ def _task_loss(
         return torch.nn.functional.binary_cross_entropy_with_logits(
             prediction[selected], target[selected]
         )
-    if task in ("classification", "binary"):
+    if task in ("classification", "binary", "three-class"):
         if task_regression_loss != "mse":
             raise ValueError(
                 "task SmoothL1 is only valid for continuous regression"
@@ -897,6 +899,17 @@ def _task_loss(
             if not bool(selected.any()):
                 return flat_logits.sum() * 0.0
             flat_labels = continuous_labels.gt(0).long()
+        elif task == "three-class":
+            continuous_labels = labels.reshape(-1)
+            flat_labels = torch.where(
+                continuous_labels < 0,
+                torch.zeros_like(continuous_labels, dtype=torch.long),
+                torch.where(
+                    continuous_labels > 0,
+                    torch.full_like(continuous_labels, 2, dtype=torch.long),
+                    torch.ones_like(continuous_labels, dtype=torch.long),
+                ),
+            )
         return torch.nn.functional.cross_entropy(
             flat_logits[selected], flat_labels[selected]
         )
@@ -1055,7 +1068,7 @@ def _metrics(
     mosi_task_mode: str = "regression",
 ) -> Dict[str, float]:
     task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
-    if task in ("classification", "binary", "soft-ordinal"):
+    if task in ("classification", "binary", "three-class", "soft-ordinal"):
         return {
             "weighted_f1": float(f1_score(labels, predictions, average="weighted")),
             "macro_f1": float(f1_score(labels, predictions, average="macro")),
@@ -1092,14 +1105,21 @@ def _collect_predictions(
     mosi_task_mode: str = "regression",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
-    if task in ("classification", "binary"):
-        predicted = logits.argmax(dim=-1).transpose(0, 1)
+    if task in ("classification", "binary", "three-class"):
+        if task == "three-class":
+            # Evaluate only the negative/positive logits on original nonzero
+            # samples; the neutral class participates in training but is not
+            # a class in the reported Non0 binary metric.
+            nonzero_logits = torch.stack((logits[..., 0], logits[..., 2]), dim=-1)
+            predicted = nonzero_logits.argmax(dim=-1).transpose(0, 1)
+        else:
+            predicted = logits.argmax(dim=-1).transpose(0, 1)
     elif task == "soft-ordinal":
         predicted = logits.squeeze(-1).transpose(0, 1).gt(0).long()
     else:
         predicted = logits.squeeze(-1).transpose(0, 1)
     selected = umask.bool()
-    if task in ("binary", "soft-ordinal"):
+    if task in ("binary", "three-class", "soft-ordinal"):
         selected = selected & labels.ne(0)
         metric_labels = labels.gt(0).long()
     else:
@@ -1724,7 +1744,7 @@ def evaluate_rate(
             )
             metric_availability = view["availability"].transpose(0, 1)
             selected = view["umask"].bool()
-            if task in ("binary", "soft-ordinal"):
+            if task in ("binary", "three-class", "soft-ordinal"):
                 selected = selected & view["labels"].ne(0)
             all_availability.append(
                 metric_availability[selected].cpu().numpy()
@@ -1781,7 +1801,7 @@ def evaluate_rate(
             "labels": labels_array,
             "availability": availability_array,
         }
-        if task in ("binary", "soft-ordinal"):
+        if task in ("binary", "three-class", "soft-ordinal"):
             artifacts["continuous_labels"] = continuous_labels_array
         if task == "soft-ordinal":
             artifacts["signed_logits"] = np.concatenate(all_signed_logits)
@@ -2415,7 +2435,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mosi-task-mode",
-        choices=("regression", "binary", "soft-ordinal"),
+        choices=("regression", "binary", "three-class", "soft-ordinal"),
         default="regression",
     )
     parser.add_argument(
