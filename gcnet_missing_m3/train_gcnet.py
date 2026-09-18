@@ -218,14 +218,32 @@ class TrainConfig:
                     or self.jepa_rate_weighting != "uniform"):
                 raise ValueError("complete-state requires causal flat OSRAM without completion or legacy transfer, and uniform loss weighting")
         if self.osram_readout_fusion not in {
-            "flat", "local-gated", "local-cross-attn", "modality-tracks"
+            "flat", "local-gated", "local-cross-attn", "modality-tracks",
+            "modality-track-residual"
         }:
             raise ValueError(
-                "osram_readout_fusion must be flat, local-gated, local-cross-attn, or modality-tracks"
+                "osram_readout_fusion must be flat, local-gated, local-cross-attn, modality-tracks, or modality-track-residual"
             )
         if self.osram_readout_fusion != "flat":
             if self.backbone_type != "osram":
                 raise ValueError(f"{self.osram_readout_fusion} requires the osram backbone")
+        if self.osram_readout_fusion == "modality-track-residual":
+            if (
+                self.training_objective != "emotion-only"
+                or self.initial_backbone_checkpoint is None
+                or self.osram_bidirectional
+                or self.osram_write_step != 0.6
+                or self.osram_forward_slot_reuse
+                or self.fusion_type != "mean"
+                or self.completion_path != "none"
+                or self.classification_completion
+                or self.osram_ablation != "full"
+                or self.osram_emotion_ablation != "full"
+            ):
+                raise ValueError(
+                    "modality-track-residual requires a frozen no-JEPA emotion-only "
+                    "causal mean/Flat OSRAM checkpoint at write step 0.6"
+                )
         if self.checkpoint_selection == "test-oracle-per-rate":
             if self.train_rate_mode == "fixed" or not self.evaluate_test:
                 raise ValueError("test-oracle-per-rate requires all eight rates and test evaluation")
@@ -263,6 +281,9 @@ _FROZEN_COMPLETION_TRAINABLE_PREFIXES = (
     "conditioned_readout.",
     "affine_readout.",
     "missing_latent_fusion.",
+)
+_FROZEN_MODALITY_TRACK_RESIDUAL_TRAINABLE_PREFIXES = (
+    "osram.modality_track_residual.",
 )
 
 
@@ -386,20 +407,22 @@ def _load_inference_backbone_checkpoint(
     model: MissingM3GraphModel,
     checkpoint_path: str | Path,
     include_jepa_modules: bool = False,
+    load_all_shared_modules: bool = False,
+    allow_missing_prefixes: Sequence[str] = (),
 ) -> Dict[str, object]:
     path = Path(checkpoint_path)
     checkpoint = torch.load(path, map_location="cpu")
     source_config = checkpoint.get("config", {})
     source_objective = source_config.get("training_objective")
-    if source_objective != "jepa-only":
+    if source_objective not in {"jepa-only", "emotion-only"}:
         raise ValueError(
-            "initial backbone checkpoint must come from jepa-only pretraining"
+            "initial backbone checkpoint must come from jepa-only or emotion-only training"
         )
     source_state = checkpoint.get("model")
     if not isinstance(source_state, Mapping):
         raise ValueError("initial backbone checkpoint has no model state")
     target_state = model.state_dict()
-    excluded_prefixes = (
+    excluded_prefixes = () if load_all_shared_modules else (
         _JOINT_FINETUNE_EXCLUDED_PREFIXES
         if include_jepa_modules
         else _STAGE2_EXCLUDED_PREFIXES
@@ -409,6 +432,8 @@ def _load_inference_backbone_checkpoint(
         if key.startswith(excluded_prefixes):
             continue
         if key not in source_state:
+            if key.startswith(tuple(allow_missing_prefixes)):
+                continue
             raise ValueError("pretrained backbone is missing key: " + key)
         source_value = source_state[key]
         if source_value.shape != target_value.shape:
@@ -423,6 +448,8 @@ def _load_inference_backbone_checkpoint(
         "source_epoch": checkpoint.get("epoch"),
         "loaded_key_count": len(loaded_keys),
         "included_jepa_modules": include_jepa_modules,
+        "load_all_shared_modules": load_all_shared_modules,
+        "allowed_missing_prefixes": list(allow_missing_prefixes),
     }
 
 
@@ -444,6 +471,32 @@ def _configure_frozen_completion_probe(
             frozen_count += parameter.numel()
     if not trainable_names:
         raise ValueError("frozen completion has no trainable parameters")
+    return {
+        "trainable_parameter_names": trainable_names,
+        "frozen_parameter_names": frozen_names,
+        "trainable_parameter_count": trainable_count,
+        "frozen_parameter_count": frozen_count,
+    }
+
+
+def _configure_frozen_modality_track_residual_probe(
+    model: MissingM3GraphModel,
+) -> Dict[str, object]:
+    trainable_names = []
+    frozen_names = []
+    trainable_count = 0
+    frozen_count = 0
+    for name, parameter in model.named_parameters():
+        trainable = name.startswith(_FROZEN_MODALITY_TRACK_RESIDUAL_TRAINABLE_PREFIXES)
+        parameter.requires_grad_(trainable)
+        if trainable:
+            trainable_names.append(name)
+            trainable_count += parameter.numel()
+        else:
+            frozen_names.append(name)
+            frozen_count += parameter.numel()
+    if not trainable_names:
+        raise ValueError("modality-track-residual has no trainable parameters")
     return {
         "trainable_parameter_names": trainable_names,
         "frozen_parameter_names": frozen_names,
@@ -1922,6 +1975,9 @@ def run_experiment(
                 "pretrained_learning_rate must be lower than learning_rate"
             )
     frozen_completion = config_value.training_objective == "frozen-completion"
+    frozen_modality_track_residual = (
+        config_value.osram_readout_fusion == "modality-track-residual"
+    )
     if frozen_completion and config_value.initial_backbone_checkpoint is None:
         raise ValueError(
             "frozen-completion requires initial_backbone_checkpoint"
@@ -2075,9 +2131,20 @@ def run_experiment(
             config_value.initial_backbone_checkpoint,
             include_jepa_modules=config_value.training_objective
             in {"joint", "frozen-completion"},
+            load_all_shared_modules=frozen_modality_track_residual,
+            allow_missing_prefixes=(
+                _FROZEN_MODALITY_TRACK_RESIDUAL_TRAINABLE_PREFIXES
+                if frozen_modality_track_residual else ()
+            ),
         )
     if frozen_completion:
         frozen_probe = _configure_frozen_completion_probe(model)
+        frozen_hash_before = _parameter_subset_sha256(
+            model,
+            frozen_probe["frozen_parameter_names"],
+        )
+    elif frozen_modality_track_residual:
+        frozen_probe = _configure_frozen_modality_track_residual_probe(model)
         frozen_hash_before = _parameter_subset_sha256(
             model,
             frozen_probe["frozen_parameter_names"],
@@ -2265,7 +2332,7 @@ def run_experiment(
             frozen_probe["frozen_parameter_names"],
         )
         if frozen_hash_after != frozen_hash_before:
-            raise RuntimeError("frozen completion backbone changed during training")
+            raise RuntimeError("frozen backbone parameters changed during training")
         frozen_integrity = {
             "trainable_parameter_count": frozen_probe[
                 "trainable_parameter_count"
@@ -2378,6 +2445,8 @@ def run_experiment(
         ),
         "backbone_initialization": initialization,
         "frozen_completion_integrity": frozen_integrity,
+        "frozen_readout_integrity": frozen_integrity
+        if frozen_modality_track_residual else None,
         "optimizer_parameter_groups": optimizer_group_provenance,
         "jepa_regression_aggregation": (
             config_value.jepa_regression_aggregation
@@ -2621,7 +2690,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--osram-write-step", type=float, default=1.0)
     parser.add_argument(
         "--osram-readout-fusion",
-        choices=("flat", "local-gated", "local-cross-attn", "modality-tracks"),
+        choices=(
+            "flat", "local-gated", "local-cross-attn", "modality-tracks",
+            "modality-track-residual",
+        ),
         default="flat",
     )
     parser.add_argument(

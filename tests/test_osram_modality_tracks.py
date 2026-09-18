@@ -113,3 +113,90 @@ def test_modality_tracks_requires_embeddings_only_for_new_readout():
             assert "modality_embeddings" in str(error)
         else:
             raise AssertionError("modality-tracks must require modality embeddings")
+
+
+def test_modality_track_residual_is_zero_initialized_on_flat_anchor():
+    kwargs = dict(
+        latent_dim=8,
+        output_dim=10,
+        num_heads=2,
+        key_dim=3,
+        value_dim=3,
+        dropout=0,
+        n_speakers=1,
+        bidirectional=False,
+        write_step=0.6,
+    )
+    torch.manual_seed(71)
+    flat = osram.OSRAMBackbone(**kwargs).eval()
+    torch.manual_seed(71)
+    residual = osram.OSRAMBackbone(
+        **kwargs, osram_readout_fusion="modality-track-residual"
+    ).eval()
+    node, latents, availability, qmask, umask, lengths = _inputs()
+    embeddings = torch.randn(3, 8)
+    args = (node, latents, availability, qmask, umask, lengths)
+    flat_hidden, flat_context = flat(*args)
+    residual_hidden, residual_context = residual(
+        *args, modality_embeddings=embeddings
+    )
+    torch.testing.assert_close(flat_hidden, residual_hidden, rtol=0, atol=0)
+    for name in ("local", "base", "gap"):
+        torch.testing.assert_close(
+            flat_context[name], residual_context[name], rtol=0, atol=0
+        )
+    assert torch.all(residual.modality_track_residual.residual[-1].weight == 0)
+    assert torch.all(residual.modality_track_residual.residual[-1].bias == 0)
+    assert torch.all(residual.modality_track_residual.gate.bias == -2)
+
+
+def test_modality_track_residual_changes_readout_not_scan():
+    kwargs = dict(
+        latent_dim=8,
+        output_dim=10,
+        num_heads=2,
+        key_dim=3,
+        value_dim=3,
+        dropout=0,
+        n_speakers=1,
+        bidirectional=False,
+        write_step=0.6,
+    )
+    torch.manual_seed(73)
+    model = osram.OSRAMBackbone(
+        **kwargs, osram_readout_fusion="modality-track-residual"
+    ).eval()
+    node, latents, availability, qmask, umask, lengths = _inputs()
+    embeddings = torch.randn(3, 8)
+    args = (node, latents, availability, qmask, umask, lengths)
+    states_before = []
+    old_write = model.block_write
+
+    def capture_before(*values, **call_kwargs):
+        state = old_write(*values, **call_kwargs)
+        states_before.append(state.detach().clone())
+        return state
+
+    with patch.object(model, "block_write", side_effect=capture_before):
+        base_hidden, base_context = model(*args, modality_embeddings=embeddings)
+    states_after = []
+
+    def capture_after(*values, **call_kwargs):
+        state = old_write(*values, **call_kwargs)
+        states_after.append(state.detach().clone())
+        return state
+
+    with patch.object(model, "block_write", side_effect=capture_after):
+        with torch.no_grad():
+            model.modality_track_residual.residual[-1].bias.fill_(0.25)
+        changed_hidden, changed_context = model(
+            *args, modality_embeddings=embeddings
+        )
+    assert not torch.equal(base_hidden, changed_hidden)
+    for name in ("local", "base", "gap"):
+        torch.testing.assert_close(
+            base_context[name], changed_context[name], rtol=0, atol=0
+        )
+    assert len(states_before) == len(states_after)
+    for before, after in zip(states_before, states_after):
+        torch.testing.assert_close(before, after, rtol=0, atol=0)
