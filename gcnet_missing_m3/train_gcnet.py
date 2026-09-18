@@ -296,10 +296,10 @@ def _dataset_shape(dataset: str) -> Dict[str, object]:
 
 
 def _resolve_task_contract(dataset: str, mode: str) -> Dict[str, object]:
-    if mode not in ("regression", "binary", "three-class", "soft-ordinal"):
+    if mode not in ("regression", "binary", "three-class", "dual", "soft-ordinal"):
         raise ValueError("unsupported MOSI task mode: {}".format(mode))
     contract = _dataset_shape(dataset)
-    if mode in ("binary", "three-class", "soft-ordinal"):
+    if mode in ("binary", "three-class", "dual", "soft-ordinal"):
         if dataset != "CMUMOSI":
             raise ValueError(
                 "{} task mode is only supported for CMUMOSI".format(mode)
@@ -308,6 +308,8 @@ def _resolve_task_contract(dataset: str, mode: str) -> Dict[str, object]:
         contract.update(task="binary", num_classes=2)
     elif mode == "three-class":
         contract.update(task="three-class", num_classes=3)
+    elif mode == "dual":
+        contract.update(task="dual", num_classes=1)
     elif mode == "soft-ordinal":
         contract.update(task="soft-ordinal", num_classes=1)
     return contract
@@ -917,6 +919,25 @@ def _task_loss(
     target = labels.reshape(-1).to(dtype=prediction.dtype)
     if not bool(selected.any()):
         return prediction.sum() * 0.0
+    if task == "dual":
+        if task_regression_loss == "mse":
+            regression_loss = torch.nn.functional.mse_loss(
+                prediction[selected], target[selected]
+            )
+        else:
+            regression_loss = torch.nn.functional.smooth_l1_loss(
+                prediction[selected],
+                target[selected],
+                beta=task_smooth_l1_beta,
+            )
+        sign_selected = selected & target.ne(0)
+        if not bool(sign_selected.any()):
+            classification_loss = prediction.sum() * 0.0
+        else:
+            classification_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+                prediction[sign_selected], target[sign_selected].gt(0).to(prediction.dtype)
+            )
+        return regression_loss + classification_loss
     if task_regression_loss == "mse":
         return torch.nn.functional.mse_loss(
             prediction[selected], target[selected]
@@ -1068,7 +1089,7 @@ def _metrics(
     mosi_task_mode: str = "regression",
 ) -> Dict[str, float]:
     task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
-    if task in ("classification", "binary", "three-class", "soft-ordinal"):
+    if task in ("classification", "binary", "three-class", "dual", "soft-ordinal"):
         return {
             "weighted_f1": float(f1_score(labels, predictions, average="weighted")),
             "macro_f1": float(f1_score(labels, predictions, average="macro")),
@@ -1114,12 +1135,12 @@ def _collect_predictions(
             predicted = nonzero_logits.argmax(dim=-1).transpose(0, 1)
         else:
             predicted = logits.argmax(dim=-1).transpose(0, 1)
-    elif task == "soft-ordinal":
+    elif task in ("dual", "soft-ordinal"):
         predicted = logits.squeeze(-1).transpose(0, 1).gt(0).long()
     else:
         predicted = logits.squeeze(-1).transpose(0, 1)
     selected = umask.bool()
-    if task in ("binary", "three-class", "soft-ordinal"):
+    if task in ("binary", "three-class", "dual", "soft-ordinal"):
         selected = selected & labels.ne(0)
         metric_labels = labels.gt(0).long()
     else:
@@ -1744,7 +1765,7 @@ def evaluate_rate(
             )
             metric_availability = view["availability"].transpose(0, 1)
             selected = view["umask"].bool()
-            if task in ("binary", "three-class", "soft-ordinal"):
+            if task in ("binary", "three-class", "dual", "soft-ordinal"):
                 selected = selected & view["labels"].ne(0)
             all_availability.append(
                 metric_availability[selected].cpu().numpy()
@@ -1801,7 +1822,7 @@ def evaluate_rate(
             "labels": labels_array,
             "availability": availability_array,
         }
-        if task in ("binary", "three-class", "soft-ordinal"):
+        if task in ("binary", "three-class", "dual", "soft-ordinal"):
             artifacts["continuous_labels"] = continuous_labels_array
         if task == "soft-ordinal":
             artifacts["signed_logits"] = np.concatenate(all_signed_logits)
@@ -2435,7 +2456,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mosi-task-mode",
-        choices=("regression", "binary", "three-class", "soft-ordinal"),
+        choices=("regression", "binary", "three-class", "dual", "soft-ordinal"),
         default="regression",
     )
     parser.add_argument(

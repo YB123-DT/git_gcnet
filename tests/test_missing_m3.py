@@ -4382,6 +4382,10 @@ def test_mosi_task_mode_cli_defaults_to_regression_and_accepts_binary_for_mosi()
         required + ["--dataset", "CMUMOSI", "--mosi-task-mode", "three-class"]
     )
     assert three_class.mosi_task_mode == "three-class"
+    dual = parser.parse_args(
+        required + ["--dataset", "CMUMOSI", "--mosi-task-mode", "dual"]
+    )
+    assert dual.mosi_task_mode == "dual"
 
 
 def test_mosi_task_mode_binary_contract_is_restricted_to_cmumosi():
@@ -4389,6 +4393,8 @@ def test_mosi_task_mode_binary_contract_is_restricted_to_cmumosi():
         train_gcnet._resolve_task_contract("IEMOCAPSix", "binary")
     with pytest.raises(ValueError, match="CMUMOSI"):
         train_gcnet._resolve_task_contract("IEMOCAPSix", "three-class")
+    with pytest.raises(ValueError, match="CMUMOSI"):
+        train_gcnet._resolve_task_contract("IEMOCAPSix", "dual")
 
 
 def test_mosi_task_mode_contract_selects_regression_or_binary_shape():
@@ -4402,6 +4408,9 @@ def test_mosi_task_mode_contract_selects_regression_or_binary_shape():
     assert binary["num_classes"] == 2
     assert three_class["task"] == "three-class"
     assert three_class["num_classes"] == 3
+    dual = train_gcnet._resolve_task_contract("CMUMOSI", "dual")
+    assert dual["task"] == "dual"
+    assert dual["num_classes"] == 1
 
 
 def test_mosi_soft_ordinal_contract_uses_single_signed_logit():
@@ -4933,6 +4942,36 @@ def test_mosi_three_class_nonzero_metrics_compare_only_negative_positive_logits(
     assert predictions.tolist() == [0, 1, 1, 0]
     assert metric_labels.tolist() == [0, 1, 1, 0]
     assert continuous.tolist() == [-2.0, 2.0, 2.0, -2.0]
+
+
+def test_mosi_dual_loss_combines_regression_and_nonzero_sign_bce():
+    logits = torch.tensor([[[2.0]], [[-1.0]], [[0.5]]])
+    labels = torch.tensor([[-2.0, 0.0, 1.5]])
+    umask = torch.ones(1, 3)
+    prediction = logits[:, 0, 0]
+    regression = torch.nn.functional.mse_loss(prediction, labels[0])
+    classification = torch.nn.functional.binary_cross_entropy_with_logits(
+        prediction[[0, 2]], torch.tensor([0.0, 1.0])
+    )
+    expected = regression + classification
+
+    actual = _task_loss("CMUMOSI", logits, labels, umask, mosi_task_mode="dual")
+
+    ASSERT_CLOSE(actual, expected)
+
+
+def test_mosi_dual_prediction_collection_uses_nonzero_sign_protocol():
+    logits = torch.tensor([[[2.0]], [[-1.0]], [[0.5]], [[9.0]]])
+    labels = torch.tensor([[-2.0, 0.0, 1.5, -3.0]])
+    umask = torch.tensor([[1.0, 1.0, 1.0, 0.0]])
+
+    predictions, metric_labels, continuous = train_gcnet._collect_predictions(
+        "CMUMOSI", logits, labels, umask, mosi_task_mode="dual"
+    )
+
+    assert predictions.tolist() == [1, 1]
+    assert metric_labels.tolist() == [0, 1]
+    assert continuous.tolist() == [-2.0, 1.5]
 
 
 def test_mosi_binary_metrics_use_direct_class_arrays_without_regression_fields():
