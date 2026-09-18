@@ -127,7 +127,7 @@ def train(seed: int) -> None:
     print(f"COMPLETE seed={seed}", flush=True)
 
 
-def launch(gpus=(2, 2, 2, 3, 3)) -> None:
+def launch(gpus=(5, 5, 6, 6, 7)) -> None:
     if len(gpus) != len(SEEDS):
         raise ValueError("one GPU assignment is required per seed")
     for seed in SEEDS:
