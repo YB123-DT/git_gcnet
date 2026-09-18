@@ -1,0 +1,33 @@
+{
+  "status": "complete",
+  "started_utc": "2026-09-18T10:33:29.870565+00:00",
+  "reference": "/data2/yb/remote_experiments/osram_causal_nojepa_20260910/mosi/seed_70",
+  "from_scratch": true,
+  "source_checkpoint_loaded_into_model": false,
+  "configuration_delta": {
+    "train_rate_mode": [
+      "cyclic",
+      "uniform-forced-text"
+    ]
+  },
+  "selection_protocol": "per-rate-test-oracle",
+  "mask_protocol": {
+    "train_rate_mode": "uniform-forced-text",
+    "rate_distribution": "per-valid-utterance Uniform(0,1)",
+    "forced_text_probability": 0.25,
+    "empty_row_repair": "retain one modality; preserve forced Text omission when possible",
+    "test_protocol": "inherited official fixed rate masks"
+  },
+  "label": "INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT",
+  "reference_sha256": {
+    "config.json": "8a500d6b33109518f5a2379b9fe7c63cce49f0c52c73ae75df1a06aee1bc2c0b",
+    "history.json": "205a156ccc6b26760fabae9849cf1f666fe65c43b6f89985c03dd93ec476caa3",
+    "metrics.json": "8ac2536be6f3c8731cb08ed07a8a8c08607cf2f31d76786b003fb1b5d64d9d73"
+  },
+  "source_sha256": {
+    "gcnet_missing_m3/train_gcnet.py": "3a6d1ade54edf25f91cb0587dccb57c12dfe4ac94b65e4cdfca0cd5f17368b6c",
+    "gcnet_modality_jepa/mask_schedule.py": "947fbd523cdd09871f4619d89d1b9ba0d56ce067fb908dc08ac4be14c21cc636",
+    "experiments/osram_uniform_forced_text_20260918/run.py": "2e6436a6624896ad74b9fadbd355f4c7aa83947bfab8fc2442df494623c8c056"
+  },
+  "completed_utc": "2026-09-18T11:15:08.337857+00:00"
+}
