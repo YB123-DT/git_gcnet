@@ -14,9 +14,9 @@ def rate_tag(rate): return f'{rate:.1f}'.replace('.','p')
 def process_split(model,cfg,dims,loader,split,rate,device):
     schedule=tr._build_schedule(cfg,split,rate)
     pieces=[]
-    for raw in loader:
+    for batch_index, raw in enumerate(loader):
         data=tr._move_batch(raw,device); view=tr._prepare_view(data,schedule,0,dims)
-        with torch.no_grad(): out=query_utility_from_batch(model,cfg,view)
+        with torch.no_grad(): out=query_utility_from_batch(model,cfg,view,batch_index)
         if out is not None: pieces.append(out)
     if not pieces: return None
     max_c=max(int(p['values'].shape[1]) for p in pieces)
@@ -35,14 +35,15 @@ def process_split(model,cfg,dims,loader,split,rate,device):
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--seed',type=int,required=True)
-    ap.add_argument('--device',default='cuda'); args=ap.parse_args()
+    ap.add_argument('--device',default='cuda')
+    ap.add_argument('--output-root',type=Path,default=ROOT/'utility_cache_valid'); args=ap.parse_args()
     device=torch.device(args.device)
     for rate in RATES:
         model,cfg,dims,shape,loaders=build_reader(args.seed,f'{rate:.1f}',device)
         for split,loader in (('train',loaders[0][cfg.fold-1]),('validation',loaders[1][cfg.fold-1]),('test',loaders[2][cfg.fold-1])):
             out=process_split(model,cfg,dims,loader,split,rate,device)
             if out is None: continue
-            path=ROOT/'utility_cache'/f'seed_{args.seed}'/f'rate_{rate_tag(rate)}'/f'{split}.pt'
+            path=args.output_root/f'seed_{args.seed}'/f'rate_{rate_tag(rate)}'/f'{split}.pt'
             path.parent.mkdir(parents=True,exist_ok=True)
             torch.save({'tensors':out,'seed':args.seed,'rate':rate,'split':split,'n_queries':int(out['labels'].shape[0]),'max_candidates':int(out['values'].shape[1])},path)
             print(json.dumps({'seed':args.seed,'rate':rate,'split':split,'n':int(out['labels'].shape[0])}),flush=True)

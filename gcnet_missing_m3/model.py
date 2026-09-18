@@ -1646,6 +1646,8 @@ class MissingM3GraphModel(GraphModel):
         predict_missing=False,
         completion_predictions_override=None,
         pam_target_text=None,
+        pam_text_override=None,
+        pam_override_mask=None,
     ):
         features = self._feature_tensor(inputfeats)
         encoded, latents = self.observed_set(features, availability, umask)
@@ -1696,6 +1698,24 @@ class MissingM3GraphModel(GraphModel):
                         base_context, gap_context[..., 1, :],
                         target_text=pam_target_text,
                     )
+            if pam_text_override is not None or pam_override_mask is not None:
+                if self.completion_path != "pam-episodic-text":
+                    raise ValueError("PAM text override is only supported for pam-episodic-text")
+                if pam_text_override is None or pam_override_mask is None:
+                    raise ValueError("pam_text_override and pam_override_mask must be provided together")
+                if pam_text_override.shape != (*availability.shape[:2], self.latent_dim):
+                    raise ValueError("pam_text_override must have shape [L,B,latent_dim]")
+                if pam_override_mask.shape != availability.shape[:2]:
+                    raise ValueError("pam_override_mask must have shape [L,B]")
+                if not bool(((pam_override_mask == 0) | (pam_override_mask == 1)).all()):
+                    raise ValueError("pam_override_mask must be binary")
+                active_override = pam_override_mask.bool() & pam_outputs["text_missing_mask"]
+                pam_outputs = dict(pam_outputs)
+                pam_outputs["z_hat_text"] = torch.where(
+                    active_override.unsqueeze(-1),
+                    pam_text_override,
+                    pam_outputs["z_hat_text"],
+                )
             self.last_pam_outputs = pam_outputs
             zero_slot = encoded.new_zeros(
                 (*availability.shape[:2], self.latent_dim)

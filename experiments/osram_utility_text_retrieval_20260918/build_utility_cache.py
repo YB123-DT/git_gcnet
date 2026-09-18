@@ -38,11 +38,11 @@ def main():
         loader = loaders[2][cfg.fold - 1]
     schedule = tr._build_schedule(cfg, args.split, args.rate)
     pieces = []
-    for raw in loader:
+    for batch_index, raw in enumerate(loader):
         data = tr._move_batch(raw, device)
         view = tr._prepare_view(data, schedule, 0, dims)
         with torch.no_grad():
-            out = query_utility_from_batch(model, cfg, view)
+            out = query_utility_from_batch(model, cfg, view, batch_index)
         if out is not None:
             pieces.append(out)
     if pieces:

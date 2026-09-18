@@ -33,7 +33,7 @@ def combine(method,mode,seed,rate):
     pam=load_npz(PAM_E/'mosi'/f'seed_{seed}'/f'predictions_miss_{tag(rate)}.npz')
     avail=pam['availability']; mask=(avail[:,1]==0)&((avail[:,0]>0)|(avail[:,2]>0))
     pred=pam['predictions'].copy()
-    artifact=ROOT/'retrieval_artifacts'/method/f'seed_{seed}'/f'rate_{tag(rate)}.npz'
+    artifact=ROOT/'retrieval_artifacts_valid'/method/f'seed_{seed}'/f'rate_{tag(rate)}.npz'
     if mask.sum()==0 or not artifact.exists():
         return pam['labels'],pred,avail
     if mode != 'Original':
@@ -64,7 +64,7 @@ def retrieval_metrics():
     for method in METHODS:
         for seed in SEEDS:
             for rate in RATES:
-                p=ROOT/'retrieval_artifacts'/method/f'seed_{seed}'/f'rate_{tag(rate)}.npz'
+                p=ROOT/'retrieval_artifacts_valid'/method/f'seed_{seed}'/f'rate_{tag(rate)}.npz'
                 if not p.exists(): continue
                 a=load_npz(p); r=a['r']; mask=a['mask']; losses=a['losses']; scores=a['scores']
                 # gold better = smaller loss

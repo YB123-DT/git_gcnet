@@ -76,7 +76,7 @@ def weighted_f1(labels,predictions):
     return float(np.average(scores,weights=weights)) if weights else 0.0
 
 def load_cache(seed,rate,split):
-    p=ROOT/'utility_cache'/f'seed_{seed}'/f'rate_{rate_tag(rate)}'/f'{split}.pt'
+    p=ROOT/'utility_cache_valid'/f'seed_{seed}'/f'rate_{rate_tag(rate)}'/f'{split}.pt'
     if not p.exists():
         return None
     return torch.load(p,map_location='cpu',weights_only=False)['tensors']
@@ -156,7 +156,7 @@ def train_one(seed,rate,method,device,epochs=100,batch_size=128):
         if score>best:
             best=score; best_state={k:v.detach().cpu().clone() for k,v in retriever.state_dict().items()}
     retriever.load_state_dict(best_state)
-    out_dir=ROOT/'methods'/method/f'seed_{seed}'
+    out_dir=ROOT/'methods_valid'/method/f'seed_{seed}'
     out_dir.mkdir(parents=True,exist_ok=True)
     ckpt=out_dir/f'rate_{rate_tag(rate)}.pt'
     torch.save({'state_dict':best_state,'method':method,'seed':seed,'rate':rate,'validation_soft_wf1':best,'history':history,'context_dim':context_dim},ckpt)
@@ -179,7 +179,7 @@ def train_one(seed,rate,method,device,epochs=100,batch_size=128):
             artifacts['losses']=batch['losses'].detach().cpu().numpy()
             artifacts['mask']=batch['mask'].detach().cpu().numpy()
             artifacts['r']=r.detach().cpu().numpy()
-    odd=ROOT/'retrieval_artifacts'/method/f'seed_{seed}'
+    odd=ROOT/'retrieval_artifacts_valid'/method/f'seed_{seed}'
     odd.mkdir(parents=True,exist_ok=True)
     np.savez_compressed(odd/f'rate_{rate_tag(rate)}.npz',**artifacts)
     return best,rows,ckpt
