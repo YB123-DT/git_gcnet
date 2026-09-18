@@ -15,15 +15,16 @@ sys.path.insert(0, str(REPO))
 from experiments.osram_mosi_hparam_sweep_20260918.run import (
     ROOT,
     SOURCE_ROOT,
+    SPECS,
     canonical_mask_hashes,
 )
 
 
 PYTHON = "/data2/yb/reproduction_envs/s0/bin/python3.10"
 RUNNER = Path(__file__).resolve()
-EXPECTED = tuple(f"cfg{i:02d}" for i in range(1, 91))
-FIRST_WAVES = tuple(f"cfg{i:02d}" for i in range(1, 61))
-FOLLOWUP_IDS = tuple(f"cfg{i:02d}" for i in range(61, 91))
+EXPECTED = tuple(item["id"] for item in SPECS)
+FIRST_WAVES = tuple(item["id"] for item in SPECS[:60])
+FOLLOWUP_IDS = tuple(item["id"] for item in SPECS[60:])
 
 
 def _repair_completed() -> tuple[int, list[str]]:
@@ -31,12 +32,11 @@ def _repair_completed() -> tuple[int, list[str]]:
     source = SOURCE_ROOT / "seed_66"
     complete = 0
     pending: list[str] = []
-    for prefix in EXPECTED:
-        paths = sorted(root.glob(prefix + "_*/PROVENANCE.json"))
-        if len(paths) != 1:
-            pending.append(prefix)
+    for spec_id in EXPECTED:
+        provenance_path = root / spec_id / "PROVENANCE.json"
+        if not provenance_path.exists():
+            pending.append(spec_id)
             continue
-        provenance_path = paths[0]
         output = provenance_path.parent
         try:
             provenance = json.loads(provenance_path.read_text())
@@ -62,7 +62,7 @@ def _repair_completed() -> tuple[int, list[str]]:
                 provenance_path.write_text(json.dumps(provenance, indent=2) + "\n")
             complete += 1
         else:
-            pending.append(prefix)
+            pending.append(spec_id)
     return complete, pending
 
 
