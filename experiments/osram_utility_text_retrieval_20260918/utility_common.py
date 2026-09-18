@@ -190,7 +190,9 @@ def query_utility_from_batch(model, cfg, view: Mapping[str, torch.Tensor], batch
     full_availability = availability[valid_flat]
     full_positions = torch.full((*valid_flat.shape,), -1, dtype=torch.long, device=device)
     full_positions[valid_flat] = torch.arange(full_scores.shape[0], device=device)
-    full_index = full_positions[ts, bs] if query_specs else torch.zeros(0, dtype=torch.long, device=device)
+    full_index = torch.zeros(q_count, dtype=torch.long, device=device)
+    for q_index, (t, b, _) in enumerate(query_specs):
+        full_index[q_index] = full_positions[t, b]
     return {
         'context': context.detach().cpu(),
         'values': values.detach().cpu(),

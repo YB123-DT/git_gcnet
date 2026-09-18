@@ -50,9 +50,11 @@ def process_split(model,cfg,dims,loader,split,rate,device):
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--seed',type=int,required=True)
     ap.add_argument('--device',default='cuda')
-    ap.add_argument('--output-root',type=Path,default=ROOT/'utility_cache_v2'); args=ap.parse_args()
+    ap.add_argument('--output-root',type=Path,default=ROOT/'utility_cache_v2')
+    ap.add_argument('--rate',type=float,default=None); args=ap.parse_args()
     device=torch.device(args.device)
-    for rate in RATES:
+    rates=[args.rate] if args.rate is not None else RATES
+    for rate in rates:
         model,cfg,dims,shape,loaders=build_reader(args.seed,f'{rate:.1f}',device)
         for split,loader in (('train',loaders[0][cfg.fold-1]),('validation',loaders[1][cfg.fold-1]),('test',loaders[2][cfg.fold-1])):
             out=process_split(model,cfg,dims,loader,split,rate,device)
