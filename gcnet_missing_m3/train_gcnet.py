@@ -38,6 +38,9 @@ from .mixed_rate import (
 from .model import MissingM3GraphModel
 
 
+_OBSERVED_PATTERN_IDS = (1, 2, 3, 4, 5, 6, 7)
+
+
 @dataclass(frozen=True)
 class TrainConfig:
     dataset: str = "IEMOCAPSix"
@@ -86,6 +89,8 @@ class TrainConfig:
     task_smooth_l1_beta: float = 1.0
     postgraph_sequence_mode: str = "independent"
     jepa_rate_weighting: str = "uniform"
+    emotion_loss_mode: str = "sample-mean"
+    group_dro_eta: float = 0.1
     graph_message_calibration: str = "none"
     graph_second_layer: str = "graphconv"
     postgraph_bilstm_ablation: str = "none"
@@ -121,6 +126,10 @@ class TrainConfig:
     def __post_init__(self) -> None:
         if self.target_space not in {"all-modalities", "full-text", "predictable-subspace"}:
             raise ValueError("unsupported target_space")
+        if self.emotion_loss_mode not in {"sample-mean", "pattern-balanced", "pattern-groupdro"}:
+            raise ValueError("emotion_loss_mode must be sample-mean, pattern-balanced, or pattern-groupdro")
+        if not math.isfinite(float(self.group_dro_eta)) or float(self.group_dro_eta) < 0:
+            raise ValueError("group_dro_eta must be finite and nonnegative")
         if (self.target_space == "predictable-subspace") != (self.text_subspace_checkpoint is not None):
             raise ValueError("text_subspace_checkpoint is required only for predictable-subspace")
         if self.target_space != "all-modalities" and (
@@ -766,6 +775,127 @@ def _task_loss(
     )
 
 
+def _pattern_group_losses(
+    dataset: str,
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    umask: torch.Tensor,
+    availability: torch.Tensor,
+    mosi_task_mode: str = "regression",
+    task_regression_loss: str = "mse",
+    task_smooth_l1_beta: float = 1.0,
+) -> tuple[tuple[int, ...], tuple[torch.Tensor, ...]]:
+    """Return task losses grouped by the observed A/T/V pattern in this view.
+
+    ``availability`` is [L, B, 3], while ``umask`` is [B, L].  Pattern ids
+    use binary weights A=4, T=2, V=1, so the seven non-empty observed sets
+    map to ids 1..7.  Only groups present among valid utterances are returned.
+    JEPA targets are intentionally not involved here.
+    """
+
+    valid = umask.transpose(0, 1).bool()
+    pattern_ids = (
+        availability[..., 0].long() * 4
+        + availability[..., 1].long() * 2
+        + availability[..., 2].long()
+    )
+    group_ids: list[int] = []
+    group_losses: list[torch.Tensor] = []
+    for pattern_id in _OBSERVED_PATTERN_IDS:
+        selected = valid & pattern_ids.eq(pattern_id)
+        if bool(selected.any()):
+            group_ids.append(pattern_id)
+            group_losses.append(
+                _task_loss(
+                    dataset,
+                    logits,
+                    labels,
+                    selected.T,
+                    mosi_task_mode,
+                    task_regression_loss,
+                    task_smooth_l1_beta,
+                )
+            )
+    return tuple(group_ids), tuple(group_losses)
+
+
+def _emotion_loss(
+    dataset: str,
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+    umask: torch.Tensor,
+    availability: torch.Tensor,
+    mode: str,
+    mosi_task_mode: str = "regression",
+    task_regression_loss: str = "mse",
+    task_smooth_l1_beta: float = 1.0,
+    group_dro_weights: torch.Tensor | None = None,
+    group_dro_eta: float = 0.1,
+) -> tuple[torch.Tensor, dict[str, float]]:
+    """Compute classification/emotion loss without changing JEPA weighting.
+
+    ``pattern-balanced`` gives each observed-set group equal weight within the
+    current view.  ``pattern-groupdro`` uses a persistent exponentiated-gradient
+    weight over the seven groups, renormalized over groups present in the view.
+    The state update is detached and therefore cannot alter model gradients.
+    """
+
+    if mode == "sample-mean":
+        return (
+            _task_loss(
+                dataset,
+                logits,
+                labels,
+                umask,
+                mosi_task_mode,
+                task_regression_loss,
+                task_smooth_l1_beta,
+            ),
+            {},
+        )
+    if mode not in {"pattern-balanced", "pattern-groupdro"}:
+        raise ValueError("unsupported emotion_loss_mode: {}".format(mode))
+    group_ids, group_losses = _pattern_group_losses(
+        dataset,
+        logits,
+        labels,
+        umask,
+        availability,
+        mosi_task_mode,
+        task_regression_loss,
+        task_smooth_l1_beta,
+    )
+    if not group_losses:
+        zero = logits.sum() * 0.0
+        return zero, {}
+    stacked = torch.stack(group_losses)
+    if mode == "pattern-balanced":
+        return stacked.mean(), {
+            str(group_id): float(loss.detach().cpu())
+            for group_id, loss in zip(group_ids, group_losses)
+        }
+    if group_dro_weights is None:
+        raise ValueError("group_dro_weights is required for pattern-groupdro")
+    if group_dro_weights.numel() != len(_OBSERVED_PATTERN_IDS):
+        raise ValueError("group_dro_weights must contain seven pattern weights")
+    active_indices = torch.tensor(
+        [pattern_id - 1 for pattern_id in group_ids],
+        dtype=torch.long,
+    )
+    with torch.no_grad():
+        active_weights = group_dro_weights[active_indices]
+        normalized = active_weights / active_weights.sum().clamp_min(1e-12)
+        loss_value = stacked.detach().to(dtype=group_dro_weights.dtype, device="cpu")
+        group_dro_weights[active_indices] *= torch.exp(
+            float(group_dro_eta) * loss_value.clamp(max=20.0)
+        )
+        group_dro_weights.div_(group_dro_weights.sum().clamp_min(1e-12))
+    return (normalized.to(device=stacked.device, dtype=stacked.dtype) * stacked).sum(), {
+        str(group_id): float(loss.detach().cpu())
+        for group_id, loss in zip(group_ids, group_losses)
+    }
+
+
 def _jepa_rate_weight(rate: float, mode: str) -> float:
     if mode == "uniform":
         return 1.0
@@ -850,6 +980,7 @@ def train_epoch(
     epoch: int,
     dimensions: tuple[int, int, int],
     device: torch.device,
+    group_dro_weights: torch.Tensor | None = None,
 ) -> Dict[str, float]:
     if (
         config.train_rate_mode == "stratified"
@@ -999,18 +1130,22 @@ def train_epoch(
             )
             model_forward_count += 1
             zero = logits.sum() * 0.0
-            cls = (
-                _task_loss(
+            cls, pattern_losses = (
+                _emotion_loss(
                     config.dataset,
                     logits,
                     view["labels"],
                     view["umask"],
+                    view["availability"],
+                    config.emotion_loss_mode,
                     config.mosi_task_mode,
                     config.task_regression_loss,
                     config.task_smooth_l1_beta,
+                    group_dro_weights,
+                    config.group_dro_eta,
                 )
                 if train_emotion
-                else zero
+                else (zero, {})
             )
             if train_future_state:
                 future_loss, future_count = model.future_state_loss(
@@ -1255,6 +1390,14 @@ def train_epoch(
         "skipped_optimizer_batches": skipped_optimizer_batches,
         "routing": routing_record,
         "training_objective": config.training_objective,
+        "emotion_loss_mode": config.emotion_loss_mode,
+        **({"pattern_group_losses": pattern_losses} if config.emotion_loss_mode != "sample-mean" else {}),
+        **({
+            "pattern_group_dro_weights": {
+                str(pattern_id): float(group_dro_weights[index])
+                for index, pattern_id in enumerate(_OBSERVED_PATTERN_IDS)
+            }
+        } if config.emotion_loss_mode == "pattern-groupdro" and group_dro_weights is not None else {}),
     }
 
 
@@ -1567,6 +1710,11 @@ def run_experiment(
         else None
     )
     test_schedules = _schedules(config_value, "test")
+    group_dro_weights = (
+        torch.ones(len(_OBSERVED_PATTERN_IDS), dtype=torch.float64)
+        if config_value.emotion_loss_mode == "pattern-groupdro"
+        else None
+    )
     history: list[Dict[str, object]] = []
     jepa_pretraining = config_value.training_objective == "jepa-only"
     per_rate_oracle = config_value.checkpoint_selection == "test-oracle-per-rate"
@@ -1588,6 +1736,7 @@ def run_experiment(
             epoch,
             dimensions,
             device,
+            group_dro_weights,
         )
         if jepa_pretraining:
             history.append({"epoch": epoch + 1, "train": train_metrics})
@@ -1853,6 +2002,8 @@ def run_experiment(
         "task_smooth_l1_beta": config_value.task_smooth_l1_beta,
         "postgraph_sequence_mode": config_value.postgraph_sequence_mode,
         "jepa_rate_weighting": config_value.jepa_rate_weighting,
+        "emotion_loss_mode": config_value.emotion_loss_mode,
+        "group_dro_eta": config_value.group_dro_eta,
         "graph_message_calibration": config_value.graph_message_calibration,
         "graph_second_layer": config_value.graph_second_layer,
         "postgraph_bilstm_ablation": config_value.postgraph_bilstm_ablation,
@@ -1990,6 +2141,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("uniform", "sparsity-budget"),
         default="uniform",
     )
+    parser.add_argument(
+        "--emotion-loss-mode",
+        choices=("sample-mean", "pattern-balanced", "pattern-groupdro"),
+        default="sample-mean",
+    )
+    parser.add_argument("--group-dro-eta", type=float, default=0.1)
     parser.add_argument(
         "--graph-message-calibration",
         choices=("none", "branch-layernorm-residual"),
@@ -2153,6 +2310,8 @@ def main(argv=None) -> None:
         task_smooth_l1_beta=args.task_smooth_l1_beta,
         postgraph_sequence_mode=args.postgraph_sequence_mode,
         jepa_rate_weighting=args.jepa_rate_weighting,
+        emotion_loss_mode=args.emotion_loss_mode,
+        group_dro_eta=args.group_dro_eta,
         graph_message_calibration=args.graph_message_calibration,
         graph_second_layer=args.graph_second_layer,
         postgraph_bilstm_ablation=args.postgraph_bilstm_ablation,
