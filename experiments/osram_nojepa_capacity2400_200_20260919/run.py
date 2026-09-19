@@ -20,9 +20,10 @@ from experiments.osram_mosi_hparam_sweep_20260918.run import (  # noqa: E402
     write_json,
 )
 
-ROOT = Path("/data2/yb/remote_experiments/osram_nojepa_capacity2400_200_20260919")
+ROOT = Path("/data2/yb/remote_experiments/osram_nojepa_capacity2400_200_20260919_retry")
 SEEDS = (66, 67, 68, 69, 70)
-GPUS = (0, 1, 2, 3, 4)
+# GPU4 is excluded because it has a known driver/runtime failure history.
+GPUS = (0, 1, 2, 3, 5)
 LABEL = "INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT"
 
 
@@ -41,7 +42,7 @@ def configuration(seed: int):
     return cfg, source
 
 
-def train(seed: int = SEED) -> None:
+def train(seed: int) -> None:
     import torch
     from gcnet_missing_m3.train_gcnet import run_experiment
 
