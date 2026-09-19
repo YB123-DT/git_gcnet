@@ -81,7 +81,7 @@ def train(seed: int) -> None:
     write_json(output / "PROVENANCE.json", provenance)
     try:
         torch.set_num_threads(2)
-        roots = [str(no_jepa.FEATURES / name) for name in
+        roots = [str(no_jepa.runner.FEATURES / name) for name in
                  ("wav2vec-large-c-UTT", "deberta-large-4-UTT", "manet_UTT")]
         print(f"TRAIN no-aux cfg84 seed={seed} GPU={os.environ.get('CUDA_VISIBLE_DEVICES')}", flush=True)
         run_experiment(cfg, *roots, output_dir=str(output))
