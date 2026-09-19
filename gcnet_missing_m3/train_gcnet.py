@@ -131,6 +131,7 @@ class TrainConfig:
     text_core: bool = False
     uniform_forced_text_probability: float = 0.25
     disable_unused_aux_modules: bool = False
+    simple_regression_predictor: bool = False
 
     def __post_init__(self) -> None:
         if self.target_space not in {"all-modalities", "full-text", "predictable-subspace"}:
@@ -198,13 +199,35 @@ class TrainConfig:
         if self.teacher_mode == "ema" and self.teacher_checkpoint is not None:
             raise ValueError("teacher_checkpoint requires pretrained-frozen teacher_mode")
         if self.training_objective == "joint-reg-only":
-            if (self.teacher_mode != "pretrained-frozen"
+            valid_teacher_mode = (
+                self.teacher_mode == "pretrained-frozen"
+                or (self.simple_regression_predictor and self.teacher_mode == "ema")
+            )
+            if (not valid_teacher_mode
                     or self.jepa_weight != 0.1
                     or self.target_space != "all-modalities"):
                 raise ValueError(
-                    "joint-reg-only requires pretrained-frozen teacher, "
+                    "joint-reg-only requires a frozen or EMA teacher, "
                     "all-modalities targets, and jepa_weight=0.1"
                 )
+        if self.simple_regression_predictor and (
+                self.training_objective != "joint-reg-only"
+                or self.teacher_mode not in {"ema", "pretrained-frozen"}
+                or self.target_space != "all-modalities"
+                or self.disable_unused_aux_modules
+                or self.completion_path != "none"
+                or self.classification_completion
+                or self.backbone_type != "osram"
+                or self.osram_bidirectional
+                or self.osram_forward_slot_reuse
+                or self.osram_write_step != 0.6
+                or self.osram_readout_fusion != "flat"
+                or self.fusion_type != "mean"
+        ):
+            raise ValueError(
+                "simple_regression_predictor requires causal eta=.6 mean/Flat "
+                "OSRAM joint-reg-only training without completion"
+            )
         if self.teacher_mode == "pretrained-frozen":
             if (not self.teacher_checkpoint
                     or self.training_objective not in {
@@ -2184,6 +2207,7 @@ def run_experiment(
         training_objective=config_value.training_objective,
         text_core=config_value.text_core,
         disable_unused_aux_modules=config_value.disable_unused_aux_modules,
+        simple_regression_predictor=config_value.simple_regression_predictor,
     ).to(device)
     text_subspace_hash_before = (
         model.text_subspace_integrity()
@@ -2617,6 +2641,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Omit the unused EMA teacher and missing-latent MMoE in plain emotion-only runs.",
     )
+    parser.add_argument(
+        "--simple-regression-predictor",
+        action="store_true",
+        help="Use one masked-mean node regression predictor instead of the MMoE predictor.",
+    )
     parser.add_argument("--completion-path",choices=("none","pre_osram_b2"),default="none")
     parser.add_argument("--b2-base-checkpoint",default=None)
     parser.add_argument("--b2-pretrain-checkpoint",default=None)
@@ -2914,6 +2943,7 @@ def main(argv=None) -> None:
         osram_readout_fusion=args.osram_readout_fusion,
         text_core=args.text_core,
         disable_unused_aux_modules=args.disable_unused_aux_modules,
+        simple_regression_predictor=args.simple_regression_predictor,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [

@@ -935,6 +935,52 @@ class MissingM3Predictions:
     source_counts: torch.Tensor
 
 
+class MaskedMeanRegressionPredictor(nn.Module):
+    """One shared regression head driven by the observed-set masked-mean node."""
+
+    def __init__(self, latent_dim: int, dropout: float = 0.1) -> None:
+        super().__init__()
+        self.latent_dim = int(latent_dim)
+        self.input_norm = nn.LayerNorm(self.latent_dim)
+        self.trunk = nn.Sequential(
+            nn.Linear(self.latent_dim, self.latent_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+        self.target_embedding = nn.Embedding(len(MODALITIES), self.latent_dim)
+        self.output = nn.Linear(self.latent_dim, self.latent_dim)
+
+    def forward(
+        self,
+        masked_mean_node: torch.Tensor,
+        availability: torch.Tensor,
+        umask: torch.Tensor,
+    ) -> MissingM3Predictions:
+        if masked_mean_node.ndim != 3 or masked_mean_node.shape[-1] != self.latent_dim:
+            raise ValueError("masked_mean_node must have shape [L, B, latent_dim]")
+        if availability.shape != (*masked_mean_node.shape[:2], len(MODALITIES)):
+            raise ValueError("availability shape does not match masked_mean_node")
+        if umask.shape != masked_mean_node.shape[:2][::-1]:
+            raise ValueError("umask must have shape [B, L]")
+        valid = umask.T.bool()
+        target_mask = valid.unsqueeze(-1) & ~availability.bool()
+        hidden = self.trunk(self.input_norm(masked_mean_node))
+        conditioned = hidden.unsqueeze(2) + self.target_embedding.weight.view(
+            1, 1, len(MODALITIES), self.latent_dim
+        )
+        predictions = self.output(conditioned)
+        predictions = predictions * target_mask.unsqueeze(-1).to(predictions.dtype)
+        source_counts = availability.bool().sum(dim=-1, keepdim=True).expand(
+            *availability.shape[:2], len(MODALITIES)
+        )
+        return MissingM3Predictions(
+            reg_predictions=predictions,
+            cl_predictions=predictions,
+            target_mask=target_mask,
+            source_counts=source_counts,
+        )
+
+
 class MissingLatentResidualFusion(nn.Module):
     """Map predicted missing target latents into the emotion hidden space."""
 
@@ -1216,6 +1262,7 @@ class MissingM3GraphModel(GraphModel):
         training_objective='joint',
         text_core=False,
         disable_unused_aux_modules=False,
+        simple_regression_predictor=False,
     ) -> None:
         if target_space not in {'all-modalities', 'full-text', 'predictable-subspace'}:
             raise ValueError('unsupported target_space')
@@ -1244,6 +1291,7 @@ class MissingM3GraphModel(GraphModel):
         self.teacher_mode = teacher_mode
         self.teacher_provenance = None
         self.disable_unused_aux_modules = bool(disable_unused_aux_modules)
+        self.simple_regression_predictor_enabled = bool(simple_regression_predictor)
         if self.disable_unused_aux_modules and (
             training_objective != "emotion-only"
             or teacher_mode != "ema"
@@ -1258,6 +1306,24 @@ class MissingM3GraphModel(GraphModel):
         ):
             raise ValueError(
                 "disable_unused_aux_modules is only valid for plain emotion-only training"
+            )
+        if self.simple_regression_predictor_enabled and (
+            training_objective != "joint-reg-only"
+            or teacher_mode not in {"ema", "pretrained-frozen"}
+            or target_space != "all-modalities"
+            or self.disable_unused_aux_modules
+            or completion_path != "none"
+            or classification_completion
+            or backbone_type != "osram"
+            or osram_bidirectional
+            or osram_forward_slot_reuse
+            or float(osram_write_step) != 0.6
+            or osram_readout_fusion != "flat"
+            or fusion_type != "mean"
+        ):
+            raise ValueError(
+                "simple_regression_predictor requires causal eta=.6 mean/Flat "
+                "OSRAM joint-reg-only training without completion"
             )
         self.text_core_enabled = bool(text_core)
         if self.text_core_enabled and (
@@ -1528,7 +1594,13 @@ class MissingM3GraphModel(GraphModel):
         if backbone_type == "osram":
             self.smax_fc = nn.Linear(hidden_dim, n_classes)
         self.missing_predictor = None
-        if not self.disable_unused_aux_modules:
+        self.simple_regression_predictor = None
+        if self.simple_regression_predictor_enabled:
+            self.simple_regression_predictor = MaskedMeanRegressionPredictor(
+                latent_dim,
+                dropout=predictor_dropout,
+            )
+        elif not self.disable_unused_aux_modules:
             self.missing_predictor = ContextualM3Predictor(
                 latent_dim,
                 predictor_context_dim,
@@ -1716,11 +1788,17 @@ class MissingM3GraphModel(GraphModel):
         if (self.complete_state_jepa or self.write_state_completion or self.future_state_jepa) and predict_missing:
             raise ValueError("State objectives use their auxiliary loss, not modality predictions")
         if self.completion_path != "pre_osram_b2" and (predict_missing or self.classification_completion):
-            if self.missing_predictor is None:
+            if self.simple_regression_predictor is not None:
+                internal_predictions = self.simple_regression_predictor(
+                    encoded,
+                    availability,
+                    umask,
+                )
+            elif self.missing_predictor is None:
                 raise RuntimeError(
                     "missing predictor is disabled for this emotion-only model"
                 )
-            if self.backbone_type == "osram" and self.missing_predictor.structured:
+            elif self.backbone_type == "osram" and self.missing_predictor.structured:
                 internal_predictions = self.missing_predictor(
                     latents,
                     graph_hidden,
