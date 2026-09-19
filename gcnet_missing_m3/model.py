@@ -1215,6 +1215,7 @@ class MissingM3GraphModel(GraphModel):
         text_subspace_checkpoint=None,
         training_objective='joint',
         text_core=False,
+        disable_unused_aux_modules=False,
     ) -> None:
         if target_space not in {'all-modalities', 'full-text', 'predictable-subspace'}:
             raise ValueError('unsupported target_space')
@@ -1242,6 +1243,22 @@ class MissingM3GraphModel(GraphModel):
             raise ValueError('pretrained-frozen requires original joint causal .6 mean/Flat without completion')
         self.teacher_mode = teacher_mode
         self.teacher_provenance = None
+        self.disable_unused_aux_modules = bool(disable_unused_aux_modules)
+        if self.disable_unused_aux_modules and (
+            training_objective != "emotion-only"
+            or teacher_mode != "ema"
+            or teacher_checkpoint is not None
+            or target_space != "all-modalities"
+            or completion_path != "none"
+            or classification_completion
+            or complete_state_jepa
+            or write_state_completion
+            or future_state_jepa
+            or text_core
+        ):
+            raise ValueError(
+                "disable_unused_aux_modules is only valid for plain emotion-only training"
+            )
         self.text_core_enabled = bool(text_core)
         if self.text_core_enabled and (
             training_objective != "emotion-only"
@@ -1454,7 +1471,11 @@ class MissingM3GraphModel(GraphModel):
                 projector_dropout,
                 fusion_type=fusion_type,
             )
-        self.teacher = EMATeacherProjectors(self.observed_set.projectors)
+        self.teacher = (
+            None
+            if self.disable_unused_aux_modules
+            else EMATeacherProjectors(self.observed_set.projectors)
+        )
         if backbone_type == "gcnet" and fusion_type != "raw-residual":
             if base_model == "LSTM":
                 self.lstm = nn.LSTM(
@@ -1506,19 +1527,21 @@ class MissingM3GraphModel(GraphModel):
         self.context_dim = hidden_dim
         if backbone_type == "osram":
             self.smax_fc = nn.Linear(hidden_dim, n_classes)
-        self.missing_predictor = ContextualM3Predictor(
-            latent_dim,
-            predictor_context_dim,
-            num_experts=num_experts,
-            top_k=top_k,
-            dropout=predictor_dropout,
-            mmoe_variant=mmoe_variant,
-            target_private_rank=target_private_rank,
-            structured=(
-                backbone_type == "osram"
-                and osram_predictor_mode == "structured"
-            ),
-        )
+        self.missing_predictor = None
+        if not self.disable_unused_aux_modules:
+            self.missing_predictor = ContextualM3Predictor(
+                latent_dim,
+                predictor_context_dim,
+                num_experts=num_experts,
+                top_k=top_k,
+                dropout=predictor_dropout,
+                mmoe_variant=mmoe_variant,
+                target_private_rank=target_private_rank,
+                structured=(
+                    backbone_type == "osram"
+                    and osram_predictor_mode == "structured"
+                ),
+            )
         if representation_type == "track":
             if backbone_type == "osram":
                 raise ValueError("OSRAM does not support track representation")
@@ -1693,6 +1716,10 @@ class MissingM3GraphModel(GraphModel):
         if (self.complete_state_jepa or self.write_state_completion or self.future_state_jepa) and predict_missing:
             raise ValueError("State objectives use their auxiliary loss, not modality predictions")
         if self.completion_path != "pre_osram_b2" and (predict_missing or self.classification_completion):
+            if self.missing_predictor is None:
+                raise RuntimeError(
+                    "missing predictor is disabled for this emotion-only model"
+                )
             if self.backbone_type == "osram" and self.missing_predictor.structured:
                 internal_predictions = self.missing_predictor(
                     latents,
@@ -1738,6 +1765,8 @@ class MissingM3GraphModel(GraphModel):
 
     @torch.no_grad()
     def encode_teacher_targets(self, complete_features) -> Dict[str, torch.Tensor]:
+        if self.teacher is None:
+            raise RuntimeError("teacher is disabled for this emotion-only model")
         features = self._feature_tensor(complete_features)
         parts = torch.split(features, self.dimensions, dim=-1)
         return {
@@ -1747,6 +1776,8 @@ class MissingM3GraphModel(GraphModel):
 
     @torch.no_grad()
     def update_teacher(self, tau: float) -> None:
+        if self.teacher is None:
+            return
         if self.teacher_mode == 'pretrained-frozen':
             return  # requires_grad=False alone does NOT prevent manual EMA writes.
         if self.future_state_jepa:
@@ -1762,6 +1793,8 @@ class MissingM3GraphModel(GraphModel):
     def teacher_integrity(self):
         if self.teacher_mode != 'pretrained-frozen':
             return None
+        if self.teacher is None:
+            raise RuntimeError("pretrained teacher cannot be disabled")
         from .pretrained_teacher import state_sha256
         return state_sha256(self.teacher.state_dict())
 
@@ -1788,7 +1821,8 @@ class MissingM3GraphModel(GraphModel):
 
     def train(self, mode: bool = True) -> "MissingM3GraphModel":
         super().train(mode)
-        self.teacher.train(False)
+        if self.teacher is not None:
+            self.teacher.train(False)
         if self.text_subspace is not None:
             self.text_subspace.train(False)
         return self

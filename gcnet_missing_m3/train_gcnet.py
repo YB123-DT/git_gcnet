@@ -130,6 +130,7 @@ class TrainConfig:
     text_subspace_checkpoint: str | None = None
     text_core: bool = False
     uniform_forced_text_probability: float = 0.25
+    disable_unused_aux_modules: bool = False
 
     def __post_init__(self) -> None:
         if self.target_space not in {"all-modalities", "full-text", "predictable-subspace"}:
@@ -180,6 +181,17 @@ class TrainConfig:
             raise ValueError(
                 "text-core requires emotion-only causal eta=.6 mean/Flat OSRAM "
                 "with no JEPA, completion, teacher transfer, or group weighting"
+            )
+        if self.disable_unused_aux_modules and (
+                self.training_objective != "emotion-only"
+                or self.teacher_mode != "ema"
+                or self.teacher_checkpoint is not None
+                or self.target_space != "all-modalities"
+                or self.completion_path != "none"
+                or self.classification_completion):
+            raise ValueError(
+                "disable_unused_aux_modules is only valid for plain emotion-only "
+                "training without teacher transfer or completion"
             )
         if self.teacher_mode not in {"ema", "pretrained-frozen"}:
             raise ValueError("teacher_mode must be ema or pretrained-frozen")
@@ -2171,6 +2183,7 @@ def run_experiment(
         text_subspace_checkpoint=config_value.text_subspace_checkpoint,
         training_objective=config_value.training_objective,
         text_core=config_value.text_core,
+        disable_unused_aux_modules=config_value.disable_unused_aux_modules,
     ).to(device)
     text_subspace_hash_before = (
         model.text_subspace_integrity()
@@ -2599,6 +2612,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Train the 64-d Text-Core task slot on the causal OSRAM read path.",
     )
+    parser.add_argument(
+        "--disable-unused-aux-modules",
+        action="store_true",
+        help="Omit the unused EMA teacher and missing-latent MMoE in plain emotion-only runs.",
+    )
     parser.add_argument("--completion-path",choices=("none","pre_osram_b2"),default="none")
     parser.add_argument("--b2-base-checkpoint",default=None)
     parser.add_argument("--b2-pretrain-checkpoint",default=None)
@@ -2895,6 +2913,7 @@ def main(argv=None) -> None:
         osram_forward_slot_reuse=args.osram_forward_slot_reuse,
         osram_readout_fusion=args.osram_readout_fusion,
         text_core=args.text_core,
+        disable_unused_aux_modules=args.disable_unused_aux_modules,
     )
     feature_root = args.feature_root or config.PATH_TO_FEATURES[config_value.dataset]
     roots = [
