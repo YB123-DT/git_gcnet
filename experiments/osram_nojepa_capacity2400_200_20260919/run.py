@@ -1,4 +1,4 @@
-"""Run the 2400/96 no-JEPA capacity diagnostic for 200 epochs (seed 67)."""
+"""Run the 2400/96 no-JEPA capacity diagnostic for 200 epochs."""
 
 from __future__ import annotations
 
@@ -21,7 +21,8 @@ from experiments.osram_mosi_hparam_sweep_20260918.run import (  # noqa: E402
 )
 
 ROOT = Path("/data2/yb/remote_experiments/osram_nojepa_capacity2400_200_20260919")
-SEED = 67
+SEEDS = (66, 67, 68, 69, 70)
+GPUS = (0, 1, 2, 3, 4)
 LABEL = "INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT"
 
 
@@ -44,8 +45,8 @@ def train(seed: int = SEED) -> None:
     import torch
     from gcnet_missing_m3.train_gcnet import run_experiment
 
-    if seed != SEED:
-        raise ValueError(f"this diagnostic is fixed to seed {SEED}")
+    if seed not in SEEDS:
+        raise ValueError(f"unsupported seed {seed}; expected one of {SEEDS}")
     cfg, source = configuration(seed)
     output = ROOT / f"seed_{seed}"
     if output.exists():
@@ -111,11 +112,62 @@ def train(seed: int = SEED) -> None:
     print(f"COMPLETE no-JEPA 2400/96 epochs=200 seed={seed}", flush=True)
 
 
+def launch() -> None:
+    ROOT.mkdir(parents=True, exist_ok=True)
+    import subprocess
+
+    queue = {
+        "status": "running",
+        "started_utc": datetime.now(timezone.utc).isoformat(),
+        "seeds": list(SEEDS),
+        "epochs": 200,
+        "selection_protocol": "per-rate-test-oracle",
+        "label": LABEL,
+        "tasks": [],
+    }
+    write_json(ROOT / "QUEUE.json", queue)
+    children = []
+    for index, seed in enumerate(SEEDS):
+        gpu = GPUS[index % len(GPUS)]
+        log_path = ROOT / f"gpu{gpu}_seed{seed}.log"
+        log = log_path.open("a")
+        env = dict(
+            os.environ,
+            CUDA_VISIBLE_DEVICES=str(gpu),
+            OMP_NUM_THREADS="2",
+            MKL_NUM_THREADS="2",
+            PYTHONPATH=str(REPO),
+        )
+        child = subprocess.Popen(
+            [sys.executable, "-u", str(Path(__file__)), "--seed", str(seed)],
+            cwd=REPO,
+            env=env,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+        )
+        row = {"gpu": gpu, "pid": child.pid, "seed": seed, "status": "running", "log": str(log_path)}
+        queue["tasks"].append(row)
+        children.append((child, log, row))
+    for child, log, row in children:
+        row["exit_code"] = child.wait()
+        row["status"] = "complete" if row["exit_code"] == 0 else "failed"
+        log.close()
+        write_json(ROOT / "QUEUE.json", queue)
+    queue["status"] = "complete" if all(row["exit_code"] == 0 for row in queue["tasks"]) else "failed"
+    queue["completed_utc"] = datetime.now(timezone.utc).isoformat()
+    write_json(ROOT / "QUEUE.json", queue)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=SEED, choices=(SEED,))
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--launch", action="store_true")
+    group.add_argument("--seed", type=int, choices=SEEDS)
     args = parser.parse_args()
-    train(args.seed)
+    if args.launch:
+        launch()
+    else:
+        train(args.seed)
 
 
 if __name__ == "__main__":
