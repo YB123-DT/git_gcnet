@@ -1,7 +1,7 @@
 """MOSI full-MMoE regression-only hyper-parameter screening.
 
 This reuses the existing 90-spec sweep, but keeps the fixed supervised Teacher
-and the original MMoE predictor.  Four latent-dimension variants are recorded
+and the original MMoE predictor.  Eight latent-dimension variants are recorded
 as skipped because the available supervised Teacher checkpoint is 256-d.
 """
 
@@ -23,7 +23,12 @@ sys.path.insert(0, str(REPO))
 from experiments.osram_mosi_hparam_sweep_20260918 import run as base  # noqa: E402
 
 REMOTE = Path("/data2/yb/remote_experiments")
-ROOT = REMOTE / "osram_reg_only_hparam_sweep_20260919"
+ROOT = Path(
+    os.environ.get(
+        "REG_ONLY_SWEEP_ROOT",
+        str(REMOTE / "osram_reg_only_hparam_sweep_20260919"),
+    )
+)
 TEACHER = REMOTE / "osram_supervised_teacher_20260914/teacher/seed_66/teacher_projectors.pt"
 SEED = 66
 GPU_ASSIGNMENT = (1, 2, 3)
@@ -39,6 +44,15 @@ SKIPPED_LATENT_SPECS = tuple(
 SPECS = tuple(
     item for item in base.SPECS if "latent_dim" not in item["overrides"]
 )
+MAX_EPOCHS = (
+    int(os.environ["REG_ONLY_SWEEP_MAX_EPOCHS"])
+    if os.environ.get("REG_ONLY_SWEEP_MAX_EPOCHS")
+    else None
+)
+if MAX_EPOCHS is not None:
+    SPECS = tuple(
+        item for item in SPECS if item["overrides"].get("epochs", 100) <= MAX_EPOCHS
+    )
 SPEC_BY_ID = {item["id"]: item for item in SPECS}
 
 
@@ -137,6 +151,7 @@ def _provenance(item: dict[str, Any], cfg, source: Path) -> dict[str, Any]:
         "executed_valid_spec_count": len(SPECS),
         "requested_spec_count": len(base.SPECS),
         "skipped_latent_specs": list(SKIPPED_LATENT_SPECS),
+        "max_epochs_filter": MAX_EPOCHS,
         "seed": SEED,
         "gpu_visible": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "selection_protocol": "per-rate-test-oracle",
@@ -200,6 +215,7 @@ def launch() -> None:
         "requested_spec_count": len(base.SPECS),
         "executed_spec_count": len(SPECS),
         "skipped_latent_specs": list(SKIPPED_LATENT_SPECS),
+        "max_epochs_filter": MAX_EPOCHS,
         "configs": list(base.SPECS),
         "selection_protocol": "per-rate-test-oracle",
         "teacher_mode": "pretrained-frozen",
