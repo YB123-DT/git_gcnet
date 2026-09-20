@@ -24,6 +24,7 @@ from gcnet_missing_m3.mixed_rate import MISSING_RATES  # noqa: E402
 
 
 ROOT = Path("/data2/yb/remote_experiments/osram_no_aux_cfg84_cyclic_no0_20260920")
+DATASET_ROOT = "/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset"
 SEEDS = (66, 67, 68, 69, 70)
 GPUS = (1, 4, 6)
 TRAIN_RATES = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7)
@@ -123,6 +124,7 @@ def launch() -> None:
             CUDA_VISIBLE_DEVICES=str(gpu),
             OMP_NUM_THREADS="2",
             MKL_NUM_THREADS="2",
+            GCNET_DATASET_ROOT=DATASET_ROOT,
             PYTHONPATH=str(REPO),
         )
         child = subprocess.Popen(
