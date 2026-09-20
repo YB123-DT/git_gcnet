@@ -91,13 +91,19 @@ Distance buckets: 1, 2-3, 4-7, 8+. Overlap buckets: [0,.1), [.1,.2),
 
 ## Checkpoint availability and scope
 
-No local checkpoint was found in the forward-only MOSI experiment folder.
-Remote existing checkpoint confirmed:
-`biggpu:/data2/yb/remote_experiments/osram_forward_only_mosi_20260908/seed_66/best.pt`.
-This task has not run real-data evaluation or generated real retention records.
-All verification records are explicitly synthetic. Do not present them as findings.
-The existing checkpoint was selected by eight-rate mean Test-oracle and should be
-identified as such if evaluated later. No new training has been launched.
+The first real MOSI replay is archived under
+`experiments/osram_memory_replay_20260920/`. It uses the frozen Full checkpoint
+`biggpu:/data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full/seed_66/best_miss_0p7.pt`
+and evaluates rates 0.1/0.3/0.5/0.7 without training or checkpoint reselection.
+The checkpoint was selected by the per-rate Test-oracle protocol at rate 0.7;
+this is an internal diagnostic, not a formal paper result. The five-seed
+IEMOCAP-4 replay remains archived under
+`experiments/osram_write_intervention_20260909/full5/`.
+
+The remote checkpoint from the earlier forward-only MOSI experiment
+(`biggpu:/data2/yb/remote_experiments/osram_forward_only_mosi_20260908/seed_66/best.pt`)
+is retained as a separate provenance reference. No new training was launched
+for the memory replay.
 
 Single-key mathematical check: normalized k and beta=.5, lambda_w=.001 give
 beta/(beta+lambda_w)=0.998003992..., not a write coefficient of .5.
