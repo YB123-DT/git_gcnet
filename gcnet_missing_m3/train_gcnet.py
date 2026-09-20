@@ -2471,7 +2471,9 @@ def run_experiment(
                 text_subspace_provenance=getattr(model, "text_subspace_provenance", None),
                 selection_split=config_value.checkpoint_selection,
                 selection_protocol=(
-                    "8-rate-mean-test-oracle"
+                    "single-rate-test-oracle"
+                    if config_value.train_rate_mode == "fixed"
+                    else "8-rate-mean-test-oracle"
                     if config_value.checkpoint_selection == "test-oracle"
                     else "8-rate-mean-validation"
                 ),
@@ -2577,7 +2579,9 @@ def run_experiment(
         "selection_split": selection_split,
         "selection_protocol": (
             "per-rate-test-oracle" if per_rate_oracle else (
-            "8-rate-mean-test-oracle"
+            "single-rate-test-oracle"
+            if config_value.train_rate_mode == "fixed"
+            else "8-rate-mean-test-oracle"
             if selection_split == "test-oracle"
             else (
                 "8-rate-mean-validation"
