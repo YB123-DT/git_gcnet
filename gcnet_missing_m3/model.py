@@ -1252,6 +1252,7 @@ class MissingM3GraphModel(GraphModel):
         completion_path="none",
         osram_emotion_ablation="full",
         osram_readout_fusion="flat",
+        osram_gap_read="residual",
         complete_state_jepa=False,
         write_state_completion=False,
         future_state_jepa=False,
@@ -1414,6 +1415,8 @@ class MissingM3GraphModel(GraphModel):
             raise ValueError(
                 "osram_ablation must be 'full', 'local-only', or 'local-base'"
             )
+        if osram_gap_read not in {"residual", "raw"}:
+            raise ValueError("osram_gap_read must be 'residual' or 'raw'")
         if osram_emotion_ablation != "full" and (
             backbone_type != "osram" or osram_predictor_mode != "structured"
             or osram_ablation != "full" or completion_path != "none"
@@ -1509,6 +1512,7 @@ class MissingM3GraphModel(GraphModel):
         self.completion_path = completion_path
         self.osram_predictor_mode = osram_predictor_mode
         self.osram_ablation = osram_ablation
+        self.osram_gap_read = osram_gap_read
         self.osram_emotion_ablation = osram_emotion_ablation
         self.osram_readout_fusion = osram_readout_fusion
         self.text_core = None
@@ -1572,6 +1576,7 @@ class MissingM3GraphModel(GraphModel):
                 write_ridge=osram_write_ridge,
                 write_step=osram_write_step,
                 osram_ablation=osram_ablation,
+                osram_gap_read=osram_gap_read,
                 osram_emotion_ablation=osram_emotion_ablation,
                 osram_readout_fusion=osram_readout_fusion,
                 query_use_availability=osram_query_availability,

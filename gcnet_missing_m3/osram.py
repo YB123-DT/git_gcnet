@@ -21,6 +21,7 @@ MODALITIES = ("audio", "text", "visual")
 QUERY_TYPES = ("base", "audio", "text", "visual")
 OSRAM_ABLATIONS = ("full", "local-only", "local-base")
 OSRAM_EMOTION_ABLATIONS = (*OSRAM_ABLATIONS, "local-gap")
+OSRAM_GAP_READ_MODES = ("residual", "raw")
 
 
 def _logit(probability: float) -> float:
@@ -339,6 +340,7 @@ class OSRAMBackbone(nn.Module):
         write_step: float = 1.0,
         osram_emotion_ablation: str = "full",
         osram_readout_fusion: str = "flat",
+        osram_gap_read: str = "residual",
     ) -> None:
         super().__init__()
         if osram_readout_fusion not in (
@@ -354,6 +356,8 @@ class OSRAMBackbone(nn.Module):
             raise ValueError(
                 "osram_ablation must be 'full', 'local-only', or 'local-base'"
             )
+        if osram_gap_read not in OSRAM_GAP_READ_MODES:
+            raise ValueError("osram_gap_read must be 'residual' or 'raw'")
         if osram_emotion_ablation not in OSRAM_EMOTION_ABLATIONS:
             raise ValueError("unsupported osram_emotion_ablation")
         if osram_ablation != "full" and osram_emotion_ablation != "full":
@@ -385,6 +389,7 @@ class OSRAMBackbone(nn.Module):
         self.osram_ablation = osram_ablation
         self.osram_emotion_ablation = osram_emotion_ablation
         self.osram_readout_fusion = osram_readout_fusion
+        self.osram_gap_read = osram_gap_read
         self.query_use_availability = bool(query_use_availability)
         self.bidirectional = bool(bidirectional)
         self.forward_slot_reuse = bool(forward_slot_reuse)
@@ -720,7 +725,11 @@ class OSRAMBackbone(nn.Module):
             missing = 1.0 - availability[time_index].to(dtype)
             for modality_index, name in enumerate(MODALITIES):
                 query = queries[time_index, :, modality_index + 1]
-                residual_query = self._address_residual(slot_keys, query)
+                residual_query = (
+                    query
+                    if self.osram_gap_read == "raw"
+                    else self._address_residual(slot_keys, query)
+                )
                 original_norm = query.norm(dim=-1)
                 residual_norm = residual_query.norm(dim=-1)
                 cosine = F.cosine_similarity(
@@ -939,6 +948,7 @@ class OSRAMBackbone(nn.Module):
 
         diagnostics: dict[str, object] = {
             "ablation": self.osram_ablation,
+            "gap_read": self.osram_gap_read,
             "emotion_ablation": self.osram_emotion_ablation,
             "query_use_availability": self.query_use_availability,
             "bidirectional": self.bidirectional,

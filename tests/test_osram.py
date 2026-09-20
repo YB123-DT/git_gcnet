@@ -201,6 +201,37 @@ def test_osram_ablation_modes_isolate_context_slots():
     assert not torch.equal(base_hidden, full_hidden)
 
 
+def test_osram_raw_gap_read_changes_only_gap_query_mode():
+    residual = OSRAMBackbone(
+        latent_dim=8,
+        output_dim=10,
+        num_heads=2,
+        key_dim=3,
+        value_dim=4,
+        n_speakers=2,
+        dropout=0.0,
+        bidirectional=False,
+        osram_gap_read="residual",
+    ).eval()
+    raw = OSRAMBackbone(
+        latent_dim=8,
+        output_dim=10,
+        num_heads=2,
+        key_dim=3,
+        value_dim=4,
+        n_speakers=2,
+        dropout=0.0,
+        bidirectional=False,
+        osram_gap_read="raw",
+    ).eval()
+    raw.load_state_dict(residual.state_dict())
+    inputs = _inputs()
+    _, residual_contexts = residual(*inputs)
+    _, raw_contexts = raw(*inputs)
+    torch.testing.assert_close(residual_contexts["base"], raw_contexts["base"])
+    assert not torch.equal(residual_contexts["gap"], raw_contexts["gap"])
+
+
 def test_osram_block_write_is_invariant_to_modality_column_permutation():
     model = OSRAMBackbone(
         latent_dim=8,

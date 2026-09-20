@@ -119,6 +119,7 @@ class TrainConfig:
     osram_write_ridge: float = 1e-3
     osram_predictor_mode: str = "structured"
     osram_ablation: str = "full"
+    osram_gap_read: str = "residual"
     osram_emotion_ablation: str = "full"
     osram_query_availability: bool = True
     osram_bidirectional: bool = True
@@ -159,6 +160,8 @@ class TrainConfig:
         if (not math.isfinite(forced_text_probability)
                 or not 0.0 <= forced_text_probability <= 1.0):
             raise ValueError("uniform_forced_text_probability must be between zero and one")
+        if self.osram_gap_read not in {"residual", "raw"}:
+            raise ValueError("osram_gap_read must be residual or raw")
         if self.optimizer not in {"adam", "adamw"}:
             raise ValueError("optimizer must be adam or adamw")
         if self.lr_schedule not in {"constant", "cosine"}:
@@ -2230,6 +2233,7 @@ def run_experiment(
         osram_write_step=config_value.osram_write_step,
         osram_predictor_mode=config_value.osram_predictor_mode,
         osram_ablation=config_value.osram_ablation,
+        osram_gap_read=config_value.osram_gap_read,
         osram_emotion_ablation=config_value.osram_emotion_ablation,
         osram_query_availability=config_value.osram_query_availability,
         osram_bidirectional=config_value.osram_bidirectional,
@@ -2672,6 +2676,7 @@ def run_experiment(
         "backbone_type": config_value.backbone_type,
         "osram_predictor_mode": config_value.osram_predictor_mode,
         "osram_ablation": config_value.osram_ablation,
+        "osram_gap_read": config_value.osram_gap_read,
         "osram_emotion_ablation": config_value.osram_emotion_ablation,
         "osram_query_availability": config_value.osram_query_availability,
         "osram_bidirectional": config_value.osram_bidirectional,
@@ -2932,6 +2937,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="full",
     )
     parser.add_argument(
+        "--osram-gap-read",
+        choices=("residual", "raw"),
+        default="residual",
+        help="Use residualized or raw target-specific memory queries for Gap context.",
+    )
+    parser.add_argument(
         "--osram-query-availability",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -3028,6 +3039,7 @@ def main(argv=None) -> None:
         osram_write_step=args.osram_write_step,
         osram_predictor_mode=args.osram_predictor_mode,
         osram_ablation=args.osram_ablation,
+        osram_gap_read=args.osram_gap_read,
         osram_emotion_ablation=args.osram_emotion_ablation,
         osram_query_availability=args.osram_query_availability,
         osram_bidirectional=args.osram_bidirectional,
