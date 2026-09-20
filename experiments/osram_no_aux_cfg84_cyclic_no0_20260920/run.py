@@ -24,7 +24,7 @@ from experiments.osram_mosi_hparam_sweep_20260918.run import (  # noqa: E402
 
 ROOT = Path("/data2/yb/remote_experiments/osram_no_aux_cfg84_cyclic_no0_20260920")
 SEEDS = (66, 67, 68, 69, 70)
-GPUS = (1, 2, 3)
+GPUS = (1, 4, 6)
 TRAIN_RATES = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7)
 LABEL = "INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT"
 
