@@ -2490,6 +2490,22 @@ def test_balanced_rate_schedule_covers_all_rates_and_rotates_by_epoch():
     assert set(first) == set(MISSING_RATES)
 
 
+def test_train_config_supports_cyclic_rates_without_changing_protocol_rates():
+    training_rates = MISSING_RATES[1:]
+    config = TrainConfig(train_missing_rates=training_rates)
+
+    assert config.train_missing_rates == training_rates
+    schedule = BalancedBatchRateSchedule(config.train_missing_rates)
+    assert tuple(schedule.rate_for(epoch=0, batch_index=index) for index in range(7)) == training_rates
+    assert 0.0 not in tuple(
+        schedule.rate_for(epoch=epoch, batch_index=index)
+        for epoch in range(3)
+        for index in range(7)
+    )
+    restored = TrainConfig(**json.loads(json.dumps(asdict(config))))
+    assert restored == config
+
+
 def test_stratified_rates_balance_full_and_partial_batches():
     full_ids = tuple(f"conversation-{index}" for index in range(32))
     full = stratified_rates_for_batch(

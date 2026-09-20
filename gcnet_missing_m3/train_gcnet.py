@@ -79,6 +79,10 @@ class TrainConfig:
     validation_fraction: float = 0.1
     device: str = "cuda"
     train_rate_mode: str = "cyclic"
+    # Rates used by the cyclic training schedule.  Evaluation/protocol rates
+    # remain the official MISSING_RATES set, so an experiment can omit 0.0
+    # during optimization without losing the complete test-rate report.
+    train_missing_rates: tuple[float, ...] = MISSING_RATES
     mosi_task_mode: str = "regression"
     graph_branch_mode: str = "both"
     mmoe_variant: str = "dual-gate"
@@ -134,6 +138,17 @@ class TrainConfig:
     simple_regression_predictor: bool = False
 
     def __post_init__(self) -> None:
+        normalized_train_rates = tuple(float(value) for value in self.train_missing_rates)
+        if not normalized_train_rates or len(set(normalized_train_rates)) != len(normalized_train_rates):
+            raise ValueError("train_missing_rates must be a non-empty unique sequence")
+        if any(
+            not math.isfinite(value) or value not in MISSING_RATES
+            for value in normalized_train_rates
+        ):
+            raise ValueError(
+                "train_missing_rates must contain only official missing rates"
+            )
+        object.__setattr__(self, "train_missing_rates", normalized_train_rates)
         if self.target_space not in {"all-modalities", "full-text", "predictable-subspace"}:
             raise ValueError("unsupported target_space")
         if self.emotion_loss_mode not in {"sample-mean", "pattern-balanced", "pattern-groupdro"}:
@@ -1378,7 +1393,7 @@ def train_epoch(
     mmoe = getattr(predictor, "mmoe", None)
     if mmoe is not None and train_jepa:
         mmoe.reset_routing_statistics()
-    rate_schedule = BalancedBatchRateSchedule()
+    rate_schedule = BalancedBatchRateSchedule(rates=config.train_missing_rates)
     fixed_rate = _fixed_missing_rate(config)
     epoch_size = None
     if config.train_rate_mode == "stratified":
