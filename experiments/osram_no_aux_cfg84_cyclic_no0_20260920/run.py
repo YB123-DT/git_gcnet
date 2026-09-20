@@ -20,6 +20,7 @@ from experiments.osram_mosi_hparam_sweep_20260918.run import (  # noqa: E402
     sha,
     write_json,
 )
+from gcnet_missing_m3.mixed_rate import MISSING_RATES  # noqa: E402
 
 
 ROOT = Path("/data2/yb/remote_experiments/osram_no_aux_cfg84_cyclic_no0_20260920")
@@ -57,7 +58,7 @@ def train(seed: int) -> None:
         "gpu_visible": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "training_rate_mode": "cyclic",
         "training_missing_rates": list(TRAIN_RATES),
-        "evaluation_rates": list(reference.no_jepa.runner.MISSING_RATES),
+        "evaluation_rates": list(MISSING_RATES),
         "selection_protocol": "per-rate-test-oracle",
         "reference": str(source),
         "configuration_delta": {"train_missing_rates": list(TRAIN_RATES)},
@@ -106,7 +107,7 @@ def launch() -> None:
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "seeds": list(SEEDS),
         "training_rates": list(TRAIN_RATES),
-        "evaluation_rates": list(reference.no_jepa.runner.MISSING_RATES),
+        "evaluation_rates": list(MISSING_RATES),
         "selection_protocol": "per-rate-test-oracle",
         "label": LABEL,
         "tasks": [],
