@@ -268,6 +268,31 @@ def test_osram_external_beta_gate_is_direct_and_gap_strength_interpolates():
     assert not torch.equal(half_contexts["gap"], raw_contexts["gap"])
 
 
+def test_osram_external_beta_single_slot_matches_direct_gate_formula():
+    model = OSRAMBackbone(
+        latent_dim=4,
+        output_dim=6,
+        num_heads=1,
+        key_dim=2,
+        value_dim=3,
+        n_speakers=1,
+        dropout=0.0,
+        write_ridge=1e-3,
+        write_step=1.0,
+        beta_mode="external-head",
+    ).eval()
+    memory = torch.zeros(1, 1, 3, 2)
+    keys = torch.zeros(1, 1, 2, 3)
+    values = torch.zeros(1, 1, 3, 3)
+    keys[0, 0, :, 0] = torch.tensor([1.0, 0.0])
+    values[0, 0, :, 0] = torch.tensor([2.0, -1.0, 0.5])
+    beta = torch.tensor([[0.25, 0.5, 0.75]])
+    updated = model.block_write(memory, keys, values, torch.tensor([[1.0, 0.0, 0.0]]), beta)
+    expected = beta[0, 0] / (1.0 + model.write_ridge) * values[0, 0, :, 0]
+    torch.testing.assert_close(updated[0, 0, :, 0], expected)
+    torch.testing.assert_close(updated[0, 0, :, 1:], torch.zeros(3, 1))
+
+
 def test_osram_block_write_is_invariant_to_modality_column_permutation():
     model = OSRAMBackbone(
         latent_dim=8,
