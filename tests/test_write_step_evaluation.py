@@ -19,6 +19,8 @@ def test_legacy_interventions_cannot_accidentally_double_scale_native_step():
     with pytest.raises(ValueError):
         evaluator.resolve_evaluation_step(.6, 1., ['fixed0.6'])
     assert evaluator.resolve_evaluation_step(1., None, ['fixed0.6']) == 1.
+    assert evaluator.resolve_evaluation_step(.6, None, ['reference', 'protected', 'global']) == .6
+    assert evaluator.resolve_evaluation_step(.6, 1., ['reference', 'protected', 'global']) == 1.
     for bad in (float('nan'), -1., 1.1):
         with pytest.raises(ValueError):
             evaluator.resolve_evaluation_step(1., bad, ['reference'])

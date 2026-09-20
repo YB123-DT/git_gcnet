@@ -43,8 +43,18 @@ def resolve_evaluation_step(saved_step, override, modes):
     step = float(saved_step if override is None else override)
     if not math.isfinite(step) or not 0. <= step <= 1.:
         raise ValueError("evaluation write step must be finite and in [0,1]")
-    if (float(saved_step) != 1. or override is not None) and list(modes) != ["reference"]:
-        raise ValueError("Native nonunit step/override requires reference-only evaluation; do not double-scale")
+    # Address-based interventions operate on the native correction produced by
+    # the checkpoint and do not apply a second scalar write step.  Fixed-step
+    # modes do apply an additional scalar and therefore remain disallowed when
+    # the checkpoint already has a non-unit native step (or an override).
+    fixed_step_modes = {
+        "fixed0.95", "fixed0.9", "fixed0.8", "fixed0.6",
+        "fixed0.4", "fixed0.2", "fixed0.0",
+    }
+    if (float(saved_step) != 1. or override is not None) and any(
+        mode in fixed_step_modes for mode in modes
+    ):
+        raise ValueError("Native nonunit step/override cannot be combined with fixed-step interventions")
     return step
 
 

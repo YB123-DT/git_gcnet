@@ -105,6 +105,13 @@ The remote checkpoint from the earlier forward-only MOSI experiment
 is retained as a separate provenance reference. No new training was launched
 for the memory replay.
 
+The same MOSI checkpoint was also evaluated with the frozen
+`Reference/Protected/Global` intervention trio under identical masks. The
+task-level comparison is archived in
+`experiments/osram_memory_replay_20260920/INTERVENTION_RESULT.md`; it does not
+show a W-F1 gain for either intervention, so this evidence should not be used
+to justify a dynamic gate by itself.
+
 Single-key mathematical check: normalized k and beta=.5, lambda_w=.001 give
 beta/(beta+lambda_w)=0.998003992..., not a write coefficient of .5.
 This test verifies the current formula and does not modify its parameters.
