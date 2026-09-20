@@ -169,8 +169,18 @@ def launch() -> None:
     queue["status"] = "failed" if any(row["status"] == "failed" for row in queue["tasks"]) else "complete"
     queue["completed_utc"] = datetime.now(timezone.utc).isoformat()
     write_json(ROOT / "QUEUE.json", queue)
-    subprocess.run([sys.executable, str(Path(__file__).with_name("summarize.py")), "--root", str(ROOT)],
-                   cwd=REPO, check=True)
+    subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).with_name("summarize.py")),
+            "--root",
+            str(ROOT),
+            "--previous",
+            str(PREVIOUS_ROOT),
+        ],
+        cwd=REPO,
+        check=True,
+    )
 
 
 def main() -> None:
