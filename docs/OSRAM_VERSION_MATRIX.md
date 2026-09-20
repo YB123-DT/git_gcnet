@@ -12,7 +12,7 @@
 - `osram_output_dim=1600`，8 heads，key/value dimension 64/64；
 - `training_objective=emotion-only`，禁用未使用的 EMA Teacher/MMoE；
 - cyclic mixed-rate training；
-- 每个 seed、每个 missing rate 独立用 Test W-F1 选 epoch（`per-rate-test-oracle`）。
+- 每个 seed、每个 missing rate 独立用数据集规定的 Test 指标选 epoch（`per-rate-test-oracle`）。
 
 核心实现仍集中在：
 
@@ -56,6 +56,11 @@ cyclic mixed-rate training
 8 missing rates: 0.0 ... 0.7
 per-rate Test-oracle checkpoint selection
 ```
+
+选点指标按数据集区分：
+
+- IEMOCAP-4/6：`accuracy`（同时保留 accuracy、macro-F1 与 weighted-F1 报告；UA 需由单独的 unweighted-recall 统计提供）；
+- MOSI/MOSEI：`weighted_f1`。
 
 这是内部诊断协议，不应直接写成论文正式结果。正式结果必须切换到 validation 选点并锁定同一比较协议。
 

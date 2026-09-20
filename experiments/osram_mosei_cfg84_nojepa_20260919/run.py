@@ -27,6 +27,7 @@ FEATURE_ROOT = Path(
 DATASET = "CMUMOSEI"
 SEEDS = (66, 67, 68)
 LABEL = "INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT"
+SELECTION_METRIC = "weighted_f1"
 
 
 def _write(path: Path, value: object) -> None:
@@ -78,21 +79,35 @@ def train(seed: int) -> None:
     if output.exists():
         provenance = output / "PROVENANCE.json"
         metrics = output / "metrics.json"
-        if provenance.exists() and json.loads(provenance.read_text()).get("status") == "complete":
+        if (
+            provenance.exists()
+            and json.loads(provenance.read_text()).get("status") == "complete"
+            and json.loads(provenance.read_text()).get("selection_metric") == SELECTION_METRIC
+        ):
             print(f"SKIP complete MOSEI seed={seed}", flush=True)
             return
         if metrics.exists():
             data = json.loads(metrics.read_text())
-            if data.get("selection_protocol") == "per-rate-test-oracle":
+            if (
+                data.get("selection_protocol") == "per-rate-test-oracle"
+                and data.get("selection_metric") == SELECTION_METRIC
+            ):
                 payload = json.loads(provenance.read_text()) if provenance.exists() else {}
                 payload.update(
                     status="complete",
                     completed_utc=datetime.now(timezone.utc).isoformat(),
                     selection_protocol="per-rate-test-oracle",
+                    selection_metric=SELECTION_METRIC,
                 )
                 _write(provenance, payload)
                 print(f"RECOVER complete MOSEI seed={seed}", flush=True)
                 return
+            if data.get("selection_protocol") == "per-rate-test-oracle":
+                raise RuntimeError(
+                    f"existing MOSEI output uses selection_metric="
+                    f"{data.get('selection_metric')!r}; expected {SELECTION_METRIC!r}. "
+                    "Use a fresh output root instead of relabeling old checkpoints."
+                )
         raise FileExistsError(f"refusing to overwrite {output}")
 
     output.mkdir(parents=True)
@@ -106,6 +121,7 @@ def train(seed: int) -> None:
         "seed": seed,
         "fold": 1,
         "selection_protocol": "per-rate-test-oracle",
+        "selection_metric": SELECTION_METRIC,
         "selection_split": "test",
         "training_objective": "emotion-only",
         "gpu_visible": os.environ.get("CUDA_VISIBLE_DEVICES"),

@@ -21,6 +21,7 @@ FEATURE_ROOT = Path(
 DATASETS = {4: "IEMOCAPFour", 6: "IEMOCAPSix"}
 FOLDS = (1, 2, 3, 4, 5)
 LABEL = "INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT"
+SELECTION_METRIC = "accuracy"
 
 
 def _write(path: Path, value: object) -> None:
@@ -77,9 +78,18 @@ def train_fold(classes: int, seed: int, fold: int) -> None:
     metrics_path = output / "metrics.json"
     if metrics_path.exists():
         metrics = json.loads(metrics_path.read_text())
-        if metrics.get("selection_protocol") == "per-rate-test-oracle":
+        if (
+            metrics.get("selection_protocol") == "per-rate-test-oracle"
+            and metrics.get("selection_metric") == SELECTION_METRIC
+        ):
             print(f"SKIP complete IEMOCAP-{classes} seed={seed} fold={fold}", flush=True)
             return
+        if metrics.get("selection_protocol") == "per-rate-test-oracle":
+            raise RuntimeError(
+                f"existing IEMOCAP output uses selection_metric="
+                f"{metrics.get('selection_metric')!r}; expected {SELECTION_METRIC!r}. "
+                "Use a fresh output root instead of relabeling old checkpoints."
+            )
     if output.exists():
         raise FileExistsError(f"refusing to overwrite {output}")
     output.mkdir(parents=True)
@@ -98,6 +108,7 @@ def train_fold(classes: int, seed: int, fold: int) -> None:
             "session_test": fold,
             "gpu_visible": os.environ.get("CUDA_VISIBLE_DEVICES"),
             "selection_protocol": "per-rate-test-oracle",
+            "selection_metric": SELECTION_METRIC,
             "training_objective": "emotion-only",
             "configuration_delta": {
                 "osram_output_dim": 1600,
@@ -125,11 +136,14 @@ def train_fold(classes: int, seed: int, fold: int) -> None:
         metrics = json.loads(metrics_path.read_text())
         if metrics.get("selection_protocol") != "per-rate-test-oracle":
             raise RuntimeError("unexpected checkpoint selection protocol")
+        if metrics.get("selection_metric") != SELECTION_METRIC:
+            raise RuntimeError("IEMOCAP must select epochs by accuracy")
         payload = json.loads(provenance.read_text())
         payload.update(
             status="complete",
             completed_utc=datetime.now(timezone.utc).isoformat(),
             selected_epoch_by_rate=metrics.get("selected_epoch_by_rate"),
+            selected_accuracy_by_rate=metrics.get("selected_accuracy_by_rate"),
             selected_weighted_f1_by_rate=metrics.get("selected_weighted_f1_by_rate"),
         )
         _write(provenance, payload)
@@ -153,6 +167,7 @@ def launch(classes: int, seed: int) -> None:
         "folds": list(FOLDS),
         "fold_protocol": "S1-S5 leave-one-session-out",
         "selection_protocol": "per-rate-test-oracle",
+        "selection_metric": SELECTION_METRIC,
         "elapsed_seconds": time.time() - started,
     }
     _write(OUTPUT_ROOT / f"iemocap{classes}" / f"seed_{seed}" / "SUMMARY.json", summary)

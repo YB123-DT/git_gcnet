@@ -413,6 +413,9 @@ def _save_best_checkpoint(
     selection_split: str = "validation",
     selection_protocol: str | None = None,
     text_subspace_provenance: Mapping[str, object] | None = None,
+    selection_score: float | None = None,
+    selection_metric: str = "weighted_f1",
+    selection_accuracy: float | None = None,
 ) -> None:
     validation_score = (
         validation_mean_weighted_f1
@@ -428,6 +431,13 @@ def _save_best_checkpoint(
             "validation_mean_weighted_f1": validation_score,
             "selection_split": selection_split,
             "selection_mean_weighted_f1": validation_mean_weighted_f1,
+            "selection_score": (
+                validation_mean_weighted_f1
+                if selection_score is None
+                else selection_score
+            ),
+            "selection_metric": selection_metric,
+            "selection_mean_accuracy": selection_accuracy,
             "selection_protocol": selection_protocol
             or (
                 "8-rate-mean-test-oracle"
@@ -1275,6 +1285,20 @@ def _metrics(
         "prediction_std": float(np.std(predictions)),
         "predicted_sign_count": int(np.unique(binary_predictions).size),
     }
+
+
+def _checkpoint_selection_metric(dataset: str) -> str:
+    """Return the test/validation metric used to choose an epoch.
+
+    The published conversational emotion-recognition protocols report and
+    select IEMOCAP checkpoints by accuracy (with UA as a companion metric),
+    whereas MOSI/MOSEI use weighted F1.  Keep this policy explicit instead of
+    silently using weighted F1 for every dataset.
+    """
+    normalized = str(dataset).strip().upper()
+    if normalized in {"IEMOCAPFOUR", "IEMOCAPSIX"}:
+        return "accuracy"
+    return "weighted_f1"
 
 
 def _collect_predictions(
@@ -2281,11 +2305,20 @@ def run_experiment(
     history: list[Dict[str, object]] = []
     jepa_pretraining = config_value.training_objective == "jepa-only"
     per_rate_oracle = config_value.checkpoint_selection == "test-oracle-per-rate"
+    selection_metric = _checkpoint_selection_metric(config_value.dataset)
     best_score: float | None = None if jepa_pretraining or per_rate_oracle else -math.inf
+    best_selection_weighted_f1: float | None = (
+        None if jepa_pretraining or per_rate_oracle else -math.inf
+    )
+    best_selection_accuracy: float | None = (
+        None if jepa_pretraining or per_rate_oracle else -math.inf
+    )
     best_epoch = None if per_rate_oracle else 0
     best_state = None
     selected_epoch_by_rate: Dict[str, int] = {}
     selected_score_by_rate: Dict[str, float] = {}
+    selected_weighted_f1_by_rate: Dict[str, float] = {}
+    selected_accuracy_by_rate: Dict[str, float] = {}
     for epoch in range(config_value.epochs):
         _apply_epoch_learning_rate(optimizer, config_value, epoch)
         sampler = getattr(train_loader, "sampler", None)
@@ -2339,9 +2372,21 @@ def run_experiment(
                 task_smooth_l1_beta=config_value.task_smooth_l1_beta,
             )
         selection_mean = sum(
+            float(selection_metrics[rate][selection_metric])
+            for rate in protocol_rates
+        ) / len(protocol_rates)
+        selection_mean_weighted_f1 = sum(
             float(selection_metrics[rate]["weighted_f1"])
             for rate in protocol_rates
         ) / len(protocol_rates)
+        accuracy_values = [
+            selection_metrics[rate].get("accuracy") for rate in protocol_rates
+        ]
+        selection_mean_accuracy = (
+            sum(float(value) for value in accuracy_values) / len(accuracy_values)
+            if all(value is not None for value in accuracy_values)
+            else None
+        )
         selection_key = (
             "validation"
             if config_value.checkpoint_selection == "validation"
@@ -2353,17 +2398,20 @@ def run_experiment(
             selection_key: {
                 str(rate): value for rate, value in selection_metrics.items()
             },
-            selection_key + "_mean_weighted_f1": selection_mean,
+            "selection_metric": selection_metric,
+            selection_key + "_mean_selection_score": selection_mean,
+            selection_key + "_mean_weighted_f1": selection_mean_weighted_f1,
         }
         if per_rate_oracle:
             record["mean_is_descriptive_only"] = True
         history.append(record)
         _write_json(output / "history.json", history)
         print(
-            "epoch={:03d} train_wf1={:.4f} {}_wf1={:.4f} cls={:.4f} jepa={:.4f}".format(
+            "epoch={:03d} train_wf1={:.4f} {}_{}={:.4f} cls={:.4f} jepa={:.4f}".format(
                 epoch + 1,
                 train_metrics["weighted_f1"],
                 selection_key,
+                selection_metric,
                 selection_mean,
                 train_metrics["classification_loss"],
                 train_metrics["jepa_loss"],
@@ -2373,10 +2421,16 @@ def run_experiment(
         if per_rate_oracle:
             for rate in protocol_rates:
                 rate_key = format(rate, ".1f")
-                score = float(selection_metrics[rate]["weighted_f1"])
+                score = float(selection_metrics[rate][selection_metric])
                 if score > selected_score_by_rate.get(rate_key, -math.inf):
                     selected_score_by_rate[rate_key] = score
                     selected_epoch_by_rate[rate_key] = epoch + 1
+                    selected_weighted_f1_by_rate[rate_key] = float(
+                        selection_metrics[rate]["weighted_f1"]
+                    )
+                    accuracy_value = selection_metrics[rate].get("accuracy")
+                    if accuracy_value is not None:
+                        selected_accuracy_by_rate[rate_key] = float(accuracy_value)
                     torch.save({
                         "model": _state_to_cpu(model),
                         "config": asdict(config_value),
@@ -2385,13 +2439,24 @@ def run_experiment(
                         "selection_split": "test",
                         "selection_protocol": "per-rate-test-oracle",
                         "selection_rate": rate,
-                        "selection_weighted_f1": score,
+                        "selection_metric": selection_metric,
+                        "selection_score": score,
+                        "selection_weighted_f1": float(
+                            selection_metrics[rate]["weighted_f1"]
+                        ),
+                        "selection_accuracy": (
+                            None
+                            if accuracy_value is None
+                            else float(accuracy_value)
+                        ),
                     }, output / ("best_miss_" + rate_key.replace(".", "p") + ".pt"))
             continue
         if best_score is None:
             raise RuntimeError("emotion checkpoint score was not initialized")
         if selection_mean > best_score:
             best_score = selection_mean
+            best_selection_weighted_f1 = selection_mean_weighted_f1
+            best_selection_accuracy = selection_mean_accuracy
             best_epoch = epoch + 1
             best_state = _state_to_cpu(model)
             _save_best_checkpoint(
@@ -2399,7 +2464,10 @@ def run_experiment(
                 model_state=best_state,
                 config_value=config_value,
                 epoch=best_epoch,
-                validation_mean_weighted_f1=best_score,
+                validation_mean_weighted_f1=best_selection_weighted_f1,
+                selection_score=best_score,
+                selection_metric=selection_metric,
+                selection_accuracy=best_selection_accuracy,
                 text_subspace_provenance=getattr(model, "text_subspace_provenance", None),
                 selection_split=config_value.checkpoint_selection,
                 selection_protocol=(
@@ -2517,9 +2585,12 @@ def run_experiment(
                 else selection_split
             )
         )),
-        "best_selection_mean_weighted_f1": best_score,
+        "best_selection_mean_weighted_f1": best_selection_weighted_f1,
+        "best_selection_mean_accuracy": best_selection_accuracy,
+        "best_selection_mean_score": best_score,
+        "selection_metric": selection_metric,
         "best_validation_mean_weighted_f1": (
-            best_score
+            best_selection_weighted_f1
             if selection_split == "validation"
             else None
         ),
@@ -2607,7 +2678,9 @@ def run_experiment(
     }
     if per_rate_oracle:
         result["selected_epoch_by_rate"] = selected_epoch_by_rate
-        result["selected_weighted_f1_by_rate"] = selected_score_by_rate
+        result["selected_score_by_rate"] = selected_score_by_rate
+        result["selected_weighted_f1_by_rate"] = selected_weighted_f1_by_rate
+        result["selected_accuracy_by_rate"] = selected_accuracy_by_rate
     _write_json(output / "metrics.json", result)
     if config_value.backbone_type == "osram":
         _write_json(
