@@ -22,6 +22,7 @@ QUERY_TYPES = ("base", "audio", "text", "visual")
 OSRAM_ABLATIONS = ("full", "local-only", "local-base")
 OSRAM_EMOTION_ABLATIONS = (*OSRAM_ABLATIONS, "local-gap")
 OSRAM_GAP_READ_MODES = ("residual", "raw")
+OSRAM_BETA_MODES = ("embedded", "external-head")
 
 
 def _logit(probability: float) -> float:
@@ -341,6 +342,8 @@ class OSRAMBackbone(nn.Module):
         osram_emotion_ablation: str = "full",
         osram_readout_fusion: str = "flat",
         osram_gap_read: str = "residual",
+        gap_residual_strength: float = 1.0,
+        beta_mode: str = "embedded",
     ) -> None:
         super().__init__()
         if osram_readout_fusion not in (
@@ -358,6 +361,11 @@ class OSRAMBackbone(nn.Module):
             )
         if osram_gap_read not in OSRAM_GAP_READ_MODES:
             raise ValueError("osram_gap_read must be 'residual' or 'raw'")
+        if beta_mode not in OSRAM_BETA_MODES:
+            raise ValueError("beta_mode must be 'embedded' or 'external-head'")
+        gap_residual_strength = float(gap_residual_strength)
+        if not math.isfinite(gap_residual_strength) or not 0.0 <= gap_residual_strength <= 1.0:
+            raise ValueError("gap_residual_strength must be finite and between zero and one")
         if osram_emotion_ablation not in OSRAM_EMOTION_ABLATIONS:
             raise ValueError("unsupported osram_emotion_ablation")
         if osram_ablation != "full" and osram_emotion_ablation != "full":
@@ -390,6 +398,8 @@ class OSRAMBackbone(nn.Module):
         self.osram_emotion_ablation = osram_emotion_ablation
         self.osram_readout_fusion = osram_readout_fusion
         self.osram_gap_read = osram_gap_read
+        self.gap_residual_strength = gap_residual_strength
+        self.beta_mode = beta_mode
         self.query_use_availability = bool(query_use_availability)
         self.bidirectional = bool(bidirectional)
         self.forward_slot_reuse = bool(forward_slot_reuse)
@@ -643,10 +653,17 @@ class OSRAMBackbone(nn.Module):
         # absent slots (0 * inf) even though those slots have zero write
         # strength.  The factored form is algebraically identical for the
         # binary mask and keeps gradients finite for missing/padded slots.
-        slot_scale = (
-            availability_value.unsqueeze(1)
-            * beta.clamp_min(0.0).sqrt().unsqueeze(0)
-        ).unsqueeze(2)
+        if self.beta_mode == "embedded":
+            slot_scale = (
+                availability_value.unsqueeze(1)
+                * beta.clamp_min(0.0).sqrt().unsqueeze(0)
+            ).unsqueeze(2)
+        else:
+            # Diagnostic alternative: solve the block update using the raw
+            # observed addresses, then apply beta directly to the correction.
+            # For a single observed slot this is exactly beta_hm; with two or
+            # three slots it is the availability-weighted head mean.
+            slot_scale = availability_value.unsqueeze(1).unsqueeze(2)
         k_bar = keys * slot_scale
         v_bar = values * slot_scale
         residual = v_bar - memory @ k_bar
@@ -657,6 +674,14 @@ class OSRAMBackbone(nn.Module):
         system = gram + self.write_ridge * identity
         solved = torch.linalg.solve(system, k_bar.transpose(-1, -2))
         correction = residual @ solved
+        if self.beta_mode == "external-head":
+            active_beta = (
+                availability_value.unsqueeze(1) * beta.unsqueeze(0)
+            ).sum(dim=-1)
+            active_count = availability_value.sum(dim=-1).clamp_min(1.0)
+            correction = correction * (active_beta / active_count.unsqueeze(-1)).view(
+                -1, self.num_heads, 1, 1
+            )
         # Keep the legacy arithmetic path exact at the default step. The fixed
         # scalar scales the correction, without detaching the write gradients.
         if self.write_step == 1.0:
@@ -725,11 +750,13 @@ class OSRAMBackbone(nn.Module):
             missing = 1.0 - availability[time_index].to(dtype)
             for modality_index, name in enumerate(MODALITIES):
                 query = queries[time_index, :, modality_index + 1]
-                residual_query = (
-                    query
+                projected_query = self._address_residual(slot_keys, query)
+                residual_strength = (
+                    0.0
                     if self.osram_gap_read == "raw"
-                    else self._address_residual(slot_keys, query)
+                    else self.gap_residual_strength
                 )
+                residual_query = query - residual_strength * (query - projected_query)
                 original_norm = query.norm(dim=-1)
                 residual_norm = residual_query.norm(dim=-1)
                 cosine = F.cosine_similarity(
@@ -949,6 +976,8 @@ class OSRAMBackbone(nn.Module):
         diagnostics: dict[str, object] = {
             "ablation": self.osram_ablation,
             "gap_read": self.osram_gap_read,
+            "gap_residual_strength": self.gap_residual_strength,
+            "beta_mode": self.beta_mode,
             "emotion_ablation": self.osram_emotion_ablation,
             "query_use_availability": self.query_use_availability,
             "bidirectional": self.bidirectional,

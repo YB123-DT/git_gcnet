@@ -232,6 +232,42 @@ def test_osram_raw_gap_read_changes_only_gap_query_mode():
     assert not torch.equal(residual_contexts["gap"], raw_contexts["gap"])
 
 
+def test_osram_external_beta_gate_is_direct_and_gap_strength_interpolates():
+    embedded = OSRAMBackbone(
+        latent_dim=8, output_dim=10, num_heads=2, key_dim=3, value_dim=4,
+        n_speakers=2, dropout=0.0, bidirectional=False, beta_mode="embedded",
+    ).eval()
+    external = OSRAMBackbone(
+        latent_dim=8, output_dim=10, num_heads=2, key_dim=3, value_dim=4,
+        n_speakers=2, dropout=0.0, bidirectional=False, beta_mode="external-head",
+    ).eval()
+    external.load_state_dict(embedded.state_dict(), strict=False)
+    inputs = _inputs()
+    _, embedded_contexts = embedded(*inputs)
+    _, external_contexts = external(*inputs)
+    assert not torch.equal(embedded_contexts["base"], external_contexts["base"])
+
+    full = OSRAMBackbone(
+        latent_dim=8, output_dim=10, num_heads=2, key_dim=3, value_dim=4,
+        n_speakers=2, dropout=0.0, bidirectional=False, gap_residual_strength=1.0,
+    ).eval()
+    half = OSRAMBackbone(
+        latent_dim=8, output_dim=10, num_heads=2, key_dim=3, value_dim=4,
+        n_speakers=2, dropout=0.0, bidirectional=False, gap_residual_strength=0.5,
+    ).eval()
+    raw = OSRAMBackbone(
+        latent_dim=8, output_dim=10, num_heads=2, key_dim=3, value_dim=4,
+        n_speakers=2, dropout=0.0, bidirectional=False, gap_residual_strength=0.0,
+    ).eval()
+    half.load_state_dict(full.state_dict(), strict=False)
+    raw.load_state_dict(full.state_dict(), strict=False)
+    _, full_contexts = full(*inputs)
+    _, half_contexts = half(*inputs)
+    _, raw_contexts = raw(*inputs)
+    assert not torch.equal(full_contexts["gap"], half_contexts["gap"])
+    assert not torch.equal(half_contexts["gap"], raw_contexts["gap"])
+
+
 def test_osram_block_write_is_invariant_to_modality_column_permutation():
     model = OSRAMBackbone(
         latent_dim=8,

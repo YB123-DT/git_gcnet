@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import math
 from dataclasses import dataclass
 from typing import Dict, Mapping, Tuple
 
@@ -1253,6 +1254,8 @@ class MissingM3GraphModel(GraphModel):
         osram_emotion_ablation="full",
         osram_readout_fusion="flat",
         osram_gap_read="residual",
+        gap_residual_strength=1.0,
+        beta_mode="embedded",
         complete_state_jepa=False,
         write_state_completion=False,
         future_state_jepa=False,
@@ -1417,6 +1420,10 @@ class MissingM3GraphModel(GraphModel):
             )
         if osram_gap_read not in {"residual", "raw"}:
             raise ValueError("osram_gap_read must be 'residual' or 'raw'")
+        if beta_mode not in {"embedded", "external-head"}:
+            raise ValueError("beta_mode must be 'embedded' or 'external-head'")
+        if not math.isfinite(float(gap_residual_strength)) or not 0.0 <= float(gap_residual_strength) <= 1.0:
+            raise ValueError("gap_residual_strength must be finite and between zero and one")
         if osram_emotion_ablation != "full" and (
             backbone_type != "osram" or osram_predictor_mode != "structured"
             or osram_ablation != "full" or completion_path != "none"
@@ -1513,6 +1520,8 @@ class MissingM3GraphModel(GraphModel):
         self.osram_predictor_mode = osram_predictor_mode
         self.osram_ablation = osram_ablation
         self.osram_gap_read = osram_gap_read
+        self.gap_residual_strength = float(gap_residual_strength)
+        self.beta_mode = beta_mode
         self.osram_emotion_ablation = osram_emotion_ablation
         self.osram_readout_fusion = osram_readout_fusion
         self.text_core = None
@@ -1577,6 +1586,8 @@ class MissingM3GraphModel(GraphModel):
                 write_step=osram_write_step,
                 osram_ablation=osram_ablation,
                 osram_gap_read=osram_gap_read,
+                gap_residual_strength=gap_residual_strength,
+                beta_mode=beta_mode,
                 osram_emotion_ablation=osram_emotion_ablation,
                 osram_readout_fusion=osram_readout_fusion,
                 query_use_availability=osram_query_availability,

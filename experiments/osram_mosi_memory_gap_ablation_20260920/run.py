@@ -8,6 +8,7 @@ official masks and per-rate Test-oracle selection unchanged.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 import subprocess
@@ -37,7 +38,10 @@ SEEDS = (66, 67, 68, 69, 70)
 VARIANTS = ("local-only", "local-base", "raw-gap", "full")
 # Three concurrent workers keep host RAM stable; the model is GPU-memory light
 # but each Python process still holds the full feature cache in host memory.
+# Four memory-light workers per card; the queue therefore runs twelve jobs
+# concurrently while keeping the three cards isolated from other users.
 GPU_IDS = (1, 2, 3)
+WORKERS_PER_GPU = 4
 RATES = tuple(f"{index / 10:.1f}" for index in range(8))
 LABEL = "INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT"
 
@@ -161,6 +165,24 @@ def _write_queue(queue: dict) -> None:
     write_json(ROOT / "QUEUE.json", queue)
 
 
+def _output_state(variant: str, seed: int) -> tuple[str | None, int | None]:
+    """Return an existing task state and its GPU reservation, if any."""
+    provenance_path = ROOT / variant / f"seed_{seed}" / "PROVENANCE.json"
+    if not provenance_path.exists():
+        return None, None
+    try:
+        provenance = json.loads(provenance_path.read_text())
+    except json.JSONDecodeError:
+        return "failed", None
+    status = provenance.get("status")
+    gpu = provenance.get("gpu_visible")
+    try:
+        gpu_id = int(gpu) if gpu is not None else None
+    except (TypeError, ValueError):
+        gpu_id = None
+    return status, gpu_id
+
+
 def launch() -> None:
     ROOT.mkdir(parents=True, exist_ok=True)
     tasks = [{"variant": variant, "seed": seed} for variant, seed in product(VARIANTS, SEEDS)]
@@ -173,10 +195,42 @@ def launch() -> None:
         "tasks": [],
     }
     _write_queue(queue)
-    pending = list(tasks)
+    pending = []
+    external: dict[tuple[str, int], tuple[int | None, dict]] = {}
+    for task in tasks:
+        variant, seed = task["variant"], task["seed"]
+        state, gpu = _output_state(variant, seed)
+        if state == "complete":
+            queue["tasks"].append(dict(task, status="complete", adopted=True, gpu=gpu))
+        elif state == "training":
+            row = dict(task, status="external-running", adopted=True, gpu=gpu)
+            queue["tasks"].append(row)
+            external[(variant, seed)] = (gpu, row)
+        elif state == "failed":
+            queue["tasks"].append(dict(task, status="failed", adopted=True, gpu=gpu))
+        else:
+            pending.append(task)
+    _write_queue(queue)
     running: dict[int, tuple[subprocess.Popen, object, dict]] = {}
-    while pending or running:
-        free_gpus = [gpu for gpu in GPU_IDS if gpu not in running]
+    while pending or running or external:
+        # Adopt workers launched by a previous scheduler instance.  Their
+        # provenance records the visible GPU before training starts, so a
+        # resumed multi-worker queue never oversubscribes an occupied card.
+        for key, (gpu, row) in list(external.items()):
+            variant, seed = key
+            state, _ = _output_state(variant, seed)
+            if state == "complete":
+                row["status"] = "complete"
+                del external[key]
+            elif state == "failed":
+                row["status"] = "failed"
+                del external[key]
+        occupied = Counter(gpu for gpu, _ in external.values() if gpu is not None)
+        occupied.update(row["gpu"] for _, (_, _, row) in running.items())
+        free_gpus = [
+            gpu for gpu in GPU_IDS
+            for _ in range(max(0, WORKERS_PER_GPU - occupied[gpu]))
+        ]
         while pending and free_gpus:
             task = pending.pop(0)
             gpu = free_gpus.pop(0)
@@ -201,20 +255,20 @@ def launch() -> None:
             row = {"variant": variant, "seed": seed, "gpu": gpu, "pid": child.pid,
                    "status": "running", "log": str(log_path)}
             queue["tasks"].append(row)
-            running[gpu] = (child, log, row)
+            running[child.pid] = (child, log, row)
             print(f"START {variant} seed={seed} GPU={gpu} PID={child.pid}", flush=True)
             _write_queue(queue)
         finished = []
-        for gpu, (child, log, row) in running.items():
+        for pid, (child, log, row) in running.items():
             code = child.poll()
             if code is None:
                 continue
             row["exit_code"] = int(code)
             row["status"] = "complete" if code == 0 else "failed"
             log.close()
-            finished.append(gpu)
-        for gpu in finished:
-            del running[gpu]
+            finished.append(pid)
+        for pid in finished:
+            del running[pid]
         if finished:
             _write_queue(queue)
         if running:

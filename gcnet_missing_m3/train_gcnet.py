@@ -120,6 +120,8 @@ class TrainConfig:
     osram_predictor_mode: str = "structured"
     osram_ablation: str = "full"
     osram_gap_read: str = "residual"
+    gap_residual_strength: float = 1.0
+    beta_mode: str = "embedded"
     osram_emotion_ablation: str = "full"
     osram_query_availability: bool = True
     osram_bidirectional: bool = True
@@ -162,6 +164,11 @@ class TrainConfig:
             raise ValueError("uniform_forced_text_probability must be between zero and one")
         if self.osram_gap_read not in {"residual", "raw"}:
             raise ValueError("osram_gap_read must be residual or raw")
+        if self.beta_mode not in {"embedded", "external-head"}:
+            raise ValueError("beta_mode must be embedded or external-head")
+        gap_strength = float(self.gap_residual_strength)
+        if not math.isfinite(gap_strength) or not 0.0 <= gap_strength <= 1.0:
+            raise ValueError("gap_residual_strength must be finite and between zero and one")
         if self.optimizer not in {"adam", "adamw"}:
             raise ValueError("optimizer must be adam or adamw")
         if self.lr_schedule not in {"constant", "cosine"}:
@@ -2234,6 +2241,8 @@ def run_experiment(
         osram_predictor_mode=config_value.osram_predictor_mode,
         osram_ablation=config_value.osram_ablation,
         osram_gap_read=config_value.osram_gap_read,
+        gap_residual_strength=config_value.gap_residual_strength,
+        beta_mode=config_value.beta_mode,
         osram_emotion_ablation=config_value.osram_emotion_ablation,
         osram_query_availability=config_value.osram_query_availability,
         osram_bidirectional=config_value.osram_bidirectional,
@@ -2677,6 +2686,8 @@ def run_experiment(
         "osram_predictor_mode": config_value.osram_predictor_mode,
         "osram_ablation": config_value.osram_ablation,
         "osram_gap_read": config_value.osram_gap_read,
+        "gap_residual_strength": config_value.gap_residual_strength,
+        "beta_mode": config_value.beta_mode,
         "osram_emotion_ablation": config_value.osram_emotion_ablation,
         "osram_query_availability": config_value.osram_query_availability,
         "osram_bidirectional": config_value.osram_bidirectional,
@@ -2943,6 +2954,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Use residualized or raw target-specific memory queries for Gap context.",
     )
     parser.add_argument(
+        "--gap-residual-strength",
+        type=float,
+        default=1.0,
+        help="Interpolate Gap query residualization: 0 is raw and 1 is full residual.",
+    )
+    parser.add_argument(
+        "--beta-mode",
+        choices=("embedded", "external-head"),
+        default="embedded",
+        help="Use legacy beta-in-solve or direct beta correction gating.",
+    )
+    parser.add_argument(
         "--osram-query-availability",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -3040,6 +3063,8 @@ def main(argv=None) -> None:
         osram_predictor_mode=args.osram_predictor_mode,
         osram_ablation=args.osram_ablation,
         osram_gap_read=args.osram_gap_read,
+        gap_residual_strength=args.gap_residual_strength,
+        beta_mode=args.beta_mode,
         osram_emotion_ablation=args.osram_emotion_ablation,
         osram_query_availability=args.osram_query_availability,
         osram_bidirectional=args.osram_bidirectional,
