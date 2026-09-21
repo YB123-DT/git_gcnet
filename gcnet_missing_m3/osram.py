@@ -313,6 +313,90 @@ class LocalCenteredContextFusion(nn.Module):
         return hidden
 
 
+class BaseGapDeltaFusion(nn.Module):
+    """Flat readout where each active Gap is represented relative to Base.
+
+    The OSRAM scan is unchanged.  This module only re-parameterizes the
+    classification-side context slots as a generic history anchor (Base) and
+    missing-modality-specific deviations from that anchor (Gap - Base).
+    """
+
+    def __init__(self, local_dim, context_dim, output_dim, dropout=0.5):
+        super().__init__()
+        self.local_dim = int(local_dim)
+        self.context_dim = int(context_dim)
+        self.output_dim = int(output_dim)
+        self.base_projection = nn.Linear(self.context_dim, self.context_dim)
+        self.gap_projection = nn.Linear(self.context_dim, self.context_dim)
+        self.last_diagnostics = {}
+
+    def forward(
+        self,
+        local,
+        base_context,
+        gap_context,
+        availability,
+        umask,
+        *,
+        emotion_adapter,
+        local_skip,
+        emotion_norm,
+    ):
+        if local.ndim != 3 or local.shape[-1] != self.local_dim:
+            raise ValueError("local must be [L,B,local_dim]")
+        length, batch = local.shape[:2]
+        if (
+            base_context.shape != (length, batch, self.context_dim)
+            or gap_context.shape != (length, batch, 3, self.context_dim)
+            or availability.shape != (length, batch, 3)
+            or umask.shape != (batch, length)
+        ):
+            raise ValueError("fusion context/mask shapes do not match local")
+        valid = umask.transpose(0, 1).bool()
+        if bool(((availability[valid] != 0) & (availability[valid] != 1)).any()):
+            raise ValueError("availability must be binary on valid utterances")
+        valid_float = valid.unsqueeze(-1).to(local.dtype)
+        active_missing = valid.unsqueeze(-1) & ~availability.bool()
+        safe_local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
+        safe_base = torch.where(
+            valid.unsqueeze(-1), base_context, torch.zeros_like(base_context)
+        )
+        safe_gap = torch.where(
+            active_missing.unsqueeze(-1), gap_context, torch.zeros_like(gap_context)
+        )
+
+        base = self.base_projection(safe_base)
+        gap = self.gap_projection(safe_gap)
+        delta = (gap - base.unsqueeze(2)) * active_missing.unsqueeze(-1).to(gap.dtype)
+        fusion_input = torch.cat(
+            (safe_local, base, delta.reshape(length, batch, -1)), dim=-1
+        )
+        context_residual = emotion_adapter(fusion_input)
+        hidden = emotion_norm(local_skip(safe_local) + context_residual)
+        hidden = hidden * valid_float
+        with torch.no_grad():
+            valid_rows = valid
+            base_norm = (
+                base[valid_rows].norm(dim=-1)
+                if bool(valid_rows.any()) else base.new_empty(0)
+            )
+            self.last_diagnostics = {
+                "base_norm": float(base_norm.mean()) if base_norm.numel() else None,
+                "delta_norm": {
+                    name: float(delta[..., index, :][valid_rows].norm(dim=-1).mean())
+                    if bool(valid_rows.any()) else None
+                    for index, name in enumerate(MODALITIES)
+                },
+                "active_evidence_count_mean": float(
+                    (1 + active_missing.sum(dim=-1))[valid_rows].float().mean()
+                ) if bool(valid_rows.any()) else None,
+                "context_residual_norm": float(
+                    context_residual[valid_rows].norm(dim=-1).mean()
+                ) if bool(valid_rows.any()) else None,
+            }
+        return hidden
+
+
 class OSRAMBackbone(nn.Module):
     """Bidirectional slot-conditioned associative memory.
 
@@ -348,10 +432,11 @@ class OSRAMBackbone(nn.Module):
         super().__init__()
         if osram_readout_fusion not in (
             "flat", "local-gated", "local-cross-attn", "modality-tracks",
-            "modality-track-residual"
+            "modality-track-residual", "base-gap-delta"
         ):
             raise ValueError(
-                "osram_readout_fusion must be flat, local-gated, local-cross-attn, modality-tracks, or modality-track-residual"
+                "osram_readout_fusion must be flat, local-gated, local-cross-attn, "
+                "modality-tracks, modality-track-residual, or base-gap-delta"
             )
         if osram_readout_fusion != "flat" and (osram_ablation != "full" or osram_emotion_ablation != "full"):
             raise ValueError("local-gated cannot combine with readout ablations")
@@ -478,16 +563,21 @@ class OSRAMBackbone(nn.Module):
                 elif osram_readout_fusion == "modality-tracks":
                     self.modality_track_fusion = ModalityTrackFlatFusion(
                         self.latent_dim, self.context_dim, self.output_dim, dropout=dropout)
-                else:
+                elif osram_readout_fusion == "modality-track-residual":
                     self.modality_track_residual = ModalityTrackResidualFusion(
                         self.latent_dim, self.output_dim, dropout=dropout)
-            if osram_readout_fusion not in ("modality-tracks", "modality-track-residual"):
+                else:
+                    self.base_gap_delta_fusion = BaseGapDeltaFusion(
+                        self.latent_dim, self.context_dim, self.output_dim, dropout=dropout)
+            if osram_readout_fusion not in (
+                "modality-tracks", "modality-track-residual", "base-gap-delta"
+            ):
                 self.local_centered_fusion.local_skip.load_state_dict(self.local_skip.state_dict())
                 self.local_centered_fusion.emotion_norm.load_state_dict(self.emotion_norm.state_dict())
             # Historical flat keys remain available for readout interventions.
             # The residual mode intentionally keeps them trainable by default;
             # the frozen-backbone experiment freezes them explicitly in the trainer.
-            if osram_readout_fusion != "modality-track-residual":
+            if osram_readout_fusion not in ("modality-track-residual", "base-gap-delta"):
                 self.emotion_adapter.requires_grad_(False)
                 self.local_skip.requires_grad_(False)
                 self.emotion_norm.requires_grad_(False)
@@ -954,6 +1044,17 @@ class OSRAMBackbone(nn.Module):
             hidden = hidden + self.modality_track_residual(
                 latents, availability, umask, modality_embeddings
             )
+        elif self.osram_readout_fusion == "base-gap-delta":
+            hidden = self.base_gap_delta_fusion(
+                local,
+                emotion_base,
+                emotion_gap,
+                availability,
+                umask,
+                emotion_adapter=self.emotion_adapter,
+                local_skip=self.local_skip,
+                emotion_norm=self.emotion_norm,
+            )
         elif self.osram_readout_fusion != "flat":
             hidden = self.local_centered_fusion(
                 local, base_context, gap_context, availability, umask)
@@ -1043,6 +1144,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics["modality_track_fusion"] = self.modality_track_fusion.last_diagnostics
         elif self.osram_readout_fusion == "modality-track-residual":
             diagnostics["modality_track_residual"] = self.modality_track_residual.last_diagnostics
+        elif self.osram_readout_fusion == "base-gap-delta":
+            diagnostics["base_gap_delta_fusion"] = self.base_gap_delta_fusion.last_diagnostics
         elif self.osram_readout_fusion != "flat":
             diagnostics["local_centered_fusion"] = self.local_centered_fusion.last_diagnostics
         self.last_diagnostics = diagnostics

@@ -1388,10 +1388,11 @@ class MissingM3GraphModel(GraphModel):
         b2_constructor_settings = {k:v for k,v in locals().items() if k not in {"self","__class__"}}
         if osram_readout_fusion not in (
             "flat", "local-gated", "local-cross-attn", "modality-tracks",
-            "modality-track-residual"
+            "modality-track-residual", "base-gap-delta"
         ):
             raise ValueError(
-                "osram_readout_fusion must be flat, local-gated, local-cross-attn, modality-tracks, or modality-track-residual"
+                "osram_readout_fusion must be flat, local-gated, local-cross-attn, "
+                "modality-tracks, modality-track-residual, or base-gap-delta"
             )
         if osram_readout_fusion != "flat" and (
             backbone_type != "osram" or osram_predictor_mode != "structured"

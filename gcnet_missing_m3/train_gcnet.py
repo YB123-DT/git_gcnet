@@ -295,10 +295,11 @@ class TrainConfig:
                 raise ValueError("complete-state requires causal flat OSRAM without completion or legacy transfer, and uniform loss weighting")
         if self.osram_readout_fusion not in {
             "flat", "local-gated", "local-cross-attn", "modality-tracks",
-            "modality-track-residual"
+            "modality-track-residual", "base-gap-delta"
         }:
             raise ValueError(
-                "osram_readout_fusion must be flat, local-gated, local-cross-attn, modality-tracks, or modality-track-residual"
+                "osram_readout_fusion must be flat, local-gated, local-cross-attn, "
+                "modality-tracks, modality-track-residual, or base-gap-delta"
             )
         if self.osram_readout_fusion != "flat":
             if self.backbone_type != "osram":
@@ -2933,7 +2934,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--osram-readout-fusion",
         choices=(
             "flat", "local-gated", "local-cross-attn", "modality-tracks",
-            "modality-track-residual",
+            "modality-track-residual", "base-gap-delta",
         ),
         default="flat",
     )
