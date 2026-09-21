@@ -506,6 +506,11 @@ def train_joint(
                 "target_count": sum(target_counts),
             }
         )
+        print(
+            f"epoch={epoch} loss={history[-1]['loss']:.6f} "
+            f"target_count={history[-1]['target_count']}",
+            flush=True,
+        )
     return history
 
 
