@@ -42,6 +42,22 @@ training values are much higher.  For seed 66, for example, `T→V` falls from
 `0.6624` on train to `0.0600` on validation; the other MOSI routes show the
 same train/validation separation rather than an isolated failure of one route.
 
+The other datasets do show usable, but still imperfect, validation transfer
+when averaging all nine routes:
+
+| Dataset | Train mean | Validation mean | Validation − train |
+|---|---:|---:|---:|
+| CMU-MOSI | 0.6900 | 0.1433 | -0.5467 |
+| CMU-MOSEI | 0.4253 | 0.2746 | -0.1507 |
+| IEMOCAP (6) | 0.5567 | 0.2941 | -0.2626 |
+
+Thus MOSEI has the smallest train/validation gap and the most stable transfer.
+IEMOCAP has a larger absolute gap, but its validation alignment remains
+consistently non-zero across seeds.  These are signs of partial
+generalization, not strong sample-level prediction.  In particular, the
+validation `V→T`/`T→V` routes remain weak on both datasets (MOSEI `0.1980` /
+`0.1799`; IEMOCAP `0.1823` / `0.1564`).
+
 MOSEI and IEMOCAP show more stable, non-zero validation alignment, but this
 does not rescue the MOSI setting.  The likely confound is the current
 dataset-uniform, fixed-step schedule: MOSI has only two training batches while
