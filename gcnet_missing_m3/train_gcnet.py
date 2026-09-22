@@ -132,6 +132,9 @@ class TrainConfig:
     b2_base_checkpoint: str | None = None
     b2_pretrain_checkpoint: str | None = None
     joint_pretrain_checkpoint: str | None = None
+    # Load joint-pretraining projectors as initialization only when false.
+    # The historical joint-frozen diagnostic keeps the default true.
+    joint_pretrain_freeze: bool = True
     teacher_mode: str = "ema"
     teacher_checkpoint: str | None = None
     target_space: str = "all-modalities"
@@ -545,6 +548,7 @@ def _load_joint_pretrained_representation(
     model: MissingM3GraphModel,
     checkpoint_path: str | Path,
     load_predictor: bool,
+    freeze_projectors: bool = True,
 ) -> Dict[str, object]:
     """Load the shared three-dataset utterance pretraining space.
 
@@ -589,8 +593,9 @@ def _load_joint_pretrained_representation(
     if not projector_state:
         raise ValueError("joint pretraining checkpoint has no projectors.* state")
     model.observed_set.projectors.load_state_dict(projector_state, strict=True)
-    model.observed_set.projectors.requires_grad_(False)
-    model.observed_set.projectors.eval()
+    model.observed_set.projectors.requires_grad_(bool(not freeze_projectors))
+    if freeze_projectors:
+        model.observed_set.projectors.eval()
 
     predictor_loaded = False
     predictor_hash = None
@@ -620,6 +625,7 @@ def _load_joint_pretrained_representation(
         "projector_hash": projector_hash,
         "predictor_loaded": predictor_loaded,
         "predictor_hash": predictor_hash,
+        "projectors_frozen": bool(freeze_projectors),
         "teacher_ignored": True,
     }
 
@@ -1516,10 +1522,13 @@ def train_epoch(
     train_future_state = config.training_objective == "future-state"
     model.train()
     if config.joint_pretrain_checkpoint is not None:
-        # Transferred projectors/MMoE are inference-only in the frozen
-        # reinjection experiment.  Keep their dropout deterministic and avoid
-        # accidentally switching them back to train mode here.
-        model.observed_set.projectors.eval()
+        # Frozen-transfer projectors/MMoE are inference-only.  With the
+        # initialization-only control, projectors remain in train mode so the
+        # emotion objective can adapt their coordinates.
+        if config.joint_pretrain_freeze:
+            model.observed_set.projectors.eval()
+        else:
+            model.observed_set.projectors.train()
         if getattr(model, "source_only_predictor", None) is not None:
             model.source_only_predictor.eval()
         if model.teacher is not None:
@@ -2430,15 +2439,17 @@ def run_experiment(
             model,
             config_value.joint_pretrain_checkpoint,
             load_predictor=config_value.completion_path == "pre_osram_joint_frozen",
+            freeze_projectors=config_value.joint_pretrain_freeze,
         )
-        joint_frozen_probe = _configure_joint_frozen_probe(
-            model,
-            freeze_predictor=config_value.completion_path == "pre_osram_joint_frozen",
-        )
-        joint_frozen_hash_before = _parameter_subset_sha256(
-            model,
-            joint_frozen_probe["frozen_parameter_names"],
-        )
+        if config_value.joint_pretrain_freeze:
+            joint_frozen_probe = _configure_joint_frozen_probe(
+                model,
+                freeze_predictor=config_value.completion_path == "pre_osram_joint_frozen",
+            )
+            joint_frozen_hash_before = _parameter_subset_sha256(
+                model,
+                joint_frozen_probe["frozen_parameter_names"],
+            )
     if config_value.initial_backbone_checkpoint is not None:
         initialization = _load_inference_backbone_checkpoint(
             model,
@@ -2930,6 +2941,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--b2-pretrain-checkpoint",default=None)
     parser.add_argument("--joint-pretrain-checkpoint",default=None)
     parser.add_argument(
+        "--joint-pretrain-freeze",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Freeze transferred joint-pretraining projectors (default); disable for initialization-only fine-tuning.",
+    )
+    parser.add_argument(
         "--dataset",
         choices=("IEMOCAPFour", "IEMOCAPSix", "CMUMOSI", "CMUMOSEI"),
         default="IEMOCAPSix",
@@ -3162,6 +3179,7 @@ def main(argv=None) -> None:
         b2_base_checkpoint=args.b2_base_checkpoint,
         b2_pretrain_checkpoint=args.b2_pretrain_checkpoint,
         joint_pretrain_checkpoint=args.joint_pretrain_checkpoint,
+        joint_pretrain_freeze=args.joint_pretrain_freeze,
         fold=args.fold,
         seed=args.seed,
         window_past=args.windowp,
