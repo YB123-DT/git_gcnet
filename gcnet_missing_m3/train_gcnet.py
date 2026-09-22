@@ -217,7 +217,9 @@ class TrainConfig:
                 or self.teacher_mode != "ema"
                 or self.teacher_checkpoint is not None
                 or self.target_space != "all-modalities"
-                or self.completion_path != "none"
+                or self.completion_path not in {
+                    "none", "pre_osram_joint_dual_projector"
+                }
                 or self.classification_completion):
             raise ValueError(
                 "disable_unused_aux_modules is only valid for plain emotion-only "
@@ -549,6 +551,7 @@ def _load_joint_pretrained_representation(
     checkpoint_path: str | Path,
     load_predictor: bool,
     freeze_projectors: bool = True,
+    dual_projector_completion: bool = False,
 ) -> Dict[str, object]:
     """Load the shared three-dataset utterance pretraining space.
 
@@ -592,10 +595,17 @@ def _load_joint_pretrained_representation(
     projector_state = _extract("projectors.")
     if not projector_state:
         raise ValueError("joint pretraining checkpoint has no projectors.* state")
-    model.observed_set.projectors.load_state_dict(projector_state, strict=True)
-    model.observed_set.projectors.requires_grad_(bool(not freeze_projectors))
+    projector_bank = (
+        model.completion_projectors
+        if dual_projector_completion
+        else model.observed_set.projectors
+    )
+    if projector_bank is None:
+        raise ValueError("dual-projector completion bank is unavailable")
+    projector_bank.load_state_dict(projector_state, strict=True)
+    projector_bank.requires_grad_(bool(not freeze_projectors))
     if freeze_projectors:
-        model.observed_set.projectors.eval()
+        projector_bank.eval()
 
     predictor_loaded = False
     predictor_hash = None
@@ -611,10 +621,10 @@ def _load_joint_pretrained_representation(
         predictor_loaded = True
         predictor_hash = _state_subset_sha256(model.source_only_predictor)
 
-    if model.teacher is not None:
+    if model.teacher is not None and not dual_projector_completion:
         model.teacher.requires_grad_(False)
         model.teacher.eval()
-    projector_hash = _state_subset_sha256(model.observed_set.projectors)
+    projector_hash = _state_subset_sha256(projector_bank)
     return {
         "checkpoint": str(path.resolve()),
         "checkpoint_sha256": _sha256_file(path),
@@ -626,6 +636,10 @@ def _load_joint_pretrained_representation(
         "predictor_loaded": predictor_loaded,
         "predictor_hash": predictor_hash,
         "projectors_frozen": bool(freeze_projectors),
+        "projector_destination": (
+            "completion_projectors" if dual_projector_completion
+            else "observed_set.projectors"
+        ),
         "teacher_ignored": True,
     }
 
@@ -644,9 +658,14 @@ def _state_subset_sha256(module: torch.nn.Module) -> str:
 def _configure_joint_frozen_probe(
     model: MissingM3GraphModel,
     freeze_predictor: bool,
+    dual_projector_completion: bool = False,
 ) -> Dict[str, object]:
     """Freeze only the transferred representation (and predictor when used)."""
-    frozen_prefixes = ("observed_set.projectors.", "teacher.")
+    frozen_prefixes = (
+        ("completion_projectors.",)
+        if dual_projector_completion
+        else ("observed_set.projectors.", "teacher.")
+    )
     if freeze_predictor:
         frozen_prefixes += ("source_only_predictor.",)
     trainable_names = []
@@ -1525,10 +1544,12 @@ def train_epoch(
         # Frozen-transfer projectors/MMoE are inference-only.  With the
         # initialization-only control, projectors remain in train mode so the
         # emotion objective can adapt their coordinates.
-        if config.joint_pretrain_freeze:
+        if config.joint_pretrain_freeze and config.completion_path != "pre_osram_joint_dual_projector":
             model.observed_set.projectors.eval()
         else:
             model.observed_set.projectors.train()
+        if getattr(model, "completion_projectors", None) is not None:
+            model.completion_projectors.eval()
         if getattr(model, "source_only_predictor", None) is not None:
             model.source_only_predictor.eval()
         if model.teacher is not None:
@@ -2253,11 +2274,19 @@ def run_experiment(
             raise ValueError("B2 joint cyclic training requires its base and Stage1 checkpoints, no legacy transfer")
         from .b2_training import validate_stage2_config
         validate_stage2_config(config_value)
-    if config_value.completion_path == "pre_osram_joint_frozen":
+    if config_value.completion_path in {
+        "pre_osram_joint_frozen", "pre_osram_joint_dual_projector"
+    }:
         if not config_value.joint_pretrain_checkpoint:
-            raise ValueError("pre_osram_joint_frozen requires joint_pretrain_checkpoint")
+            raise ValueError("joint pretrained completion requires joint_pretrain_checkpoint")
         if config_value.classification_completion or config_value.initial_backbone_checkpoint:
             raise ValueError("joint frozen completion does not combine legacy completion or backbone transfer")
+        if (config_value.completion_path == "pre_osram_joint_dual_projector"
+                and (config_value.training_objective != "emotion-only"
+                     or not config_value.joint_pretrain_freeze)):
+            raise ValueError(
+                "dual-projector completion requires emotion-only training and a frozen completion bank"
+            )
         if config_value.train_rate_mode not in {"cyclic", "fixed", "stratified", "uniform-forced-text", "all"}:
             raise ValueError("unsupported training-rate mode for joint frozen completion")
     protocol_rates = _protocol_rates(config_value)
@@ -2438,13 +2467,23 @@ def run_experiment(
         initialization = _load_joint_pretrained_representation(
             model,
             config_value.joint_pretrain_checkpoint,
-            load_predictor=config_value.completion_path == "pre_osram_joint_frozen",
+            load_predictor=config_value.completion_path in {
+                "pre_osram_joint_frozen", "pre_osram_joint_dual_projector"
+            },
             freeze_projectors=config_value.joint_pretrain_freeze,
+            dual_projector_completion=(
+                config_value.completion_path == "pre_osram_joint_dual_projector"
+            ),
         )
         if config_value.joint_pretrain_freeze:
             joint_frozen_probe = _configure_joint_frozen_probe(
                 model,
-                freeze_predictor=config_value.completion_path == "pre_osram_joint_frozen",
+                freeze_predictor=config_value.completion_path in {
+                    "pre_osram_joint_frozen", "pre_osram_joint_dual_projector"
+                },
+                dual_projector_completion=(
+                    config_value.completion_path == "pre_osram_joint_dual_projector"
+                ),
             )
             joint_frozen_hash_before = _parameter_subset_sha256(
                 model,
@@ -2936,7 +2975,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use one masked-mean node regression predictor instead of the MMoE predictor.",
     )
-    parser.add_argument("--completion-path",choices=("none","pre_osram_b2","pre_osram_joint_frozen"),default="none")
+    parser.add_argument(
+        "--completion-path",
+        choices=(
+            "none", "pre_osram_b2", "pre_osram_joint_frozen",
+            "pre_osram_joint_dual_projector",
+        ),
+        default="none",
+    )
     parser.add_argument("--b2-base-checkpoint",default=None)
     parser.add_argument("--b2-pretrain-checkpoint",default=None)
     parser.add_argument("--joint-pretrain-checkpoint",default=None)

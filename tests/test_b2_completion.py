@@ -124,6 +124,44 @@ def test_b2_one_osram_no_teacher_and_gradients():
     hook.remove()
 
 
+def test_dual_projector_completion_keeps_online_bank_trainable_and_no_leakage():
+    model = MissingM3GraphModel(
+        **model_kwargs(),
+        completion_path="pre_osram_joint_dual_projector",
+        training_objective="emotion-only",
+        disable_unused_aux_modules=True,
+    ).eval()
+    assert model.teacher is None
+    assert model.completion_projectors is not None
+    assert all(p.requires_grad for p in model.observed_set.projectors.parameters())
+    assert all(not p.requires_grad for p in model.completion_projectors.parameters())
+
+    _, availability, umask = inputs()
+    features = torch.randn(8, 1, 12)
+    qmask = torch.zeros(1, 8, dtype=torch.long)
+    changed = features.clone()
+    start = 0
+    for index, width in enumerate(model.dimensions):
+        missing = ~availability[..., index].bool()
+        changed[..., start : start + width][missing] = 1000.0 * torch.randn_like(
+            changed[..., start : start + width][missing]
+        )
+        start += width
+
+    original = model([features], availability, qmask, umask, [7])[0]
+    perturbed = model([changed], availability, qmask, umask, [7])[0]
+    torch.testing.assert_close(original, perturbed, rtol=0, atol=0)
+
+    model.train()
+    assert model.observed_set.projectors.training
+    assert not model.completion_projectors.training
+    assert not model.source_only_predictor.training
+    model([features], availability, qmask, umask, [7])[0].square().sum().backward()
+    assert any(p.grad is not None for p in model.observed_set.projectors.parameters())
+    assert all(p.grad is None for p in model.completion_projectors.parameters())
+    assert all(p.grad is None for p in model.source_only_predictor.parameters())
+
+
 @pytest.mark.parametrize("replacement",["zero","random","shuffle"])
 def test_b2_prediction_override_memory_exact_each_step(replacement):
     components()

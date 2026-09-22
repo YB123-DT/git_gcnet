@@ -1296,12 +1296,13 @@ class MissingM3GraphModel(GraphModel):
         self.teacher_provenance = None
         self.disable_unused_aux_modules = bool(disable_unused_aux_modules)
         self.simple_regression_predictor_enabled = bool(simple_regression_predictor)
+        dual_projector_completion = completion_path == "pre_osram_joint_dual_projector"
         if self.disable_unused_aux_modules and (
             training_objective != "emotion-only"
             or teacher_mode != "ema"
             or teacher_checkpoint is not None
             or target_space != "all-modalities"
-            or completion_path != "none"
+            or completion_path not in {"none", "pre_osram_joint_dual_projector"}
             or classification_completion
             or complete_state_jepa
             or write_state_completion
@@ -1399,9 +1400,18 @@ class MissingM3GraphModel(GraphModel):
             or completion_path != "none" or classification_completion
         ):
             raise ValueError(f"{osram_readout_fusion} requires structured OSRAM without completion")
-        if completion_path not in {"none", "pre_osram_b2", "pre_osram_joint_frozen"}:
-            raise ValueError("completion_path must be none, pre_osram_b2, or pre_osram_joint_frozen")
-        if completion_path in {"pre_osram_b2", "pre_osram_joint_frozen"}:
+        completion_paths = {
+            "none",
+            "pre_osram_b2",
+            "pre_osram_joint_frozen",
+            "pre_osram_joint_dual_projector",
+        }
+        if completion_path not in completion_paths:
+            raise ValueError(
+                "completion_path must be none, pre_osram_b2, "
+                "pre_osram_joint_frozen, or pre_osram_joint_dual_projector"
+            )
+        if completion_path != "none":
             if classification_completion:
                 raise ValueError("B2 cannot use legacy classification_completion")
             if (backbone_type != "osram" or osram_bidirectional or osram_forward_slot_reuse
@@ -1673,16 +1683,32 @@ class MissingM3GraphModel(GraphModel):
             self.affine_readout = AvailabilityConditionedAffineReadout(
                 hidden_dim
             )
-        self.joint_completion_frozen = completion_path == "pre_osram_joint_frozen"
-        if self.completion_path in {"pre_osram_b2", "pre_osram_joint_frozen"}:
+        self.joint_completion_frozen = completion_path in {
+            "pre_osram_joint_frozen",
+            "pre_osram_joint_dual_projector",
+        }
+        self.completion_projectors = None
+        if self.completion_path in {
+            "pre_osram_b2",
+            "pre_osram_joint_frozen",
+            "pre_osram_joint_dual_projector",
+        }:
             from .b2 import SourceOnlyM3Predictor, CompletedReadFusion
             self.b2_model_settings = b2_constructor_settings
             self.source_only_predictor = SourceOnlyM3Predictor(
                 latent_dim, num_experts, top_k, predictor_dropout,
                 mmoe_variant, target_private_rank)
             self.completed_read_fusion = CompletedReadFusion(latent_dim, projector_dropout)
+            if dual_projector_completion:
+                # The online bank above remains the ordinary trainable emotion
+                # representation.  This second bank is loaded from joint
+                # pretraining and is used only by the frozen completion branch.
+                self.completion_projectors = EMATeacherProjectors(
+                    self.observed_set.projectors
+                )
             # Keep legacy state keys loadable, but do not optimize the unused predictor.
-            self.missing_predictor.requires_grad_(False)
+            if self.missing_predictor is not None:
+                self.missing_predictor.requires_grad_(False)
 
         if self.complete_state_jepa:
             from .complete_state import CompleteViewLocalStateJEPA
@@ -1754,19 +1780,33 @@ class MissingM3GraphModel(GraphModel):
             osram_nodes['post_write_observer'] = self.future_state.begin(encoded, umask.T.bool())
         if self.write_state_completion:
             osram_nodes['write_completion']=self.write_state.begin(encoded,latents,availability,umask.T.bool())
-        if self.completion_path in {"pre_osram_b2", "pre_osram_joint_frozen"}:
+        completion_paths = {
+            "pre_osram_b2",
+            "pre_osram_joint_frozen",
+            "pre_osram_joint_dual_projector",
+        }
+        if self.completion_path in completion_paths:
+            completion_latents = latents
+            if self.completion_path == "pre_osram_joint_dual_projector":
+                completion_latents = self._completion_observed_latents(
+                    features, availability, umask
+                )
             if self.joint_completion_frozen:
                 with torch.no_grad():
                     internal_predictions = self.source_only_predictor(
-                        latents, availability, umask
+                        completion_latents, availability, umask
                     )
             else:
-                internal_predictions = self.source_only_predictor(latents, availability, umask)
+                internal_predictions = self.source_only_predictor(
+                    completion_latents, availability, umask
+                )
             if completion_predictions_override is not None and self.training:
                 raise ValueError("completion override is evaluation-only")
             reg = (internal_predictions.reg_predictions if completion_predictions_override is None
                    else completion_predictions_override)
-            read_node = self.completed_read_fusion(encoded, latents, reg, availability, umask)
+            read_node = self.completed_read_fusion(
+                encoded, completion_latents, reg, availability, umask
+            )
             osram_nodes = {"read_node": read_node, "write_node": encoded}
         elif completion_predictions_override is not None:
             raise ValueError("completion override requires a pre-OSRAM completion path")
@@ -1811,7 +1851,7 @@ class MissingM3GraphModel(GraphModel):
             )
         if (self.complete_state_jepa or self.write_state_completion or self.future_state_jepa) and predict_missing:
             raise ValueError("State objectives use their auxiliary loss, not modality predictions")
-        if self.completion_path not in {"pre_osram_b2", "pre_osram_joint_frozen"} and (predict_missing or self.classification_completion):
+        if self.completion_path not in completion_paths and (predict_missing or self.classification_completion):
             if self.simple_regression_predictor is not None:
                 internal_predictions = self.simple_regression_predictor(
                     encoded,
@@ -1864,6 +1904,33 @@ class MissingM3GraphModel(GraphModel):
             )
         returned_predictions = internal_predictions if predict_missing else None
         return logits, classification_hidden, latents, returned_predictions
+
+    @torch.no_grad()
+    def _completion_observed_latents(
+        self,
+        incomplete_features: torch.Tensor,
+        availability: torch.Tensor,
+        umask: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+        """Encode only real observed slots in the frozen completion space.
+
+        Missing raw blocks are never projected.  Consequently the branch has
+        exactly the same information at train and test time and cannot become
+        an oracle fill from the complete feature tensor.
+        """
+        if self.completion_projectors is None:
+            raise RuntimeError("dual-projector completion bank is unavailable")
+        valid = umask.T.bool()
+        parts = torch.split(incomplete_features, self.dimensions, dim=-1)
+        latent_shape = (*incomplete_features.shape[:2], self.latent_dim)
+        outputs: Dict[str, torch.Tensor] = {}
+        for index, (name, part) in enumerate(zip(MODALITIES, parts)):
+            selected = valid & availability[..., index].bool()
+            latent = incomplete_features.new_zeros(latent_shape)
+            if bool(selected.any()):
+                latent[selected] = self.completion_projectors[name](part[selected])
+            outputs[name] = latent
+        return outputs
 
     @torch.no_grad()
     def encode_teacher_targets(self, complete_features) -> Dict[str, torch.Tensor]:
@@ -1925,6 +1992,10 @@ class MissingM3GraphModel(GraphModel):
         super().train(mode)
         if self.teacher is not None:
             self.teacher.train(False)
+        if self.completion_projectors is not None:
+            self.completion_projectors.train(False)
+        if self.joint_completion_frozen and hasattr(self, "source_only_predictor"):
+            self.source_only_predictor.train(False)
         if self.text_subspace is not None:
             self.text_subspace.train(False)
         return self
