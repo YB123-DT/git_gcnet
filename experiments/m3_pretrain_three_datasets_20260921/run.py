@@ -48,6 +48,31 @@ ROUTES = {
 }
 
 
+def resolve_dataset_names(
+    feature_roots: Mapping[str, Sequence[str]],
+) -> tuple[str, ...]:
+    """Validate and preserve the requested dataset order.
+
+    The original experiment uses all three datasets.  A strict subset is also
+    supported so that a single-dataset control can match the per-dataset update
+    budget of the joint schedule without duplicating model code.
+    """
+
+    names = tuple(str(name) for name in feature_roots)
+    if not names:
+        raise ValueError("at least one dataset is required")
+    unsupported = sorted(set(names) - set(DATASETS))
+    if unsupported:
+        raise ValueError(
+            "unsupported dataset(s): {} (supported dataset(s): {})".format(
+                ", ".join(unsupported), ", ".join(DATASETS)
+            )
+        )
+    if len(set(names)) != len(names):
+        raise ValueError("dataset names must be unique")
+    return names
+
+
 def sample_source_availability(
     umask: torch.Tensor,
     *,
@@ -315,11 +340,10 @@ def build_joint_loaders(
 ):
     """Load separate train/validation streams while sharing feature dimensions."""
 
-    if set(feature_roots) != set(DATASETS):
-        raise ValueError(f"feature_roots must contain exactly {DATASETS}")
+    dataset_names = resolve_dataset_names(feature_roots)
     result = {}
     shared_dims = None
-    for dataset_name in DATASETS:
+    for dataset_name in dataset_names:
         roots = tuple(feature_roots[dataset_name])
         if len(roots) != 3:
             raise ValueError("each feature root entry must contain audio/text/video")
@@ -461,16 +485,17 @@ def train_joint(
         lr=learning_rate,
         weight_decay=weight_decay,
     )
-    iterators = {
-        name: iter(loaders[name]["train"]) for name in DATASETS
-    }
+    dataset_names = tuple(loaders)
+    if not dataset_names:
+        raise ValueError("loaders must contain at least one dataset")
+    iterators = {name: iter(loaders[name]["train"]) for name in dataset_names}
     history = []
     mask_generator = torch.Generator().manual_seed(seed + 9000)
     schedule_generator = torch.Generator().manual_seed(seed + 9100)
     for epoch in range(1, epochs + 1):
         model.train()
         dataset_schedule = uniform_dataset_schedule(
-            DATASETS, steps=steps_per_epoch, generator=schedule_generator
+            dataset_names, steps=steps_per_epoch, generator=schedule_generator
         )
         losses = []
         target_counts = []
@@ -587,7 +612,7 @@ def _parse_args() -> argparse.Namespace:
         action="append",
         nargs=4,
         metavar=("DATASET", "AUDIO", "TEXT", "VISUAL"),
-        help="repeat once for CMUMOSI, CMUMOSEI, and IEMOCAPSix",
+        help="repeat once per dataset; use one entry for a single-dataset control",
     )
     return parser.parse_args()
 
@@ -605,8 +630,10 @@ def main() -> None:
     if not args.feature_root:
         raise SystemExit("--feature-root is required when --run is set")
     feature_roots = {entry[0]: entry[1:] for entry in args.feature_root}
-    if set(feature_roots) != set(DATASETS):
-        raise SystemExit(f"--feature-root is required once for each {DATASETS}")
+    try:
+        dataset_names = resolve_dataset_names(feature_roots)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
     set_random_seed(args.seed)
     device = torch.device(args.device)
     loaders, dimensions = build_joint_loaders(
@@ -647,6 +674,7 @@ def main() -> None:
             "model_config": model_config,
             "model_state": model.state_dict(),
             "dimensions": dimensions,
+            "dataset_names": dataset_names,
             "seed": args.seed,
             "evaluation_protocol": args.evaluation_protocol,
             "history": history,

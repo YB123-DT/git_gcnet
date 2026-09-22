@@ -117,3 +117,13 @@ def test_dataset_schedule_is_uniform_and_validation_is_separate():
     counts = {name: schedule.count(name) for name in set(schedule)}
     assert set(counts) == {"CMUMOSI", "CMUMOSEI", "IEMOCAPSix"}
     assert max(counts.values()) - min(counts.values()) < 45
+
+
+def test_loader_configuration_accepts_a_single_dataset_for_matched_baseline():
+    module = components()
+    assert module.resolve_dataset_names({"CMUMOSI": ()}) == ("CMUMOSI",)
+    assert module.resolve_dataset_names(
+        {name: () for name in module.DATASETS}
+    ) == module.DATASETS
+    with pytest.raises(ValueError, match="supported dataset"):
+        module.resolve_dataset_names({"unknown": ()})

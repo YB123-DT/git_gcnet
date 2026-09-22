@@ -47,6 +47,13 @@ The same functionality is available through `build_joint_loaders` and
 }
 ```
 
+For a single-dataset control, pass only that dataset's `--feature-root` entry.
+To match the MOSI optimizer-update exposure in the three-dataset run, use the
+same batch size and approximately one third of the joint `steps_per_epoch`
+(the completed comparison uses `24` steps per epoch versus `71` joint steps).
+This avoids giving MOSI-only three times as many updates merely because the
+other two datasets are absent.
+
 run `evaluate.py` with one `--feature-root DATASET AUDIO TEXT VISUAL` option for
 each dataset.  It reports, separately for train and validation, centered cosine,
 prediction/target standard deviation, prediction MSE, and the gap against the

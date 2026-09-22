@@ -9,10 +9,10 @@ from pathlib import Path
 import torch
 
 from .run import (
-    DATASETS,
     ThreeDatasetJEPA,
     build_joint_loaders,
     evaluate_train_validation,
+    resolve_dataset_names,
 )
 
 
@@ -42,8 +42,10 @@ def main() -> None:
     args = _parse_args()
     device = torch.device(args.device)
     feature_roots = {entry[0]: entry[1:] for entry in args.feature_root}
-    if set(feature_roots) != set(DATASETS):
-        raise SystemExit(f"--feature-root is required once for each {DATASETS}")
+    try:
+        dataset_names = resolve_dataset_names(feature_roots)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
     model = load_checkpoint(args.checkpoint, device)
     loaders, dimensions = build_joint_loaders(
         feature_roots,
@@ -55,6 +57,7 @@ def main() -> None:
     )
     results = {
         "checkpoint": str(args.checkpoint),
+        "dataset_names": dataset_names,
         "dimensions": dimensions,
         "metrics": evaluate_train_validation(
             model, loaders, seed=args.seed, device=device
