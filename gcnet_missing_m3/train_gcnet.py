@@ -131,6 +131,7 @@ class TrainConfig:
     completion_path: str = "none"
     b2_base_checkpoint: str | None = None
     b2_pretrain_checkpoint: str | None = None
+    joint_pretrain_checkpoint: str | None = None
     teacher_mode: str = "ema"
     teacher_checkpoint: str | None = None
     target_space: str = "all-modalities"
@@ -537,6 +538,125 @@ def _load_inference_backbone_checkpoint(
         "included_jepa_modules": include_jepa_modules,
         "load_all_shared_modules": load_all_shared_modules,
         "allowed_missing_prefixes": list(allow_missing_prefixes),
+    }
+
+
+def _load_joint_pretrained_representation(
+    model: MissingM3GraphModel,
+    checkpoint_path: str | Path,
+    load_predictor: bool,
+) -> Dict[str, object]:
+    """Load the shared three-dataset utterance pretraining space.
+
+    The joint pretrainer deliberately stores a small, standalone state under
+    ``model_state`` rather than a downstream ``MissingM3GraphModel`` state.
+    This loader only accepts the modality projectors and (for the reinjection
+    path) the source-only predictor.  No EMA teacher weights are used as
+    student targets here.
+    """
+    path = Path(checkpoint_path)
+    checkpoint = torch.load(path, map_location="cpu", weights_only=False)
+    state = checkpoint.get("model_state")
+    model_config = checkpoint.get("model_config")
+    if not isinstance(state, Mapping) or not isinstance(model_config, Mapping):
+        raise ValueError("joint pretraining checkpoint lacks model_state/model_config")
+    expected_cfg = {
+        "latent_dim": int(model.latent_dim),
+        "num_experts": int(model.source_only_predictor.mmoe.num_experts)
+        if getattr(model, "source_only_predictor", None) is not None
+        else None,
+        "top_k": int(model.source_only_predictor.mmoe.top_k)
+        if getattr(model, "source_only_predictor", None) is not None
+        else None,
+    }
+    for key, expected in expected_cfg.items():
+        if expected is not None and int(model_config.get(key, -1)) != expected:
+            raise ValueError(
+                f"joint pretraining {key} mismatch: "
+                f"source={model_config.get(key)!r}, target={expected!r}"
+            )
+    if tuple(model_config.get("dimensions", ())) != tuple(model.dimensions):
+        raise ValueError("joint pretraining feature dimensions differ from target model")
+
+    def _extract(prefix: str) -> Dict[str, torch.Tensor]:
+        return {
+            key[len(prefix):]: value
+            for key, value in state.items()
+            if key.startswith(prefix)
+        }
+
+    projector_state = _extract("projectors.")
+    if not projector_state:
+        raise ValueError("joint pretraining checkpoint has no projectors.* state")
+    model.observed_set.projectors.load_state_dict(projector_state, strict=True)
+    model.observed_set.projectors.requires_grad_(False)
+    model.observed_set.projectors.eval()
+
+    predictor_loaded = False
+    predictor_hash = None
+    if load_predictor:
+        if getattr(model, "source_only_predictor", None) is None:
+            raise ValueError("target model has no source-only predictor")
+        predictor_state = _extract("predictor.")
+        if not predictor_state:
+            raise ValueError("joint pretraining checkpoint has no predictor.* state")
+        model.source_only_predictor.load_state_dict(predictor_state, strict=True)
+        model.source_only_predictor.requires_grad_(False)
+        model.source_only_predictor.eval()
+        predictor_loaded = True
+        predictor_hash = _state_subset_sha256(model.source_only_predictor)
+
+    if model.teacher is not None:
+        model.teacher.requires_grad_(False)
+        model.teacher.eval()
+    projector_hash = _state_subset_sha256(model.observed_set.projectors)
+    return {
+        "checkpoint": str(path.resolve()),
+        "checkpoint_sha256": _sha256_file(path),
+        "format": "three-dataset-utterance-m3-pretrain",
+        "seed": checkpoint.get("seed"),
+        "dimensions": list(model.dimensions),
+        "model_config": dict(model_config),
+        "projector_hash": projector_hash,
+        "predictor_loaded": predictor_loaded,
+        "predictor_hash": predictor_hash,
+        "teacher_ignored": True,
+    }
+
+
+def _state_subset_sha256(module: torch.nn.Module) -> str:
+    digest = hashlib.sha256()
+    for name, value in sorted(module.state_dict().items()):
+        tensor = value.detach().cpu().contiguous()
+        digest.update(name.encode("utf-8"))
+        digest.update(str(tensor.dtype).encode("ascii"))
+        digest.update(str(tuple(tensor.shape)).encode("ascii"))
+        digest.update(tensor.numpy().tobytes())
+    return digest.hexdigest()
+
+
+def _configure_joint_frozen_probe(
+    model: MissingM3GraphModel,
+    freeze_predictor: bool,
+) -> Dict[str, object]:
+    """Freeze only the transferred representation (and predictor when used)."""
+    frozen_prefixes = ("observed_set.projectors.", "teacher.")
+    if freeze_predictor:
+        frozen_prefixes += ("source_only_predictor.",)
+    trainable_names = []
+    frozen_names = []
+    for name, parameter in model.named_parameters():
+        frozen = name.startswith(frozen_prefixes)
+        parameter.requires_grad_(not frozen)
+        (frozen_names if frozen else trainable_names).append(name)
+    if not trainable_names:
+        raise ValueError("joint frozen transfer has no trainable parameters")
+    return {
+        "trainable_parameter_names": trainable_names,
+        "frozen_parameter_names": frozen_names,
+        "trainable_parameter_count": sum(model.get_parameter(n).numel() for n in trainable_names),
+        "frozen_parameter_count": sum(model.get_parameter(n).numel() for n in frozen_names),
+        "freeze_predictor": bool(freeze_predictor),
     }
 
 
@@ -1395,6 +1515,15 @@ def train_epoch(
     train_write_state = config.training_objective == "write-state"
     train_future_state = config.training_objective == "future-state"
     model.train()
+    if config.joint_pretrain_checkpoint is not None:
+        # Transferred projectors/MMoE are inference-only in the frozen
+        # reinjection experiment.  Keep their dropout deterministic and avoid
+        # accidentally switching them back to train mode here.
+        model.observed_set.projectors.eval()
+        if getattr(model, "source_only_predictor", None) is not None:
+            model.source_only_predictor.eval()
+        if model.teacher is not None:
+            model.teacher.eval()
     if config.osram_readout_fusion == "modality-track-residual":
         # The frozen no-JEPA anchor must be deterministic while the new
         # residual branch keeps its own dropout active during optimization.
@@ -2115,6 +2244,13 @@ def run_experiment(
             raise ValueError("B2 joint cyclic training requires its base and Stage1 checkpoints, no legacy transfer")
         from .b2_training import validate_stage2_config
         validate_stage2_config(config_value)
+    if config_value.completion_path == "pre_osram_joint_frozen":
+        if not config_value.joint_pretrain_checkpoint:
+            raise ValueError("pre_osram_joint_frozen requires joint_pretrain_checkpoint")
+        if config_value.classification_completion or config_value.initial_backbone_checkpoint:
+            raise ValueError("joint frozen completion does not combine legacy completion or backbone transfer")
+        if config_value.train_rate_mode not in {"cyclic", "fixed", "stratified", "uniform-forced-text", "all"}:
+            raise ValueError("unsupported training-rate mode for joint frozen completion")
     protocol_rates = _protocol_rates(config_value)
     if config_value.training_objective not in _TRAINING_OBJECTIVES:
         raise ValueError("unsupported training_objective")
@@ -2283,10 +2419,26 @@ def run_experiment(
     initialization = None
     frozen_probe = None
     frozen_hash_before = None
+    joint_frozen_probe = None
+    joint_frozen_hash_before = None
     if config_value.completion_path == "pre_osram_b2":
         from .b2_training import load_b2_initialization
         initialization = load_b2_initialization(model,config_value.b2_base_checkpoint,
                                                config_value.b2_pretrain_checkpoint)
+    if config_value.joint_pretrain_checkpoint is not None:
+        initialization = _load_joint_pretrained_representation(
+            model,
+            config_value.joint_pretrain_checkpoint,
+            load_predictor=config_value.completion_path == "pre_osram_joint_frozen",
+        )
+        joint_frozen_probe = _configure_joint_frozen_probe(
+            model,
+            freeze_predictor=config_value.completion_path == "pre_osram_joint_frozen",
+        )
+        joint_frozen_hash_before = _parameter_subset_sha256(
+            model,
+            joint_frozen_probe["frozen_parameter_names"],
+        )
     if config_value.initial_backbone_checkpoint is not None:
         initialization = _load_inference_backbone_checkpoint(
             model,
@@ -2551,6 +2703,23 @@ def run_experiment(
             "frozen_parameter_sha256_before": frozen_hash_before,
             "frozen_parameter_sha256_after": frozen_hash_after,
         }
+    joint_frozen_integrity = None
+    if joint_frozen_probe is not None:
+        joint_frozen_hash_after = _parameter_subset_sha256(
+            model,
+            joint_frozen_probe["frozen_parameter_names"],
+        )
+        if joint_frozen_hash_after != joint_frozen_hash_before:
+            raise RuntimeError("joint pretrained representation changed during training")
+        joint_frozen_integrity = {
+            "trainable_parameter_count": joint_frozen_probe[
+                "trainable_parameter_count"
+            ],
+            "frozen_parameter_count": joint_frozen_probe["frozen_parameter_count"],
+            "frozen_parameter_sha256_before": joint_frozen_hash_before,
+            "frozen_parameter_sha256_after": joint_frozen_hash_after,
+            "freeze_predictor": joint_frozen_probe["freeze_predictor"],
+        }
     test_metrics: Dict[str, Dict[str, float]] = {}
     mask_hashes: Dict[str, str] = {}
     selected_diagnostics_by_rate: Dict[str, object] = {}
@@ -2660,6 +2829,7 @@ def run_experiment(
         ),
         "backbone_initialization": initialization,
         "frozen_completion_integrity": frozen_integrity,
+        "joint_pretrained_integrity": joint_frozen_integrity,
         "frozen_readout_integrity": frozen_integrity
         if frozen_modality_track_residual else None,
         "optimizer_parameter_groups": optimizer_group_provenance,
@@ -2755,9 +2925,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use one masked-mean node regression predictor instead of the MMoE predictor.",
     )
-    parser.add_argument("--completion-path",choices=("none","pre_osram_b2"),default="none")
+    parser.add_argument("--completion-path",choices=("none","pre_osram_b2","pre_osram_joint_frozen"),default="none")
     parser.add_argument("--b2-base-checkpoint",default=None)
     parser.add_argument("--b2-pretrain-checkpoint",default=None)
+    parser.add_argument("--joint-pretrain-checkpoint",default=None)
     parser.add_argument(
         "--dataset",
         choices=("IEMOCAPFour", "IEMOCAPSix", "CMUMOSI", "CMUMOSEI"),
@@ -2990,6 +3161,7 @@ def main(argv=None) -> None:
         completion_path=args.completion_path,
         b2_base_checkpoint=args.b2_base_checkpoint,
         b2_pretrain_checkpoint=args.b2_pretrain_checkpoint,
+        joint_pretrain_checkpoint=args.joint_pretrain_checkpoint,
         fold=args.fold,
         seed=args.seed,
         window_past=args.windowp,

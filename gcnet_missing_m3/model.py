@@ -1399,9 +1399,9 @@ class MissingM3GraphModel(GraphModel):
             or completion_path != "none" or classification_completion
         ):
             raise ValueError(f"{osram_readout_fusion} requires structured OSRAM without completion")
-        if completion_path not in {"none", "pre_osram_b2"}:
-            raise ValueError("completion_path must be none or pre_osram_b2; legacy uses classification_completion")
-        if completion_path == "pre_osram_b2":
+        if completion_path not in {"none", "pre_osram_b2", "pre_osram_joint_frozen"}:
+            raise ValueError("completion_path must be none, pre_osram_b2, or pre_osram_joint_frozen")
+        if completion_path in {"pre_osram_b2", "pre_osram_joint_frozen"}:
             if classification_completion:
                 raise ValueError("B2 cannot use legacy classification_completion")
             if (backbone_type != "osram" or osram_bidirectional or osram_forward_slot_reuse
@@ -1673,7 +1673,8 @@ class MissingM3GraphModel(GraphModel):
             self.affine_readout = AvailabilityConditionedAffineReadout(
                 hidden_dim
             )
-        if self.completion_path == "pre_osram_b2":
+        self.joint_completion_frozen = completion_path == "pre_osram_joint_frozen"
+        if self.completion_path in {"pre_osram_b2", "pre_osram_joint_frozen"}:
             from .b2 import SourceOnlyM3Predictor, CompletedReadFusion
             self.b2_model_settings = b2_constructor_settings
             self.source_only_predictor = SourceOnlyM3Predictor(
@@ -1753,8 +1754,14 @@ class MissingM3GraphModel(GraphModel):
             osram_nodes['post_write_observer'] = self.future_state.begin(encoded, umask.T.bool())
         if self.write_state_completion:
             osram_nodes['write_completion']=self.write_state.begin(encoded,latents,availability,umask.T.bool())
-        if self.completion_path == "pre_osram_b2":
-            internal_predictions = self.source_only_predictor(latents, availability, umask)
+        if self.completion_path in {"pre_osram_b2", "pre_osram_joint_frozen"}:
+            if self.joint_completion_frozen:
+                with torch.no_grad():
+                    internal_predictions = self.source_only_predictor(
+                        latents, availability, umask
+                    )
+            else:
+                internal_predictions = self.source_only_predictor(latents, availability, umask)
             if completion_predictions_override is not None and self.training:
                 raise ValueError("completion override is evaluation-only")
             reg = (internal_predictions.reg_predictions if completion_predictions_override is None
@@ -1762,7 +1769,7 @@ class MissingM3GraphModel(GraphModel):
             read_node = self.completed_read_fusion(encoded, latents, reg, availability, umask)
             osram_nodes = {"read_node": read_node, "write_node": encoded}
         elif completion_predictions_override is not None:
-            raise ValueError("completion override requires pre_osram_b2")
+            raise ValueError("completion override requires a pre-OSRAM completion path")
         if self.text_core is not None:
             def _text_core_read_residual(base_context, gap_context):
                 output = self.text_core(
@@ -1804,7 +1811,7 @@ class MissingM3GraphModel(GraphModel):
             )
         if (self.complete_state_jepa or self.write_state_completion or self.future_state_jepa) and predict_missing:
             raise ValueError("State objectives use their auxiliary loss, not modality predictions")
-        if self.completion_path != "pre_osram_b2" and (predict_missing or self.classification_completion):
+        if self.completion_path not in {"pre_osram_b2", "pre_osram_joint_frozen"} and (predict_missing or self.classification_completion):
             if self.simple_regression_predictor is not None:
                 internal_predictions = self.simple_regression_predictor(
                     encoded,
