@@ -22,18 +22,20 @@ insertion.
 
 | Missing rate | Matched cfg84 no-JEPA | Dual projector | Paired delta | Positive seeds |
 |---:|---:|---:|---:|---:|
-| 0.0 | 86.856±0.287 | 87.121±0.516 | +0.266 | 2/3 |
-| 0.1 | 85.108±0.379 | 84.871±0.394 | -0.237 | 1/3 |
-| 0.2 | 81.934±1.432 | 82.301±0.522 | +0.367 | 2/3 |
-| 0.3 | 80.423±1.391 | 79.364±1.710 | -1.059 | 1/3 |
-| 0.4 | 78.446±2.142 | 76.842±2.644 | -1.604 | 0/3 |
-| 0.5 | 76.141±1.643 | 74.986±3.489 | -1.155 | 1/3 |
-| 0.6 | 75.973±0.985 | 73.992±1.945 | -1.981 | 0/3 |
-| 0.7 | 73.391±3.852 | 71.256±3.597 | -2.134 | 1/3 |
+| 0.0 | 88.419±0.276 | 87.121±0.516 | -1.298 | 0/3 |
+| 0.1 | 85.845±0.821 | 84.871±0.394 | -0.974 | 0/3 |
+| 0.2 | 83.431±1.336 | 82.301±0.522 | -1.131 | 0/3 |
+| 0.3 | 80.999±1.071 | 79.364±1.710 | -1.636 | 0/3 |
+| 0.4 | 78.996±1.857 | 76.842±2.644 | -2.154 | 0/3 |
+| 0.5 | 77.327±0.568 | 74.986±3.489 | -2.340 | 0/3 |
+| 0.6 | 75.848±0.345 | 73.992±1.945 | -1.857 | 0/3 |
+| 0.7 | 73.607±3.723 | 71.256±3.597 | -2.350 | 0/3 |
 
-- Eight-rate mean: **79.784% → 78.842% (-0.942 pp)**.
-- High-missing mean (0.5/0.6/0.7): **75.168% → 73.412% (-1.757 pp)**.
-- Positive paired seed-rate cells: **8/24**.
+- Eight-rate mean: **80.559% → 78.842% (-1.718 pp)** for the
+  seed-66/67/68 paired comparison. The separately reported five-seed original
+  cfg84 mean is 80.445%.
+- High-missing mean (0.5/0.6/0.7): **75.594% → 73.412% (-2.182 pp)**.
+- Positive paired seed-rate cells: **0/24**.
 
 Per-seed dual-projector eight-rate means are 80.027%, 77.251%, and 79.247%
 for seeds 66, 67, and 68 respectively.
@@ -60,7 +62,7 @@ seed-rate pattern cells; `sample pooled` pools the corresponding real samples.
 - Frozen completion parameters: 1,785,352; their SHA-256 is unchanged before
   and after training for all three seeds.
 - Trainable downstream/online parameters: 13,776,045.
-- Evaluation mask hashes equal the matched cfg84 control for all seeds/rates.
+- Evaluation mask hashes equal the established mask reference for all seeds/rates.
 - A unit test changes every unavailable raw modality block and observes
   bit-identical logits, ruling out missing-feature leakage.
 
@@ -68,4 +70,3 @@ seed-rate pattern cells; `sample pooled` pools the corresponding real samples.
 miss=0 failure of the earlier fully frozen representation, but frozen predicted
 latents still reduce overall and high-missing performance. In particular,
 T-missing remains around the previous low-60% platform rather than improving.
-
