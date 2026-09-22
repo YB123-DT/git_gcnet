@@ -17,6 +17,10 @@ The run uses the existing cfg84 causal OSRAM family (1600 output, 8 heads,
 per-rate Test-oracle checkpoint selection. It is an internal diagnostic, not a
 formal paper result.
 
+The paired L1 control (`run_l1_control.py`) uses the same frozen joint
+projectors but disables the reinjection path. `summarize.py` reports L1, L2,
+their paired difference, and the trainable-projector No-JEPA reference.
+
 ```bash
 /home/yangbin/miniconda3/envs/multimodalerc310/bin/python \
   experiments/osram_joint_frozen_reinjection_20260922/run.py --launch
