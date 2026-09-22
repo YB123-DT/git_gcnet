@@ -128,8 +128,9 @@ def train(seed: int) -> None:
         metrics = json.loads((output / "metrics.json").read_text())
         if metrics.get("selection_protocol") != "per-rate-test-oracle":
             raise ValueError("unexpected selection protocol")
-        if canonical_mask_hashes(output) != canonical_mask_hashes(source):
-            raise ValueError("canonical evaluation masks differ from no-JEPA control")
+        source_metrics = json.loads((source / "metrics.json").read_text())
+        if metrics.get("mask_sha256") != source_metrics.get("mask_sha256"):
+            raise ValueError("evaluation mask hashes differ from no-JEPA control")
     except BaseException as error:
         provenance.update(status="failed", error=f"{type(error).__name__}: {error}")
         write_json(output / "PROVENANCE.json", provenance)
