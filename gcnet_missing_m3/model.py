@@ -1267,7 +1267,33 @@ class MissingM3GraphModel(GraphModel):
         text_core=False,
         disable_unused_aux_modules=False,
         simple_regression_predictor=False,
+        completion_write_to_memory=False,
+        osram_history_query_adapter=False,
+        osram_post_grn=False,
     ) -> None:
+        if osram_post_grn and (
+            backbone_type != 'osram' or osram_readout_fusion != 'flat'
+            or training_objective != 'emotion-only' or completion_path != 'none'
+            or classification_completion or completion_write_to_memory
+            or osram_history_query_adapter
+        ):
+            raise ValueError('post-GRN requires Flat no-JEPA OSRAM without completion or query adaptation')
+        if osram_history_query_adapter and (
+            backbone_type != 'osram' or osram_bidirectional
+            or completion_path != 'none' or training_objective != 'emotion-only'
+            or complete_state_jepa or write_state_completion or future_state_jepa
+            or completion_write_to_memory
+        ):
+            raise ValueError('history query adapter requires causal NoJEPA without completion')
+        self.completion_write_to_memory = bool(completion_write_to_memory)
+        if self.completion_write_to_memory and (
+            completion_path != "pre_osram_joint_dual_projector"
+            or backbone_type != "osram" or osram_bidirectional
+            or write_state_completion
+        ):
+            raise ValueError(
+                "completion memory writes require causal dual-projector completion"
+            )
         if target_space not in {'all-modalities', 'full-text', 'predictable-subspace'}:
             raise ValueError('unsupported target_space')
         if (target_space == 'predictable-subspace') != (text_subspace_checkpoint is not None):
@@ -1389,11 +1415,11 @@ class MissingM3GraphModel(GraphModel):
         b2_constructor_settings = {k:v for k,v in locals().items() if k not in {"self","__class__"}}
         if osram_readout_fusion not in (
             "flat", "local-gated", "local-cross-attn", "modality-tracks",
-            "modality-track-residual", "base-gap-delta"
+            "modality-track-residual", "base-gap-delta", "memory-shift-residual"
         ):
             raise ValueError(
                 "osram_readout_fusion must be flat, local-gated, local-cross-attn, "
-                "modality-tracks, modality-track-residual, or base-gap-delta"
+                "modality-tracks, modality-track-residual, base-gap-delta, or memory-shift-residual"
             )
         if osram_readout_fusion != "flat" and (
             backbone_type != "osram" or osram_predictor_mode != "structured"
@@ -1604,6 +1630,8 @@ class MissingM3GraphModel(GraphModel):
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,
+                history_query_adapter=osram_history_query_adapter,
+                osram_post_grn=osram_post_grn,
             )
             hidden_dim = int(osram_output_dim)
             predictor_context_dim = self.osram.context_dim
@@ -1808,6 +1836,12 @@ class MissingM3GraphModel(GraphModel):
                 encoded, completion_latents, reg, availability, umask
             )
             osram_nodes = {"read_node": read_node, "write_node": encoded}
+            if self.completion_write_to_memory:
+                from .b2 import predicted_latent_write_callback
+
+                osram_nodes["write_completion"] = predicted_latent_write_callback(
+                    self.osram, encoded, latents, reg, availability, qmask, umask
+                )
         elif completion_predictions_override is not None:
             raise ValueError("completion override requires a pre-OSRAM completion path")
         if self.text_core is not None:

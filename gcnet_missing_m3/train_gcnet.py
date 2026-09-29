@@ -129,6 +129,9 @@ class TrainConfig:
     osram_write_step: float = 1.0
     osram_readout_fusion: str = "flat"
     completion_path: str = "none"
+    completion_write_to_memory: bool = False
+    osram_history_query_adapter: bool = False
+    osram_post_grn: bool = False
     b2_base_checkpoint: str | None = None
     b2_pretrain_checkpoint: str | None = None
     joint_pretrain_checkpoint: str | None = None
@@ -145,6 +148,13 @@ class TrainConfig:
     simple_regression_predictor: bool = False
 
     def __post_init__(self) -> None:
+        if self.train_rate_mode == "conversation-mixed" and (
+            self.training_objective != "emotion-only" or self.backbone_type != "osram"
+            or self.osram_bidirectional or self.completion_path != "none"
+            or self.classification_completion or self.joint_pretrain_checkpoint is not None
+            or self.text_core or self.emotion_loss_mode != "sample-mean"
+        ):
+            raise ValueError("conversation-mixed requires causal emotion-only OSRAM without completion")
         normalized_train_rates = tuple(float(value) for value in self.train_missing_rates)
         if not normalized_train_rates or len(set(normalized_train_rates)) != len(normalized_train_rates):
             raise ValueError("train_missing_rates must be a non-empty unique sequence")
@@ -299,13 +309,20 @@ class TrainConfig:
                     or self.initial_backbone_checkpoint is not None
                     or self.jepa_rate_weighting != "uniform"):
                 raise ValueError("complete-state requires causal flat OSRAM without completion or legacy transfer, and uniform loss weighting")
+        if self.osram_post_grn and (
+            self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
+            or self.training_objective != 'emotion-only' or self.completion_path != 'none'
+            or self.classification_completion or self.completion_write_to_memory
+            or self.osram_history_query_adapter or self.train_rate_mode != 'cyclic'
+        ):
+            raise ValueError('post-GRN requires Flat no-JEPA cyclic OSRAM without completion or query adaptation')
         if self.osram_readout_fusion not in {
             "flat", "local-gated", "local-cross-attn", "modality-tracks",
-            "modality-track-residual", "base-gap-delta"
+            "modality-track-residual", "base-gap-delta", "memory-shift-residual"
         }:
             raise ValueError(
                 "osram_readout_fusion must be flat, local-gated, local-cross-attn, "
-                "modality-tracks, modality-track-residual, or base-gap-delta"
+                "modality-tracks, modality-track-residual, base-gap-delta, or memory-shift-residual"
             )
         if self.osram_readout_fusion != "flat":
             if self.backbone_type != "osram":
@@ -924,10 +941,10 @@ def _protocol_rates(config: TrainConfig) -> tuple[float, ...]:
     fixed_rate = _fixed_missing_rate(config)
     if config.train_rate_mode == "fixed":
         return (fixed_rate,)
-    if config.train_rate_mode in {"cyclic", "all", "stratified", "uniform-forced-text"}:
+    if config.train_rate_mode in {"cyclic", "all", "stratified", "uniform-forced-text", "conversation-mixed"}:
         return MISSING_RATES
     raise ValueError(
-        "train_rate_mode must be 'cyclic', 'all', 'fixed', 'stratified', or 'uniform-forced-text'"
+        "unsupported train_rate_mode (including conversation-mixed)"
     )
 
 
@@ -989,6 +1006,43 @@ def _build_stratified_mask_tensors(
             torch.stack(conversations, dim=1).to(device=umask.device)
         )
     return tuple(side_tensors)
+
+
+def _conversation_mixed_mask_tensors(
+    config: TrainConfig,
+    schedule: ConversationMaskSchedule,
+    conversation_ids: Sequence[str],
+    umask: torch.Tensor,
+    epoch: int,
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, object]]:
+    """Half random / half persistent in expectation, keyed independently of batches.
+
+    Only the regime and persistent support are batch-order invariant. Random
+    conversations retain the historical batch-cyclic rate and mask generator.
+    """
+    host, guest = build_primary_mask_tensors(
+        schedule, conversation_ids=conversation_ids, umask=umask, epoch=epoch
+    )
+    patterns = {"A": (1, 0, 0), "T": (0, 1, 0), "V": (0, 0, 1),
+                "AT": (1, 1, 0), "AV": (1, 0, 1), "TV": (0, 1, 1)}
+    assignments = []
+    for index, conversation_id in enumerate(conversation_ids):
+        key = {"algorithm": "conversation-mixed-v1", "seed": config.seed,
+               "dataset": config.dataset, "fold": config.fold, "epoch": epoch,
+               "conversation_id": str(conversation_id)}
+        digest = hashlib.sha256(json.dumps(key, sort_keys=True).encode()).digest()
+        rng = np.random.default_rng(int.from_bytes(digest[:8], "big"))
+        persistent = rng.random() < .5
+        pattern = tuple(patterns)[int(rng.integers(6))] if persistent else None
+        if persistent:
+            support = torch.tensor(patterns[pattern], device=umask.device, dtype=host.dtype)
+            support = umask[index].bool().unsqueeze(-1) * support
+            host[:, index] = support
+            guest[:, index] = support
+        assignments.append({"conversation_id": str(conversation_id),
+                            "regime": "persistent" if persistent else "random",
+                            "pattern": pattern})
+    return host, guest, {"assignments": assignments}
 
 
 def _prepare_view_from_primary_masks(
@@ -1506,6 +1560,64 @@ def _collect_predictions(
     )
 
 
+def _accumulate_post_grn(model, totals):
+    diagnostics = getattr(getattr(model, "osram", None), "last_diagnostics", {}).get("post_grn")
+    if diagnostics is None or not diagnostics["valid_count"]:
+        return
+    count = int(diagnostics["valid_count"])
+    totals["valid_count"] = totals.get("valid_count", 0) + count
+    for key in ("gate_mean", "gate_saturation_fraction", "gated_residual_flat_norm_ratio"):
+        totals[key] = totals.get(key, 0.0) + count * float(diagnostics[key])
+
+
+def _post_grn_metrics(totals):
+    count = totals.get("valid_count", 0)
+    if not count:
+        return {}
+    return {"post_grn": {
+        "valid_count": count,
+        **{key: totals[key] / count for key in (
+            "gate_mean", "gate_saturation_fraction", "gated_residual_flat_norm_ratio")},
+        "scope": "valid-token weighted; saturation <=0.05 or >=0.95; mean per-token L2 gated-residual/flat-hidden ratio",
+    }}
+
+
+def _accumulate_memory_shift(model, totals):
+    """Collect detached readout statistics without altering any model state."""
+    backbone = getattr(model, "osram", None)
+    diagnostics = getattr(backbone, "last_diagnostics", {}).get("memory_shift_filter")
+    if diagnostics is None:
+        return
+    count = int(diagnostics["valid_count"])
+    if not count:
+        return
+    totals["valid_count"] = totals.get("valid_count", 0) + count
+    for key in ("filtered_shift_norm", "shift_residual_norm", "residual_anchor_norm_ratio"):
+        totals[key] = totals.get(key, 0.0) + count * float(diagnostics[key])
+    counts = totals.setdefault("active_counts", {})
+    sums = totals.setdefault("filter_sums", {})
+    for name, active in diagnostics["active_counts"].items():
+        counts[name] = counts.get(name, 0) + active
+        sums[name] = sums.get(name, 0.0) + (
+            active * float(diagnostics["filter_mean"][name]) if active else 0.0
+        )
+
+
+def _memory_shift_metrics(totals):
+    count = totals.get("valid_count", 0)
+    if not count:
+        return {}
+    return {"memory_shift_filter": {
+        "valid_count": count,
+        "active_counts": dict(totals["active_counts"]),
+        "filter_mean": {name: totals["filter_sums"][name] / active if active else None
+                        for name, active in totals["active_counts"].items()},
+        **{key: totals[key] / count for key in (
+            "filtered_shift_norm", "shift_residual_norm", "residual_anchor_norm_ratio")},
+        "scope": "filter means use active-evidence counts; L2 norms and per-token residual/anchor ratios use valid utterance counts",
+    }}
+
+
 def train_epoch(
     model: MissingM3GraphModel,
     loader: Iterable[Sequence[object]],
@@ -1576,6 +1688,8 @@ def train_epoch(
         if epoch_size is None:
             epoch_size = len(loader.dataset)
     conversations_seen = 0
+    memory_shift_totals = {}
+    post_grn_totals = {}
     losses: list[float] = []
     cls_losses: list[float] = []
     jepa_losses: list[float] = []
@@ -1604,6 +1718,11 @@ def train_epoch(
     target_count = 0
     optimizer_steps = 0
     skipped_optimizer_batches = 0
+    mixed_counts = {"random": 0, "persistent": 0}
+    mixed_patterns = {name: 0 for name in ("A", "T", "V", "AT", "AV", "TV")}
+    mixed_valid = {name: 0 for name in mixed_counts}
+    mixed_missing = {name: 0 for name in mixed_counts}
+    mixed_assignments = []
     for batch_index, raw in enumerate(loader):
         data = _move_batch(raw, device)
         batch_size = len(data[-1])
@@ -1620,6 +1739,34 @@ def train_epoch(
             view = _prepare_view(data, schedules[rate], epoch, dimensions)
             optimizer.zero_grad(set_to_none=True)
             rate_views = ((rate, view),)
+        elif config.train_rate_mode == "conversation-mixed":
+            random_rate = rate_schedule.rate_for(epoch, batch_index)
+            host, guest, audit = _conversation_mixed_mask_tensors(
+                config, schedules[random_rate], data[-1], data[7], epoch
+            )
+            view = _prepare_view_from_primary_masks(data, host, guest, dimensions)
+            optimizer.zero_grad(set_to_none=True)
+            rate_views = ((None, view),)
+            random_in_batch = False
+            for index, assignment in enumerate(audit["assignments"]):
+                regime = assignment["regime"]
+                mixed_assignments.append(assignment)
+                mixed_counts[regime] += 1
+                valid = view["umask"][index].bool()
+                available = view["availability"][:, index][valid]
+                valid_count = int(valid.sum().item())
+                missing_count = int(available.eq(0).sum().item())
+                mixed_valid[regime] += valid_count
+                mixed_missing[regime] += missing_count
+                if regime == "persistent":
+                    mixed_patterns[assignment["pattern"]] += 1
+                else:
+                    random_in_batch = True
+                    rate_conversation_counts[random_rate] += 1
+                    rate_valid_utterance_counts[random_rate] += valid_count
+                    realized_missing[random_rate][0] += missing_count
+                    realized_missing[random_rate][1] += int(available.numel())
+            rate_counts[random_rate] += int(random_in_batch)
         elif config.train_rate_mode == "fixed":
             rate = fixed_rate
             view = _prepare_view(data, schedules[rate], epoch, dimensions)
@@ -1681,7 +1828,7 @@ def train_epoch(
             uniform_forced_text_valid_count += int(valid_rows.sum().item())
         else:
             raise ValueError(
-                "train_rate_mode must be 'cyclic', 'all', 'fixed', 'stratified', or 'uniform-forced-text'"
+                "unsupported train_rate_mode (including conversation-mixed)"
             )
         teacher = None
         batch_has_backward = False
@@ -1710,6 +1857,8 @@ def train_epoch(
                 predict_missing=train_jepa,
             )
             model_forward_count += 1
+            _accumulate_memory_shift(model, memory_shift_totals)
+            _accumulate_post_grn(model, post_grn_totals)
             zero = logits.sum() * 0.0
             cls, pattern_losses = (
                 _emotion_loss(
@@ -1970,6 +2119,8 @@ def train_epoch(
         **metrics,
         "loss": float(np.mean(losses)),
         "classification_loss": float(np.mean(cls_losses)),
+        **_memory_shift_metrics(memory_shift_totals),
+        **_post_grn_metrics(post_grn_totals),
         "jepa_loss": float(np.mean(jepa_losses)),
         **({
             "text_core_loss": float(np.mean(text_core_losses)),
@@ -1978,6 +2129,22 @@ def train_epoch(
             "text_core_align_loss": float(np.mean(text_core_align_losses)),
         } if config.text_core else {}),
         "jepa_target_count": int(target_count),
+        **({
+            "conversation_mixed_algorithm": "conversation-mixed-v1",
+            "conversation_mixed_regime_counts": mixed_counts,
+            "conversation_mixed_pattern_counts": mixed_patterns,
+            "conversation_mixed_valid_utterance_counts": mixed_valid,
+            "conversation_mixed_missing_modality_counts": mixed_missing,
+            "conversation_mixed_realized_missing_fraction": {
+                name: mixed_missing[name] / (3 * mixed_valid[name]) if mixed_valid[name] else None
+                for name in mixed_counts
+            },
+            "conversation_mixed_assignment_hash": hashlib.sha256(json.dumps(
+                sorted(mixed_assignments, key=lambda row: row["conversation_id"]),
+                sort_keys=True, separators=(",", ":")
+            ).encode()).hexdigest(),
+            "rate_statistics_scope": "random-regime-only",
+        } if config.train_rate_mode == "conversation-mixed" else {}),
         **({"state_loss": float(np.mean(jepa_losses)),
             "state_target_count": int(target_count)} if train_state else {}),
         **({"write_state_loss": float(np.mean(jepa_losses)),
@@ -2078,6 +2245,8 @@ def evaluate_rate(
 ) -> tuple[Dict[str, float], Dict[str, np.ndarray] | None]:
     model.eval()
     task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
+    memory_shift_totals = {}
+    post_grn_totals = {}
     losses: list[float] = []
     all_predictions: list[np.ndarray] = []
     all_labels: list[np.ndarray] = []
@@ -2105,6 +2274,8 @@ def evaluate_rate(
         )
         if predictions is not None:
             raise RuntimeError("inference path must not return missing predictions")
+        _accumulate_memory_shift(model, memory_shift_totals)
+        _accumulate_post_grn(model, post_grn_totals)
         loss = _task_loss(
             dataset,
             logits,
@@ -2186,6 +2357,8 @@ def evaluate_rate(
     metrics = {
         **_metrics(dataset, labels_array, predictions_array, mosi_task_mode),
         "loss": float(np.mean(losses)),
+        **_memory_shift_metrics(memory_shift_totals),
+        **_post_grn_metrics(post_grn_totals),
     }
     artifacts = None
     if collect:
@@ -2261,6 +2434,18 @@ def run_experiment(
     visual_root: str,
     output_dir: str | Path,
 ) -> Dict[str, object]:
+    if config_value.osram_history_query_adapter and (
+        config_value.backbone_type != 'osram' or config_value.osram_bidirectional
+        or config_value.completion_path != 'none'
+        or config_value.training_objective != 'emotion-only'
+        or config_value.completion_write_to_memory
+    ):
+        raise ValueError('history query adapter requires causal NoJEPA without completion')
+    if config_value.completion_write_to_memory and (
+        config_value.completion_path != "pre_osram_joint_dual_projector"
+        or config_value.osram_bidirectional
+    ):
+        raise ValueError("completion memory writes require causal dual-projector completion")
     if (config_value.training_objective == "future-state"
             and config_value.checkpoint_selection != "test-oracle-per-rate"):
         raise ValueError("future-state experiments require test-oracle-per-rate selection")
@@ -2424,6 +2609,9 @@ def run_experiment(
         osram_forward_slot_reuse=config_value.osram_forward_slot_reuse,
         osram_readout_fusion=config_value.osram_readout_fusion,
         completion_path=config_value.completion_path,
+        completion_write_to_memory=config_value.completion_write_to_memory,
+        osram_history_query_adapter=config_value.osram_history_query_adapter,
+        osram_post_grn=config_value.osram_post_grn,
         complete_state_jepa=config_value.training_objective == "complete-state",
         write_state_completion=config_value.training_objective == "write-state",
         future_state_jepa=config_value.training_objective == "future-state",
@@ -2915,6 +3103,7 @@ def run_experiment(
         "osram_forward_slot_reuse": config_value.osram_forward_slot_reuse,
         "osram_write_step": config_value.osram_write_step,
         "osram_readout_fusion": config_value.osram_readout_fusion,
+        **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         "osram_dimensions": (
             {
                 "latent_dim": config_value.latent_dim,
@@ -2984,6 +3173,18 @@ def build_parser() -> argparse.ArgumentParser:
         default="none",
     )
     parser.add_argument("--b2-base-checkpoint",default=None)
+    parser.add_argument(
+        "--osram-history-query-adapter", action="store_true",
+        help="Adapt never-observed Gap queries with causal three-bit history support.",
+    )
+    parser.add_argument(
+        "--osram-post-grn", action="store_true",
+        help="Add a zero-initialized conditioned GRN after normalized Flat OSRAM readout.",
+    )
+    parser.add_argument(
+        "--completion-write-to-memory", action="store_true",
+        help="Also write frozen dual-projector missing latents into causal OSRAM memory.",
+    )
     parser.add_argument("--b2-pretrain-checkpoint",default=None)
     parser.add_argument("--joint-pretrain-checkpoint",default=None)
     parser.add_argument(
@@ -3018,7 +3219,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument(
         "--train-rate-mode",
-        choices=("cyclic", "all", "fixed", "stratified", "uniform-forced-text"),
+        choices=("cyclic", "all", "fixed", "stratified", "uniform-forced-text", "conversation-mixed"),
         default="cyclic",
     )
     parser.add_argument("--train-missing-rate", type=float, default=None)
@@ -3168,7 +3369,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--osram-readout-fusion",
         choices=(
             "flat", "local-gated", "local-cross-attn", "modality-tracks",
-            "modality-track-residual", "base-gap-delta",
+            "modality-track-residual", "base-gap-delta", "memory-shift-residual",
         ),
         default="flat",
     )
@@ -3222,6 +3423,9 @@ def main(argv=None) -> None:
     config_value = TrainConfig(
         dataset=args.dataset,
         completion_path=args.completion_path,
+        completion_write_to_memory=args.completion_write_to_memory,
+        osram_history_query_adapter=args.osram_history_query_adapter,
+        osram_post_grn=args.osram_post_grn,
         b2_base_checkpoint=args.b2_base_checkpoint,
         b2_pretrain_checkpoint=args.b2_pretrain_checkpoint,
         joint_pretrain_checkpoint=args.joint_pretrain_checkpoint,

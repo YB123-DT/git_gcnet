@@ -1,4 +1,4 @@
-"""Source-only completion and read fusion; no historical context or writes."""
+"""Source-only completion, read fusion, and opt-in predicted memory writes."""
 from typing import Mapping
 
 import torch
@@ -23,6 +23,49 @@ def _valid_latents(latents, availability, umask, latent_dim):
     if bool(availability[~valid].any()) or bool((availability[valid].sum(-1) == 0).any()):
         raise ValueError("padding must be empty and valid patterns nonempty")
     return valid
+
+
+def predicted_latent_write_callback(
+    osram, node, latents, predictions, availability, qmask, umask
+):
+    """Fill missing K/V slots AFTER reads, without changing real availability.
+
+    Real slots remain online-projector observations. Missing slots use the
+    frozen predictor's latent directly through the existing online K/V maps;
+    no coordinate adapter, extra gate, or separate write strength is added.
+    Query construction and Gap residualization still see real observations
+    only. The returned write mask must never be reused as input availability.
+    """
+    valid = _valid_latents(latents, availability, umask, node.shape[-1])
+    if predictions.shape != (*node.shape[:2], 3, node.shape[-1]):
+        raise ValueError("reg predictions must have shape [L,B,3,latent_dim]")
+    missing = valid.unsqueeze(-1) & ~availability.bool()
+    if not bool(missing.any()):
+        return None
+    if not bool(torch.isfinite(predictions[missing]).all()):
+        raise ValueError("missing-latent write predictions must be finite")
+    completed = {
+        name: torch.where(
+            missing[..., index, None], predictions[..., index, :], latents[name]
+        )
+        for index, name in enumerate(MODALITIES)
+    }
+    keys, values, _ = osram._project_sequence(
+        node, completed, availability, qmask, write_node=node
+    )
+    predicted_keys = torch.stack([keys[name] for name in MODALITIES], dim=-1)
+    predicted_values = torch.stack([values[name] for name in MODALITIES], dim=-1)
+    write_mask = valid.unsqueeze(-1).expand_as(availability).to(availability.dtype)
+
+    def complete_write(time_index, _base, _gap, observed_keys, observed_values):
+        selected = missing[time_index, :, None, None, :]
+        return (
+            torch.where(selected, predicted_keys[time_index], observed_keys),
+            torch.where(selected, predicted_values[time_index], observed_values),
+            write_mask[time_index],
+        )
+
+    return complete_write
 
 
 class SourceOnlyM3Predictor(nn.Module):

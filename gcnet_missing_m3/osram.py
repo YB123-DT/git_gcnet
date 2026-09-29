@@ -397,6 +397,128 @@ class BaseGapDeltaFusion(nn.Module):
         return hidden
 
 
+class MemoryShiftFilter(nn.Module):
+    """Zero-initialized readout residual from typed, filtered memory shifts.
+
+    Base and three fixed Gap slots are filtered independently. Normalization
+    uses the number of active slots, not the sum of their learned gates.
+    """
+
+    SLOT_NAMES = ("base", "gap_audio", "gap_text", "gap_visual")
+
+    def __init__(self, local_dim, context_dim, output_dim, relation_dim=128):
+        super().__init__()
+        self.local_dim = int(local_dim)
+        self.context_dim = int(context_dim)
+        self.output_dim = int(output_dim)
+        self.relation_dim = int(relation_dim)
+        self.local_relation = nn.Linear(self.local_dim, self.relation_dim)
+        self.memory_relation = nn.Linear(self.context_dim, self.relation_dim)
+        self.evidence_type = nn.Embedding(4, self.relation_dim)
+        self.filter = nn.Sequential(
+            nn.Linear(6 * self.relation_dim, 128), nn.GELU(), nn.Linear(128, 1)
+        )
+        self.residual_projector = nn.Linear(self.relation_dim, self.output_dim)
+        nn.init.zeros_(self.residual_projector.weight)
+        nn.init.zeros_(self.residual_projector.bias)
+        self.last_diagnostics = {}
+
+    def forward(self, local, base_context, gap_context, availability, umask, flat_anchor):
+        if local.ndim != 3 or local.shape[-1] != self.local_dim:
+            raise ValueError("local must be [L,B,local_dim]")
+        length, batch = local.shape[:2]
+        if (
+            base_context.shape != (length, batch, self.context_dim)
+            or gap_context.shape != (length, batch, 3, self.context_dim)
+            or availability.shape != (length, batch, 3)
+            or umask.shape != (batch, length)
+            or flat_anchor.shape != (length, batch, self.output_dim)
+        ):
+            raise ValueError("fusion context/mask shapes do not match local")
+        valid = umask.transpose(0, 1).bool()
+        if bool(((availability[valid] != 0) & (availability[valid] != 1)).any()):
+            raise ValueError("availability must be binary on valid utterances")
+        active = torch.cat((valid.unsqueeze(-1),
+                            valid.unsqueeze(-1) & ~availability.bool()), dim=-1)
+        safe_local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
+        evidence = torch.cat((base_context.unsqueeze(2), gap_context), dim=2)
+        evidence = torch.where(active.unsqueeze(-1), evidence, torch.zeros_like(evidence))
+        q = self.local_relation(safe_local).unsqueeze(2).expand(-1, -1, 4, -1)
+        types = self.evidence_type.weight.view(1, 1, 4, -1).expand_as(q)
+        k = self.memory_relation(evidence) + types
+        shift = k - q
+        gate = torch.sigmoid(self.filter(torch.cat(
+            (q, k, shift, shift.abs(), q * k, types), dim=-1
+        )))
+        gate = torch.where(active.unsqueeze(-1), gate, torch.zeros_like(gate))
+        contribution = torch.where(active.unsqueeze(-1), gate * shift, torch.zeros_like(shift))
+        filtered_shift = contribution.sum(dim=2) / active.sum(dim=-1).clamp_min(1).unsqueeze(-1)
+        residual = self.residual_projector(filtered_shift)
+        residual = torch.where(valid.unsqueeze(-1), residual, torch.zeros_like(residual))
+        with torch.no_grad():
+            count = int(valid.sum())
+            active_counts = {name: int(active[..., i].sum())
+                             for i, name in enumerate(self.SLOT_NAMES)}
+            self.last_diagnostics = {
+                "filter_mean": {name: float(gate[..., i, 0][active[..., i]].mean())
+                                if active_counts[name] else None
+                                for i, name in enumerate(self.SLOT_NAMES)},
+                "active_counts": active_counts,
+                "valid_count": count,
+                "filtered_shift_norm": float(filtered_shift[valid].norm(dim=-1).mean()) if count else None,
+                "shift_residual_norm": float(residual[valid].norm(dim=-1).mean()) if count else None,
+                "residual_anchor_norm_ratio": float((residual[valid].norm(dim=-1) /
+                    flat_anchor[valid].norm(dim=-1).clamp_min(1e-8)).mean()) if count else None,
+            }
+        return residual
+
+
+class PostGRN(nn.Module):
+    """Optional identity-initialized residual after the unchanged Flat norm."""
+
+    def __init__(self, latent_dim, context_dim, output_dim, dropout=0.5):
+        super().__init__()
+        condition_dim = latent_dim + 4 * context_dim + 3
+        self.condition_norm = nn.LayerNorm(condition_dim)
+        self.linear_x = nn.Linear(output_dim, 128)
+        self.linear_c = nn.Linear(condition_dim, 128)
+        self.linear2 = nn.Linear(128, 128)
+        self.dropout = nn.Dropout(dropout)
+        self.linear_gate = nn.Linear(128, output_dim)
+        self.linear_value = nn.Linear(128, output_dim)
+        nn.init.zeros_(self.linear_gate.bias)
+        nn.init.zeros_(self.linear_value.weight)
+        nn.init.zeros_(self.linear_value.bias)
+        self.last_diagnostics = {}
+
+    def forward(self, x, local, emotion_base, emotion_gap, availability, umask):
+        valid = umask.transpose(0, 1).bool()
+        active_gap = valid.unsqueeze(-1) & ~availability.bool()
+        x = torch.where(valid.unsqueeze(-1), x, torch.zeros_like(x))
+        local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
+        base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
+        gap = torch.where(active_gap.unsqueeze(-1), emotion_gap, torch.zeros_like(emotion_gap))
+        available = torch.where(valid.unsqueeze(-1), availability, torch.zeros_like(availability)).to(x.dtype)
+        condition = torch.cat((local, base, gap.flatten(2), available), dim=-1)
+        z = self.dropout(self.linear2(F.elu(self.linear_x(x) + self.linear_c(self.condition_norm(condition)))))
+        gate = torch.sigmoid(self.linear_gate(z))
+        residual = gate * self.linear_value(z)
+        hidden = torch.where(valid.unsqueeze(-1), x + residual, torch.zeros_like(x))
+        with torch.no_grad():
+            count = int(valid.sum().item())
+            self.last_diagnostics = {
+                "valid_count": count,
+                "gate_mean": float(gate[valid].mean().item()) if count else None,
+                "gate_saturation_fraction": float(
+                    ((gate[valid] <= 0.05) | (gate[valid] >= 0.95)).float().mean().item()
+                ) if count else None,
+                "gated_residual_flat_norm_ratio": float(
+                    (residual[valid].norm(dim=-1) / x[valid].norm(dim=-1).clamp_min(1e-8)).mean().item()
+                ) if count else None,
+            }
+        return hidden
+
+
 class OSRAMBackbone(nn.Module):
     """Bidirectional slot-conditioned associative memory.
 
@@ -428,15 +550,20 @@ class OSRAMBackbone(nn.Module):
         osram_gap_read: str = "residual",
         gap_residual_strength: float = 1.0,
         beta_mode: str = "embedded",
+        history_query_adapter: bool = False,
+        osram_post_grn: bool = False,
     ) -> None:
         super().__init__()
+        if osram_post_grn and osram_readout_fusion != "flat":
+            raise ValueError("osram_post_grn requires flat readout")
+        self.osram_post_grn = bool(osram_post_grn)
         if osram_readout_fusion not in (
             "flat", "local-gated", "local-cross-attn", "modality-tracks",
-            "modality-track-residual", "base-gap-delta"
+            "modality-track-residual", "base-gap-delta", "memory-shift-residual"
         ):
             raise ValueError(
                 "osram_readout_fusion must be flat, local-gated, local-cross-attn, "
-                "modality-tracks, modality-track-residual, or base-gap-delta"
+                "modality-tracks, modality-track-residual, base-gap-delta, or memory-shift-residual"
             )
         if osram_readout_fusion != "flat" and (osram_ablation != "full" or osram_emotion_ablation != "full"):
             raise ValueError("local-gated cannot combine with readout ablations")
@@ -487,6 +614,9 @@ class OSRAMBackbone(nn.Module):
         self.beta_mode = beta_mode
         self.query_use_availability = bool(query_use_availability)
         self.bidirectional = bool(bidirectional)
+        self.history_query_adapter = bool(history_query_adapter)
+        if self.history_query_adapter and self.bidirectional:
+            raise ValueError("history query adaptation requires a causal scan")
         self.forward_slot_reuse = bool(forward_slot_reuse)
         if self.bidirectional and self.forward_slot_reuse:
             raise ValueError("forward_slot_reuse requires bidirectional=False")
@@ -566,23 +696,71 @@ class OSRAMBackbone(nn.Module):
                 elif osram_readout_fusion == "modality-track-residual":
                     self.modality_track_residual = ModalityTrackResidualFusion(
                         self.latent_dim, self.output_dim, dropout=dropout)
+                elif osram_readout_fusion == "memory-shift-residual":
+                    self.memory_shift_filter = MemoryShiftFilter(
+                        self.latent_dim, self.context_dim, self.output_dim)
                 else:
                     self.base_gap_delta_fusion = BaseGapDeltaFusion(
                         self.latent_dim, self.context_dim, self.output_dim, dropout=dropout)
             if osram_readout_fusion not in (
-                "modality-tracks", "modality-track-residual", "base-gap-delta"
+                "modality-tracks", "modality-track-residual", "base-gap-delta", "memory-shift-residual"
             ):
                 self.local_centered_fusion.local_skip.load_state_dict(self.local_skip.state_dict())
                 self.local_centered_fusion.emotion_norm.load_state_dict(self.emotion_norm.state_dict())
             # Historical flat keys remain available for readout interventions.
             # The residual mode intentionally keeps them trainable by default;
             # the frozen-backbone experiment freezes them explicitly in the trainer.
-            if osram_readout_fusion not in ("modality-track-residual", "base-gap-delta"):
+            if osram_readout_fusion not in ("modality-track-residual", "base-gap-delta", "memory-shift-residual"):
                 self.emotion_adapter.requires_grad_(False)
                 self.local_skip.requires_grad_(False)
                 self.emotion_norm.requires_grad_(False)
 
+        if self.osram_post_grn:
+            # Leave the original Flat and memory trainable, and preserve shared
+            # initialization / downstream head RNG independently of the switch.
+            with torch.random.fork_rng(devices=[]):
+                self.post_grn = PostGRN(self.latent_dim, self.context_dim, self.output_dim, dropout)
         self.last_diagnostics: dict[str, object] = {}
+        if self.history_query_adapter:
+            # New parameters must not perturb existing initialization or the
+            # downstream classifier's RNG sequence.
+            with torch.random.fork_rng(devices=[]):
+                self.history_support_embedding = nn.Embedding(8, 16)
+                self.history_query_adapters = nn.ModuleDict({
+                    name: nn.Sequential(
+                        nn.Linear(self.key_dim + 16, 64), nn.GELU(),
+                        nn.Linear(64, self.key_dim),
+                    ) for name in MODALITIES
+                })
+                for adapter in self.history_query_adapters.values():
+                    nn.init.zeros_(adapter[-1].weight)
+                    nn.init.zeros_(adapter[-1].bias)
+
+    def _adapt_history_queries(self, queries, availability, valid):
+        """Adapt Gap addresses using strictly past, real-observation support.
+
+        Support bits are A/T/V, encoded with weights 1/2/4. The current
+        utterance is excluded because the causal scan reads before writing.
+        Counts are local tensors, reset for every conversation/forward call.
+        """
+        observed = availability.bool() & valid.unsqueeze(-1)
+        counts = observed.long().cumsum(dim=0) - observed.long()
+        support = counts > 0
+        # CUDA does not implement integer matrix-vector multiplication.
+        codes = (support.long() * support.new_tensor([1, 2, 4], dtype=torch.long)).sum(-1)
+        active = ~support & valid.unsqueeze(-1)
+        self.last_history_support = support.detach()
+        self.last_history_codes = codes.detach()
+        self.last_history_active = active.detach()
+        embedding = self.history_support_embedding(codes)
+        embedding = embedding.unsqueeze(-2).expand(-1, -1, self.num_heads, -1)
+        adapted = [queries[:, :, 0]]
+        for index, name in enumerate(MODALITIES):
+            query = queries[:, :, index + 1]
+            delta = self.history_query_adapters[name](torch.cat((query, embedding), dim=-1))
+            normalized = F.normalize(query + delta, dim=-1)
+            adapted.append(torch.where(active[:, :, index, None, None], normalized, query))
+        return torch.stack(adapted, dim=2)
 
     @staticmethod
     def _validate_inputs(
@@ -956,6 +1134,10 @@ class OSRAMBackbone(nn.Module):
             node, latents, availability, qmask,
             read_node=read_node, write_node=write_node,
         )
+        if self.history_query_adapter:
+            if write_completion is not None:
+                raise ValueError("history query adapter requires observed-only writes")
+            queries = self._adapt_history_queries(queries, availability, valid)
         base_forward, gap_forward, diag_forward = self._scan(
             keys, values, queries, availability, valid, reverse=False,
             retention_diagnostics=(memory_retention_diagnostics
@@ -1055,10 +1237,30 @@ class OSRAMBackbone(nn.Module):
                 local_skip=self.local_skip,
                 emotion_norm=self.emotion_norm,
             )
+        elif self.osram_readout_fusion == "memory-shift-residual":
+            # Keep the original flat anchor trainable and unchanged; only add
+            # the zero-initialized shift before its existing LayerNorm.
+            active_gap = valid.unsqueeze(-1) & ~availability.bool()
+            safe_local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
+            safe_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
+            safe_gap = torch.where(active_gap.unsqueeze(-1), emotion_gap, torch.zeros_like(emotion_gap))
+            emotion_input = torch.cat((safe_local, safe_base, safe_gap.flatten(2)), dim=-1)
+            flat_anchor = self.local_skip(safe_local) + self.emotion_adapter(emotion_input)
+            residual = self.memory_shift_filter(
+                local, emotion_base, emotion_gap, availability, umask, flat_anchor)
+            hidden = self.emotion_norm(flat_anchor + residual)
         elif self.osram_readout_fusion != "flat":
             hidden = self.local_centered_fusion(
                 local, base_context, gap_context, availability, umask)
         else:
+            # The opt-in path also sanitizes the Flat inputs; the disabled
+            # historical path is deliberately byte-for-byte unchanged.
+            if self.osram_post_grn:
+                local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
+                emotion_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
+                emotion_gap = torch.where(
+                    (valid.unsqueeze(-1) & ~availability.bool()).unsqueeze(-1),
+                    emotion_gap, torch.zeros_like(emotion_gap))
             emotion_input = torch.cat(
                 (
                     local,
@@ -1072,7 +1274,10 @@ class OSRAMBackbone(nn.Module):
             hidden = self.emotion_norm(
                 self.local_skip(local) + self.emotion_adapter(emotion_input)
             )
-        hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
+        if self.osram_post_grn:
+            hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
+        else:
+            hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
 
         diagnostics: dict[str, object] = {
             "ablation": self.osram_ablation,
@@ -1146,8 +1351,12 @@ class OSRAMBackbone(nn.Module):
             diagnostics["modality_track_residual"] = self.modality_track_residual.last_diagnostics
         elif self.osram_readout_fusion == "base-gap-delta":
             diagnostics["base_gap_delta_fusion"] = self.base_gap_delta_fusion.last_diagnostics
+        elif self.osram_readout_fusion == "memory-shift-residual":
+            diagnostics["memory_shift_filter"] = self.memory_shift_filter.last_diagnostics
         elif self.osram_readout_fusion != "flat":
             diagnostics["local_centered_fusion"] = self.local_centered_fusion.last_diagnostics
+        if self.osram_post_grn:
+            diagnostics["post_grn"] = self.post_grn.last_diagnostics
         self.last_diagnostics = diagnostics
         contexts = {
             "base": active_base_context,

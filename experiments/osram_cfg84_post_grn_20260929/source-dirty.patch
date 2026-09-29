@@ -1,0 +1,785 @@
+diff --git a/experiments/osram_cfg84_fixed_modality_ablation_20260923/run.py b/experiments/osram_cfg84_fixed_modality_ablation_20260923/run.py
+index 81191c5..7f12cc3 100644
+--- a/experiments/osram_cfg84_fixed_modality_ablation_20260923/run.py
++++ b/experiments/osram_cfg84_fixed_modality_ablation_20260923/run.py
+@@ -94,6 +94,9 @@ def _build_model(config, dimensions):
+         osram_forward_slot_reuse=config.osram_forward_slot_reuse,
+         osram_write_step=config.osram_write_step,
+         completion_path=config.completion_path,
++        completion_write_to_memory=config.completion_write_to_memory,
++        osram_history_query_adapter=config.osram_history_query_adapter,
++        osram_post_grn=getattr(config, 'osram_post_grn', False),
+         osram_readout_fusion=config.osram_readout_fusion,
+         teacher_mode=config.teacher_mode,
+         teacher_checkpoint=config.teacher_checkpoint,
+diff --git a/gcnet_missing_m3/model.py b/gcnet_missing_m3/model.py
+index 8d3cdda..8d38573 100644
+--- a/gcnet_missing_m3/model.py
++++ b/gcnet_missing_m3/model.py
+@@ -1267,7 +1267,33 @@ class MissingM3GraphModel(GraphModel):
+         text_core=False,
+         disable_unused_aux_modules=False,
+         simple_regression_predictor=False,
++        completion_write_to_memory=False,
++        osram_history_query_adapter=False,
++        osram_post_grn=False,
+     ) -> None:
++        if osram_post_grn and (
++            backbone_type != 'osram' or osram_readout_fusion != 'flat'
++            or training_objective != 'emotion-only' or completion_path != 'none'
++            or classification_completion or completion_write_to_memory
++            or osram_history_query_adapter
++        ):
++            raise ValueError('post-GRN requires Flat no-JEPA OSRAM without completion or query adaptation')
++        if osram_history_query_adapter and (
++            backbone_type != 'osram' or osram_bidirectional
++            or completion_path != 'none' or training_objective != 'emotion-only'
++            or complete_state_jepa or write_state_completion or future_state_jepa
++            or completion_write_to_memory
++        ):
++            raise ValueError('history query adapter requires causal NoJEPA without completion')
++        self.completion_write_to_memory = bool(completion_write_to_memory)
++        if self.completion_write_to_memory and (
++            completion_path != "pre_osram_joint_dual_projector"
++            or backbone_type != "osram" or osram_bidirectional
++            or write_state_completion
++        ):
++            raise ValueError(
++                "completion memory writes require causal dual-projector completion"
++            )
+         if target_space not in {'all-modalities', 'full-text', 'predictable-subspace'}:
+             raise ValueError('unsupported target_space')
+         if (target_space == 'predictable-subspace') != (text_subspace_checkpoint is not None):
+@@ -1389,11 +1415,11 @@ class MissingM3GraphModel(GraphModel):
+         b2_constructor_settings = {k:v for k,v in locals().items() if k not in {"self","__class__"}}
+         if osram_readout_fusion not in (
+             "flat", "local-gated", "local-cross-attn", "modality-tracks",
+-            "modality-track-residual", "base-gap-delta"
++            "modality-track-residual", "base-gap-delta", "memory-shift-residual"
+         ):
+             raise ValueError(
+                 "osram_readout_fusion must be flat, local-gated, local-cross-attn, "
+-                "modality-tracks, modality-track-residual, or base-gap-delta"
++                "modality-tracks, modality-track-residual, base-gap-delta, or memory-shift-residual"
+             )
+         if osram_readout_fusion != "flat" and (
+             backbone_type != "osram" or osram_predictor_mode != "structured"
+@@ -1604,6 +1630,8 @@ class MissingM3GraphModel(GraphModel):
+                 query_use_availability=osram_query_availability,
+                 bidirectional=osram_bidirectional,
+                 forward_slot_reuse=osram_forward_slot_reuse,
++                history_query_adapter=osram_history_query_adapter,
++                osram_post_grn=osram_post_grn,
+             )
+             hidden_dim = int(osram_output_dim)
+             predictor_context_dim = self.osram.context_dim
+@@ -1808,6 +1836,12 @@ class MissingM3GraphModel(GraphModel):
+                 encoded, completion_latents, reg, availability, umask
+             )
+             osram_nodes = {"read_node": read_node, "write_node": encoded}
++            if self.completion_write_to_memory:
++                from .b2 import predicted_latent_write_callback
++
++                osram_nodes["write_completion"] = predicted_latent_write_callback(
++                    self.osram, encoded, latents, reg, availability, qmask, umask
++                )
+         elif completion_predictions_override is not None:
+             raise ValueError("completion override requires a pre-OSRAM completion path")
+         if self.text_core is not None:
+diff --git a/gcnet_missing_m3/osram.py b/gcnet_missing_m3/osram.py
+index ce6e03d..9fdff26 100644
+--- a/gcnet_missing_m3/osram.py
++++ b/gcnet_missing_m3/osram.py
+@@ -397,6 +397,128 @@ class BaseGapDeltaFusion(nn.Module):
+         return hidden
+ 
+ 
++class MemoryShiftFilter(nn.Module):
++    """Zero-initialized readout residual from typed, filtered memory shifts.
++
++    Base and three fixed Gap slots are filtered independently. Normalization
++    uses the number of active slots, not the sum of their learned gates.
++    """
++
++    SLOT_NAMES = ("base", "gap_audio", "gap_text", "gap_visual")
++
++    def __init__(self, local_dim, context_dim, output_dim, relation_dim=128):
++        super().__init__()
++        self.local_dim = int(local_dim)
++        self.context_dim = int(context_dim)
++        self.output_dim = int(output_dim)
++        self.relation_dim = int(relation_dim)
++        self.local_relation = nn.Linear(self.local_dim, self.relation_dim)
++        self.memory_relation = nn.Linear(self.context_dim, self.relation_dim)
++        self.evidence_type = nn.Embedding(4, self.relation_dim)
++        self.filter = nn.Sequential(
++            nn.Linear(6 * self.relation_dim, 128), nn.GELU(), nn.Linear(128, 1)
++        )
++        self.residual_projector = nn.Linear(self.relation_dim, self.output_dim)
++        nn.init.zeros_(self.residual_projector.weight)
++        nn.init.zeros_(self.residual_projector.bias)
++        self.last_diagnostics = {}
++
++    def forward(self, local, base_context, gap_context, availability, umask, flat_anchor):
++        if local.ndim != 3 or local.shape[-1] != self.local_dim:
++            raise ValueError("local must be [L,B,local_dim]")
++        length, batch = local.shape[:2]
++        if (
++            base_context.shape != (length, batch, self.context_dim)
++            or gap_context.shape != (length, batch, 3, self.context_dim)
++            or availability.shape != (length, batch, 3)
++            or umask.shape != (batch, length)
++            or flat_anchor.shape != (length, batch, self.output_dim)
++        ):
++            raise ValueError("fusion context/mask shapes do not match local")
++        valid = umask.transpose(0, 1).bool()
++        if bool(((availability[valid] != 0) & (availability[valid] != 1)).any()):
++            raise ValueError("availability must be binary on valid utterances")
++        active = torch.cat((valid.unsqueeze(-1),
++                            valid.unsqueeze(-1) & ~availability.bool()), dim=-1)
++        safe_local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
++        evidence = torch.cat((base_context.unsqueeze(2), gap_context), dim=2)
++        evidence = torch.where(active.unsqueeze(-1), evidence, torch.zeros_like(evidence))
++        q = self.local_relation(safe_local).unsqueeze(2).expand(-1, -1, 4, -1)
++        types = self.evidence_type.weight.view(1, 1, 4, -1).expand_as(q)
++        k = self.memory_relation(evidence) + types
++        shift = k - q
++        gate = torch.sigmoid(self.filter(torch.cat(
++            (q, k, shift, shift.abs(), q * k, types), dim=-1
++        )))
++        gate = torch.where(active.unsqueeze(-1), gate, torch.zeros_like(gate))
++        contribution = torch.where(active.unsqueeze(-1), gate * shift, torch.zeros_like(shift))
++        filtered_shift = contribution.sum(dim=2) / active.sum(dim=-1).clamp_min(1).unsqueeze(-1)
++        residual = self.residual_projector(filtered_shift)
++        residual = torch.where(valid.unsqueeze(-1), residual, torch.zeros_like(residual))
++        with torch.no_grad():
++            count = int(valid.sum())
++            active_counts = {name: int(active[..., i].sum())
++                             for i, name in enumerate(self.SLOT_NAMES)}
++            self.last_diagnostics = {
++                "filter_mean": {name: float(gate[..., i, 0][active[..., i]].mean())
++                                if active_counts[name] else None
++                                for i, name in enumerate(self.SLOT_NAMES)},
++                "active_counts": active_counts,
++                "valid_count": count,
++                "filtered_shift_norm": float(filtered_shift[valid].norm(dim=-1).mean()) if count else None,
++                "shift_residual_norm": float(residual[valid].norm(dim=-1).mean()) if count else None,
++                "residual_anchor_norm_ratio": float((residual[valid].norm(dim=-1) /
++                    flat_anchor[valid].norm(dim=-1).clamp_min(1e-8)).mean()) if count else None,
++            }
++        return residual
++
++
++class PostGRN(nn.Module):
++    """Optional identity-initialized residual after the unchanged Flat norm."""
++
++    def __init__(self, latent_dim, context_dim, output_dim, dropout=0.5):
++        super().__init__()
++        condition_dim = latent_dim + 4 * context_dim + 3
++        self.condition_norm = nn.LayerNorm(condition_dim)
++        self.linear_x = nn.Linear(output_dim, 128)
++        self.linear_c = nn.Linear(condition_dim, 128)
++        self.linear2 = nn.Linear(128, 128)
++        self.dropout = nn.Dropout(dropout)
++        self.linear_gate = nn.Linear(128, output_dim)
++        self.linear_value = nn.Linear(128, output_dim)
++        nn.init.zeros_(self.linear_gate.bias)
++        nn.init.zeros_(self.linear_value.weight)
++        nn.init.zeros_(self.linear_value.bias)
++        self.last_diagnostics = {}
++
++    def forward(self, x, local, emotion_base, emotion_gap, availability, umask):
++        valid = umask.transpose(0, 1).bool()
++        active_gap = valid.unsqueeze(-1) & ~availability.bool()
++        x = torch.where(valid.unsqueeze(-1), x, torch.zeros_like(x))
++        local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
++        base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
++        gap = torch.where(active_gap.unsqueeze(-1), emotion_gap, torch.zeros_like(emotion_gap))
++        available = torch.where(valid.unsqueeze(-1), availability, torch.zeros_like(availability)).to(x.dtype)
++        condition = torch.cat((local, base, gap.flatten(2), available), dim=-1)
++        z = self.dropout(self.linear2(F.elu(self.linear_x(x) + self.linear_c(self.condition_norm(condition)))))
++        gate = torch.sigmoid(self.linear_gate(z))
++        residual = gate * self.linear_value(z)
++        hidden = torch.where(valid.unsqueeze(-1), x + residual, torch.zeros_like(x))
++        with torch.no_grad():
++            count = int(valid.sum().item())
++            self.last_diagnostics = {
++                "valid_count": count,
++                "gate_mean": float(gate[valid].mean().item()) if count else None,
++                "gate_saturation_fraction": float(
++                    ((gate[valid] <= 0.05) | (gate[valid] >= 0.95)).float().mean().item()
++                ) if count else None,
++                "gated_residual_flat_norm_ratio": float(
++                    (residual[valid].norm(dim=-1) / x[valid].norm(dim=-1).clamp_min(1e-8)).mean().item()
++                ) if count else None,
++            }
++        return hidden
++
++
+ class OSRAMBackbone(nn.Module):
+     """Bidirectional slot-conditioned associative memory.
+ 
+@@ -428,15 +550,20 @@ class OSRAMBackbone(nn.Module):
+         osram_gap_read: str = "residual",
+         gap_residual_strength: float = 1.0,
+         beta_mode: str = "embedded",
++        history_query_adapter: bool = False,
++        osram_post_grn: bool = False,
+     ) -> None:
+         super().__init__()
++        if osram_post_grn and osram_readout_fusion != "flat":
++            raise ValueError("osram_post_grn requires flat readout")
++        self.osram_post_grn = bool(osram_post_grn)
+         if osram_readout_fusion not in (
+             "flat", "local-gated", "local-cross-attn", "modality-tracks",
+-            "modality-track-residual", "base-gap-delta"
++            "modality-track-residual", "base-gap-delta", "memory-shift-residual"
+         ):
+             raise ValueError(
+                 "osram_readout_fusion must be flat, local-gated, local-cross-attn, "
+-                "modality-tracks, modality-track-residual, or base-gap-delta"
++                "modality-tracks, modality-track-residual, base-gap-delta, or memory-shift-residual"
+             )
+         if osram_readout_fusion != "flat" and (osram_ablation != "full" or osram_emotion_ablation != "full"):
+             raise ValueError("local-gated cannot combine with readout ablations")
+@@ -487,6 +614,9 @@ class OSRAMBackbone(nn.Module):
+         self.beta_mode = beta_mode
+         self.query_use_availability = bool(query_use_availability)
+         self.bidirectional = bool(bidirectional)
++        self.history_query_adapter = bool(history_query_adapter)
++        if self.history_query_adapter and self.bidirectional:
++            raise ValueError("history query adaptation requires a causal scan")
+         self.forward_slot_reuse = bool(forward_slot_reuse)
+         if self.bidirectional and self.forward_slot_reuse:
+             raise ValueError("forward_slot_reuse requires bidirectional=False")
+@@ -566,23 +696,71 @@ class OSRAMBackbone(nn.Module):
+                 elif osram_readout_fusion == "modality-track-residual":
+                     self.modality_track_residual = ModalityTrackResidualFusion(
+                         self.latent_dim, self.output_dim, dropout=dropout)
++                elif osram_readout_fusion == "memory-shift-residual":
++                    self.memory_shift_filter = MemoryShiftFilter(
++                        self.latent_dim, self.context_dim, self.output_dim)
+                 else:
+                     self.base_gap_delta_fusion = BaseGapDeltaFusion(
+                         self.latent_dim, self.context_dim, self.output_dim, dropout=dropout)
+             if osram_readout_fusion not in (
+-                "modality-tracks", "modality-track-residual", "base-gap-delta"
++                "modality-tracks", "modality-track-residual", "base-gap-delta", "memory-shift-residual"
+             ):
+                 self.local_centered_fusion.local_skip.load_state_dict(self.local_skip.state_dict())
+                 self.local_centered_fusion.emotion_norm.load_state_dict(self.emotion_norm.state_dict())
+             # Historical flat keys remain available for readout interventions.
+             # The residual mode intentionally keeps them trainable by default;
+             # the frozen-backbone experiment freezes them explicitly in the trainer.
+-            if osram_readout_fusion not in ("modality-track-residual", "base-gap-delta"):
++            if osram_readout_fusion not in ("modality-track-residual", "base-gap-delta", "memory-shift-residual"):
+                 self.emotion_adapter.requires_grad_(False)
+                 self.local_skip.requires_grad_(False)
+                 self.emotion_norm.requires_grad_(False)
+ 
++        if self.osram_post_grn:
++            # Leave the original Flat and memory trainable, and preserve shared
++            # initialization / downstream head RNG independently of the switch.
++            with torch.random.fork_rng(devices=[]):
++                self.post_grn = PostGRN(self.latent_dim, self.context_dim, self.output_dim, dropout)
+         self.last_diagnostics: dict[str, object] = {}
++        if self.history_query_adapter:
++            # New parameters must not perturb existing initialization or the
++            # downstream classifier's RNG sequence.
++            with torch.random.fork_rng(devices=[]):
++                self.history_support_embedding = nn.Embedding(8, 16)
++                self.history_query_adapters = nn.ModuleDict({
++                    name: nn.Sequential(
++                        nn.Linear(self.key_dim + 16, 64), nn.GELU(),
++                        nn.Linear(64, self.key_dim),
++                    ) for name in MODALITIES
++                })
++                for adapter in self.history_query_adapters.values():
++                    nn.init.zeros_(adapter[-1].weight)
++                    nn.init.zeros_(adapter[-1].bias)
++
++    def _adapt_history_queries(self, queries, availability, valid):
++        """Adapt Gap addresses using strictly past, real-observation support.
++
++        Support bits are A/T/V, encoded with weights 1/2/4. The current
++        utterance is excluded because the causal scan reads before writing.
++        Counts are local tensors, reset for every conversation/forward call.
++        """
++        observed = availability.bool() & valid.unsqueeze(-1)
++        counts = observed.long().cumsum(dim=0) - observed.long()
++        support = counts > 0
++        # CUDA does not implement integer matrix-vector multiplication.
++        codes = (support.long() * support.new_tensor([1, 2, 4], dtype=torch.long)).sum(-1)
++        active = ~support & valid.unsqueeze(-1)
++        self.last_history_support = support.detach()
++        self.last_history_codes = codes.detach()
++        self.last_history_active = active.detach()
++        embedding = self.history_support_embedding(codes)
++        embedding = embedding.unsqueeze(-2).expand(-1, -1, self.num_heads, -1)
++        adapted = [queries[:, :, 0]]
++        for index, name in enumerate(MODALITIES):
++            query = queries[:, :, index + 1]
++            delta = self.history_query_adapters[name](torch.cat((query, embedding), dim=-1))
++            normalized = F.normalize(query + delta, dim=-1)
++            adapted.append(torch.where(active[:, :, index, None, None], normalized, query))
++        return torch.stack(adapted, dim=2)
+ 
+     @staticmethod
+     def _validate_inputs(
+@@ -956,6 +1134,10 @@ class OSRAMBackbone(nn.Module):
+             node, latents, availability, qmask,
+             read_node=read_node, write_node=write_node,
+         )
++        if self.history_query_adapter:
++            if write_completion is not None:
++                raise ValueError("history query adapter requires observed-only writes")
++            queries = self._adapt_history_queries(queries, availability, valid)
+         base_forward, gap_forward, diag_forward = self._scan(
+             keys, values, queries, availability, valid, reverse=False,
+             retention_diagnostics=(memory_retention_diagnostics
+@@ -1055,10 +1237,30 @@ class OSRAMBackbone(nn.Module):
+                 local_skip=self.local_skip,
+                 emotion_norm=self.emotion_norm,
+             )
++        elif self.osram_readout_fusion == "memory-shift-residual":
++            # Keep the original flat anchor trainable and unchanged; only add
++            # the zero-initialized shift before its existing LayerNorm.
++            active_gap = valid.unsqueeze(-1) & ~availability.bool()
++            safe_local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
++            safe_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
++            safe_gap = torch.where(active_gap.unsqueeze(-1), emotion_gap, torch.zeros_like(emotion_gap))
++            emotion_input = torch.cat((safe_local, safe_base, safe_gap.flatten(2)), dim=-1)
++            flat_anchor = self.local_skip(safe_local) + self.emotion_adapter(emotion_input)
++            residual = self.memory_shift_filter(
++                local, emotion_base, emotion_gap, availability, umask, flat_anchor)
++            hidden = self.emotion_norm(flat_anchor + residual)
+         elif self.osram_readout_fusion != "flat":
+             hidden = self.local_centered_fusion(
+                 local, base_context, gap_context, availability, umask)
+         else:
++            # The opt-in path also sanitizes the Flat inputs; the disabled
++            # historical path is deliberately byte-for-byte unchanged.
++            if self.osram_post_grn:
++                local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
++                emotion_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
++                emotion_gap = torch.where(
++                    (valid.unsqueeze(-1) & ~availability.bool()).unsqueeze(-1),
++                    emotion_gap, torch.zeros_like(emotion_gap))
+             emotion_input = torch.cat(
+                 (
+                     local,
+@@ -1072,7 +1274,10 @@ class OSRAMBackbone(nn.Module):
+             hidden = self.emotion_norm(
+                 self.local_skip(local) + self.emotion_adapter(emotion_input)
+             )
+-        hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
++        if self.osram_post_grn:
++            hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
++        else:
++            hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
+ 
+         diagnostics: dict[str, object] = {
+             "ablation": self.osram_ablation,
+@@ -1146,8 +1351,12 @@ class OSRAMBackbone(nn.Module):
+             diagnostics["modality_track_residual"] = self.modality_track_residual.last_diagnostics
+         elif self.osram_readout_fusion == "base-gap-delta":
+             diagnostics["base_gap_delta_fusion"] = self.base_gap_delta_fusion.last_diagnostics
++        elif self.osram_readout_fusion == "memory-shift-residual":
++            diagnostics["memory_shift_filter"] = self.memory_shift_filter.last_diagnostics
+         elif self.osram_readout_fusion != "flat":
+             diagnostics["local_centered_fusion"] = self.local_centered_fusion.last_diagnostics
++        if self.osram_post_grn:
++            diagnostics["post_grn"] = self.post_grn.last_diagnostics
+         self.last_diagnostics = diagnostics
+         contexts = {
+             "base": active_base_context,
+diff --git a/gcnet_missing_m3/train_gcnet.py b/gcnet_missing_m3/train_gcnet.py
+index e0d3471..218d69b 100644
+--- a/gcnet_missing_m3/train_gcnet.py
++++ b/gcnet_missing_m3/train_gcnet.py
+@@ -129,6 +129,9 @@ class TrainConfig:
+     osram_write_step: float = 1.0
+     osram_readout_fusion: str = "flat"
+     completion_path: str = "none"
++    completion_write_to_memory: bool = False
++    osram_history_query_adapter: bool = False
++    osram_post_grn: bool = False
+     b2_base_checkpoint: str | None = None
+     b2_pretrain_checkpoint: str | None = None
+     joint_pretrain_checkpoint: str | None = None
+@@ -145,6 +148,13 @@ class TrainConfig:
+     simple_regression_predictor: bool = False
+ 
+     def __post_init__(self) -> None:
++        if self.train_rate_mode == "conversation-mixed" and (
++            self.training_objective != "emotion-only" or self.backbone_type != "osram"
++            or self.osram_bidirectional or self.completion_path != "none"
++            or self.classification_completion or self.joint_pretrain_checkpoint is not None
++            or self.text_core or self.emotion_loss_mode != "sample-mean"
++        ):
++            raise ValueError("conversation-mixed requires causal emotion-only OSRAM without completion")
+         normalized_train_rates = tuple(float(value) for value in self.train_missing_rates)
+         if not normalized_train_rates or len(set(normalized_train_rates)) != len(normalized_train_rates):
+             raise ValueError("train_missing_rates must be a non-empty unique sequence")
+@@ -299,13 +309,20 @@ class TrainConfig:
+                     or self.initial_backbone_checkpoint is not None
+                     or self.jepa_rate_weighting != "uniform"):
+                 raise ValueError("complete-state requires causal flat OSRAM without completion or legacy transfer, and uniform loss weighting")
++        if self.osram_post_grn and (
++            self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
++            or self.training_objective != 'emotion-only' or self.completion_path != 'none'
++            or self.classification_completion or self.completion_write_to_memory
++            or self.osram_history_query_adapter or self.train_rate_mode != 'cyclic'
++        ):
++            raise ValueError('post-GRN requires Flat no-JEPA cyclic OSRAM without completion or query adaptation')
+         if self.osram_readout_fusion not in {
+             "flat", "local-gated", "local-cross-attn", "modality-tracks",
+-            "modality-track-residual", "base-gap-delta"
++            "modality-track-residual", "base-gap-delta", "memory-shift-residual"
+         }:
+             raise ValueError(
+                 "osram_readout_fusion must be flat, local-gated, local-cross-attn, "
+-                "modality-tracks, modality-track-residual, or base-gap-delta"
++                "modality-tracks, modality-track-residual, base-gap-delta, or memory-shift-residual"
+             )
+         if self.osram_readout_fusion != "flat":
+             if self.backbone_type != "osram":
+@@ -924,10 +941,10 @@ def _protocol_rates(config: TrainConfig) -> tuple[float, ...]:
+     fixed_rate = _fixed_missing_rate(config)
+     if config.train_rate_mode == "fixed":
+         return (fixed_rate,)
+-    if config.train_rate_mode in {"cyclic", "all", "stratified", "uniform-forced-text"}:
++    if config.train_rate_mode in {"cyclic", "all", "stratified", "uniform-forced-text", "conversation-mixed"}:
+         return MISSING_RATES
+     raise ValueError(
+-        "train_rate_mode must be 'cyclic', 'all', 'fixed', 'stratified', or 'uniform-forced-text'"
++        "unsupported train_rate_mode (including conversation-mixed)"
+     )
+ 
+ 
+@@ -991,6 +1008,43 @@ def _build_stratified_mask_tensors(
+     return tuple(side_tensors)
+ 
+ 
++def _conversation_mixed_mask_tensors(
++    config: TrainConfig,
++    schedule: ConversationMaskSchedule,
++    conversation_ids: Sequence[str],
++    umask: torch.Tensor,
++    epoch: int,
++) -> tuple[torch.Tensor, torch.Tensor, dict[str, object]]:
++    """Half random / half persistent in expectation, keyed independently of batches.
++
++    Only the regime and persistent support are batch-order invariant. Random
++    conversations retain the historical batch-cyclic rate and mask generator.
++    """
++    host, guest = build_primary_mask_tensors(
++        schedule, conversation_ids=conversation_ids, umask=umask, epoch=epoch
++    )
++    patterns = {"A": (1, 0, 0), "T": (0, 1, 0), "V": (0, 0, 1),
++                "AT": (1, 1, 0), "AV": (1, 0, 1), "TV": (0, 1, 1)}
++    assignments = []
++    for index, conversation_id in enumerate(conversation_ids):
++        key = {"algorithm": "conversation-mixed-v1", "seed": config.seed,
++               "dataset": config.dataset, "fold": config.fold, "epoch": epoch,
++               "conversation_id": str(conversation_id)}
++        digest = hashlib.sha256(json.dumps(key, sort_keys=True).encode()).digest()
++        rng = np.random.default_rng(int.from_bytes(digest[:8], "big"))
++        persistent = rng.random() < .5
++        pattern = tuple(patterns)[int(rng.integers(6))] if persistent else None
++        if persistent:
++            support = torch.tensor(patterns[pattern], device=umask.device, dtype=host.dtype)
++            support = umask[index].bool().unsqueeze(-1) * support
++            host[:, index] = support
++            guest[:, index] = support
++        assignments.append({"conversation_id": str(conversation_id),
++                            "regime": "persistent" if persistent else "random",
++                            "pattern": pattern})
++    return host, guest, {"assignments": assignments}
++
++
+ def _prepare_view_from_primary_masks(
+     data: Sequence[object],
+     host_availability: torch.Tensor,
+@@ -1506,6 +1560,64 @@ def _collect_predictions(
+     )
+ 
+ 
++def _accumulate_post_grn(model, totals):
++    diagnostics = getattr(getattr(model, "osram", None), "last_diagnostics", {}).get("post_grn")
++    if diagnostics is None or not diagnostics["valid_count"]:
++        return
++    count = int(diagnostics["valid_count"])
++    totals["valid_count"] = totals.get("valid_count", 0) + count
++    for key in ("gate_mean", "gate_saturation_fraction", "gated_residual_flat_norm_ratio"):
++        totals[key] = totals.get(key, 0.0) + count * float(diagnostics[key])
++
++
++def _post_grn_metrics(totals):
++    count = totals.get("valid_count", 0)
++    if not count:
++        return {}
++    return {"post_grn": {
++        "valid_count": count,
++        **{key: totals[key] / count for key in (
++            "gate_mean", "gate_saturation_fraction", "gated_residual_flat_norm_ratio")},
++        "scope": "valid-token weighted; saturation <=0.05 or >=0.95; mean per-token L2 gated-residual/flat-hidden ratio",
++    }}
++
++
++def _accumulate_memory_shift(model, totals):
++    """Collect detached readout statistics without altering any model state."""
++    backbone = getattr(model, "osram", None)
++    diagnostics = getattr(backbone, "last_diagnostics", {}).get("memory_shift_filter")
++    if diagnostics is None:
++        return
++    count = int(diagnostics["valid_count"])
++    if not count:
++        return
++    totals["valid_count"] = totals.get("valid_count", 0) + count
++    for key in ("filtered_shift_norm", "shift_residual_norm", "residual_anchor_norm_ratio"):
++        totals[key] = totals.get(key, 0.0) + count * float(diagnostics[key])
++    counts = totals.setdefault("active_counts", {})
++    sums = totals.setdefault("filter_sums", {})
++    for name, active in diagnostics["active_counts"].items():
++        counts[name] = counts.get(name, 0) + active
++        sums[name] = sums.get(name, 0.0) + (
++            active * float(diagnostics["filter_mean"][name]) if active else 0.0
++        )
++
++
++def _memory_shift_metrics(totals):
++    count = totals.get("valid_count", 0)
++    if not count:
++        return {}
++    return {"memory_shift_filter": {
++        "valid_count": count,
++        "active_counts": dict(totals["active_counts"]),
++        "filter_mean": {name: totals["filter_sums"][name] / active if active else None
++                        for name, active in totals["active_counts"].items()},
++        **{key: totals[key] / count for key in (
++            "filtered_shift_norm", "shift_residual_norm", "residual_anchor_norm_ratio")},
++        "scope": "filter means use active-evidence counts; L2 norms and per-token residual/anchor ratios use valid utterance counts",
++    }}
++
++
+ def train_epoch(
+     model: MissingM3GraphModel,
+     loader: Iterable[Sequence[object]],
+@@ -1576,6 +1688,8 @@ def train_epoch(
+         if epoch_size is None:
+             epoch_size = len(loader.dataset)
+     conversations_seen = 0
++    memory_shift_totals = {}
++    post_grn_totals = {}
+     losses: list[float] = []
+     cls_losses: list[float] = []
+     jepa_losses: list[float] = []
+@@ -1604,6 +1718,11 @@ def train_epoch(
+     target_count = 0
+     optimizer_steps = 0
+     skipped_optimizer_batches = 0
++    mixed_counts = {"random": 0, "persistent": 0}
++    mixed_patterns = {name: 0 for name in ("A", "T", "V", "AT", "AV", "TV")}
++    mixed_valid = {name: 0 for name in mixed_counts}
++    mixed_missing = {name: 0 for name in mixed_counts}
++    mixed_assignments = []
+     for batch_index, raw in enumerate(loader):
+         data = _move_batch(raw, device)
+         batch_size = len(data[-1])
+@@ -1620,6 +1739,34 @@ def train_epoch(
+             view = _prepare_view(data, schedules[rate], epoch, dimensions)
+             optimizer.zero_grad(set_to_none=True)
+             rate_views = ((rate, view),)
++        elif config.train_rate_mode == "conversation-mixed":
++            random_rate = rate_schedule.rate_for(epoch, batch_index)
++            host, guest, audit = _conversation_mixed_mask_tensors(
++                config, schedules[random_rate], data[-1], data[7], epoch
++            )
++            view = _prepare_view_from_primary_masks(data, host, guest, dimensions)
++            optimizer.zero_grad(set_to_none=True)
++            rate_views = ((None, view),)
++            random_in_batch = False
++            for index, assignment in enumerate(audit["assignments"]):
++                regime = assignment["regime"]
++                mixed_assignments.append(assignment)
++                mixed_counts[regime] += 1
++                valid = view["umask"][index].bool()
++                available = view["availability"][:, index][valid]
++                valid_count = int(valid.sum().item())
++                missing_count = int(available.eq(0).sum().item())
++                mixed_valid[regime] += valid_count
++                mixed_missing[regime] += missing_count
++                if regime == "persistent":
++                    mixed_patterns[assignment["pattern"]] += 1
++                else:
++                    random_in_batch = True
++                    rate_conversation_counts[random_rate] += 1
++                    rate_valid_utterance_counts[random_rate] += valid_count
++                    realized_missing[random_rate][0] += missing_count
++                    realized_missing[random_rate][1] += int(available.numel())
++            rate_counts[random_rate] += int(random_in_batch)
+         elif config.train_rate_mode == "fixed":
+             rate = fixed_rate
+             view = _prepare_view(data, schedules[rate], epoch, dimensions)
+@@ -1681,7 +1828,7 @@ def train_epoch(
+             uniform_forced_text_valid_count += int(valid_rows.sum().item())
+         else:
+             raise ValueError(
+-                "train_rate_mode must be 'cyclic', 'all', 'fixed', 'stratified', or 'uniform-forced-text'"
++                "unsupported train_rate_mode (including conversation-mixed)"
+             )
+         teacher = None
+         batch_has_backward = False
+@@ -1710,6 +1857,8 @@ def train_epoch(
+                 predict_missing=train_jepa,
+             )
+             model_forward_count += 1
++            _accumulate_memory_shift(model, memory_shift_totals)
++            _accumulate_post_grn(model, post_grn_totals)
+             zero = logits.sum() * 0.0
+             cls, pattern_losses = (
+                 _emotion_loss(
+@@ -1970,6 +2119,8 @@ def train_epoch(
+         **metrics,
+         "loss": float(np.mean(losses)),
+         "classification_loss": float(np.mean(cls_losses)),
++        **_memory_shift_metrics(memory_shift_totals),
++        **_post_grn_metrics(post_grn_totals),
+         "jepa_loss": float(np.mean(jepa_losses)),
+         **({
+             "text_core_loss": float(np.mean(text_core_losses)),
+@@ -1978,6 +2129,22 @@ def train_epoch(
+             "text_core_align_loss": float(np.mean(text_core_align_losses)),
+         } if config.text_core else {}),
+         "jepa_target_count": int(target_count),
++        **({
++            "conversation_mixed_algorithm": "conversation-mixed-v1",
++            "conversation_mixed_regime_counts": mixed_counts,
++            "conversation_mixed_pattern_counts": mixed_patterns,
++            "conversation_mixed_valid_utterance_counts": mixed_valid,
++            "conversation_mixed_missing_modality_counts": mixed_missing,
++            "conversation_mixed_realized_missing_fraction": {
++                name: mixed_missing[name] / (3 * mixed_valid[name]) if mixed_valid[name] else None
++                for name in mixed_counts
++            },
++            "conversation_mixed_assignment_hash": hashlib.sha256(json.dumps(
++                sorted(mixed_assignments, key=lambda row: row["conversation_id"]),
++                sort_keys=True, separators=(",", ":")
++            ).encode()).hexdigest(),
++            "rate_statistics_scope": "random-regime-only",
++        } if config.train_rate_mode == "conversation-mixed" else {}),
+         **({"state_loss": float(np.mean(jepa_losses)),
+             "state_target_count": int(target_count)} if train_state else {}),
+         **({"write_state_loss": float(np.mean(jepa_losses)),
+@@ -2078,6 +2245,8 @@ def evaluate_rate(
+ ) -> tuple[Dict[str, float], Dict[str, np.ndarray] | None]:
+     model.eval()
+     task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
++    memory_shift_totals = {}
++    post_grn_totals = {}
+     losses: list[float] = []
+     all_predictions: list[np.ndarray] = []
+     all_labels: list[np.ndarray] = []
+@@ -2105,6 +2274,8 @@ def evaluate_rate(
+         )
+         if predictions is not None:
+             raise RuntimeError("inference path must not return missing predictions")
++        _accumulate_memory_shift(model, memory_shift_totals)
++        _accumulate_post_grn(model, post_grn_totals)
+         loss = _task_loss(
+             dataset,
+             logits,
+@@ -2186,6 +2357,8 @@ def evaluate_rate(
+     metrics = {
+         **_metrics(dataset, labels_array, predictions_array, mosi_task_mode),
+         "loss": float(np.mean(losses)),
++        **_memory_shift_metrics(memory_shift_totals),
++        **_post_grn_metrics(post_grn_totals),
+     }
+     artifacts = None
+     if collect:
+@@ -2261,6 +2434,18 @@ def run_experiment(
+     visual_root: str,
+     output_dir: str | Path,
+ ) -> Dict[str, object]:
++    if config_value.osram_history_query_adapter and (
++        config_value.backbone_type != 'osram' or config_value.osram_bidirectional
++        or config_value.completion_path != 'none'
++        or config_value.training_objective != 'emotion-only'
++        or config_value.completion_write_to_memory
++    ):
++        raise ValueError('history query adapter requires causal NoJEPA without completion')
++    if config_value.completion_write_to_memory and (
++        config_value.completion_path != "pre_osram_joint_dual_projector"
++        or config_value.osram_bidirectional
++    ):
++        raise ValueError("completion memory writes require causal dual-projector completion")
+     if (config_value.training_objective == "future-state"
+             and config_value.checkpoint_selection != "test-oracle-per-rate"):
+         raise ValueError("future-state experiments require test-oracle-per-rate selection")
+@@ -2424,6 +2609,9 @@ def run_experiment(
+         osram_forward_slot_reuse=config_value.osram_forward_slot_reuse,
+         osram_readout_fusion=config_value.osram_readout_fusion,
+         completion_path=config_value.completion_path,
++        completion_write_to_memory=config_value.completion_write_to_memory,
++        osram_history_query_adapter=config_value.osram_history_query_adapter,
++        osram_post_grn=config_value.osram_post_grn,
+         complete_state_jepa=config_value.training_objective == "complete-state",
+         write_state_completion=config_value.training_objective == "write-state",
+         future_state_jepa=config_value.training_objective == "future-state",
+@@ -2915,6 +3103,7 @@ def run_experiment(
+         "osram_forward_slot_reuse": config_value.osram_forward_slot_reuse,
+         "osram_write_step": config_value.osram_write_step,
+         "osram_readout_fusion": config_value.osram_readout_fusion,
++        **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
+         "osram_dimensions": (
+             {
+                 "latent_dim": config_value.latent_dim,
+@@ -2984,6 +3173,18 @@ def build_parser() -> argparse.ArgumentParser:
+         default="none",
+     )
+     parser.add_argument("--b2-base-checkpoint",default=None)
++    parser.add_argument(
++        "--osram-history-query-adapter", action="store_true",
++        help="Adapt never-observed Gap queries with causal three-bit history support.",
++    )
++    parser.add_argument(
++        "--osram-post-grn", action="store_true",
++        help="Add a zero-initialized conditioned GRN after normalized Flat OSRAM readout.",
++    )
++    parser.add_argument(
++        "--completion-write-to-memory", action="store_true",
++        help="Also write frozen dual-projector missing latents into causal OSRAM memory.",
++    )
+     parser.add_argument("--b2-pretrain-checkpoint",default=None)
+     parser.add_argument("--joint-pretrain-checkpoint",default=None)
+     parser.add_argument(
+@@ -3018,7 +3219,7 @@ def build_parser() -> argparse.ArgumentParser:
+     parser.add_argument("--batch-size", type=int, default=32)
+     parser.add_argument(
+         "--train-rate-mode",
+-        choices=("cyclic", "all", "fixed", "stratified", "uniform-forced-text"),
++        choices=("cyclic", "all", "fixed", "stratified", "uniform-forced-text", "conversation-mixed"),
+         default="cyclic",
+     )
+     parser.add_argument("--train-missing-rate", type=float, default=None)
+@@ -3168,7 +3369,7 @@ def build_parser() -> argparse.ArgumentParser:
+         "--osram-readout-fusion",
+         choices=(
+             "flat", "local-gated", "local-cross-attn", "modality-tracks",
+-            "modality-track-residual", "base-gap-delta",
++            "modality-track-residual", "base-gap-delta", "memory-shift-residual",
+         ),
+         default="flat",
+     )
+@@ -3222,6 +3423,9 @@ def main(argv=None) -> None:
+     config_value = TrainConfig(
+         dataset=args.dataset,
+         completion_path=args.completion_path,
++        completion_write_to_memory=args.completion_write_to_memory,
++        osram_history_query_adapter=args.osram_history_query_adapter,
++        osram_post_grn=args.osram_post_grn,
+         b2_base_checkpoint=args.b2_base_checkpoint,
+         b2_pretrain_checkpoint=args.b2_pretrain_checkpoint,
+         joint_pretrain_checkpoint=args.joint_pretrain_checkpoint,
