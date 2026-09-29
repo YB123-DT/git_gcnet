@@ -132,6 +132,7 @@ class TrainConfig:
     completion_write_to_memory: bool = False
     osram_history_query_adapter: bool = False
     osram_post_grn: bool = False
+    osram_history_input_gate: bool = False
     b2_base_checkpoint: str | None = None
     b2_pretrain_checkpoint: str | None = None
     joint_pretrain_checkpoint: str | None = None
@@ -309,6 +310,14 @@ class TrainConfig:
                     or self.initial_backbone_checkpoint is not None
                     or self.jepa_rate_weighting != "uniform"):
                 raise ValueError("complete-state requires causal flat OSRAM without completion or legacy transfer, and uniform loss weighting")
+        if self.osram_history_input_gate and (
+            self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
+            or self.training_objective != 'emotion-only' or self.completion_path != 'none'
+            or self.classification_completion or self.completion_write_to_memory
+            or self.osram_history_query_adapter or self.osram_post_grn
+            or self.train_rate_mode != 'cyclic'
+        ):
+            raise ValueError('history-input gate requires Flat no-JEPA cyclic OSRAM without other completion/readout adaptations')
         if self.osram_post_grn and (
             self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
             or self.training_objective != 'emotion-only' or self.completion_path != 'none'
@@ -1560,6 +1569,28 @@ def _collect_predictions(
     )
 
 
+def _accumulate_history_input_gate(model, totals):
+    diagnostics = getattr(getattr(model, 'osram', None), 'last_diagnostics', {}).get('history_input_gate')
+    if not diagnostics or not diagnostics['valid_count']:
+        return
+    count = int(diagnostics['valid_count'])
+    totals['valid_count'] = totals.get('valid_count', 0) + count
+    for key, value in diagnostics.items():
+        if key != 'valid_count':
+            totals[key] = totals.get(key, 0.) + count * float(value)
+
+
+def _history_input_gate_metrics(totals):
+    count = totals.get('valid_count', 0)
+    if not count:
+        return {}
+    metrics = {key: value / count for key, value in totals.items() if key != 'valid_count'}
+    metrics['alpha_std'] = max(0., metrics['alpha_second_moment'] - metrics['alpha_mean'] ** 2) ** .5
+    metrics['valid_count'] = count
+    metrics['scope'] = 'valid-token weighted; population std; saturation alpha<=0.81 or alpha>=1.19'
+    return {'history_input_gate': metrics}
+
+
 def _accumulate_post_grn(model, totals):
     diagnostics = getattr(getattr(model, "osram", None), "last_diagnostics", {}).get("post_grn")
     if diagnostics is None or not diagnostics["valid_count"]:
@@ -1690,6 +1721,7 @@ def train_epoch(
     conversations_seen = 0
     memory_shift_totals = {}
     post_grn_totals = {}
+    history_input_gate_totals = {}
     losses: list[float] = []
     cls_losses: list[float] = []
     jepa_losses: list[float] = []
@@ -1859,6 +1891,7 @@ def train_epoch(
             model_forward_count += 1
             _accumulate_memory_shift(model, memory_shift_totals)
             _accumulate_post_grn(model, post_grn_totals)
+            _accumulate_history_input_gate(model, history_input_gate_totals)
             zero = logits.sum() * 0.0
             cls, pattern_losses = (
                 _emotion_loss(
@@ -2121,6 +2154,7 @@ def train_epoch(
         "classification_loss": float(np.mean(cls_losses)),
         **_memory_shift_metrics(memory_shift_totals),
         **_post_grn_metrics(post_grn_totals),
+        **_history_input_gate_metrics(history_input_gate_totals),
         "jepa_loss": float(np.mean(jepa_losses)),
         **({
             "text_core_loss": float(np.mean(text_core_losses)),
@@ -2247,6 +2281,7 @@ def evaluate_rate(
     task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
     memory_shift_totals = {}
     post_grn_totals = {}
+    history_input_gate_totals = {}
     losses: list[float] = []
     all_predictions: list[np.ndarray] = []
     all_labels: list[np.ndarray] = []
@@ -2276,6 +2311,7 @@ def evaluate_rate(
             raise RuntimeError("inference path must not return missing predictions")
         _accumulate_memory_shift(model, memory_shift_totals)
         _accumulate_post_grn(model, post_grn_totals)
+        _accumulate_history_input_gate(model, history_input_gate_totals)
         loss = _task_loss(
             dataset,
             logits,
@@ -2359,6 +2395,7 @@ def evaluate_rate(
         "loss": float(np.mean(losses)),
         **_memory_shift_metrics(memory_shift_totals),
         **_post_grn_metrics(post_grn_totals),
+        **_history_input_gate_metrics(history_input_gate_totals),
     }
     artifacts = None
     if collect:
@@ -2612,6 +2649,7 @@ def run_experiment(
         completion_write_to_memory=config_value.completion_write_to_memory,
         osram_history_query_adapter=config_value.osram_history_query_adapter,
         osram_post_grn=config_value.osram_post_grn,
+        osram_history_input_gate=config_value.osram_history_input_gate,
         complete_state_jepa=config_value.training_objective == "complete-state",
         write_state_completion=config_value.training_objective == "write-state",
         future_state_jepa=config_value.training_objective == "future-state",
@@ -3104,6 +3142,7 @@ def run_experiment(
         "osram_write_step": config_value.osram_write_step,
         "osram_readout_fusion": config_value.osram_readout_fusion,
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
+        **({'osram_history_input_gate': True} if config_value.osram_history_input_gate else {}),
         "osram_dimensions": (
             {
                 "latent_dim": config_value.latent_dim,
@@ -3177,6 +3216,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--osram-history-query-adapter", action="store_true",
         help="Adapt never-observed Gap queries with causal three-bit history support.",
     )
+    parser.add_argument('--osram-history-input-gate', action='store_true',
+                        help='Scale Flat history inputs by one bounded 1+0.2*tanh gate per utterance.')
     parser.add_argument(
         "--osram-post-grn", action="store_true",
         help="Add a zero-initialized conditioned GRN after normalized Flat OSRAM readout.",
@@ -3426,6 +3467,7 @@ def main(argv=None) -> None:
         completion_write_to_memory=args.completion_write_to_memory,
         osram_history_query_adapter=args.osram_history_query_adapter,
         osram_post_grn=args.osram_post_grn,
+        osram_history_input_gate=args.osram_history_input_gate,
         b2_base_checkpoint=args.b2_base_checkpoint,
         b2_pretrain_checkpoint=args.b2_pretrain_checkpoint,
         joint_pretrain_checkpoint=args.joint_pretrain_checkpoint,

@@ -1270,7 +1270,16 @@ class MissingM3GraphModel(GraphModel):
         completion_write_to_memory=False,
         osram_history_query_adapter=False,
         osram_post_grn=False,
+        osram_history_input_gate=False,
     ) -> None:
+        if osram_history_input_gate and (
+            backbone_type != 'osram' or osram_readout_fusion != 'flat'
+            or training_objective != 'emotion-only' or completion_path != 'none'
+            or classification_completion or completion_write_to_memory
+            or osram_history_query_adapter or osram_post_grn
+            or complete_state_jepa or write_state_completion or future_state_jepa
+        ):
+            raise ValueError('history-input gate requires Flat no-JEPA without completion, post-GRN or query adaptation')
         if osram_post_grn and (
             backbone_type != 'osram' or osram_readout_fusion != 'flat'
             or training_objective != 'emotion-only' or completion_path != 'none'
@@ -1632,6 +1641,7 @@ class MissingM3GraphModel(GraphModel):
                 forward_slot_reuse=osram_forward_slot_reuse,
                 history_query_adapter=osram_history_query_adapter,
                 osram_post_grn=osram_post_grn,
+                osram_history_input_gate=osram_history_input_gate,
             )
             hidden_dim = int(osram_output_dim)
             predictor_context_dim = self.osram.context_dim

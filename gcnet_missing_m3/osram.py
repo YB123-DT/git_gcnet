@@ -473,6 +473,41 @@ class MemoryShiftFilter(nn.Module):
         return residual
 
 
+class HistoryInputGate(nn.Module):
+    """One bounded history-retention coefficient per utterance; no memory edits."""
+
+    def __init__(self, latent_dim, context_dim):
+        super().__init__()
+        self.input = nn.Linear(latent_dim + 4 * context_dim + 3, 128)
+        self.output = nn.Linear(128, 1)
+        nn.init.zeros_(self.output.weight)
+        nn.init.zeros_(self.output.bias)
+        self.last_diagnostics = {}
+
+    def forward(self, local, base, gap, availability, umask):
+        valid = umask.T.bool()
+        local = torch.where(valid[..., None], local, 0.)
+        base = torch.where(valid[..., None], base, 0.)
+        gap = torch.where((valid[..., None] & ~availability.bool())[..., None], gap, 0.)
+        availability = torch.where(valid[..., None], availability, 0.)
+        condition = torch.cat((local, base, gap.flatten(2), availability), -1)
+        alpha = 1. + .2 * torch.tanh(self.output(torch.nn.functional.elu(self.input(condition))))
+        alpha = torch.where(valid[..., None], alpha, 0.)
+        with torch.no_grad():
+            # Preserve small near-one variation in diagnostic second moments.
+            values = alpha[valid].flatten().double()
+            count = values.numel()
+            self.last_diagnostics = {
+                'valid_count': count,
+                'alpha_mean': float(values.mean()) if count else None,
+                'alpha_second_moment': float(values.square().mean()) if count else None,
+                'alpha_below_one_fraction': float((values < 1).float().mean()) if count else None,
+                'alpha_above_one_fraction': float((values > 1).float().mean()) if count else None,
+                'alpha_saturation_fraction': float(((values <= .81) | (values >= 1.19)).float().mean()) if count else None,
+            }
+        return alpha
+
+
 class PostGRN(nn.Module):
     """Optional identity-initialized residual after the unchanged Flat norm."""
 
@@ -552,11 +587,15 @@ class OSRAMBackbone(nn.Module):
         beta_mode: str = "embedded",
         history_query_adapter: bool = False,
         osram_post_grn: bool = False,
+        osram_history_input_gate: bool = False,
     ) -> None:
         super().__init__()
         if osram_post_grn and osram_readout_fusion != "flat":
             raise ValueError("osram_post_grn requires flat readout")
         self.osram_post_grn = bool(osram_post_grn)
+        self.osram_history_input_gate = bool(osram_history_input_gate)
+        if self.osram_history_input_gate and (osram_readout_fusion != 'flat' or osram_post_grn or history_query_adapter):
+            raise ValueError('history-input gate requires flat without post-GRN or query adaptation')
         if osram_readout_fusion not in (
             "flat", "local-gated", "local-cross-attn", "modality-tracks",
             "modality-track-residual", "base-gap-delta", "memory-shift-residual"
@@ -715,6 +754,9 @@ class OSRAMBackbone(nn.Module):
                 self.local_skip.requires_grad_(False)
                 self.emotion_norm.requires_grad_(False)
 
+        if self.osram_history_input_gate:
+            with torch.random.fork_rng(devices=[]):
+                self.history_input_gate = HistoryInputGate(self.latent_dim, self.context_dim)
         if self.osram_post_grn:
             # Leave the original Flat and memory trainable, and preserve shared
             # initialization / downstream head RNG independently of the switch.
@@ -1255,12 +1297,17 @@ class OSRAMBackbone(nn.Module):
         else:
             # The opt-in path also sanitizes the Flat inputs; the disabled
             # historical path is deliberately byte-for-byte unchanged.
-            if self.osram_post_grn:
+            if self.osram_post_grn or self.osram_history_input_gate:
                 local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
                 emotion_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
                 emotion_gap = torch.where(
                     (valid.unsqueeze(-1) & ~availability.bool()).unsqueeze(-1),
                     emotion_gap, torch.zeros_like(emotion_gap))
+            if self.osram_history_input_gate:
+                alpha = self.history_input_gate(local, emotion_base, emotion_gap, availability, umask)
+                emotion_base = alpha * emotion_base
+                emotion_gap = alpha.unsqueeze(-1) * emotion_gap
+                missing = torch.where(valid.unsqueeze(-1), missing, torch.zeros_like(missing))
             emotion_input = torch.cat(
                 (
                     local,
@@ -1276,6 +1323,8 @@ class OSRAMBackbone(nn.Module):
             )
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
+        elif self.osram_history_input_gate:
+            hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
 
@@ -1357,6 +1406,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics["local_centered_fusion"] = self.local_centered_fusion.last_diagnostics
         if self.osram_post_grn:
             diagnostics["post_grn"] = self.post_grn.last_diagnostics
+        if self.osram_history_input_gate:
+            diagnostics['history_input_gate'] = self.history_input_gate.last_diagnostics
         self.last_diagnostics = diagnostics
         contexts = {
             "base": active_base_context,
