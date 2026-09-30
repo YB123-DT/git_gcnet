@@ -135,6 +135,7 @@ class TrainConfig:
     osram_history_input_gate: bool = False
     osram_local_evidence_gate: bool = False
     osram_local_evidence_gate_reg_weight: float = 0.001
+    osram_local_evidence_gate_reg_type: str = 'l2'
     b2_base_checkpoint: str | None = None
     b2_pretrain_checkpoint: str | None = None
     joint_pretrain_checkpoint: str | None = None
@@ -314,6 +315,8 @@ class TrainConfig:
                 raise ValueError("complete-state requires causal flat OSRAM without completion or legacy transfer, and uniform loss weighting")
         if not math.isfinite(self.osram_local_evidence_gate_reg_weight) or self.osram_local_evidence_gate_reg_weight < 0:
             raise ValueError('local-evidence gate regularization weight must be finite and nonnegative')
+        if self.osram_local_evidence_gate_reg_type not in ('l1', 'l2'):
+            raise ValueError('local-evidence gate regularization must be l1 or l2')
         if self.osram_local_evidence_gate and (
             self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
             or self.osram_bidirectional or self.text_core
@@ -1582,6 +1585,11 @@ def _collect_predictions(
     )
 
 
+def _evidence_gate_penalty(model, config):
+    gate = model.osram.local_evidence_gate
+    return gate.regularization_l1 if config.osram_local_evidence_gate_reg_type == 'l1' else gate.regularization
+
+
 def _accumulate_local_evidence_gate(model, totals):
     diagnostic = getattr(getattr(model, 'osram', None), 'last_diagnostics', {}).get('local_evidence_gate')
     if not diagnostic:
@@ -1594,6 +1602,9 @@ def _accumulate_local_evidence_gate(model, totals):
         if count:
             for key in ('gate_mean', 'gate_saturation_fraction'):
                 target[key] += count * source[key]
+        for key in ('gate_abs_deviation_mean', 'gate_near_one_fraction'):
+            if key in source:
+                target[key] = target.get(key, 0.) + (count * source[key] if count else 0.)
 
 
 def _local_evidence_gate_metrics(totals):
@@ -2112,8 +2123,9 @@ def train_epoch(
             else:
                 raise ValueError("unsupported training_objective")
             if config.osram_local_evidence_gate:
-                loss = loss + config.osram_local_evidence_gate_reg_weight * model.osram.local_evidence_gate.regularization
-                local_evidence_regularizers.append(float(model.osram.local_evidence_gate.regularization.detach()))
+                gate_penalty = _evidence_gate_penalty(model, config)
+                loss = loss + config.osram_local_evidence_gate_reg_weight * gate_penalty
+                local_evidence_regularizers.append(float(gate_penalty.detach()))
             if not bool(torch.isfinite(loss.detach())):
                 raise ValueError("training loss must be finite")
             has_supervision = not (
@@ -2201,7 +2213,8 @@ def train_epoch(
         **_local_evidence_gate_metrics(local_evidence_gate_totals),
         **({'local_evidence_gate_regularization': float(np.mean(local_evidence_regularizers)),
             'local_evidence_gate_weighted_regularization': config.osram_local_evidence_gate_reg_weight * float(np.mean(local_evidence_regularizers)),
-            'local_evidence_gate_regularization_scope': 'batch mean of active-valid evidence means; weight applied once'}
+            'local_evidence_gate_regularization_scope': 'batch mean of active-valid evidence means; weight applied once',
+            'local_evidence_gate_regularization_type': config.osram_local_evidence_gate_reg_type}
            if config.osram_local_evidence_gate else {}),
         "jepa_loss": float(np.mean(jepa_losses)),
         **({
@@ -3196,7 +3209,8 @@ def run_experiment(
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_history_input_gate': True} if config_value.osram_history_input_gate else {}),
         **({'osram_local_evidence_gate': True,
-            'osram_local_evidence_gate_reg_weight': config_value.osram_local_evidence_gate_reg_weight}
+            'osram_local_evidence_gate_reg_weight': config_value.osram_local_evidence_gate_reg_weight,
+            'osram_local_evidence_gate_reg_type': config_value.osram_local_evidence_gate_reg_type}
            if config_value.osram_local_evidence_gate else {}),
         "osram_dimensions": (
             {
@@ -3276,6 +3290,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--osram-local-evidence-gate', action='store_true',
                         help='Independently gate each Flat memory evidence conditioned on Local.')
     parser.add_argument('--osram-local-evidence-gate-reg-weight', '--osram-evidence-gate-reg-weight', type=float, default=.001)
+    parser.add_argument('--osram-local-evidence-gate-reg-type', choices=('l1', 'l2'), default='l2')
     parser.add_argument(
         "--osram-post-grn", action="store_true",
         help="Add a zero-initialized conditioned GRN after normalized Flat OSRAM readout.",
@@ -3528,6 +3543,7 @@ def main(argv=None) -> None:
         osram_history_input_gate=args.osram_history_input_gate,
         osram_local_evidence_gate=args.osram_local_evidence_gate,
         osram_local_evidence_gate_reg_weight=args.osram_local_evidence_gate_reg_weight,
+        osram_local_evidence_gate_reg_type=args.osram_local_evidence_gate_reg_type,
         b2_base_checkpoint=args.b2_base_checkpoint,
         b2_pretrain_checkpoint=args.b2_pretrain_checkpoint,
         joint_pretrain_checkpoint=args.joint_pretrain_checkpoint,

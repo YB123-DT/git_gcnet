@@ -486,6 +486,7 @@ class LocalConditionedEvidenceGate(nn.Module):
         nn.init.zeros_(self.output.weight)
         nn.init.zeros_(self.output.bias)
         self.regularization = None
+        self.regularization_l1 = None
         self.last_diagnostics = {}
 
     def forward(self, local, base, gap, availability, umask):
@@ -505,6 +506,7 @@ class LocalConditionedEvidenceGate(nn.Module):
         gates = torch.where(active, raw, 0.)
         penalty = torch.where(active, (raw-1.).square(), 0.)
         self.regularization = penalty.sum() / active.sum().clamp_min(1)
+        self.regularization_l1 = torch.where(active, (raw-1.).abs(), 0.).sum() / active.sum().clamp_min(1)
         with torch.no_grad():
             self.last_diagnostics = {'active_count': int(active.sum()),
                                      'regularization': float(self.regularization.detach())}
@@ -513,6 +515,8 @@ class LocalConditionedEvidenceGate(nn.Module):
                 self.last_diagnostics[name] = {
                     'active_count': values.numel(),
                     'gate_mean': float(values.mean()) if values.numel() else None,
+                    'gate_abs_deviation_mean': float((values-1.).abs().mean()) if values.numel() else None,
+                    'gate_near_one_fraction': float(((values-1.).abs() <= .01).double().mean()) if values.numel() else None,
                     'gate_saturation_fraction': float(((values <= .81) | (values >= 1.19)).double().mean()) if values.numel() else None,
                 }
         return gates
