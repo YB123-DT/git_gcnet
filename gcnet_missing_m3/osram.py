@@ -473,6 +473,63 @@ class MemoryShiftFilter(nn.Module):
         return residual
 
 
+class HierarchicalEvidenceGate(nn.Module):
+    """Identity-initialized feature filtering followed by active-evidence competition."""
+
+    def __init__(self, latent_dim, context_dim):
+        super().__init__()
+        self.local_relation = nn.Linear(latent_dim, 128)
+        self.memory_relation = nn.Linear(context_dim, 128)
+        self.filtered_relation = nn.Linear(context_dim, 128)
+        self.type_embedding = nn.Embedding(4, 8)
+        self.feature_input = nn.Linear(128 * 2 + 8 + 3, 128)
+        self.feature_output = nn.Linear(128, context_dim)
+        self.evidence_input = nn.Linear(128 * 2 + 8 + 3, 128)
+        self.evidence_output = nn.Linear(128, 1)
+        for layer in (self.feature_output, self.evidence_output):
+            nn.init.zeros_(layer.weight)
+            nn.init.zeros_(layer.bias)
+        self.last_diagnostics = {}
+
+    def forward(self, local, base, gap, availability, umask):
+        valid = umask.T.bool()
+        active = torch.cat((valid[..., None], valid[..., None] & ~availability.bool()), -1)
+        local = torch.where(valid[..., None], local, 0.)
+        availability = torch.where(valid[..., None], availability, 0.)
+        evidence = torch.where(active[..., None], torch.cat((base.unsqueeze(-2), gap), -2), 0.)
+        q = self.local_relation(local).unsqueeze(-2).expand(*evidence.shape[:-1], 128)
+        types = self.type_embedding.weight.expand(*evidence.shape[:-2], 4, 8)
+        avail = availability.unsqueeze(-2).expand(*evidence.shape[:-1], 3)
+        feature_condition = torch.cat((q, self.memory_relation(evidence), types, avail), -1)
+        feature = 2. * torch.sigmoid(self.feature_output(torch.nn.functional.elu(self.feature_input(feature_condition))))
+        feature = torch.where(active[..., None], feature, 0.)
+        filtered = feature * evidence
+        condition = torch.cat((q, self.filtered_relation(filtered), types, avail), -1)
+        scores = self.evidence_output(torch.nn.functional.elu(self.evidence_input(condition))).squeeze(-1)
+        scores = scores.masked_fill(~active, -torch.inf)
+        scores = torch.where(valid[..., None], scores, 0.)
+        alpha = torch.where(active, torch.softmax(scores, -1), 0.)
+        reweight = active.sum(-1, keepdim=True).to(alpha.dtype) * alpha
+        result = torch.where(active[..., None], reweight[..., None] * filtered, 0.)
+        with torch.no_grad():
+            entropy = -(alpha * alpha.clamp_min(torch.finfo(alpha.dtype).tiny).log()).sum(-1)
+            self.last_diagnostics = {'valid_count': int(valid.sum()),
+                'entropy_mean': float(entropy[valid].double().mean()) if valid.any() else None}
+            for i, name in enumerate(('base', 'gap_a', 'gap_t', 'gap_v')):
+                f = feature[..., i, :][active[..., i]].double()
+                a = alpha[..., i][active[..., i]].double()
+                r = reweight[..., i][active[..., i]].double()
+                self.last_diagnostics[name] = {
+                    'active_count': a.numel(),
+                    'feature_mean': float(f.mean()) if a.numel() else None,
+                    'feature_abs_deviation_mean': float((f - 1.).abs().mean()) if a.numel() else None,
+                    'feature_saturation_fraction': float(((f <= .01) | (f >= 1.99)).double().mean()) if a.numel() else None,
+                    'alpha_mean': float(a.mean()) if a.numel() else None,
+                    'reweight_mean': float(r.mean()) if a.numel() else None,
+                }
+        return result
+
+
 class LocalConditionedEvidenceGate(nn.Module):
     """Identity-initialized scalar modulation of each original Flat evidence."""
 
@@ -638,6 +695,7 @@ class OSRAMBackbone(nn.Module):
         osram_post_grn: bool = False,
         osram_history_input_gate: bool = False,
         osram_local_evidence_gate: bool = False,
+        osram_hierarchical_evidence_gate: bool = False,
     ) -> None:
         super().__init__()
         if osram_post_grn and osram_readout_fusion != "flat":
@@ -645,6 +703,9 @@ class OSRAMBackbone(nn.Module):
         self.osram_post_grn = bool(osram_post_grn)
         self.osram_history_input_gate = bool(osram_history_input_gate)
         self.osram_local_evidence_gate = bool(osram_local_evidence_gate)
+        self.osram_hierarchical_evidence_gate = bool(osram_hierarchical_evidence_gate)
+        if self.osram_hierarchical_evidence_gate and (bidirectional or osram_readout_fusion != 'flat' or osram_post_grn or history_query_adapter or osram_history_input_gate or osram_local_evidence_gate):
+            raise ValueError('hierarchical-evidence gate requires Flat without other adaptations')
         if self.osram_local_evidence_gate and (osram_readout_fusion != 'flat' or osram_post_grn or history_query_adapter or osram_history_input_gate):
             raise ValueError('local-evidence gate requires Flat without other readout/query adaptations')
         if self.osram_history_input_gate and (osram_readout_fusion != 'flat' or osram_post_grn or history_query_adapter):
@@ -807,6 +868,9 @@ class OSRAMBackbone(nn.Module):
                 self.local_skip.requires_grad_(False)
                 self.emotion_norm.requires_grad_(False)
 
+        if self.osram_hierarchical_evidence_gate:
+            with torch.random.fork_rng(devices=[]):
+                self.hierarchical_evidence_gate = HierarchicalEvidenceGate(self.latent_dim, self.context_dim)
         if self.osram_local_evidence_gate:
             with torch.random.fork_rng(devices=[]):
                 self.local_evidence_gate = LocalConditionedEvidenceGate(self.latent_dim, self.context_dim)
@@ -1353,12 +1417,16 @@ class OSRAMBackbone(nn.Module):
         else:
             # The opt-in path also sanitizes the Flat inputs; the disabled
             # historical path is deliberately byte-for-byte unchanged.
-            if self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate:
+            if self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
                 local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
                 emotion_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
                 emotion_gap = torch.where(
                     (valid.unsqueeze(-1) & ~availability.bool()).unsqueeze(-1),
                     emotion_gap, torch.zeros_like(emotion_gap))
+            if self.osram_hierarchical_evidence_gate:
+                evidence = self.hierarchical_evidence_gate(local, emotion_base, emotion_gap, availability, umask)
+                emotion_base, emotion_gap = evidence[..., 0, :], evidence[..., 1:, :]
+                missing = torch.where(valid.unsqueeze(-1), missing, torch.zeros_like(missing))
             if self.osram_local_evidence_gate:
                 gates = self.local_evidence_gate(local, emotion_base, emotion_gap, availability, umask)
                 emotion_base = gates[..., :1] * emotion_base
@@ -1384,7 +1452,7 @@ class OSRAMBackbone(nn.Module):
             )
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_history_input_gate or self.osram_local_evidence_gate:
+        elif self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
@@ -1469,6 +1537,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics["post_grn"] = self.post_grn.last_diagnostics
         if self.osram_history_input_gate:
             diagnostics['history_input_gate'] = self.history_input_gate.last_diagnostics
+        if self.osram_hierarchical_evidence_gate:
+            diagnostics['hierarchical_evidence_gate'] = self.hierarchical_evidence_gate.last_diagnostics
         if self.osram_local_evidence_gate:
             diagnostics['local_evidence_gate'] = self.local_evidence_gate.last_diagnostics
         self.last_diagnostics = diagnostics

@@ -134,6 +134,7 @@ class TrainConfig:
     osram_post_grn: bool = False
     osram_history_input_gate: bool = False
     osram_local_evidence_gate: bool = False
+    osram_hierarchical_evidence_gate: bool = False
     osram_local_evidence_gate_reg_weight: float = 0.001
     osram_local_evidence_gate_reg_type: str = 'l2'
     b2_base_checkpoint: str | None = None
@@ -317,6 +318,15 @@ class TrainConfig:
             raise ValueError('local-evidence gate regularization weight must be finite and nonnegative')
         if self.osram_local_evidence_gate_reg_type not in ('l1', 'l2'):
             raise ValueError('local-evidence gate regularization must be l1 or l2')
+        if self.osram_hierarchical_evidence_gate and (
+            self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
+            or self.osram_bidirectional or self.text_core
+            or self.training_objective != 'emotion-only' or self.completion_path != 'none'
+            or self.classification_completion or self.completion_write_to_memory
+            or self.osram_history_query_adapter or self.osram_post_grn or self.osram_history_input_gate
+            or self.osram_local_evidence_gate or self.train_rate_mode != 'cyclic'
+        ):
+            raise ValueError('hierarchical-evidence gate requires causal Flat no-JEPA cyclic training without other adaptations')
         if self.osram_local_evidence_gate and (
             self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
             or self.osram_bidirectional or self.text_core
@@ -1590,6 +1600,35 @@ def _evidence_gate_penalty(model, config):
     return gate.regularization_l1 if config.osram_local_evidence_gate_reg_type == 'l1' else gate.regularization
 
 
+def _accumulate_hierarchical_evidence_gate(model, totals):
+    diagnostic = getattr(getattr(model, 'osram', None), 'last_diagnostics', {}).get('hierarchical_evidence_gate')
+    if not diagnostic:
+        return
+    count = diagnostic['valid_count']
+    totals['valid_count'] = totals.get('valid_count', 0) + count
+    totals['entropy_sum'] = totals.get('entropy_sum', 0.) + (count * diagnostic['entropy_mean'] if count else 0.)
+    for name in ('base', 'gap_a', 'gap_t', 'gap_v'):
+        source = diagnostic[name]
+        count = source['active_count']
+        target = totals.setdefault(name, {'active_count': 0})
+        target['active_count'] += count
+        for key, value in source.items():
+            if key != 'active_count':
+                target[key] = target.get(key, 0.) + (count * value if count else 0.)
+
+
+def _hierarchical_evidence_gate_metrics(totals):
+    if not totals:
+        return {}
+    result = {'valid_count': totals['valid_count'],
+              'entropy_mean': totals['entropy_sum'] / totals['valid_count'] if totals['valid_count'] else None}
+    for name in ('base', 'gap_a', 'gap_t', 'gap_v'):
+        row = totals[name]
+        result[name] = {key: (value if key == 'active_count' else value / row['active_count'] if row['active_count'] else None)
+                        for key, value in row.items()}
+    return {'hierarchical_evidence_gate': result}
+
+
 def _accumulate_local_evidence_gate(model, totals):
     diagnostic = getattr(getattr(model, 'osram', None), 'last_diagnostics', {}).get('local_evidence_gate')
     if not diagnostic:
@@ -1771,6 +1810,7 @@ def train_epoch(
     post_grn_totals = {}
     history_input_gate_totals = {}
     local_evidence_gate_totals = {}
+    hierarchical_evidence_gate_totals = {}
     local_evidence_regularizers = []
     losses: list[float] = []
     cls_losses: list[float] = []
@@ -1943,6 +1983,7 @@ def train_epoch(
             _accumulate_post_grn(model, post_grn_totals)
             _accumulate_history_input_gate(model, history_input_gate_totals)
             _accumulate_local_evidence_gate(model, local_evidence_gate_totals)
+            _accumulate_hierarchical_evidence_gate(model, hierarchical_evidence_gate_totals)
             zero = logits.sum() * 0.0
             cls, pattern_losses = (
                 _emotion_loss(
@@ -2211,6 +2252,7 @@ def train_epoch(
         **_post_grn_metrics(post_grn_totals),
         **_history_input_gate_metrics(history_input_gate_totals),
         **_local_evidence_gate_metrics(local_evidence_gate_totals),
+        **_hierarchical_evidence_gate_metrics(hierarchical_evidence_gate_totals),
         **({'local_evidence_gate_regularization': float(np.mean(local_evidence_regularizers)),
             'local_evidence_gate_weighted_regularization': config.osram_local_evidence_gate_reg_weight * float(np.mean(local_evidence_regularizers)),
             'local_evidence_gate_regularization_scope': 'batch mean of active-valid evidence means; weight applied once',
@@ -2344,6 +2386,7 @@ def evaluate_rate(
     post_grn_totals = {}
     history_input_gate_totals = {}
     local_evidence_gate_totals = {}
+    hierarchical_evidence_gate_totals = {}
     losses: list[float] = []
     all_predictions: list[np.ndarray] = []
     all_labels: list[np.ndarray] = []
@@ -2375,6 +2418,7 @@ def evaluate_rate(
         _accumulate_post_grn(model, post_grn_totals)
         _accumulate_history_input_gate(model, history_input_gate_totals)
         _accumulate_local_evidence_gate(model, local_evidence_gate_totals)
+        _accumulate_hierarchical_evidence_gate(model, hierarchical_evidence_gate_totals)
         loss = _task_loss(
             dataset,
             logits,
@@ -2460,6 +2504,7 @@ def evaluate_rate(
         **_post_grn_metrics(post_grn_totals),
         **_history_input_gate_metrics(history_input_gate_totals),
         **_local_evidence_gate_metrics(local_evidence_gate_totals),
+        **_hierarchical_evidence_gate_metrics(hierarchical_evidence_gate_totals),
     }
     artifacts = None
     if collect:
@@ -2715,6 +2760,7 @@ def run_experiment(
         osram_post_grn=config_value.osram_post_grn,
         osram_history_input_gate=config_value.osram_history_input_gate,
         osram_local_evidence_gate=config_value.osram_local_evidence_gate,
+        osram_hierarchical_evidence_gate=config_value.osram_hierarchical_evidence_gate,
         complete_state_jepa=config_value.training_objective == "complete-state",
         write_state_completion=config_value.training_objective == "write-state",
         future_state_jepa=config_value.training_objective == "future-state",
@@ -3208,6 +3254,7 @@ def run_experiment(
         "osram_readout_fusion": config_value.osram_readout_fusion,
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_history_input_gate': True} if config_value.osram_history_input_gate else {}),
+        **({'osram_hierarchical_evidence_gate': True} if config_value.osram_hierarchical_evidence_gate else {}),
         **({'osram_local_evidence_gate': True,
             'osram_local_evidence_gate_reg_weight': config_value.osram_local_evidence_gate_reg_weight,
             'osram_local_evidence_gate_reg_type': config_value.osram_local_evidence_gate_reg_type}
@@ -3287,6 +3334,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument('--osram-history-input-gate', action='store_true',
                         help='Scale Flat history inputs by one bounded 1+0.2*tanh gate per utterance.')
+    parser.add_argument('--osram-hierarchical-evidence-gate', action='store_true',
+                        help='Feature filtering and active-evidence softmax before original Flat.')
     parser.add_argument('--osram-local-evidence-gate', action='store_true',
                         help='Independently gate each Flat memory evidence conditioned on Local.')
     parser.add_argument('--osram-local-evidence-gate-reg-weight', '--osram-evidence-gate-reg-weight', type=float, default=.001)
@@ -3542,6 +3591,7 @@ def main(argv=None) -> None:
         osram_post_grn=args.osram_post_grn,
         osram_history_input_gate=args.osram_history_input_gate,
         osram_local_evidence_gate=args.osram_local_evidence_gate,
+        osram_hierarchical_evidence_gate=args.osram_hierarchical_evidence_gate,
         osram_local_evidence_gate_reg_weight=args.osram_local_evidence_gate_reg_weight,
         osram_local_evidence_gate_reg_type=args.osram_local_evidence_gate_reg_type,
         b2_base_checkpoint=args.b2_base_checkpoint,
