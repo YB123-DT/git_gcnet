@@ -34,3 +34,19 @@ No new inference or training was performed during result aggregation.
 Source code88937c7, launch recorda239fed; detailed results in results/SUMMARY.json
 and per-task metrics/provenance. Each task retains best.pt and last.pt remotely;
 Gate-only checkpoints require the immutable referenced parent Flat checkpoint.
+
+## Best comparison by missing rate
+
+Three-seed means; differences computed before rounding, in percentage points.
+Original parent scores versus Stage2 best including epoch0, same Test-oracle scope.
+
+| Miss | Original Flat best | Frozen Flat + Gate best | Delta pp |
+|---|---:|---:|---:|
+| 0.0 | 88.419 | 88.421 | +0.003 |
+| 0.1 | 85.845 | 86.003 | +0.157 |
+| 0.2 | 83.431 | 83.761 | +0.330 |
+| 0.3 | 80.999 | 81.127 | +0.128 |
+| 0.4 | 78.996 | 79.272 | +0.276 |
+| 0.5 | 77.327 | 77.535 | +0.209 |
+| 0.6 | 75.848 | 75.883 | +0.034 |
+| 0.7 | 73.607 | 73.928 | +0.322 |
