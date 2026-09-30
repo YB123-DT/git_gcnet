@@ -1,7 +1,7 @@
 # Local-Conditioned Evidence Gate
 
-Implementation-only task on cfg84 no-JEPA Flat. No formal training or new
-performance results are implied by the module verification.
+Verified optional module on cfg84 no-JEPA Flat. User subsequently authorized
+the matched three-seed training experiment; verification is not performance.
 
 ## Method
 
@@ -53,3 +53,26 @@ Verification snapshot:
 The existing oracle analysis motivates the hypothesis but cannot establish
 learnability from unlabeled inputs. It used a shared history coefficient;
 benefits from four separate gates remain an untested extension of that result.
+
+## Authorized training (2026-09-30)
+
+Reuse original completed Flat seeds 66/67/68, without retraining the reference.
+Read each original config from the memory-gap ablation reference. Change only
+the evidence-gate enable flag and its regularization weight (0.001); gamma is
+fixed 0.2. Train from scratch for the verified original 100 epochs, same cyclic
+eight-rate mask schedule, features, split, optimizer and batch size.
+Keep eight per-rate best checkpoints. This retains the existing **Test-oracle
+internal diagnostic** selection protocol, not validation-selected paper results.
+
+Run from the isolated biggpu snapshot:
+
+```sh
+/data2/yb/reproduction_workspace/envs/s0/bin/python -u experiments/osram_local_evidence_gate_20260930/run.py --launch --gpus 0 --max-tasks-per-gpu 3
+```
+
+The launcher verifies original configurations and feature paths, refuses
+overwrites, locks against duplicate launch, and uses host GPU0 exclusively.
+Admission requires at least 3000 MiB free with UUID verification and 20 seconds
+between starts. Pending seeds wait on GPU0 instead of changing the protocol or
+using another card. Logs/configs/provenance/checkpoints live separately under
+`/data1/yb/remote_experiments/osram_local_evidence_gate_20260930/runs`.
