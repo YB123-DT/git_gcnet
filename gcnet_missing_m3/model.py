@@ -1271,7 +1271,17 @@ class MissingM3GraphModel(GraphModel):
         osram_history_query_adapter=False,
         osram_post_grn=False,
         osram_history_input_gate=False,
+        osram_local_evidence_gate=False,
     ) -> None:
+        if osram_local_evidence_gate and (
+            backbone_type != 'osram' or osram_readout_fusion != 'flat'
+            or osram_bidirectional or text_core
+            or training_objective != 'emotion-only' or completion_path != 'none'
+            or classification_completion or completion_write_to_memory
+            or osram_history_query_adapter or osram_post_grn or osram_history_input_gate
+            or complete_state_jepa or write_state_completion or future_state_jepa
+        ):
+            raise ValueError('local-evidence gate requires Flat no-JEPA without other adaptations')
         if osram_history_input_gate and (
             backbone_type != 'osram' or osram_readout_fusion != 'flat'
             or training_objective != 'emotion-only' or completion_path != 'none'
@@ -1642,6 +1652,7 @@ class MissingM3GraphModel(GraphModel):
                 history_query_adapter=osram_history_query_adapter,
                 osram_post_grn=osram_post_grn,
                 osram_history_input_gate=osram_history_input_gate,
+                osram_local_evidence_gate=osram_local_evidence_gate,
             )
             hidden_dim = int(osram_output_dim)
             predictor_context_dim = self.osram.context_dim

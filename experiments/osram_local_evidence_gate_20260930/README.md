@@ -1,0 +1,55 @@
+# Local-Conditioned Evidence Gate
+
+Implementation-only task on cfg84 no-JEPA Flat. No formal training or new
+performance results are implied by the module verification.
+
+## Method
+
+Four scalar gates independently scale Base, Gap-A, Gap-T and Gap-V before the
+unchanged Flat adapter; the Local skip and Local adapter input remain intact.
+The shared MLP conditions on projected Local/evidence (128 dimensions), their
+product, absolute difference and L2 norms, evidence type (8 dimensions), and
+availability (3 dimensions). Its hidden layer has 128 units and ELU activation.
+
+`g_i = 1 + 0.2 * tanh(logit_i)`; only the final logit layer is zero-initialized.
+The original context, not its projection, is multiplied by the scalar gate.
+The added module preserves the original initialization RNG and starts at the
+original Flat computation. Original Flat, task head and Memory stay trainable.
+
+Base is active at every valid utterance. A Gap is active only when its modality
+is missing. Padding and inactive evidence are safely zeroed using `torch.where`.
+Inputs use the emotion contexts after readout ablations, never bypassing them.
+
+`R = sum_valid_active((g_i - 1)^2) / count_valid_active`
+
+`loss_train = loss_emotion + 0.001 * R`
+
+Lambda occurs once. This is a mean over active evidence, so padding and observed
+modality gaps do not contribute or dilute the penalty. The regularizer is not a
+test-label supervision signal and does not guarantee non-degradation.
+
+## Scope
+
+Keep `--osram-readout-fusion flat`; opt in with `--osram-local-evidence-gate`.
+The regularization coefficient is `--osram-local-evidence-gate-reg-weight 0.001`.
+The shorter alias `--osram-evidence-gate-reg-weight` is also accepted.
+No old total-history gate, Post-GRN, JEPA, completion, persistent 50/50 mixing,
+new attention, or frozen original components. The default-off path preserves
+the original model. No dependency is added.
+
+Diagnostics report each evidence's active-count-weighted gate mean and fraction
+near the bounds (`g <= 0.81` or `g >= 1.19`). An inactive type has a null mean,
+not an artificial zero mean. Training also records `classification_loss`,
+unweighted regularization and its once-weighted contribution; those losses
+retain the trainer's batch-mean aggregation. Evaluation task loss stays unchanged.
+
+Code is edited locally; model verification belongs to `ssh biggpu`, original
+`s0` Python environment, host GPU0 UUID
+`GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45`. Host GPU4 is prohibited.
+
+Verification snapshot:
+`/data1/yb/remote_experiments/osram_local_evidence_gate_verification_20260930/code`.
+
+The existing oracle analysis motivates the hypothesis but cannot establish
+learnability from unlabeled inputs. It used a shared history coefficient;
+benefits from four separate gates remain an untested extension of that result.
