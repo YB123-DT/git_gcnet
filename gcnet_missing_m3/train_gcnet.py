@@ -135,6 +135,7 @@ class TrainConfig:
     osram_history_input_gate: bool = False
     osram_local_evidence_gate: bool = False
     osram_hierarchical_evidence_gate: bool = False
+    osram_hierarchical_feature_only: bool = False
     osram_local_evidence_gate_reg_weight: float = 0.001
     osram_local_evidence_gate_reg_type: str = 'l2'
     b2_base_checkpoint: str | None = None
@@ -318,6 +319,8 @@ class TrainConfig:
             raise ValueError('local-evidence gate regularization weight must be finite and nonnegative')
         if self.osram_local_evidence_gate_reg_type not in ('l1', 'l2'):
             raise ValueError('local-evidence gate regularization must be l1 or l2')
+        if self.osram_hierarchical_feature_only and not self.osram_hierarchical_evidence_gate:
+            raise ValueError('hierarchical feature-only requires hierarchical-evidence gate')
         if self.osram_hierarchical_evidence_gate and (
             self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
             or self.osram_bidirectional or self.text_core
@@ -2761,6 +2764,7 @@ def run_experiment(
         osram_history_input_gate=config_value.osram_history_input_gate,
         osram_local_evidence_gate=config_value.osram_local_evidence_gate,
         osram_hierarchical_evidence_gate=config_value.osram_hierarchical_evidence_gate,
+        osram_hierarchical_feature_only=config_value.osram_hierarchical_feature_only,
         complete_state_jepa=config_value.training_objective == "complete-state",
         write_state_completion=config_value.training_objective == "write-state",
         future_state_jepa=config_value.training_objective == "future-state",
@@ -3255,6 +3259,7 @@ def run_experiment(
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_history_input_gate': True} if config_value.osram_history_input_gate else {}),
         **({'osram_hierarchical_evidence_gate': True} if config_value.osram_hierarchical_evidence_gate else {}),
+        **({'osram_hierarchical_feature_only': True} if config_value.osram_hierarchical_feature_only else {}),
         **({'osram_local_evidence_gate': True,
             'osram_local_evidence_gate_reg_weight': config_value.osram_local_evidence_gate_reg_weight,
             'osram_local_evidence_gate_reg_type': config_value.osram_local_evidence_gate_reg_type}
@@ -3336,6 +3341,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Scale Flat history inputs by one bounded 1+0.2*tanh gate per utterance.')
     parser.add_argument('--osram-hierarchical-evidence-gate', action='store_true',
                         help='Feature filtering and active-evidence softmax before original Flat.')
+    parser.add_argument('--osram-hierarchical-feature-only', action='store_true',
+                        help='Keep hierarchical feature filtering but bypass evidence competition.')
     parser.add_argument('--osram-local-evidence-gate', action='store_true',
                         help='Independently gate each Flat memory evidence conditioned on Local.')
     parser.add_argument('--osram-local-evidence-gate-reg-weight', '--osram-evidence-gate-reg-weight', type=float, default=.001)
@@ -3592,6 +3599,7 @@ def main(argv=None) -> None:
         osram_history_input_gate=args.osram_history_input_gate,
         osram_local_evidence_gate=args.osram_local_evidence_gate,
         osram_hierarchical_evidence_gate=args.osram_hierarchical_evidence_gate,
+        osram_hierarchical_feature_only=args.osram_hierarchical_feature_only,
         osram_local_evidence_gate_reg_weight=args.osram_local_evidence_gate_reg_weight,
         osram_local_evidence_gate_reg_type=args.osram_local_evidence_gate_reg_type,
         b2_base_checkpoint=args.b2_base_checkpoint,

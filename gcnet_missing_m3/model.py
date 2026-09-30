@@ -1273,7 +1273,10 @@ class MissingM3GraphModel(GraphModel):
         osram_history_input_gate=False,
         osram_local_evidence_gate=False,
         osram_hierarchical_evidence_gate=False,
+        osram_hierarchical_feature_only=False,
     ) -> None:
+        if osram_hierarchical_feature_only and not osram_hierarchical_evidence_gate:
+            raise ValueError('hierarchical feature-only requires hierarchical-evidence gate')
         if osram_hierarchical_evidence_gate and (
             backbone_type != 'osram' or osram_readout_fusion != 'flat'
             or osram_bidirectional or text_core or training_objective != 'emotion-only'
@@ -1663,6 +1666,7 @@ class MissingM3GraphModel(GraphModel):
                 osram_history_input_gate=osram_history_input_gate,
                 osram_local_evidence_gate=osram_local_evidence_gate,
                 osram_hierarchical_evidence_gate=osram_hierarchical_evidence_gate,
+                osram_hierarchical_feature_only=osram_hierarchical_feature_only,
             )
             hidden_dim = int(osram_output_dim)
             predictor_context_dim = self.osram.context_dim

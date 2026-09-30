@@ -476,8 +476,9 @@ class MemoryShiftFilter(nn.Module):
 class HierarchicalEvidenceGate(nn.Module):
     """Identity-initialized feature filtering followed by active-evidence competition."""
 
-    def __init__(self, latent_dim, context_dim):
+    def __init__(self, latent_dim, context_dim, feature_only=False):
         super().__init__()
+        self.feature_only = bool(feature_only)
         self.local_relation = nn.Linear(latent_dim, 128)
         self.memory_relation = nn.Linear(context_dim, 128)
         self.filtered_relation = nn.Linear(context_dim, 128)
@@ -489,6 +490,10 @@ class HierarchicalEvidenceGate(nn.Module):
         for layer in (self.feature_output, self.evidence_output):
             nn.init.zeros_(layer.weight)
             nn.init.zeros_(layer.bias)
+        # Retain construction order/state compatibility to isolate removal of Level 2.
+        if self.feature_only:
+            for module in (self.filtered_relation, self.evidence_input, self.evidence_output):
+                module.requires_grad_(False)
         self.last_diagnostics = {}
 
     def forward(self, local, base, gap, availability, umask):
@@ -504,12 +509,17 @@ class HierarchicalEvidenceGate(nn.Module):
         feature = 2. * torch.sigmoid(self.feature_output(torch.nn.functional.elu(self.feature_input(feature_condition))))
         feature = torch.where(active[..., None], feature, 0.)
         filtered = feature * evidence
-        condition = torch.cat((q, self.filtered_relation(filtered), types, avail), -1)
-        scores = self.evidence_output(torch.nn.functional.elu(self.evidence_input(condition))).squeeze(-1)
-        scores = scores.masked_fill(~active, -torch.inf)
-        scores = torch.where(valid[..., None], scores, 0.)
-        alpha = torch.where(active, torch.softmax(scores, -1), 0.)
-        reweight = active.sum(-1, keepdim=True).to(alpha.dtype) * alpha
+        if self.feature_only:
+            reweight = active.to(filtered.dtype)
+            # Uniform alpha is diagnostic bookkeeping only; no score/softmax executes.
+            alpha = reweight / active.sum(-1, keepdim=True).clamp_min(1)
+        else:
+            condition = torch.cat((q, self.filtered_relation(filtered), types, avail), -1)
+            scores = self.evidence_output(torch.nn.functional.elu(self.evidence_input(condition))).squeeze(-1)
+            scores = scores.masked_fill(~active, -torch.inf)
+            scores = torch.where(valid[..., None], scores, 0.)
+            alpha = torch.where(active, torch.softmax(scores, -1), 0.)
+            reweight = active.sum(-1, keepdim=True).to(alpha.dtype) * alpha
         result = torch.where(active[..., None], reweight[..., None] * filtered, 0.)
         with torch.no_grad():
             entropy = -(alpha * alpha.clamp_min(torch.finfo(alpha.dtype).tiny).log()).sum(-1)
@@ -696,6 +706,7 @@ class OSRAMBackbone(nn.Module):
         osram_history_input_gate: bool = False,
         osram_local_evidence_gate: bool = False,
         osram_hierarchical_evidence_gate: bool = False,
+        osram_hierarchical_feature_only: bool = False,
     ) -> None:
         super().__init__()
         if osram_post_grn and osram_readout_fusion != "flat":
@@ -704,6 +715,8 @@ class OSRAMBackbone(nn.Module):
         self.osram_history_input_gate = bool(osram_history_input_gate)
         self.osram_local_evidence_gate = bool(osram_local_evidence_gate)
         self.osram_hierarchical_evidence_gate = bool(osram_hierarchical_evidence_gate)
+        if osram_hierarchical_feature_only and not self.osram_hierarchical_evidence_gate:
+            raise ValueError('hierarchical feature-only requires hierarchical-evidence gate')
         if self.osram_hierarchical_evidence_gate and (bidirectional or osram_readout_fusion != 'flat' or osram_post_grn or history_query_adapter or osram_history_input_gate or osram_local_evidence_gate):
             raise ValueError('hierarchical-evidence gate requires Flat without other adaptations')
         if self.osram_local_evidence_gate and (osram_readout_fusion != 'flat' or osram_post_grn or history_query_adapter or osram_history_input_gate):
@@ -870,7 +883,8 @@ class OSRAMBackbone(nn.Module):
 
         if self.osram_hierarchical_evidence_gate:
             with torch.random.fork_rng(devices=[]):
-                self.hierarchical_evidence_gate = HierarchicalEvidenceGate(self.latent_dim, self.context_dim)
+                self.hierarchical_evidence_gate = HierarchicalEvidenceGate(
+                    self.latent_dim, self.context_dim, feature_only=osram_hierarchical_feature_only)
         if self.osram_local_evidence_gate:
             with torch.random.fork_rng(devices=[]):
                 self.local_evidence_gate = LocalConditionedEvidenceGate(self.latent_dim, self.context_dim)

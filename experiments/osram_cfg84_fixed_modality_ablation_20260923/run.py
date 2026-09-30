@@ -100,6 +100,7 @@ def _build_model(config, dimensions):
         osram_history_input_gate=getattr(config, 'osram_history_input_gate', False),
         osram_local_evidence_gate=getattr(config, 'osram_local_evidence_gate', False),
         osram_hierarchical_evidence_gate=getattr(config, 'osram_hierarchical_evidence_gate', False),
+        osram_hierarchical_feature_only=getattr(config, 'osram_hierarchical_feature_only', False),
         osram_readout_fusion=config.osram_readout_fusion,
         teacher_mode=config.teacher_mode,
         teacher_checkpoint=config.teacher_checkpoint,
