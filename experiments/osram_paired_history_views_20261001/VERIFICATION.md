@@ -23,3 +23,14 @@ Smoke is isolated at remote sibling smoke/, excluded from final experiment.
 
 Scope: implementation and smoke checks do not demonstrate performance gains.
 Full training uses fixed lambda.1/temp.1/drop.2, no tuning or early stopping.
+
+## Completed-run checks
+
+Final regression33passed. Both full runs reached100epochs and exited0.
+All16best checkpoints remain remote. Analysis independently recalculated
+per-rate/aggregate scores from metrics and counts from history, checked both
+configs differ only in history_contrast_weight, and checked all100epochs have
+identical A/B View1 and View2 mask hashes. Canonical test masks match Flat.
+Each arm:72304anchors (all usable),42935dropped/265448observed bits,
+actualdrop16.1745%, zero batches without cross-conversation negatives.
+No performance significance claim from this single seed.
