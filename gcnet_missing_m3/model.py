@@ -1270,11 +1270,21 @@ class MissingM3GraphModel(GraphModel):
         completion_write_to_memory=False,
         osram_history_query_adapter=False,
         osram_post_grn=False,
+        osram_local_skip_gate=False,
         osram_history_input_gate=False,
         osram_local_evidence_gate=False,
         osram_hierarchical_evidence_gate=False,
         osram_hierarchical_feature_only=False,
     ) -> None:
+        if osram_local_skip_gate and (
+            backbone_type != 'osram' or osram_readout_fusion != 'flat'
+            or osram_bidirectional or text_core or training_objective != 'emotion-only'
+            or completion_path != 'none' or classification_completion or completion_write_to_memory
+            or osram_history_query_adapter or osram_post_grn or osram_history_input_gate
+            or osram_local_evidence_gate or osram_hierarchical_evidence_gate
+            or complete_state_jepa or write_state_completion or future_state_jepa
+        ):
+            raise ValueError('local-skip gate requires causal Flat no-JEPA without other adaptations')
         if osram_hierarchical_feature_only and not osram_hierarchical_evidence_gate:
             raise ValueError('hierarchical feature-only requires hierarchical-evidence gate')
         if osram_hierarchical_evidence_gate and (
@@ -1663,6 +1673,7 @@ class MissingM3GraphModel(GraphModel):
                 forward_slot_reuse=osram_forward_slot_reuse,
                 history_query_adapter=osram_history_query_adapter,
                 osram_post_grn=osram_post_grn,
+                osram_local_skip_gate=osram_local_skip_gate,
                 osram_history_input_gate=osram_history_input_gate,
                 osram_local_evidence_gate=osram_local_evidence_gate,
                 osram_hierarchical_evidence_gate=osram_hierarchical_evidence_gate,

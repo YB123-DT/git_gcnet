@@ -703,6 +703,7 @@ class OSRAMBackbone(nn.Module):
         beta_mode: str = "embedded",
         history_query_adapter: bool = False,
         osram_post_grn: bool = False,
+        osram_local_skip_gate: bool = False,
         osram_history_input_gate: bool = False,
         osram_local_evidence_gate: bool = False,
         osram_hierarchical_evidence_gate: bool = False,
@@ -712,6 +713,9 @@ class OSRAMBackbone(nn.Module):
         if osram_post_grn and osram_readout_fusion != "flat":
             raise ValueError("osram_post_grn requires flat readout")
         self.osram_post_grn = bool(osram_post_grn)
+        self.osram_local_skip_gate = bool(osram_local_skip_gate)
+        if self.osram_local_skip_gate and (bidirectional or osram_readout_fusion != 'flat' or osram_post_grn or history_query_adapter or osram_history_input_gate or osram_local_evidence_gate or osram_hierarchical_evidence_gate):
+            raise ValueError('local-skip gate requires causal Flat without other adaptations')
         self.osram_history_input_gate = bool(osram_history_input_gate)
         self.osram_local_evidence_gate = bool(osram_local_evidence_gate)
         self.osram_hierarchical_evidence_gate = bool(osram_hierarchical_evidence_gate)
@@ -888,6 +892,9 @@ class OSRAMBackbone(nn.Module):
         if self.osram_local_evidence_gate:
             with torch.random.fork_rng(devices=[]):
                 self.local_evidence_gate = LocalConditionedEvidenceGate(self.latent_dim, self.context_dim)
+        if self.osram_local_skip_gate:
+            with torch.random.fork_rng(devices=[]):
+                self.local_skip_gate = HistoryInputGate(self.latent_dim, self.context_dim)
         if self.osram_history_input_gate:
             with torch.random.fork_rng(devices=[]):
                 self.history_input_gate = HistoryInputGate(self.latent_dim, self.context_dim)
@@ -1431,7 +1438,7 @@ class OSRAMBackbone(nn.Module):
         else:
             # The opt-in path also sanitizes the Flat inputs; the disabled
             # historical path is deliberately byte-for-byte unchanged.
-            if self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+            if self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
                 local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
                 emotion_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
                 emotion_gap = torch.where(
@@ -1461,12 +1468,18 @@ class OSRAMBackbone(nn.Module):
                 ),
                 dim=-1,
             )
-            hidden = self.emotion_norm(
-                self.local_skip(local) + self.emotion_adapter(emotion_input)
-            )
+            if self.osram_local_skip_gate:
+                skip_gate = self.local_skip_gate(local, emotion_base, emotion_gap, availability, umask)
+                hidden = self.emotion_norm(
+                    skip_gate * self.local_skip(local) + self.emotion_adapter(emotion_input)
+                )
+            else:
+                hidden = self.emotion_norm(
+                    self.local_skip(local) + self.emotion_adapter(emotion_input)
+                )
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+        elif self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
@@ -1549,6 +1562,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics["local_centered_fusion"] = self.local_centered_fusion.last_diagnostics
         if self.osram_post_grn:
             diagnostics["post_grn"] = self.post_grn.last_diagnostics
+        if self.osram_local_skip_gate:
+            diagnostics['local_skip_gate'] = self.local_skip_gate.last_diagnostics
         if self.osram_history_input_gate:
             diagnostics['history_input_gate'] = self.history_input_gate.last_diagnostics
         if self.osram_hierarchical_evidence_gate:

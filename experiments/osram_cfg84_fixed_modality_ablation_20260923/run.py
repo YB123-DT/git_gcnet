@@ -97,6 +97,7 @@ def _build_model(config, dimensions):
         completion_write_to_memory=config.completion_write_to_memory,
         osram_history_query_adapter=config.osram_history_query_adapter,
         osram_post_grn=getattr(config, 'osram_post_grn', False),
+        osram_local_skip_gate=getattr(config, 'osram_local_skip_gate', False),
         osram_history_input_gate=getattr(config, 'osram_history_input_gate', False),
         osram_local_evidence_gate=getattr(config, 'osram_local_evidence_gate', False),
         osram_hierarchical_evidence_gate=getattr(config, 'osram_hierarchical_evidence_gate', False),
