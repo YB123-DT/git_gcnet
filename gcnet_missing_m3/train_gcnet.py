@@ -133,6 +133,10 @@ class TrainConfig:
     osram_history_query_adapter: bool = False
     osram_post_grn: bool = False
     osram_local_skip_gate: bool = False
+    paired_history_views: bool = False
+    history_drop_prob: float = 0.2
+    history_contrast_weight: float = 0.1
+    history_contrast_temperature: float = 0.1
     osram_memory_only_adapter: bool = False
     osram_history_input_gate: bool = False
     osram_local_evidence_gate: bool = False
@@ -321,6 +325,24 @@ class TrainConfig:
             raise ValueError('local-evidence gate regularization weight must be finite and nonnegative')
         if self.osram_local_evidence_gate_reg_type not in ('l1', 'l2'):
             raise ValueError('local-evidence gate regularization must be l1 or l2')
+        if not math.isfinite(self.history_drop_prob) or not 0 <= self.history_drop_prob <= 1:
+            raise ValueError('history_drop_prob must be in [0, 1]')
+        if not math.isfinite(self.history_contrast_weight) or self.history_contrast_weight < 0:
+            raise ValueError('history_contrast_weight must be finite and nonnegative')
+        if not math.isfinite(self.history_contrast_temperature) or self.history_contrast_temperature <= 0:
+            raise ValueError('history_contrast_temperature must be positive')
+        if self.paired_history_views and (
+            self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
+            or self.osram_bidirectional or self.text_core
+            or self.training_objective != 'emotion-only' or self.completion_path != 'none'
+            or self.classification_completion or self.completion_write_to_memory
+            or self.osram_history_query_adapter or self.osram_post_grn or self.osram_history_input_gate
+            or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate
+            or self.osram_local_skip_gate or self.osram_memory_only_adapter
+            or self.train_rate_mode != 'cyclic' or self.emotion_loss_mode != 'sample-mean'
+            or self.initial_backbone_checkpoint is not None or self.joint_pretrain_checkpoint is not None
+        ):
+            raise ValueError('paired history views require unmodified causal Flat no-JEPA cyclic training')
         if self.osram_memory_only_adapter and (
             self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
             or self.osram_bidirectional or self.text_core
@@ -1761,6 +1783,55 @@ def _memory_shift_metrics(totals):
     }}
 
 
+def _attach_history_projector(model, config):
+    """Training-only head; leave backbone initialization and global RNG untouched."""
+    if not config.paired_history_views:
+        return
+    parameter = next(model.parameters())
+    with torch.random.fork_rng(devices=[]):
+        torch.random.default_generator.manual_seed(config.seed + 740193)
+        projector = torch.nn.Sequential(
+            torch.nn.Linear(config.osram_output_dim, 256), torch.nn.GELU(),
+            torch.nn.Linear(256, 128),
+        )
+    model.history_contrast_projector = projector.to(device=parameter.device, dtype=parameter.dtype)
+
+
+def _paired_history_loss(model, config, view, hidden, task1, dimensions, epoch, batch_index):
+    from .paired_views import make_paired_view, symmetric_info_nce
+
+    seed = (config.seed * 1000003 + epoch * 10007 + batch_index * 101 + 9173) % (2**63 - 1)
+    generator = torch.Generator(device='cpu').manual_seed(seed)
+    availability2, anchors, counts = make_paired_view(
+        view['availability'], view['umask'], config.history_drop_prob, generator)
+    expanded = torch.repeat_interleave(availability2,
+        torch.tensor(dimensions, device=availability2.device), dim=-1)
+    incomplete2 = torch.where(expanded.bool(), view['incomplete'], 0.)
+    device = hidden.device
+    cuda_devices = [device.index if device.index is not None else torch.cuda.current_device()] if device.type == 'cuda' else []
+    # View2 has a private dropout stream: it cannot advance View1's original RNG.
+    with torch.random.fork_rng(devices=cuda_devices):
+        torch.random.default_generator.manual_seed(seed + 1)
+        if cuda_devices:
+            with torch.cuda.device(cuda_devices[0]):
+                torch.cuda.manual_seed(seed + 1)
+        logits2, hidden2, _, _ = model([incomplete2], availability2, view['qmask'],
+            view['umask'], view['lengths'], predict_missing=False)
+    task2, _ = _emotion_loss(config.dataset, logits2, view['labels'], view['umask'],
+        availability2, config.emotion_loss_mode, config.mosi_task_mode,
+        config.task_regression_loss, config.task_smooth_l1_beta, None, config.group_dro_eta)
+    # IDs follow the same time-major boolean indexing as hidden[anchors].
+    ids = [str(view['conversation_ids'][b]) for _, b in anchors.nonzero(as_tuple=False).tolist()]
+    con, eligible = symmetric_info_nce(model.history_contrast_projector(hidden[anchors]),
+        model.history_contrast_projector(hidden2[anchors]), ids, config.history_contrast_temperature)
+    task = .5 * (task1 + task2)
+    loss = task + config.history_contrast_weight * con if config.history_contrast_weight else task
+    counts.update(eligible_anchor_count=eligible, task_view1=float(task1.detach()),
+        task_view2=float(task2.detach()), info_nce=float(con.detach()),
+        batches_no_negatives=int(eligible == 0))
+    return task, loss, counts, availability2
+
+
 def train_epoch(
     model: MissingM3GraphModel,
     loader: Iterable[Sequence[object]],
@@ -1795,6 +1866,9 @@ def train_epoch(
     train_write_state = config.training_objective == "write-state"
     train_future_state = config.training_objective == "future-state"
     model.train()
+    paired_counts = {}
+    paired_batches = 0
+    paired_mask_hashes = [hashlib.sha256(), hashlib.sha256()]
     if config.joint_pretrain_checkpoint is not None:
         # Frozen-transfer projectors/MMoE are inference-only.  With the
         # initialization-only control, projectors remain in train mode so the
@@ -2190,6 +2264,16 @@ def train_epoch(
                 loss = cls
             else:
                 raise ValueError("unsupported training_objective")
+            if config.paired_history_views:
+                cls, loss, counts, availability2 = _paired_history_loss(
+                    model, config, view, hidden, cls, dimensions, epoch, batch_index)
+                model_forward_count += 1
+                paired_batches += 1
+                for key, value in counts.items():
+                    paired_counts[key] = paired_counts.get(key, 0) + value
+                for digest, mask in zip(paired_mask_hashes, (view['availability'], availability2)):
+                    digest.update(str(tuple(mask.shape)).encode('ascii'))
+                    digest.update(mask.detach().cpu().to(torch.uint8).numpy().tobytes())
             if config.osram_local_evidence_gate:
                 gate_penalty = _evidence_gate_penalty(model, config)
                 loss = loss + config.osram_local_evidence_gate_reg_weight * gate_penalty
@@ -2225,7 +2309,7 @@ def train_epoch(
                 text_core_align_losses.append(float(text_core_align.detach()))
             target_count += jepa.target_count
         source_conversation_count += batch_size
-        masked_view_count += batch_size * (
+        masked_view_count += batch_size * (2 if config.paired_history_views else 1) * (
             len(MISSING_RATES) if config.train_rate_mode == "all" else 1
         )
         if not batch_has_backward:
@@ -2273,6 +2357,21 @@ def train_epoch(
             }
     return {
         **metrics,
+        **({'paired_history': {
+            **paired_counts,
+            'anchor_count': paired_counts.get('contrast_anchors', 0),
+            'dropped_observed_count': paired_counts.get('observed_dropped', 0),
+            'view1_observed_count': paired_counts.get('observed_before', 0),
+            'valid_utterance_count': paired_counts.get('valid_utterances', 0),
+            'actual_drop_ratio': paired_counts.get('observed_dropped', 0) / max(1, paired_counts.get('observed_before', 0)),
+            'info_nce': paired_counts.get('info_nce', 0) / max(1, paired_batches),
+            'infonce_loss': paired_counts.get('info_nce', 0) / max(1, paired_batches),
+            'task_view1': paired_counts.get('task_view1', 0) / max(1, paired_batches),
+            'task_view2': paired_counts.get('task_view2', 0) / max(1, paired_batches),
+            'view1_mask_sha256': paired_mask_hashes[0].hexdigest(),
+            'view2_mask_sha256': paired_mask_hashes[1].hexdigest(),
+            'task_metrics_view': 'view1',
+        }} if config.paired_history_views else {}),
         "loss": float(np.mean(losses)),
         "classification_loss": float(np.mean(cls_losses)),
         **_memory_shift_metrics(memory_shift_totals),
@@ -2884,6 +2983,7 @@ def run_experiment(
             model,
             frozen_probe["frozen_parameter_names"],
         )
+    _attach_history_projector(model, config_value)
     optimizer_groups, optimizer_group_provenance = _optimizer_parameter_groups(
         model, config_value
     )
@@ -3337,6 +3437,10 @@ def run_experiment(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
+    parser.add_argument('--paired-history-views', action='store_true')
+    parser.add_argument('--history-drop-prob', type=float, default=0.2)
+    parser.add_argument('--history-contrast-weight', type=float, default=0.1)
+    parser.add_argument('--history-contrast-temperature', type=float, default=0.1)
     parser.add_argument("--teacher-mode", choices=("ema", "pretrained-frozen"), default="ema")
     parser.add_argument("--teacher-checkpoint", default=None)
     parser.add_argument("--target-space", choices=("all-modalities", "full-text", "predictable-subspace"), default="all-modalities")
@@ -3633,6 +3737,10 @@ def main(argv=None) -> None:
         osram_history_query_adapter=args.osram_history_query_adapter,
         osram_post_grn=args.osram_post_grn,
         osram_local_skip_gate=args.osram_local_skip_gate,
+        paired_history_views=args.paired_history_views,
+        history_drop_prob=args.history_drop_prob,
+        history_contrast_weight=args.history_contrast_weight,
+        history_contrast_temperature=args.history_contrast_temperature,
         osram_memory_only_adapter=args.osram_memory_only_adapter,
         osram_history_input_gate=args.osram_history_input_gate,
         osram_local_evidence_gate=args.osram_local_evidence_gate,
