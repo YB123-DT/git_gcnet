@@ -133,6 +133,7 @@ class TrainConfig:
     osram_history_query_adapter: bool = False
     osram_post_grn: bool = False
     osram_local_skip_gate: bool = False
+    osram_memory_only_adapter: bool = False
     osram_history_input_gate: bool = False
     osram_local_evidence_gate: bool = False
     osram_hierarchical_evidence_gate: bool = False
@@ -320,6 +321,16 @@ class TrainConfig:
             raise ValueError('local-evidence gate regularization weight must be finite and nonnegative')
         if self.osram_local_evidence_gate_reg_type not in ('l1', 'l2'):
             raise ValueError('local-evidence gate regularization must be l1 or l2')
+        if self.osram_memory_only_adapter and (
+            self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
+            or self.osram_bidirectional or self.text_core
+            or self.training_objective != 'emotion-only' or self.completion_path != 'none'
+            or self.classification_completion or self.completion_write_to_memory
+            or self.osram_history_query_adapter or self.osram_post_grn or self.osram_history_input_gate
+            or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate or self.osram_local_skip_gate
+            or self.train_rate_mode != 'cyclic'
+        ):
+            raise ValueError('memory-only adapter requires causal Flat no-JEPA cyclic training without other adaptations')
         if self.osram_local_skip_gate and (
             self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
             or self.osram_bidirectional or self.text_core
@@ -2779,6 +2790,7 @@ def run_experiment(
         osram_history_query_adapter=config_value.osram_history_query_adapter,
         osram_post_grn=config_value.osram_post_grn,
         osram_local_skip_gate=config_value.osram_local_skip_gate,
+        osram_memory_only_adapter=config_value.osram_memory_only_adapter,
         osram_history_input_gate=config_value.osram_history_input_gate,
         osram_local_evidence_gate=config_value.osram_local_evidence_gate,
         osram_hierarchical_evidence_gate=config_value.osram_hierarchical_evidence_gate,
@@ -3276,6 +3288,7 @@ def run_experiment(
         "osram_readout_fusion": config_value.osram_readout_fusion,
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
+        **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
         **({'osram_history_input_gate': True} if config_value.osram_history_input_gate else {}),
         **({'osram_hierarchical_evidence_gate': True} if config_value.osram_hierarchical_evidence_gate else {}),
         **({'osram_hierarchical_feature_only': True} if config_value.osram_hierarchical_feature_only else {}),
@@ -3356,6 +3369,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--osram-history-query-adapter", action="store_true",
         help="Adapt never-observed Gap queries with causal three-bit history support.",
     )
+    parser.add_argument('--osram-memory-only-adapter', action='store_true',
+                        help='Keep Local Skip; remove Local from the Flat adapter input.')
     parser.add_argument('--osram-local-skip-gate', action='store_true',
                         help='Apply an identity-initialized scalar gate only to complete Local Skip output')
     parser.add_argument('--osram-history-input-gate', action='store_true',
@@ -3618,6 +3633,7 @@ def main(argv=None) -> None:
         osram_history_query_adapter=args.osram_history_query_adapter,
         osram_post_grn=args.osram_post_grn,
         osram_local_skip_gate=args.osram_local_skip_gate,
+        osram_memory_only_adapter=args.osram_memory_only_adapter,
         osram_history_input_gate=args.osram_history_input_gate,
         osram_local_evidence_gate=args.osram_local_evidence_gate,
         osram_hierarchical_evidence_gate=args.osram_hierarchical_evidence_gate,

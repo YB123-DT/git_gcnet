@@ -704,6 +704,7 @@ class OSRAMBackbone(nn.Module):
         history_query_adapter: bool = False,
         osram_post_grn: bool = False,
         osram_local_skip_gate: bool = False,
+        osram_memory_only_adapter: bool = False,
         osram_history_input_gate: bool = False,
         osram_local_evidence_gate: bool = False,
         osram_hierarchical_evidence_gate: bool = False,
@@ -714,6 +715,9 @@ class OSRAMBackbone(nn.Module):
             raise ValueError("osram_post_grn requires flat readout")
         self.osram_post_grn = bool(osram_post_grn)
         self.osram_local_skip_gate = bool(osram_local_skip_gate)
+        self.osram_memory_only_adapter = bool(osram_memory_only_adapter)
+        if self.osram_memory_only_adapter and (bidirectional or osram_readout_fusion != 'flat' or osram_post_grn or history_query_adapter or osram_history_input_gate or osram_local_evidence_gate or osram_hierarchical_evidence_gate or osram_local_skip_gate):
+            raise ValueError('memory-only adapter requires causal Flat without other adaptations')
         if self.osram_local_skip_gate and (bidirectional or osram_readout_fusion != 'flat' or osram_post_grn or history_query_adapter or osram_history_input_gate or osram_local_evidence_gate or osram_hierarchical_evidence_gate):
             raise ValueError('local-skip gate requires causal Flat without other adaptations')
         self.osram_history_input_gate = bool(osram_history_input_gate)
@@ -850,6 +854,19 @@ class OSRAMBackbone(nn.Module):
         # while still giving the contextual branch a real gradient.
         nn.init.zeros_(self.emotion_adapter[-1].weight)
         nn.init.zeros_(self.emotion_adapter[-1].bias)
+
+        if self.osram_memory_only_adapter:
+            # Keep the original initialization stream for Skip and all later
+            # modules. Only the adapter input shape changes in this ablation.
+            with torch.random.fork_rng(devices=[]):
+                self.emotion_adapter = nn.Sequential(
+                    nn.LayerNorm(4 * self.context_dim),
+                    nn.Linear(4 * self.context_dim, self.output_dim),
+                    nn.GELU(), nn.Dropout(dropout),
+                    nn.Linear(self.output_dim, self.output_dim),
+                )
+                nn.init.zeros_(self.emotion_adapter[-1].weight)
+                nn.init.zeros_(self.emotion_adapter[-1].bias)
 
         if osram_readout_fusion != "flat":
             # Preserve RNG for downstream Student/Teacher/MMoE construction.
@@ -1438,7 +1455,7 @@ class OSRAMBackbone(nn.Module):
         else:
             # The opt-in path also sanitizes the Flat inputs; the disabled
             # historical path is deliberately byte-for-byte unchanged.
-            if self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+            if self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
                 local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
                 emotion_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
                 emotion_gap = torch.where(
@@ -1458,16 +1475,19 @@ class OSRAMBackbone(nn.Module):
                 emotion_base = alpha * emotion_base
                 emotion_gap = alpha.unsqueeze(-1) * emotion_gap
                 missing = torch.where(valid.unsqueeze(-1), missing, torch.zeros_like(missing))
-            emotion_input = torch.cat(
-                (
-                    local,
-                    emotion_base,
-                    (emotion_gap * missing.unsqueeze(-1)).reshape(
-                        active_gap_context.shape[0], active_gap_context.shape[1], -1
+            if self.osram_memory_only_adapter:
+                emotion_input = torch.cat((emotion_base, emotion_gap.flatten(2)), dim=-1)
+            else:
+                emotion_input = torch.cat(
+                    (
+                        local,
+                        emotion_base,
+                        (emotion_gap * missing.unsqueeze(-1)).reshape(
+                            active_gap_context.shape[0], active_gap_context.shape[1], -1
+                        ),
                     ),
-                ),
-                dim=-1,
-            )
+                    dim=-1,
+                )
             if self.osram_local_skip_gate:
                 skip_gate = self.local_skip_gate(local, emotion_base, emotion_gap, availability, umask)
                 hidden = self.emotion_norm(
@@ -1479,7 +1499,7 @@ class OSRAMBackbone(nn.Module):
                 )
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+        elif self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
