@@ -128,6 +128,8 @@ class TrainConfig:
     osram_forward_slot_reuse: bool = False
     osram_write_step: float = 1.0
     osram_readout_fusion: str = "flat"
+    osram_shift_filter_width: int = 128
+    osram_shift_filter_depth: int = 1
     completion_path: str = "none"
     completion_write_to_memory: bool = False
     osram_history_query_adapter: bool = False
@@ -161,6 +163,10 @@ class TrainConfig:
     simple_regression_predictor: bool = False
 
     def __post_init__(self) -> None:
+        for name in ("osram_shift_filter_width", "osram_shift_filter_depth"):
+            value = getattr(self, name)
+            if type(value) is not int or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
         if self.train_rate_mode == "conversation-mixed" and (
             self.training_objective != "emotion-only" or self.backbone_type != "osram"
             or self.osram_bidirectional or self.completion_path != "none"
@@ -2890,6 +2896,8 @@ def run_experiment(
         osram_bidirectional=config_value.osram_bidirectional,
         osram_forward_slot_reuse=config_value.osram_forward_slot_reuse,
         osram_readout_fusion=config_value.osram_readout_fusion,
+        osram_shift_filter_width=config_value.osram_shift_filter_width,
+        osram_shift_filter_depth=config_value.osram_shift_filter_depth,
         completion_path=config_value.completion_path,
         completion_write_to_memory=config_value.completion_write_to_memory,
         osram_history_query_adapter=config_value.osram_history_query_adapter,
@@ -3392,6 +3400,8 @@ def run_experiment(
         "osram_forward_slot_reuse": config_value.osram_forward_slot_reuse,
         "osram_write_step": config_value.osram_write_step,
         "osram_readout_fusion": config_value.osram_readout_fusion,
+        "osram_shift_filter_width": config_value.osram_shift_filter_width,
+        "osram_shift_filter_depth": config_value.osram_shift_filter_depth,
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
         **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
@@ -3682,6 +3692,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--osram-read-ridge", type=float, default=1e-3)
     parser.add_argument("--osram-write-ridge", type=float, default=1e-3)
     parser.add_argument("--osram-write-step", type=float, default=1.0)
+    parser.add_argument("--osram-shift-filter-width", type=int, default=128)
+    parser.add_argument("--osram-shift-filter-depth", type=int, default=1)
     parser.add_argument(
         "--osram-readout-fusion",
         choices=(
@@ -3841,6 +3853,8 @@ def main(argv=None) -> None:
         osram_bidirectional=args.osram_bidirectional,
         osram_forward_slot_reuse=args.osram_forward_slot_reuse,
         osram_readout_fusion=args.osram_readout_fusion,
+        osram_shift_filter_width=args.osram_shift_filter_width,
+        osram_shift_filter_depth=args.osram_shift_filter_depth,
         text_core=args.text_core,
         disable_unused_aux_modules=args.disable_unused_aux_modules,
         simple_regression_predictor=args.simple_regression_predictor,

@@ -104,6 +104,8 @@ def _build_model(config, dimensions):
         osram_hierarchical_evidence_gate=getattr(config, 'osram_hierarchical_evidence_gate', False),
         osram_hierarchical_feature_only=getattr(config, 'osram_hierarchical_feature_only', False),
         osram_readout_fusion=config.osram_readout_fusion,
+        osram_shift_filter_width=getattr(config, 'osram_shift_filter_width', 128),
+        osram_shift_filter_depth=getattr(config, 'osram_shift_filter_depth', 1),
         teacher_mode=config.teacher_mode,
         teacher_checkpoint=config.teacher_checkpoint,
         target_space=config.target_space,

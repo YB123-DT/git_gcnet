@@ -406,8 +406,12 @@ class MemoryShiftFilter(nn.Module):
 
     SLOT_NAMES = ("base", "gap_audio", "gap_text", "gap_visual")
 
-    def __init__(self, local_dim, context_dim, output_dim, relation_dim=128):
+    def __init__(self, local_dim, context_dim, output_dim, relation_dim=128,
+                 filter_width=128, filter_depth=1):
         super().__init__()
+        for name, value in (("filter_width", filter_width), ("filter_depth", filter_depth)):
+            if type(value) is not int or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
         self.local_dim = int(local_dim)
         self.context_dim = int(context_dim)
         self.output_dim = int(output_dim)
@@ -415,9 +419,13 @@ class MemoryShiftFilter(nn.Module):
         self.local_relation = nn.Linear(self.local_dim, self.relation_dim)
         self.memory_relation = nn.Linear(self.context_dim, self.relation_dim)
         self.evidence_type = nn.Embedding(4, self.relation_dim)
-        self.filter = nn.Sequential(
-            nn.Linear(6 * self.relation_dim, 128), nn.GELU(), nn.Linear(128, 1)
-        )
+        layers = []
+        in_dim = 6 * self.relation_dim
+        for _ in range(filter_depth):
+            layers.extend((nn.Linear(in_dim, filter_width), nn.GELU()))
+            in_dim = filter_width
+        layers.append(nn.Linear(filter_width, 1))
+        self.filter = nn.Sequential(*layers)
         self.residual_projector = nn.Linear(self.relation_dim, self.output_dim)
         nn.init.zeros_(self.residual_projector.weight)
         nn.init.zeros_(self.residual_projector.bias)
@@ -709,6 +717,8 @@ class OSRAMBackbone(nn.Module):
         osram_local_evidence_gate: bool = False,
         osram_hierarchical_evidence_gate: bool = False,
         osram_hierarchical_feature_only: bool = False,
+        osram_shift_filter_width: int = 128,
+        osram_shift_filter_depth: int = 1,
     ) -> None:
         super().__init__()
         if osram_post_grn and osram_readout_fusion != "flat":
@@ -885,7 +895,9 @@ class OSRAMBackbone(nn.Module):
                         self.latent_dim, self.output_dim, dropout=dropout)
                 elif osram_readout_fusion == "memory-shift-residual":
                     self.memory_shift_filter = MemoryShiftFilter(
-                        self.latent_dim, self.context_dim, self.output_dim)
+                        self.latent_dim, self.context_dim, self.output_dim,
+                        filter_width=osram_shift_filter_width,
+                        filter_depth=osram_shift_filter_depth)
                 else:
                     self.base_gap_delta_fusion = BaseGapDeltaFusion(
                         self.latent_dim, self.context_dim, self.output_dim, dropout=dropout)
