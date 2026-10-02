@@ -136,6 +136,7 @@ class TrainConfig:
     paired_history_views: bool = False
     history_drop_prob: float = 0.2
     history_contrast_weight: float = 0.1
+    history_task_view2_weight: float = 0.5
     history_contrast_temperature: float = 0.1
     osram_memory_only_adapter: bool = False
     osram_history_input_gate: bool = False
@@ -329,6 +330,8 @@ class TrainConfig:
             raise ValueError('history_drop_prob must be in [0, 1]')
         if not math.isfinite(self.history_contrast_weight) or self.history_contrast_weight < 0:
             raise ValueError('history_contrast_weight must be finite and nonnegative')
+        if not math.isfinite(self.history_task_view2_weight) or not 0 <= self.history_task_view2_weight <= 1:
+            raise ValueError('history_task_view2_weight must be in [0, 1]')
         if not math.isfinite(self.history_contrast_temperature) or self.history_contrast_temperature <= 0:
             raise ValueError('history_contrast_temperature must be positive')
         if self.paired_history_views and (
@@ -1824,7 +1827,9 @@ def _paired_history_loss(model, config, view, hidden, task1, dimensions, epoch, 
     ids = [str(view['conversation_ids'][b]) for _, b in anchors.nonzero(as_tuple=False).tolist()]
     con, eligible = symmetric_info_nce(model.history_contrast_projector(hidden[anchors]),
         model.history_contrast_projector(hidden2[anchors]), ids, config.history_contrast_temperature)
-    task = .5 * (task1 + task2)
+    rho = config.history_task_view2_weight
+    # Preserve the old operation order exactly for existing A/B configurations.
+    task = .5 * (task1 + task2) if rho == .5 else (1-rho)*task1 + rho*task2
     loss = task + config.history_contrast_weight * con if config.history_contrast_weight else task
     counts.update(eligible_anchor_count=eligible, task_view1=float(task1.detach()),
         task_view2=float(task2.detach()), info_nce=float(con.detach()),
@@ -2368,6 +2373,7 @@ def train_epoch(
             'infonce_loss': paired_counts.get('info_nce', 0) / max(1, paired_batches),
             'task_view1': paired_counts.get('task_view1', 0) / max(1, paired_batches),
             'task_view2': paired_counts.get('task_view2', 0) / max(1, paired_batches),
+            'task_view2_weight': config.history_task_view2_weight,
             'view1_mask_sha256': paired_mask_hashes[0].hexdigest(),
             'view2_mask_sha256': paired_mask_hashes[1].hexdigest(),
             'task_metrics_view': 'view1',
@@ -3440,6 +3446,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--paired-history-views', action='store_true')
     parser.add_argument('--history-drop-prob', type=float, default=0.2)
     parser.add_argument('--history-contrast-weight', type=float, default=0.1)
+    parser.add_argument('--history-task-view2-weight', type=float, default=0.5)
     parser.add_argument('--history-contrast-temperature', type=float, default=0.1)
     parser.add_argument("--teacher-mode", choices=("ema", "pretrained-frozen"), default="ema")
     parser.add_argument("--teacher-checkpoint", default=None)
@@ -3740,6 +3747,7 @@ def main(argv=None) -> None:
         paired_history_views=args.paired_history_views,
         history_drop_prob=args.history_drop_prob,
         history_contrast_weight=args.history_contrast_weight,
+        history_task_view2_weight=args.history_task_view2_weight,
         history_contrast_temperature=args.history_contrast_temperature,
         osram_memory_only_adapter=args.osram_memory_only_adapter,
         osram_history_input_gate=args.osram_history_input_gate,

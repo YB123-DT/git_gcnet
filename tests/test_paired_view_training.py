@@ -7,6 +7,27 @@ from experiments.osram_cfg84_fixed_modality_ablation_20260923.run import _build_
 
 
 class PairedTrainingTests(unittest.TestCase):
+    def test_task_view_weight_and_invalid_rho(self):
+        self.assertEqual(self.config().history_task_view2_weight, .5)
+        for rho in (-.1, 1.1, float('nan'), float('inf')):
+            with self.assertRaises(ValueError):
+                self.config(history_task_view2_weight=rho)
+        cfg = self.config(paired_history_views=True, history_task_view2_weight=.25,
+                          history_contrast_weight=0.)
+        torch.manual_seed(3)
+        model = _build_model(cfg, (1,1,1))
+        tr._attach_history_projector(model, cfg)
+        batch = [torch.randn(20,2,1) for _ in range(6)]
+        batch += [torch.zeros(2,20), torch.ones(2,20),
+                  torch.tensor([[1.,-1.]*10,[-1.,1.]*10]), ['a','b']]
+        result = tr.train_epoch(model, [batch], torch.optim.Adam(model.parameters(),lr=.001),
+            cfg, tr._schedules(cfg,'train'), 0, (1,1,1), torch.device('cpu'))
+        p = result['paired_history']
+        self.assertAlmostEqual(result['loss'], .75*p['task_view1']+.25*p['task_view2'], places=5)
+        self.assertEqual(p['task_view2_weight'], .25)
+        self.assertTrue(all(p.grad is None for p in model.history_contrast_projector.parameters()))
+        self.assertTrue(all(torch.isfinite(p).all() for p in model.parameters()))
+
     def config(self, **kwargs):
         return tr.TrainConfig(dataset='CMUMOSI', backbone_type='osram',
             training_objective='emotion-only', latent_dim=8, osram_output_dim=19,
