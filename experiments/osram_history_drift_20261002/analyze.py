@@ -152,7 +152,7 @@ def analyze(root,output):
             '|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|']
         for mode,item in result['by_mode'].items():
             s=item['rate_macro']
-            report.append(f"|{mode}|{s.get('anchors',0)}|{s['rate_count']}|{fmt(s.get('local_max'))}|{fmt(s.get('base_cos'))}|{fmt(s.get('gap_cos'))}|{fmt(s.get('hidden_cos'))}|{fmt(s.get('prediction_shift'))}|{fmt(s.get('flip_percent'))}|{s.get('correct_to_wrong',0)}|{s.get('wrong_to_correct',0)}|")
+            report.append(f"|{mode}|{s.get('anchors',0)}|{s['rate_count']}|{s.get('local_max',0):.3e}|{fmt(s.get('base_cos'))}|{fmt(s.get('gap_cos'))}|{fmt(s.get('hidden_cos'))}|{fmt(s.get('prediction_shift'))}|{fmt(s.get('flip_percent'))}|{s.get('correct_to_wrong',0)}|{s.get('wrong_to_correct',0)}|")
         report+=['',f'### {split}: matched A/T/V anchors','',
             '|Delete|N anchors|Prediction shift|Flip%|Mean prior deleted bits|',
             '|---|---:|---:|---:|---:|']
