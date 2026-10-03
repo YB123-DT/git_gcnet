@@ -1278,6 +1278,10 @@ class MissingM3GraphModel(GraphModel):
         osram_hierarchical_feature_only=False,
         osram_shift_filter_width=128,
         osram_shift_filter_depth=1,
+        osram_relation_block=False,
+        osram_relation_mode='pairwise',
+        osram_relation_dim=128,
+        osram_relation_out_dim=64,
     ) -> None:
         if osram_memory_only_adapter and (
             backbone_type != 'osram' or osram_readout_fusion != 'flat'
@@ -1682,6 +1686,10 @@ class MissingM3GraphModel(GraphModel):
                 osram_readout_fusion=osram_readout_fusion,
                 osram_shift_filter_width=osram_shift_filter_width,
                 osram_shift_filter_depth=osram_shift_filter_depth,
+                osram_relation_block=osram_relation_block,
+                osram_relation_mode=osram_relation_mode,
+                osram_relation_dim=osram_relation_dim,
+                osram_relation_out_dim=osram_relation_out_dim,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,

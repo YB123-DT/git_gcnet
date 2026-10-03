@@ -678,6 +678,85 @@ class PostGRN(nn.Module):
         return hidden
 
 
+class CurrentHistoryRelationBlock(nn.Module):
+    """Pairwise Local/history representation; no weighting or memory updates."""
+
+    def __init__(self, latent_dim, context_dim, output_dim, relation_dim=128,
+                 relation_out_dim=64, dropout=0.5, mode='pairwise'):
+        super().__init__()
+        if mode not in ('pairwise', 'control') or min(latent_dim, context_dim, output_dim, relation_dim, relation_out_dim) <= 0 or context_dim % 2:
+            raise ValueError('relation dimensions/mode require positive dimensions and even context_dim')
+        self.mode = mode
+        self.forward_dim = context_dim // 2
+        self.local_relation = nn.Linear(latent_dim, relation_dim)
+        self.memory_relation = nn.Linear(self.forward_dim, relation_dim)
+        pair_input = 4 * relation_dim + 16
+        if mode == 'pairwise':
+            self.evidence_type = nn.Embedding(4, 16)
+            input_dim, width = pair_input, relation_dim
+        else:
+            input_dim = 2 * relation_dim
+            # Match type embedding, LayerNorm and shared MLP parameter budget.
+            pair_budget = 64 + 2 * pair_input + (pair_input + 1) * relation_dim + (relation_dim + 1) * relation_out_dim
+            width = max(1, round((pair_budget - 2 * input_dim - relation_out_dim) / (input_dim + 1 + relation_out_dim)))
+        self.relation_mlp = nn.Sequential(nn.LayerNorm(input_dim), nn.Linear(input_dim, width),
+                                          nn.GELU(), nn.Dropout(dropout), nn.Linear(width, relation_out_dim))
+        self.relation_out = nn.Linear(relation_out_dim, output_dim)
+        nn.init.zeros_(self.relation_out.weight)
+        nn.init.zeros_(self.relation_out.bias)
+        self.last_diagnostics = {}
+
+    def forward(self, local, base, gap, availability, umask, flat_anchor):
+        valid = umask.T.bool()
+        if availability.shape != (*valid.shape, 3) or gap.shape != (*valid.shape, 3, 2*self.forward_dim) or base.shape != (*valid.shape, 2*self.forward_dim):
+            raise ValueError('incompatible relation input shapes')
+        if not torch.all((availability[valid] == 0) | (availability[valid] == 1)):
+            raise ValueError('availability must be binary')
+        has_history = valid & ((valid.long().cumsum(0) - valid.long()) > 0)
+        active = torch.cat((valid[...,None], valid[...,None] & ~availability.bool()), -1)
+        active = active & has_history[...,None]
+        safe_local = torch.where(has_history[...,None], local, torch.zeros_like(local))
+        evidence = torch.cat((base[...,None,:self.forward_dim],gap[...,:self.forward_dim]),2)
+        evidence = torch.where(active[...,None],evidence,torch.zeros_like(evidence))
+        q = self.local_relation(safe_local)
+        k = self.memory_relation(evidence)
+        count = active.sum(-1).clamp_min(1)[...,None]
+        slot_relation = None
+        # Extra training dropout must not perturb downstream baseline RNG.
+        devices = [local.device.index] if local.is_cuda else []
+        with torch.random.fork_rng(devices=devices):
+            if self.mode == 'pairwise':
+                q = q[...,None,:].expand_as(k)
+                types = self.evidence_type.weight.view(1,1,4,16).expand(*k.shape[:-1],16)
+                z = torch.cat((q,k,q*k,(q-k).abs(),types),-1)
+                z = torch.where(active[...,None],z,torch.zeros_like(z))
+                slot_relation = self.relation_mlp(z)
+                slot_relation = torch.where(active[...,None],slot_relation,torch.zeros_like(slot_relation))
+                relation = slot_relation.sum(2) / count
+            else:
+                pooled = torch.where(active[...,None],k,torch.zeros_like(k)).sum(2) / count
+                z = torch.cat((q,pooled),-1)
+                z = torch.where(has_history[...,None],z,torch.zeros_like(z))
+                relation = self.relation_mlp(z)
+        relation = torch.where(has_history[...,None],relation,torch.zeros_like(relation))
+        residual = self.relation_out(relation)
+        residual = torch.where(has_history[...,None],residual,torch.zeros_like(residual))
+        with torch.no_grad():
+            n = int(valid.sum())
+            self.last_diagnostics = {
+                'valid_count': n, 'history_count': int(has_history.sum()),
+                'relation_residual_norm': float(residual[valid].norm(dim=-1).mean()) if n else 0.,
+                'relation_anchor_norm_ratio': float((residual[valid].norm(dim=-1) / flat_anchor[valid].norm(dim=-1).clamp_min(1e-8)).mean()) if n else 0.,
+                'active_evidence_count_mean': float(active.sum(-1)[valid].float().mean()) if n else 0.,
+                'per_slot_relation_norm': {}, 'active_counts': {},
+            }
+            for i,name in enumerate(('base','gap_audio','gap_text','gap_visual')):
+                selected = active[...,i]
+                self.last_diagnostics['active_counts'][name] = int(selected.sum())
+                self.last_diagnostics['per_slot_relation_norm'][name] = float(slot_relation[...,i,:][selected].norm(dim=-1).mean()) if slot_relation is not None and selected.any() else 0.
+        return residual
+
+
 class OSRAMBackbone(nn.Module):
     """Bidirectional slot-conditioned associative memory.
 
@@ -719,8 +798,15 @@ class OSRAMBackbone(nn.Module):
         osram_hierarchical_feature_only: bool = False,
         osram_shift_filter_width: int = 128,
         osram_shift_filter_depth: int = 1,
+        osram_relation_block: bool = False,
+        osram_relation_mode: str = 'pairwise',
+        osram_relation_dim: int = 128,
+        osram_relation_out_dim: int = 64,
     ) -> None:
         super().__init__()
+        self.osram_relation_block = bool(osram_relation_block)
+        if self.osram_relation_block and (bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat' or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter or osram_history_input_gate or osram_local_evidence_gate or osram_hierarchical_evidence_gate or history_query_adapter):
+            raise ValueError('relation block requires causal Flat without other adaptations')
         if osram_post_grn and osram_readout_fusion != "flat":
             raise ValueError("osram_post_grn requires flat readout")
         self.osram_post_grn = bool(osram_post_grn)
@@ -933,6 +1019,11 @@ class OSRAMBackbone(nn.Module):
             with torch.random.fork_rng(devices=[]):
                 self.post_grn = PostGRN(self.latent_dim, self.context_dim, self.output_dim, dropout)
         self.last_diagnostics: dict[str, object] = {}
+        if self.osram_relation_block:
+            with torch.random.fork_rng(devices=[]):
+                self.relation_block = CurrentHistoryRelationBlock(
+                    self.latent_dim, self.context_dim, self.output_dim,
+                    osram_relation_dim, osram_relation_out_dim, dropout, osram_relation_mode)
         if self.history_query_adapter:
             # New parameters must not perturb existing initialization or the
             # downstream classifier's RNG sequence.
@@ -1467,7 +1558,7 @@ class OSRAMBackbone(nn.Module):
         else:
             # The opt-in path also sanitizes the Flat inputs; the disabled
             # historical path is deliberately byte-for-byte unchanged.
-            if self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+            if self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
                 local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
                 emotion_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
                 emotion_gap = torch.where(
@@ -1500,7 +1591,11 @@ class OSRAMBackbone(nn.Module):
                     ),
                     dim=-1,
                 )
-            if self.osram_local_skip_gate:
+            if self.osram_relation_block:
+                flat_anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)
+                hidden = self.emotion_norm(flat_anchor + self.relation_block(
+                    local, emotion_base, emotion_gap, availability, umask, flat_anchor))
+            elif self.osram_local_skip_gate:
                 skip_gate = self.local_skip_gate(local, emotion_base, emotion_gap, availability, umask)
                 hidden = self.emotion_norm(
                     skip_gate * self.local_skip(local) + self.emotion_adapter(emotion_input)
@@ -1511,7 +1606,7 @@ class OSRAMBackbone(nn.Module):
                 )
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+        elif self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
@@ -1602,6 +1697,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics['hierarchical_evidence_gate'] = self.hierarchical_evidence_gate.last_diagnostics
         if self.osram_local_evidence_gate:
             diagnostics['local_evidence_gate'] = self.local_evidence_gate.last_diagnostics
+        if self.osram_relation_block:
+            diagnostics['current_history_relation'] = self.relation_block.last_diagnostics
         self.last_diagnostics = diagnostics
         contexts = {
             "base": active_base_context,
