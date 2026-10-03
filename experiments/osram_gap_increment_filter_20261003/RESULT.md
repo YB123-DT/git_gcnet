@@ -2,8 +2,9 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: implementation verified; seed66 training launched on biggpu GPU5,
-PID 725686, implementation commit 22fdbdf. No performance claim.
+Status: all three seeds completed 100 epochs. Eight BEST checkpoints per seed
+and exact baseline evaluation-mask hashes verified. This variant did not improve
+the baseline. Seed66 implementation commit: 22fdbdf, PID 725686 on GPU5.
 Remote log: /data2/yb/remote_experiments/osram_gap_increment_filter_20261003/train.log.
 The five recorded implementation source hashes matched the committed local
 files before launch. Snapshot is isolated from subsequent working-tree edits.
@@ -64,4 +65,46 @@ is GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45. Seed67's first GPU5 attempt was
 blocked before training by the free-memory guard (4091 MiB); that failed launch
 log is retained as seed_67.log. The two additional runs were moved to free GPU0
 on the same server, not to a different machine. Three launcher tests passed.
-Results remain pending; this table records launches, not completed experiments.
+The table records the original launch PIDs; completion is verified in the
+archived results/seed_*/PROVENANCE.json and metrics.json.
+
+## Completed results
+
+W-F1 (%); differences are percentage points. Per-rate BEST Test-oracle,
+INTERNAL DIAGNOSTIC ONLY. Arithmetic mean across rates within each seed,
+then equal-weight mean across seeds. High missing means rates .5/.6/.7.
+
+| Seed | Flat 8-rate | Filter 8-rate | Delta | Flat high | Filter high | Delta |
+|---|---:|---:|---:|---:|---:|---:|
+| 66 | 81.068 | 79.659 | -1.409 | 76.352 | 74.716 | -1.636 |
+| 67 | 80.556 | 79.726 | -0.830 | 75.990 | 75.477 | -0.512 |
+| 68 | 80.053 | 79.351 | -0.702 | 74.440 | 73.904 | -0.536 |
+| Mean | 80.559 | 79.579 | -0.980 | 75.594 | 74.699 | -0.895 |
+
+Sample SD across seeds (ddof=1): 8-rate Flat 0.507, Filter 0.200;
+high-missing Flat 1.016, Filter 0.787. No significance claim with these three seeds.
+
+| Missing rate | Flat mean | Filter mean | Delta |
+|---|---:|---:|---:|
+| .0 | 88.419 | 87.084 | -1.335 |
+| .1 | 85.845 | 85.033 | -0.812 |
+| .2 | 83.431 | 82.259 | -1.172 |
+| .3 | 80.999 | 80.216 | -0.783 |
+| .4 | 78.996 | 77.941 | -1.055 |
+| .5 | 77.327 | 75.490 | -1.837 |
+| .6 | 75.848 | 75.395 | -0.453 |
+| .7 | 73.607 | 73.213 | -0.394 |
+
+Observed gate behavior at selected checkpoints, rates .1–.7: mean g ranges
+0.108–0.269 (seed66), 0.015–0.656 (seed67), 0.002–0.011 (seed68).
+For seed68 every valid utterance has g<0.1 at all seven selected evaluations.
+These aggregates include tokens without active Gap; they are not an active-Gap-only
+statistic. The gate tends to suppress the learned Gap increment, most clearly
+in seed68. This is an observed failure pattern, not proof that gate saturation
+caused the entire performance loss.
+
+At rate .0 the measured Gap increment and modulation are exactly zero, yet
+performance drops. Thus joint training also changed the original main path;
+the total loss cannot be attributed solely to direct inference-time filtering.
+Do not interpret suppression as evidence that original Gap is useless.
+Recommendation: do not expand this configuration; retain original Flat baseline.
