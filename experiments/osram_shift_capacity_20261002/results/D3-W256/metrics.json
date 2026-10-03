@@ -1,0 +1,389 @@
+{
+  "backbone_initialization": null,
+  "backbone_lr_multiplier": 1.0,
+  "backbone_type": "osram",
+  "best_epoch": null,
+  "best_selection_mean_accuracy": null,
+  "best_selection_mean_score": null,
+  "best_selection_mean_weighted_f1": null,
+  "best_validation_mean_weighted_f1": null,
+  "beta_mode": "embedded",
+  "classifier_lr_multiplier": 1.0,
+  "ema_steps": 0,
+  "emotion_loss_mode": "sample-mean",
+  "evaluation_stage": "train-test-oracle",
+  "frozen_completion_integrity": null,
+  "frozen_readout_integrity": null,
+  "gap_residual_strength": 1.0,
+  "graph_message_calibration": "none",
+  "graph_second_layer": "graphconv",
+  "group_dro_eta": 0.1,
+  "jepa_contrastive_source": "contrastive",
+  "jepa_rate_weighting": "uniform",
+  "jepa_regression_aggregation": "target",
+  "joint_pretrained_integrity": null,
+  "lr_schedule": "constant",
+  "mask_sha256": {
+    "0.0": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+    "0.1": "eb2795dc2edf8b07135ed297a0d25e9c7cb42530214cbed97f650c76fbd48509",
+    "0.2": "992cda7724b267e584f66b16f96a79efafaaf360f4d9a4abd72130824315403c",
+    "0.3": "2479f1c5c543be6d83a1a43fe04247c688b58cb1ca94ca709199dfff0a868f43",
+    "0.4": "68171473b0f9f645f95ac216dab871fe910e54b4f8c9a01be15d21db34795b76",
+    "0.5": "d42e61495e88243750c9e238cae18b61f31063f90528f3fc353de7fab35d464d",
+    "0.6": "6b52889567e922a3d693c4a6cc057ff1ceb96acaef17527989a70e21abfe1fe7",
+    "0.7": "f1208aad19deff6a211236caa7b64e705390ff94e26bc77d8c86717fbffed9cb"
+  },
+  "optimizer": "adam",
+  "optimizer_parameter_groups": {
+    "backbone": {
+      "learning_rate": 0.001,
+      "multiplier": 1.0,
+      "parameter_count": 13278625
+    },
+    "classifier": {
+      "learning_rate": 0.001,
+      "multiplier": 1.0,
+      "parameter_count": 1601
+    },
+    "projector": {
+      "learning_rate": 0.001,
+      "multiplier": 1.0,
+      "parameter_count": 929280
+    }
+  },
+  "osram_ablation": "full",
+  "osram_bidirectional": false,
+  "osram_dimensions": {
+    "key_dim": 64,
+    "latent_dim": 256,
+    "num_heads": 8,
+    "output_dim": 1600,
+    "read_ridge": 0.001,
+    "value_dim": 64,
+    "write_ridge": 0.001
+  },
+  "osram_emotion_ablation": "full",
+  "osram_forward_slot_reuse": false,
+  "osram_gap_read": "residual",
+  "osram_predictor_mode": "structured",
+  "osram_query_availability": true,
+  "osram_readout_fusion": "memory-shift-residual",
+  "osram_shift_filter_depth": 3,
+  "osram_shift_filter_width": 256,
+  "osram_write_step": 0.6,
+  "parameter_count": 14209506,
+  "postgraph_bilstm_ablation": "none",
+  "postgraph_sequence_mode": "independent",
+  "projector_lr_multiplier": 1.0,
+  "readout_parameter_count": 0,
+  "readout_rank": 8,
+  "readout_type": "shared",
+  "recurrent_padding_mode": "legacy",
+  "selected_accuracy_by_rate": {
+    "0.0": 0.875,
+    "0.1": 0.8582317073170732,
+    "0.2": 0.8338414634146342,
+    "0.3": 0.8125,
+    "0.4": 0.8109756097560976,
+    "0.5": 0.7835365853658537,
+    "0.6": 0.7545731707317073,
+    "0.7": 0.7454268292682927
+  },
+  "selected_epoch_by_rate": {
+    "0.0": 49,
+    "0.1": 49,
+    "0.2": 49,
+    "0.3": 87,
+    "0.4": 70,
+    "0.5": 49,
+    "0.6": 49,
+    "0.7": 49
+  },
+  "selected_score_by_rate": {
+    "0.0": 0.8743508616710264,
+    "0.1": 0.8578096960283341,
+    "0.2": 0.8342355464017377,
+    "0.3": 0.8125450747973865,
+    "0.4": 0.8095964422704596,
+    "0.5": 0.784309815102498,
+    "0.6": 0.7554871885657127,
+    "0.7": 0.7462126474324466
+  },
+  "selected_weighted_f1_by_rate": {
+    "0.0": 0.8743508616710264,
+    "0.1": 0.8578096960283341,
+    "0.2": 0.8342355464017377,
+    "0.3": 0.8125450747973865,
+    "0.4": 0.8095964422704596,
+    "0.5": 0.784309815102498,
+    "0.6": 0.7554871885657127,
+    "0.7": 0.7462126474324466
+  },
+  "selection_metric": "weighted_f1",
+  "selection_missing_rates": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7
+  ],
+  "selection_protocol": "per-rate-test-oracle",
+  "selection_split": "test",
+  "target_space": "all-modalities",
+  "task_regression_loss": "mse",
+  "task_smooth_l1_beta": 1.0,
+  "teacher_integrity": null,
+  "teacher_mode": "ema",
+  "teacher_provenance": null,
+  "test": {
+    "0.0": {
+      "accuracy": 0.875,
+      "correlation": 0.8009934291323791,
+      "loss": 0.9196332097053528,
+      "macro_f1": 0.8706724111401755,
+      "mae": 0.7512289881706238,
+      "mask_sha256": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+      "memory_shift_filter": {
+        "active_counts": {
+          "base": 686,
+          "gap_audio": 0,
+          "gap_text": 0,
+          "gap_visual": 0
+        },
+        "filter_mean": {
+          "base": 0.501268744468689,
+          "gap_audio": null,
+          "gap_text": null,
+          "gap_visual": null
+        },
+        "filtered_shift_norm": 9.053374290466309,
+        "residual_anchor_norm_ratio": 0.04699128866195679,
+        "scope": "filter means use active-evidence counts; L2 norms and per-token residual/anchor ratios use valid utterance counts",
+        "shift_residual_norm": 12.232697486877441,
+        "valid_count": 686
+      },
+      "predicted_sign_count": 2,
+      "prediction_std": 1.193676233291626,
+      "weighted_f1": 0.8743508616710264
+    },
+    "0.1": {
+      "accuracy": 0.8582317073170732,
+      "correlation": 0.7556804779428508,
+      "loss": 1.1021239757537842,
+      "macro_f1": 0.8538965004418453,
+      "mae": 0.8165948987007141,
+      "mask_sha256": "eb2795dc2edf8b07135ed297a0d25e9c7cb42530214cbed97f650c76fbd48509",
+      "memory_shift_filter": {
+        "active_counts": {
+          "base": 686,
+          "gap_audio": 77,
+          "gap_text": 73,
+          "gap_visual": 65
+        },
+        "filter_mean": {
+          "base": 0.5012295246124268,
+          "gap_audio": 0.4855351150035858,
+          "gap_text": 0.49363377690315247,
+          "gap_visual": 0.4834660589694977
+        },
+        "filtered_shift_norm": 8.882186889648438,
+        "residual_anchor_norm_ratio": 0.046027544885873795,
+        "scope": "filter means use active-evidence counts; L2 norms and per-token residual/anchor ratios use valid utterance counts",
+        "shift_residual_norm": 12.458050727844238,
+        "valid_count": 686
+      },
+      "predicted_sign_count": 2,
+      "prediction_std": 1.15982985496521,
+      "weighted_f1": 0.8578096960283341
+    },
+    "0.2": {
+      "accuracy": 0.8338414634146342,
+      "correlation": 0.7110562944414186,
+      "loss": 1.3042933940887451,
+      "macro_f1": 0.8305813223395055,
+      "mae": 0.8850795030593872,
+      "mask_sha256": "992cda7724b267e584f66b16f96a79efafaaf360f4d9a4abd72130824315403c",
+      "memory_shift_filter": {
+        "active_counts": {
+          "base": 686,
+          "gap_audio": 142,
+          "gap_text": 149,
+          "gap_visual": 126
+        },
+        "filter_mean": {
+          "base": 0.5006676912307739,
+          "gap_audio": 0.4860381484031677,
+          "gap_text": 0.4905066192150116,
+          "gap_visual": 0.4819888472557068
+        },
+        "filtered_shift_norm": 8.76888656616211,
+        "residual_anchor_norm_ratio": 0.04684564471244812,
+        "scope": "filter means use active-evidence counts; L2 norms and per-token residual/anchor ratios use valid utterance counts",
+        "shift_residual_norm": 13.005828857421875,
+        "valid_count": 686
+      },
+      "predicted_sign_count": 2,
+      "prediction_std": 1.1398800611495972,
+      "weighted_f1": 0.8342355464017377
+    },
+    "0.3": {
+      "accuracy": 0.8125,
+      "correlation": 0.6834210601949579,
+      "loss": 1.3781821727752686,
+      "macro_f1": 0.8079474454639579,
+      "mae": 0.9182819128036499,
+      "mask_sha256": "2479f1c5c543be6d83a1a43fe04247c688b58cb1ca94ca709199dfff0a868f43",
+      "memory_shift_filter": {
+        "active_counts": {
+          "base": 686,
+          "gap_audio": 164,
+          "gap_text": 211,
+          "gap_visual": 196
+        },
+        "filter_mean": {
+          "base": 0.5118203163146973,
+          "gap_audio": 0.51065993309021,
+          "gap_text": 0.5307511687278748,
+          "gap_visual": 0.5095176100730896
+        },
+        "filtered_shift_norm": 12.490449905395508,
+        "residual_anchor_norm_ratio": 0.06548813730478287,
+        "scope": "filter means use active-evidence counts; L2 norms and per-token residual/anchor ratios use valid utterance counts",
+        "shift_residual_norm": 23.475637435913086,
+        "valid_count": 686
+      },
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0471214056015015,
+      "weighted_f1": 0.8125450747973865
+    },
+    "0.4": {
+      "accuracy": 0.8109756097560976,
+      "correlation": 0.6813429339717938,
+      "loss": 1.4523186683654785,
+      "macro_f1": 0.8037349804564977,
+      "mae": 0.9888052940368652,
+      "mask_sha256": "68171473b0f9f645f95ac216dab871fe910e54b4f8c9a01be15d21db34795b76",
+      "memory_shift_filter": {
+        "active_counts": {
+          "base": 686,
+          "gap_audio": 269,
+          "gap_text": 263,
+          "gap_visual": 247
+        },
+        "filter_mean": {
+          "base": 0.5302323698997498,
+          "gap_audio": 0.5156453251838684,
+          "gap_text": 0.5361195802688599,
+          "gap_visual": 0.5254356265068054
+        },
+        "filtered_shift_norm": 12.489181518554688,
+        "residual_anchor_norm_ratio": 0.05825439840555191,
+        "scope": "filter means use active-evidence counts; L2 norms and per-token residual/anchor ratios use valid utterance counts",
+        "shift_residual_norm": 23.341293334960938,
+        "valid_count": 686
+      },
+      "predicted_sign_count": 2,
+      "prediction_std": 0.8069138526916504,
+      "weighted_f1": 0.8095964422704596
+    },
+    "0.5": {
+      "accuracy": 0.7835365853658537,
+      "correlation": 0.6505441254193521,
+      "loss": 1.5625308752059937,
+      "macro_f1": 0.77992817992818,
+      "mae": 1.0149513483047485,
+      "mask_sha256": "d42e61495e88243750c9e238cae18b61f31063f90528f3fc353de7fab35d464d",
+      "memory_shift_filter": {
+        "active_counts": {
+          "base": 686,
+          "gap_audio": 345,
+          "gap_text": 309,
+          "gap_visual": 311
+        },
+        "filter_mean": {
+          "base": 0.5010746121406555,
+          "gap_audio": 0.4867483973503113,
+          "gap_text": 0.48654571175575256,
+          "gap_visual": 0.4833853840827942
+        },
+        "filtered_shift_norm": 8.355055809020996,
+        "residual_anchor_norm_ratio": 0.043641626834869385,
+        "scope": "filter means use active-evidence counts; L2 norms and per-token residual/anchor ratios use valid utterance counts",
+        "shift_residual_norm": 13.045166969299316,
+        "valid_count": 686
+      },
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0816923379898071,
+      "weighted_f1": 0.784309815102498
+    },
+    "0.6": {
+      "accuracy": 0.7545731707317073,
+      "correlation": 0.5854398262367371,
+      "loss": 1.8037083148956299,
+      "macro_f1": 0.7505803559831572,
+      "mae": 1.0764210224151611,
+      "mask_sha256": "6b52889567e922a3d693c4a6cc057ff1ceb96acaef17527989a70e21abfe1fe7",
+      "memory_shift_filter": {
+        "active_counts": {
+          "base": 686,
+          "gap_audio": 388,
+          "gap_text": 363,
+          "gap_visual": 343
+        },
+        "filter_mean": {
+          "base": 0.5005670189857483,
+          "gap_audio": 0.4870763123035431,
+          "gap_text": 0.48622098565101624,
+          "gap_visual": 0.48319751024246216
+        },
+        "filtered_shift_norm": 8.205689430236816,
+        "residual_anchor_norm_ratio": 0.04274684190750122,
+        "scope": "filter means use active-evidence counts; L2 norms and per-token residual/anchor ratios use valid utterance counts",
+        "shift_residual_norm": 12.94573974609375,
+        "valid_count": 686
+      },
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0473729372024536,
+      "weighted_f1": 0.7554871885657127
+    },
+    "0.7": {
+      "accuracy": 0.7454268292682927,
+      "correlation": 0.5711275280240786,
+      "loss": 1.846570372581482,
+      "macro_f1": 0.7408690839161997,
+      "mae": 1.074865460395813,
+      "mask_sha256": "f1208aad19deff6a211236caa7b64e705390ff94e26bc77d8c86717fbffed9cb",
+      "memory_shift_filter": {
+        "active_counts": {
+          "base": 686,
+          "gap_audio": 423,
+          "gap_text": 382,
+          "gap_visual": 408
+        },
+        "filter_mean": {
+          "base": 0.5006592273712158,
+          "gap_audio": 0.4871493875980377,
+          "gap_text": 0.48530834913253784,
+          "gap_visual": 0.48279452323913574
+        },
+        "filtered_shift_norm": 8.111526489257812,
+        "residual_anchor_norm_ratio": 0.042352743446826935,
+        "scope": "filter means use active-evidence counts; L2 norms and per-token residual/anchor ratios use valid utterance counts",
+        "shift_residual_norm": 12.785062789916992,
+        "valid_count": 686
+      },
+      "predicted_sign_count": 2,
+      "prediction_std": 1.0752053260803223,
+      "weighted_f1": 0.7462126474324466
+    }
+  },
+  "text_subspace_integrity": null,
+  "text_subspace_provenance": null,
+  "train_missing_rate": null,
+  "trainable_parameter_count": 14209506,
+  "training_objective": "emotion-only",
+  "warmup_ratio": 0.05
+}
