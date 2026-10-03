@@ -2,7 +2,8 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: implementation and pre-launch verification passed; no training result yet.
+Status: implementation verified and all three seeds launched on biggpu GPU0;
+training in progress, no final performance result yet. Code commit: 2b00639.
 
 ## Fixed experiment
 
@@ -101,3 +102,21 @@ compileall and git diff --check passed. Remote archive excludes three Git-object
 legacy tests that passed locally. Specification and code-quality reviews passed
 without blocking findings. Six core/runner source SHA256 hashes matched local
 files before launch. GPU0 was checked idle with 32,495 MiB free.
+
+## Launch record
+
+Remote root: `/data2/yb/remote_experiments/osram_decision_correction_20261003`.
+Immutable source snapshot: `code/`. GPU0 UUID:
+`GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45` (process-visible cuda:0).
+
+| Seed | PID | Log | Output |
+|---|---:|---|---|
+| 66 | 3995805 | seed_66.log | seed_66/ |
+| 67 | 4050144 | seed_67.log | seed_67/ |
+| 68 | 4104634 | seed_68.log | seed_68/ |
+
+Started 2026-10-03 at 13:26 UTC, staggered by first-epoch verification and fresh
+GPU identity/free-memory checks. Independent persistent processes run concurrently;
+this is not serial training. Logs/checkpoints are separate. See launch.json for
+exact commands/timestamps. Earlier SSH transport resets occurred before formal
+launch; no training process was duplicated or migrated to a local GPU.

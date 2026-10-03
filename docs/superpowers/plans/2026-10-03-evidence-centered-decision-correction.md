@@ -57,15 +57,18 @@ tests/test_decision_correction_runner.py. Main owns these files.
 
 ## Task 3: authorized experiments and handoff
 
-- [ ] Commit/push verified code with Lore trailers before launch. Validate remote
+- [x] Commit/push verified code with Lore trailers before launch. Validate remote
   source hashes against commit. Use raw original cfg84 configs for seeds66/67/68,
   each100 epochs; original cyclic random masks/loss primitive/optimizer/batch/
   per-rate BEST Test-oracle. Only new decision head and three-exit objective differ.
-- [ ] Launch independent logs/output dirs with persistent processes; verify PID,
+- [x] Launch independent logs/output dirs with persistent processes; verify PID,
   first epochs and checkpoints. Record config/env/data/reference hashes/code/GPU.
-- [ ] Commit/push launch records. Report running vs completed honestly. Completed
+- [x] Commit/push launch records. Report running vs completed honestly. Completed
   results: per-rate W-F1, eight-rate and high(.5/.6/.7) means vs original Flat;
   all INTERNAL DIAGNOSTIC ONLY, not formal validation-selected paper scores.
+
+- [ ] Collect completed 100-epoch three-seed metrics. Current run code2b00639;
+  PID3995805/4050144/4104634, all biggpu hostGPU0. No performance claim at launch.
 
 Unit sketch (required assertions, not a substitute for executable tests):
 ```python
