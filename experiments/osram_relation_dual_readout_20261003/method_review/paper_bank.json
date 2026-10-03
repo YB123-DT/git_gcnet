@@ -1,0 +1,59 @@
+{
+  "checked_on": "2026-10-03",
+  "local_evidence_commit": "d2dc748",
+  "status": "literature_and_code_screening_only_no_model_experiment",
+  "papers": [
+    {
+      "title": "Gradient Surgery for Multi-Task Learning",
+      "authors": ["Tianhe Yu", "Saurabh Kumar", "Abhishek Gupta", "Sergey Levine", "Karol Hausman", "Chelsea Finn"],
+      "venue": "NeurIPS 2020",
+      "url": "https://arxiv.org/abs/2001.06782",
+      "pdf_url": "https://papers.neurips.cc/paper_files/paper/2020/file/3fe78a8acf5fda99de95303940a2420c-Paper.pdf",
+      "code_url": "https://github.com/tianheyu927/PCGrad",
+      "inspected_code": ["https://raw.githubusercontent.com/tianheyu927/PCGrad/master/PCGrad_tf.py"],
+      "review_scope": "Sections 2.2-2.4, Algorithm 1, section 3 and author gradient projection code",
+      "external_commit_pinned": false,
+      "decision": "conditional_candidate_after_training_gradient_audit",
+      "caveat": "No OSRAM gradient conflict or benefit established. TF reference requires explicit shared/private-parameter and mean-reduction adaptation."
+    },
+    {
+      "title": "Conflict-Averse Gradient Descent for Multi-task Learning",
+      "authors": ["Bo Liu", "Xingchao Liu", "Xiaojie Jin", "Peter Stone", "Qiang Liu"],
+      "venue": "NeurIPS 2021",
+      "url": "https://proceedings.neurips.cc/paper/2021/hash/9d27fdf2477ffbff837d73ef7ae23db9-Abstract.html",
+      "pdf_url": "https://arxiv.org/pdf/2110.14048",
+      "code_url": "https://github.com/Cranial-XIX/CAGrad",
+      "inspected_code": ["https://raw.githubusercontent.com/Cranial-XIX/CAGrad/main/toy.py", "https://raw.githubusercontent.com/Cranial-XIX/CAGrad/main/nyuv2/utils.py"],
+      "review_scope": "Sections 3.1-3.2, Algorithm 1 and toy.py cagrad/pcgrad functions; inspected supervised utils",
+      "external_commit_pinned": false,
+      "decision": "defer_not_first_change",
+      "caveat": "Adds a control parameter and inner optimization; stated convergence conditions do not establish Adam or W-F1 guarantees."
+    },
+    {
+      "title": "Side-Tuning: A Baseline for Network Adaptation via Additive Side Networks",
+      "authors": ["Jeffrey O. Zhang", "Alexander Sax", "Amir Zamir", "Leonidas Guibas", "Jitendra Malik"],
+      "venue": "ECCV 2020",
+      "url": "https://arxiv.org/abs/1912.13503",
+      "pdf_url": "https://arxiv.org/pdf/1912.13503",
+      "code_url": "https://github.com/jozhang97/side-tuning",
+      "inspected_code": ["https://raw.githubusercontent.com/jozhang97/side-tuning/master/tlkit/models/sidetune_architecture.py", "https://raw.githubusercontent.com/jozhang97/side-tuning/master/tlkit/models/model_utils.py"],
+      "review_scope": "Section 3.1 and sections 4.4-4.5; generic merge implementation and loader",
+      "external_commit_pinned": false,
+      "decision": "reject_direct_transfer_under_current_constraints",
+      "caveat": "Frozen pretrained base conflicts with from-scratch joint one-stage training; code review did not trace all training/freezing code."
+    },
+    {
+      "title": "Adapting Auxiliary Losses Using Gradient Similarity",
+      "authors": ["Yunshu Du", "Wojciech M. Czarnecki", "Siddhant M. Jayakumar", "Mehrdad Farajtabar", "Razvan Pascanu", "Balaji Lakshminarayanan"],
+      "venue": "arXiv:1812.02224",
+      "url": "https://arxiv.org/abs/1812.02224",
+      "pdf_url": "https://arxiv.org/pdf/1812.02224",
+      "code_url": null,
+      "inspected_code": [],
+      "review_scope": "Sections 2-3, Proposition 1 and following limitations; official implementation not verified",
+      "external_commit_pinned": false,
+      "decision": "conceptual_reference_only",
+      "caveat": "Local gradient alignment does not guarantee positive transfer; deployed Full is not simply a discardable auxiliary task."
+    }
+  ]
+}
