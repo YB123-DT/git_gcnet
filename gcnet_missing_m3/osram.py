@@ -842,8 +842,20 @@ class OSRAMBackbone(nn.Module):
         osram_relation_dim: int = 128,
         osram_relation_out_dim: int = 64,
         osram_gap_increment_filter: bool = False,
+        osram_decision_correction: bool = False,
     ) -> None:
         super().__init__()
+        self.osram_decision_correction = bool(osram_decision_correction)
+        self.last_decision_evidence = None
+        if self.osram_decision_correction and (
+            bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat'
+            or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter
+            or osram_history_input_gate or osram_local_evidence_gate
+            or osram_hierarchical_evidence_gate or osram_hierarchical_feature_only
+            or history_query_adapter or osram_relation_block or osram_relation_dual_readout
+            or osram_gap_increment_filter
+        ):
+            raise ValueError('decision correction requires causal Flat without other adaptations')
         self.osram_gap_increment_filter = bool(osram_gap_increment_filter)
         if self.osram_gap_increment_filter and (
             bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat'
@@ -1004,6 +1016,13 @@ class OSRAMBackbone(nn.Module):
         # while still giving the contextual branch a real gradient.
         nn.init.zeros_(self.emotion_adapter[-1].weight)
         nn.init.zeros_(self.emotion_adapter[-1].bias)
+
+        if self.osram_decision_correction:
+            # Preserve legacy state keys and initialization; these replaced
+            # modules never execute and are excluded by the optimizer builder.
+            self.emotion_adapter.requires_grad_(False)
+            self.local_skip.requires_grad_(False)
+            self.emotion_norm.requires_grad_(False)
 
         if self.osram_memory_only_adapter:
             # Keep the original initialization stream for Skip and all later
@@ -1478,6 +1497,12 @@ class OSRAMBackbone(nn.Module):
         """
         self.last_relation_base_hidden = None
         read_node = node if read_node is None else read_node
+        self.last_decision_evidence = None
+        if self.osram_decision_correction and (
+            write_node is not None or read_node is not node or write_completion is not None
+            or context_read_residual is not None or post_write_observer is not None
+        ):
+            raise ValueError('decision correction requires unchanged observed-only causal memory')
         write_node = node if write_node is None else write_node
         if post_write_observer is not None and self.bidirectional:
             raise ValueError('Post-write state observer requires a causal scan')
@@ -1552,7 +1577,19 @@ class OSRAMBackbone(nn.Module):
             local_input = read_node + residual
         local = local_input + self.local_path(local_input)
         local = local * valid.unsqueeze(-1).to(local.dtype)
-        if self.osram_readout_fusion == "modality-tracks":
+        if self.osram_decision_correction:
+            forward_dim = self.num_heads * self.value_dim
+            local = torch.where(valid[..., None], local, torch.zeros_like(local))
+            history = valid & (valid.long().cumsum(0) > 1)
+            base = emotion_base[..., :forward_dim]
+            gap = emotion_gap[..., :forward_dim]
+            self.last_decision_evidence = {
+                'local': local,
+                'base': torch.where(history[..., None], base, torch.zeros_like(base)),
+                'gap': torch.where((history[..., None] & ~availability.bool())[..., None], gap, torch.zeros_like(gap)),
+            }
+            hidden = local
+        elif self.osram_readout_fusion == "modality-tracks":
             if modality_embeddings is None:
                 raise ValueError("modality-tracks readout requires modality_embeddings")
             if modality_embeddings.shape != (len(MODALITIES), self.latent_dim):
@@ -1690,7 +1727,7 @@ class OSRAMBackbone(nn.Module):
                 )
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+        elif self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)

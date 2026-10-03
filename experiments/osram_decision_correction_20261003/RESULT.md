@@ -2,7 +2,7 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: implementation/verification in progress; no training result yet.
+Status: implementation and pre-launch verification passed; no training result yet.
 
 ## Fixed experiment
 
@@ -70,3 +70,34 @@ not independently selected oracle outputs.
 
 New model results pending. Do not interpret tests or successful launch as a
 performance improvement. No additional configuration sweep is authorized.
+
+## Measured capacity and pre-launch checks
+
+| Model | Stored total parameters | Trainable | Retained inactive |
+|---|---:|---:|---:|
+| Original Flat | 13,509,793 | 13,509,793 | 0 |
+| Decision correction | 13,943,592 | 3,992,487 | 9,951,105 |
+
+The new decision head contains 433,799 parameters. Old Flat/readout parameters
+remain in the state dict for compatibility but are never executed and are
+excluded from the optimizer. This is NOT a parameter-matched comparison; the
+active decision architecture is substantially smaller than original Flat.
+
+Default-off tests compare model AND OSRAM directly with pre-change source
+29a9d7c, including RNG, common parameter initialization and nonzero Flat outputs.
+Standalone tests verify learned independent B=0/G=0 cancellation in train/eval,
+C=1/C=6, fixed conditioners, differentiable paired calls, safe masked NaNs,
+single scan, unchanged Memory tensors and strict checkpoint reload. Training
+tests verify equal task losses and original evaluation thresholds/valid labels.
+
+Actual cfg84-dimension synthetic CUDA smoke on biggpu V100: two optimizer steps,
+one subsequent evaluation, finite parameters/gradients and exact first-valid
+Local=LB=Full. Synthetic batch=4, sequence length=10; peak allocated CUDA memory
+164.2 MiB. This is a correctness smoke, not a full-batch memory capacity claim
+or a model performance result. See cuda_smoke.json and verification logs.
+
+Fresh verification: 29 local tests and 33 remote V100 tests passed; scoped
+compileall and git diff --check passed. Remote archive excludes three Git-object
+legacy tests that passed locally. Specification and code-quality reviews passed
+without blocking findings. Six core/runner source SHA256 hashes matched local
+files before launch. GPU0 was checked idle with 32,495 MiB free.

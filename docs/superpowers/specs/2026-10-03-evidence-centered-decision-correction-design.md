@@ -91,3 +91,11 @@ through the task-loss integration at 2221–2241. No code change was made here.
 Only overall structure is fixed here. Hidden widths, config/API wiring, parameter
 budget and experiment launch belong to the next explicitly requested implementation
 step; this document does not authorize a new multi-seed run.
+
+## Subsequent execution authorization
+
+The user subsequently requested “开始跑”. The implementation plan dated
+2026-10-03 fixes 128-hidden-unit deterministic MLPs, zero-initialized correction
+outputs, and the existing MOSI seeds66/67/68 100-epoch screening protocol. That
+later request authorizes implementation/launch; the architecture-only scope
+above records the earlier design discussion, not a prohibition on this run.

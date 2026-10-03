@@ -112,6 +112,7 @@ def _build_model(config, dimensions):
         osram_relation_dim=getattr(config, 'osram_relation_dim', 128),
         osram_relation_out_dim=getattr(config, 'osram_relation_out_dim', 64),
         osram_gap_increment_filter=getattr(config, 'osram_gap_increment_filter', False),
+        osram_decision_correction=getattr(config, 'osram_decision_correction', False),
         teacher_mode=config.teacher_mode,
         teacher_checkpoint=config.teacher_checkpoint,
         target_space=config.target_space,

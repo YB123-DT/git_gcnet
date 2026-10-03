@@ -1284,7 +1284,25 @@ class MissingM3GraphModel(GraphModel):
         osram_relation_dim=128,
         osram_relation_out_dim=64,
         osram_gap_increment_filter=False,
+        osram_decision_correction=False,
     ) -> None:
+        if osram_decision_correction and (
+            backbone_type != 'osram' or osram_readout_fusion != 'flat'
+            or osram_bidirectional or osram_forward_slot_reuse
+            or training_objective != 'emotion-only' or completion_path != 'none'
+            or classification_completion or completion_write_to_memory or text_core
+            or local_context_residual or node_interaction_residual or readout_type != 'shared'
+            or complete_state_jepa or write_state_completion or future_state_jepa
+            or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter
+            or osram_history_input_gate or osram_local_evidence_gate
+            or osram_hierarchical_evidence_gate or osram_hierarchical_feature_only
+            or osram_history_query_adapter or osram_relation_block or osram_relation_dual_readout
+            or osram_gap_increment_filter or teacher_mode != 'ema' or simple_regression_predictor
+            or not disable_unused_aux_modules
+        ):
+            raise ValueError('decision correction requires shared causal Flat emotion-only with unused auxiliaries disabled')
+        self.osram_decision_correction = bool(osram_decision_correction)
+        self.last_decision_outputs = None
         if osram_gap_increment_filter and (
             backbone_type != 'osram' or osram_readout_fusion != 'flat'
             or osram_bidirectional or osram_forward_slot_reuse
@@ -1720,6 +1738,7 @@ class MissingM3GraphModel(GraphModel):
                 osram_relation_dim=osram_relation_dim,
                 osram_relation_out_dim=osram_relation_out_dim,
                 osram_gap_increment_filter=osram_gap_increment_filter,
+                osram_decision_correction=osram_decision_correction,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,
@@ -1747,6 +1766,16 @@ class MissingM3GraphModel(GraphModel):
         self.context_dim = hidden_dim
         if backbone_type == "osram":
             self.smax_fc = nn.Linear(hidden_dim, n_classes)
+        if self.osram_decision_correction:
+            from .decision_correction import EvidenceCenteredDecisionHead
+            self.decision_head = EvidenceCenteredDecisionHead(
+                latent_dim, osram_num_heads * osram_value_dim, n_classes)
+            self.smax_fc.requires_grad_(False)
+            self.inactive_flat_parameter_count = sum(
+                p.numel() for module in (self.osram.emotion_adapter, self.osram.local_skip,
+                                        self.osram.emotion_norm, self.smax_fc)
+                for p in module.parameters())
+            self.context_dim = int(latent_dim)
         self.missing_predictor = None
         self.simple_regression_predictor = None
         if self.simple_regression_predictor_enabled:
@@ -1894,6 +1923,9 @@ class MissingM3GraphModel(GraphModel):
         completion_predictions_override=None,
     ):
         self.last_relation_base_logits = None
+        self.last_decision_outputs = None
+        if self.osram_decision_correction and predict_missing:
+            raise ValueError('decision correction does not support auxiliary prediction')
         features = self._feature_tensor(inputfeats)
         encoded, latents = self.observed_set(features, availability, umask)
         if self.node_interaction_residual:
@@ -2026,7 +2058,13 @@ class MissingM3GraphModel(GraphModel):
                 availability,
                 umask,
             )
-        logits = self.smax_fc(readout_hidden)
+        if self.osram_decision_correction:
+            evidence = self.osram.last_decision_evidence
+            self.last_decision_outputs = self.decision_head(
+                evidence['local'], evidence['base'], evidence['gap'], availability, umask)
+            logits = self.last_decision_outputs['full']
+        else:
+            logits = self.smax_fc(readout_hidden)
         if self.osram_relation_dual_readout and self.training:
             base_hidden = self.osram.last_relation_base_hidden
             if base_hidden is None:

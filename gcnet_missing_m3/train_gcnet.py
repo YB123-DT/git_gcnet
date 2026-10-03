@@ -136,6 +136,7 @@ class TrainConfig:
     osram_relation_dim: int = 128
     osram_relation_out_dim: int = 64
     osram_gap_increment_filter: bool = False
+    osram_decision_correction: bool = False
     completion_path: str = "none"
     completion_write_to_memory: bool = False
     osram_history_query_adapter: bool = False
@@ -169,6 +170,24 @@ class TrainConfig:
     simple_regression_predictor: bool = False
 
     def __post_init__(self) -> None:
+        if self.osram_decision_correction and (
+            self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
+            or self.osram_bidirectional or self.osram_forward_slot_reuse
+            or self.training_objective != 'emotion-only' or self.completion_path != 'none'
+            or self.classification_completion or self.completion_write_to_memory or self.text_core
+            or self.local_context_residual or self.node_interaction_residual or self.readout_type != 'shared'
+            or self.osram_post_grn or self.osram_local_skip_gate or self.osram_memory_only_adapter
+            or self.osram_history_input_gate or self.osram_local_evidence_gate
+            or self.osram_hierarchical_evidence_gate or self.osram_hierarchical_feature_only
+            or self.osram_history_query_adapter or self.osram_relation_block or self.osram_relation_dual_readout
+            or self.osram_gap_increment_filter or self.teacher_mode != 'ema' or self.simple_regression_predictor
+            or self.paired_history_views or self.train_rate_mode != 'cyclic'
+            or self.emotion_loss_mode != 'sample-mean' or not self.disable_unused_aux_modules
+            or self.joint_pretrain_checkpoint is not None or self.initial_backbone_checkpoint is not None
+            or self.b2_base_checkpoint is not None or self.b2_pretrain_checkpoint is not None
+            or self.pretrained_learning_rate is not None
+        ):
+            raise ValueError('decision correction requires single-view causal Flat emotion-only sample-mean training from scratch with unused auxiliaries disabled')
         if self.osram_gap_increment_filter and (
             self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
             or self.osram_bidirectional or self.osram_forward_slot_reuse
@@ -933,7 +952,7 @@ def _optimizer_parameter_groups(
                 block = "backbone"
             elif name.startswith("observed_set."):
                 block = "projector"
-            elif name.startswith(("smax_fc.", "conditioned_readout.", "affine_readout.")):
+            elif name.startswith(("smax_fc.", "conditioned_readout.", "affine_readout.", "decision_head.")):
                 block = "classifier"
             elif name.startswith(("missing_predictor.", "source_only_predictor.")):
                 block = "predictor"
@@ -1526,6 +1545,22 @@ def _pattern_group_losses(
     return tuple(group_ids), tuple(group_losses)
 
 
+def _decision_correction_loss(model, config, view, full_loss):
+    """Equal original task losses for three exits of a single forward."""
+    if not config.osram_decision_correction:
+        return full_loss, None
+    if config.emotion_loss_mode != 'sample-mean':
+        raise ValueError('decision correction requires stateless sample-mean task loss')
+    outputs = model.last_decision_outputs
+    if outputs is None:
+        raise RuntimeError('decision correction did not expose the three task exits')
+    losses = {name: _task_loss(config.dataset, outputs[name], view['labels'], view['umask'],
+                               config.mosi_task_mode, config.task_regression_loss, config.task_smooth_l1_beta)
+              for name in ('local', 'base')}
+    losses['full'] = full_loss
+    return (losses['local'] + losses['base'] + full_loss) / 3, losses
+
+
 def _relation_dual_readout_loss(model, config, view, full_loss):
     """Supervise two shared readouts of ONE trajectory; base includes Memory.
 
@@ -1717,6 +1752,49 @@ def _collect_predictions(
         metric_labels[selected].detach().cpu().numpy(),
         labels[selected].detach().cpu().numpy(),
     )
+
+
+@torch.no_grad()
+def _accumulate_decision(model, totals, view, dataset, mosi_task_mode, losses):
+    outputs = model.last_decision_outputs
+    valid = view['umask'].T.bool()
+    totals['valid_tokens'] = totals.get('valid_tokens', 0) + int(valid.sum())
+    for name in ('delta_base', 'delta_gap'):
+        totals[name] = totals.get(name, 0.) + float(outputs[name][valid].norm(dim=-1).sum())
+    for name in ('local', 'base', 'full'):
+        prediction, labels, _ = _collect_predictions(dataset, outputs[name], view['labels'], view['umask'], mosi_task_mode)
+        row = totals.setdefault(name, {'losses': [], 'predictions': [], 'labels': []})
+        row['losses'].append(float(losses[name].detach()))
+        row['predictions'].append(prediction)
+        row['labels'].append(labels)
+
+
+def _decision_metrics(totals, dataset, mosi_task_mode):
+    if not totals:
+        return {}
+    count = totals['valid_tokens']
+    result = {'valid_tokens': count,
+              'delta_base_norm': totals['delta_base'] / max(1, count),
+              'delta_gap_norm': totals['delta_gap'] / max(1, count),
+              'exit_metrics': {}, 'exit_weights': {name: 1 / 3 for name in ('local', 'base', 'full')}}
+    correct = {}
+    regression = _resolve_task_contract(dataset, mosi_task_mode)['task'] == 'regression'
+    for name in ('local', 'base', 'full'):
+        row = totals[name]
+        labels, predictions = np.concatenate(row['labels']), np.concatenate(row['predictions'])
+        result[name + '_task_loss'] = float(np.mean(row['losses']))
+        result['exit_metrics'][name] = _metrics(dataset, labels, predictions, mosi_task_mode)
+        correct[name] = ((predictions[labels != 0] > 0) == (labels[labels != 0] > 0)
+                         if regression else predictions == labels)
+    result['combined_task_loss'] = sum(result[name + '_task_loss'] for name in ('local', 'base', 'full')) / 3
+    result['transitions'] = {}
+    for before, after in (('local', 'base'), ('base', 'full')):
+        result['transitions'][before + '_to_' + after] = {
+            'corrections': int((~correct[before] & correct[after]).sum()),
+            'harms': int((correct[before] & ~correct[after]).sum()),
+            'metric_tokens': int(correct[before].size),
+        }
+    return {'decision_correction': result}
 
 
 def _evidence_gate_penalty(model, config):
@@ -2034,6 +2112,7 @@ def train_epoch(
     memory_shift_totals = {}
     relation_totals = {}
     gap_increment_totals = {}
+    decision_totals = {}
     post_grn_totals = {}
     local_skip_gate_totals = {}
     history_input_gate_totals = {}
@@ -2239,6 +2318,9 @@ def train_epoch(
                 relation_full_losses.append(float(cls.detach()))
                 cls, base_loss = _relation_dual_readout_loss(model, config, view, cls)
                 relation_base_losses.append(float(base_loss.detach()))
+            if config.osram_decision_correction:
+                cls, decision_losses = _decision_correction_loss(model, config, view, cls)
+                _accumulate_decision(model, decision_totals, view, config.dataset, config.mosi_task_mode, decision_losses)
             text_core_loss = zero
             text_core_self = zero
             text_core_pred = zero
@@ -2522,6 +2604,7 @@ def train_epoch(
         **_memory_shift_metrics(memory_shift_totals),
         **_relation_metrics(relation_totals),
         **_gap_increment_metrics(gap_increment_totals),
+        **_decision_metrics(decision_totals, config.dataset, config.mosi_task_mode),
         **_post_grn_metrics(post_grn_totals),
         **_history_input_gate_metrics(local_skip_gate_totals, 'local_skip_gate'),
         **_history_input_gate_metrics(history_input_gate_totals),
@@ -2659,6 +2742,7 @@ def evaluate_rate(
     memory_shift_totals = {}
     relation_totals = {}
     gap_increment_totals = {}
+    decision_totals = {}
     post_grn_totals = {}
     local_skip_gate_totals = {}
     history_input_gate_totals = {}
@@ -2708,6 +2792,12 @@ def evaluate_rate(
             task_regression_loss,
             task_smooth_l1_beta,
         )
+        if getattr(model, 'osram_decision_correction', False):
+            exit_losses = {name: _task_loss(dataset, model.last_decision_outputs[name], view['labels'], view['umask'],
+                                            mosi_task_mode, task_regression_loss, task_smooth_l1_beta)
+                           for name in ('local', 'base')}
+            exit_losses['full'] = loss
+            _accumulate_decision(model, decision_totals, view, dataset, mosi_task_mode, exit_losses)
         predicted, expected, continuous = _collect_predictions(
             dataset,
             logits,
@@ -2783,6 +2873,7 @@ def evaluate_rate(
         **_memory_shift_metrics(memory_shift_totals),
         **_relation_metrics(relation_totals),
         **_gap_increment_metrics(gap_increment_totals),
+        **_decision_metrics(decision_totals, dataset, mosi_task_mode),
         **_post_grn_metrics(post_grn_totals),
         **_history_input_gate_metrics(local_skip_gate_totals, 'local_skip_gate'),
         **_history_input_gate_metrics(history_input_gate_totals),
@@ -3045,6 +3136,7 @@ def run_experiment(
         osram_relation_dim=config_value.osram_relation_dim,
         osram_relation_out_dim=config_value.osram_relation_out_dim,
         osram_gap_increment_filter=config_value.osram_gap_increment_filter,
+        osram_decision_correction=config_value.osram_decision_correction,
         completion_path=config_value.completion_path,
         completion_write_to_memory=config_value.completion_write_to_memory,
         osram_history_query_adapter=config_value.osram_history_query_adapter,
@@ -3484,6 +3576,8 @@ def run_experiment(
         "trainable_parameter_count": sum(
             parameter.numel() for parameter in model.parameters() if parameter.requires_grad
         ),
+        **({'inactive_flat_parameter_count': model.inactive_flat_parameter_count}
+           if config_value.osram_decision_correction else {}),
         "ema_steps": model.ema_step,
         "evaluation_stage": (
             "jepa-pretrain-only"
@@ -3555,6 +3649,7 @@ def run_experiment(
         "osram_relation_dim": config_value.osram_relation_dim,
         "osram_relation_out_dim": config_value.osram_relation_out_dim,
         "osram_gap_increment_filter": config_value.osram_gap_increment_filter,
+        "osram_decision_correction": config_value.osram_decision_correction,
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
         **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
@@ -3850,6 +3945,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--osram-relation-block', action='store_true')
     parser.add_argument('--osram-gap-increment-filter', action='store_true',
                         help='Modulate the shared Flat adapter Gap increment with an identity-initialized scalar.')
+    parser.add_argument('--osram-decision-correction', action='store_true',
+                        help='Replace Flat readout with three equally supervised evidence-centered decision exits.')
     parser.add_argument('--osram-relation-dual-readout', action='store_true')
     parser.add_argument('--osram-relation-mode', choices=('pairwise','control'), default='pairwise')
     parser.add_argument('--osram-relation-dim', type=int, default=128)
@@ -4021,6 +4118,7 @@ def main(argv=None) -> None:
         osram_relation_dim=args.osram_relation_dim,
         osram_relation_out_dim=args.osram_relation_out_dim,
         osram_gap_increment_filter=args.osram_gap_increment_filter,
+        osram_decision_correction=args.osram_decision_correction,
         text_core=args.text_core,
         disable_unused_aux_modules=args.disable_unused_aux_modules,
         simple_regression_predictor=args.simple_regression_predictor,
