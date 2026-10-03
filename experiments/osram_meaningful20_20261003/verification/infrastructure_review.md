@@ -1,8 +1,9 @@
 # Independent infrastructure review
 
-Status: **REQUEST CHANGES / rerun pending**, 2026-10-03. Three material findings
-were reproduced or traced and sent to the infrastructure author, who is
-implementing focused fixes. This record is not training authorization.
+Final status: **APPROVE — CPU infrastructure safety readiness**, 2026-10-03.
+The three material findings below were fixed by the author and independently
+retested. No unresolved blocker remains within this review's scope. This is
+not a waiver of remote admission or candidate-specific CUDA/source gates.
 
 Scope: `run.py`, `queue.py`, `preflight.py`, `manifest.py`,
 `gcnet_missing_m3/training_resume.py`, relevant CPU tests and trainer recovery
@@ -97,6 +98,46 @@ Using `/home/yangbin/miniconda3/envs/multimodalerc310/bin/python`:
   2 tests in1.637s — OK (real tiny CPU trainer, uninterrupted versus resumed).
 ```
 
-Outstanding: independent rerun of the three material-finding regressions after
-the author lands them. GPU health/UUID runtime probes, real-shape CUDA memory,
-remote filesystem capacity and actual long-run recovery were not performed.
+GPU health/UUID runtime probes, real-shape CUDA memory, remote filesystem
+capacity and actual long-run recovery were not performed.
+
+## Final focused rereview and resolution
+
+The infrastructure author confirmed the runtime/recovery surfaces were frozen
+for this rereview. The review did not expand into unrelated implementation.
+
+1. **Launch identities resolved.** `run.py:150` now checks expected SHA256 for
+   method manifest, baseline audit, data manifest and readiness. It runs before
+   consumption, again after dataset validation and before completion. Queue
+   dispatch carries the expected hashes (`queue.py:214-219`); every coordinator
+   cycle revalidates its three global spec files (`queue.py:147-149`). An
+   independent temporary-file probe changed baseline audit, data manifest and
+   readiness separately: all three raised `Pinned launch input changed`.
+2. **Durable disk reservation resolved.** `queue.py:226` includes the validated
+   profile in launch intent before the first durable write and Popen. The new
+   regression interrupts the launch and inspects the persisted intent. My
+   independent recovered-intent probe retained the complete40 GiB reservation
+   rather than the previous0.0 GiB.
+3. **Exit handling resolved.** `queue.py:51-59` rejects an observed nonzero
+   exit, accepts complete artifacts only with observed zero exit, and leaves
+   unknown exit interrupted for complete-state recovery. Explicit interrupted
+   failure markers with compatible checkpoint permit recovery; ordinary
+   execution errors are not blindly retried. Repeating the earlier mocked
+   artifact-complete probe produced `1→failed`, `None→interrupted`,
+   `0→complete`.
+4. **Concurrent fixes rechecked.** The suite verifies permanent bad UUID
+   rejection even after index remapping, explicit canonical data/label binding,
+   and a manifest-hash-specific `GCNET_CACHE_ROOT` rather than inherited cache
+   selection. Full CPU recovery evidence from the earlier pass remains valid;
+   `training_resume.py` was not changed by these queue fixes.
+
+Final command:
+
+```text
+/home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest discover -s tests -p test_meaningful20_infrastructure.py
+Ran 22 tests in0.090s — OK
+```
+
+This approval closes the three findings recorded above. The author's separate
+snapshot required-JSON whitelist addition remains under the leader's ordinary
+source-snapshot gate; it does not change this focused runtime/recovery verdict.

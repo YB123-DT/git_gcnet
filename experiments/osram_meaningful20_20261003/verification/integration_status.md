@@ -29,11 +29,12 @@ departures are recorded in the six source-card files and independent reviews.
 CUDA_VISIBLE_DEVICES='' /home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest discover -s tests -p 'test_meaningful*.py'
 ```
 
-Observed: 90 tests passed (13.673 seconds), including all twenty full-model
+Initial observation: 90 tests passed (13.673 seconds), including all twenty full-model
 train/eval zero-bridge output and global RNG comparisons, masking/core
 gradient tests, and interrupted/resumed real tiny-trainer equivalence.
 This is CPU correctness evidence, not CUDA readiness or evidence of gains.
-Subsequent corrections require a fresh run before release.
+After the data-binding, queue/recovery, CUDA-checker and float64 grouping
+corrections, the same command passed **106 tests in 13.404 seconds**.
 
 Independent source review corrected NODE leaf numbering and the Sheaf
 normalization operator; neither initial implementation entered formal training.
