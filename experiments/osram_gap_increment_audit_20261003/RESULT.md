@@ -82,7 +82,52 @@ and original Full replay remains exact. Six runner tests and13 analysis tests pa
 Inference code:565d445; remote code snapshot:code_heads; outputs:results_heads.
 
 Because head effects do not yet establish stable specialization, the conditional
-third-stage query/read cosine audit is being prepared without changing addressing.
+third-stage query/read cosine audit was run without changing addressing.
+
+## Stage3 completed
+
+Active Gap slots only, per-head cosine, equal nonempty-rate averaging:
+
+|Gap target|cos(raw Base query, raw Gap query)|cos(raw Gap query, residual query)|cos(Base read, Gap read)|
+|---|---:|---:|---:|
+|A|0.958|0.692|0.593|
+|T|0.972|0.800|0.662|
+|V|0.971|0.789|0.645|
+|All active slots|0.967|0.760|0.633|
+
+Raw Base/Gap queries are highly aligned in angle, while reads are less aligned.
+This is not the proposed distinct-query/same-read pattern. Residual addressing
+changes the Gap query direction before reading. The available comparisons do not
+isolate addressing from the Memory map and cannot establish rank collapse or
+query-design failure. Cosine does not imply equality or identical information.
+
+These are unweighted per-head observations over all active Gap samples, NOT the
+concatenated512-d rescue/harm cosine means in Stage1. Different head norms and
+different sample groups explain why those summaries should not be equated.
+
+Raw results contain42,032 utterance/rate/active-modality/head exposures. Coverage
+was verified against every expected active Gap and all8 heads. First-utterance
+zero-read cosines remain undefined with valid/missing counts in output CSVs.
+Full per-head/per-rate and optional retrospective rescue/harm summaries are in
+`query_analysis/RESULT.md` and its CSVs; no label enters the query computation.
+
+Inference code:a073452; isolated snapshot:code_query; outputs:results_query.
+All three stages completed8 scans each (24 total), and their P_L/P_B/P_F CSVs
+are byte-identical. All original Full predictions replay exactly. Eight runner
+tests and18 offline analysis tests passed;24 W-F1 values and defined overall
+per-rate AUROCs were independently checked against sklearn.
+
+## Conclusion and boundary
+
+Gap has a positive aggregate contribution. Simple norm/cosine observables provide
+weak or condition-specific rescue/harm separation; head ablations do not yet show
+stable target-specific specialization; raw query alignment is high but read
+alignment is lower. None of these results alone justifies a new Gate, a claim that
+Gap is useless, or a claim that Memory maps different queries to identical reads.
+All three requested conditional diagnostic stages are now complete for seed66.
+No training, multi-seed expansion, fourth stage, fitted threshold or new module
+was performed. Any subsequent query-construction experiment requires its own
+controlled specification rather than selecting a head/gate from these test labels.
 
 ## Reproduction and artifacts
 
