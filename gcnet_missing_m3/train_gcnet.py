@@ -135,6 +135,7 @@ class TrainConfig:
     osram_relation_mode: str = 'pairwise'
     osram_relation_dim: int = 128
     osram_relation_out_dim: int = 64
+    osram_gap_increment_filter: bool = False
     completion_path: str = "none"
     completion_write_to_memory: bool = False
     osram_history_query_adapter: bool = False
@@ -168,6 +169,24 @@ class TrainConfig:
     simple_regression_predictor: bool = False
 
     def __post_init__(self) -> None:
+        if self.osram_gap_increment_filter and (
+            self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
+            or self.osram_bidirectional or self.osram_forward_slot_reuse
+            or self.training_objective != 'emotion-only' or self.completion_path != 'none'
+            or self.classification_completion or self.completion_write_to_memory or self.text_core
+            or self.local_context_residual or self.node_interaction_residual or self.readout_type != 'shared'
+            or self.osram_post_grn or self.osram_local_skip_gate or self.osram_memory_only_adapter
+            or self.osram_history_input_gate or self.osram_local_evidence_gate
+            or self.osram_hierarchical_evidence_gate or self.osram_hierarchical_feature_only
+            or self.osram_history_query_adapter or self.osram_relation_block or self.osram_relation_dual_readout
+            or self.osram_emotion_ablation != 'full' or self.osram_ablation != 'full'
+            or self.teacher_mode != 'ema' or self.simple_regression_predictor
+            or self.paired_history_views or self.train_rate_mode != 'cyclic'
+            or self.joint_pretrain_checkpoint is not None or self.initial_backbone_checkpoint is not None
+            or self.b2_base_checkpoint is not None or self.b2_pretrain_checkpoint is not None
+            or self.pretrained_learning_rate is not None
+        ):
+            raise ValueError('Gap increment filter requires original single-view causal Flat emotion-only training')
         if self.osram_relation_dual_readout and (
             not self.osram_relation_block or self.emotion_loss_mode != 'sample-mean'
             or self.readout_type != 'shared' or self.local_context_residual
@@ -1831,6 +1850,27 @@ def _relation_metrics(totals):
     }}
 
 
+def _accumulate_gap_increment(model, totals):
+    diagnostic = getattr(getattr(model, 'osram', None), 'last_diagnostics', {}).get('gap_increment_filter')
+    if not diagnostic:
+        return
+    n = diagnostic['valid_tokens']
+    totals['valid_tokens'] = totals.get('valid_tokens', 0) + n
+    for key in ('gate_mean', 'gate_saturation_fraction', 'gate_low_fraction', 'gate_high_fraction', 'delta_norm', 'modulation_norm', 'modulation_full_anchor_ratio'):
+        totals[key] = totals.get(key, 0.) + n * diagnostic[key]
+
+
+def _gap_increment_metrics(totals):
+    n = totals.get('valid_tokens', 0)
+    if not n:
+        return {}
+    return {'gap_increment_filter': {
+        'valid_tokens': n,
+        **{key: totals[key] / n for key in ('gate_mean', 'gate_saturation_fraction', 'gate_low_fraction', 'gate_high_fraction', 'delta_norm', 'modulation_norm', 'modulation_full_anchor_ratio')},
+        'scope': 'Valid-token mean; saturation g<0.1 or g>1.9; ratio uses pre-normalization full anchor.',
+    }}
+
+
 def _accumulate_memory_shift(model, totals):
     """Collect detached readout statistics without altering any model state."""
     backbone = getattr(model, "osram", None)
@@ -1993,6 +2033,7 @@ def train_epoch(
     conversations_seen = 0
     memory_shift_totals = {}
     relation_totals = {}
+    gap_increment_totals = {}
     post_grn_totals = {}
     local_skip_gate_totals = {}
     history_input_gate_totals = {}
@@ -2170,6 +2211,7 @@ def train_epoch(
             model_forward_count += 1
             _accumulate_memory_shift(model, memory_shift_totals)
             _accumulate_relation(model, relation_totals)
+            _accumulate_gap_increment(model, gap_increment_totals)
             _accumulate_post_grn(model, post_grn_totals)
             _accumulate_history_input_gate(model, local_skip_gate_totals, 'local_skip_gate')
             _accumulate_history_input_gate(model, history_input_gate_totals)
@@ -2479,6 +2521,7 @@ def train_epoch(
         }} if config.osram_relation_dual_readout else {}),
         **_memory_shift_metrics(memory_shift_totals),
         **_relation_metrics(relation_totals),
+        **_gap_increment_metrics(gap_increment_totals),
         **_post_grn_metrics(post_grn_totals),
         **_history_input_gate_metrics(local_skip_gate_totals, 'local_skip_gate'),
         **_history_input_gate_metrics(history_input_gate_totals),
@@ -2615,6 +2658,7 @@ def evaluate_rate(
     task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
     memory_shift_totals = {}
     relation_totals = {}
+    gap_increment_totals = {}
     post_grn_totals = {}
     local_skip_gate_totals = {}
     history_input_gate_totals = {}
@@ -2649,6 +2693,7 @@ def evaluate_rate(
             raise RuntimeError("inference path must not return missing predictions")
         _accumulate_memory_shift(model, memory_shift_totals)
         _accumulate_relation(model, relation_totals)
+        _accumulate_gap_increment(model, gap_increment_totals)
         _accumulate_post_grn(model, post_grn_totals)
         _accumulate_history_input_gate(model, local_skip_gate_totals, 'local_skip_gate')
         _accumulate_history_input_gate(model, history_input_gate_totals)
@@ -2737,6 +2782,7 @@ def evaluate_rate(
         "loss": float(np.mean(losses)),
         **_memory_shift_metrics(memory_shift_totals),
         **_relation_metrics(relation_totals),
+        **_gap_increment_metrics(gap_increment_totals),
         **_post_grn_metrics(post_grn_totals),
         **_history_input_gate_metrics(local_skip_gate_totals, 'local_skip_gate'),
         **_history_input_gate_metrics(history_input_gate_totals),
@@ -2998,6 +3044,7 @@ def run_experiment(
         osram_relation_mode=config_value.osram_relation_mode,
         osram_relation_dim=config_value.osram_relation_dim,
         osram_relation_out_dim=config_value.osram_relation_out_dim,
+        osram_gap_increment_filter=config_value.osram_gap_increment_filter,
         completion_path=config_value.completion_path,
         completion_write_to_memory=config_value.completion_write_to_memory,
         osram_history_query_adapter=config_value.osram_history_query_adapter,
@@ -3507,6 +3554,7 @@ def run_experiment(
         "osram_relation_mode": config_value.osram_relation_mode,
         "osram_relation_dim": config_value.osram_relation_dim,
         "osram_relation_out_dim": config_value.osram_relation_out_dim,
+        "osram_gap_increment_filter": config_value.osram_gap_increment_filter,
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
         **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
@@ -3800,6 +3848,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--osram-shift-filter-width", type=int, default=128)
     parser.add_argument("--osram-shift-filter-depth", type=int, default=1)
     parser.add_argument('--osram-relation-block', action='store_true')
+    parser.add_argument('--osram-gap-increment-filter', action='store_true',
+                        help='Modulate the shared Flat adapter Gap increment with an identity-initialized scalar.')
     parser.add_argument('--osram-relation-dual-readout', action='store_true')
     parser.add_argument('--osram-relation-mode', choices=('pairwise','control'), default='pairwise')
     parser.add_argument('--osram-relation-dim', type=int, default=128)
@@ -3970,6 +4020,7 @@ def main(argv=None) -> None:
         osram_relation_mode=args.osram_relation_mode,
         osram_relation_dim=args.osram_relation_dim,
         osram_relation_out_dim=args.osram_relation_out_dim,
+        osram_gap_increment_filter=args.osram_gap_increment_filter,
         text_core=args.text_core,
         disable_unused_aux_modules=args.disable_unused_aux_modules,
         simple_regression_predictor=args.simple_regression_predictor,

@@ -757,6 +757,44 @@ class CurrentHistoryRelationBlock(nn.Module):
         return residual
 
 
+class GapIncrementFilter(nn.Module):
+    """Scalar modulation of the shared adapter's full-minus-base increment."""
+
+    def __init__(self, output_dim):
+        super().__init__()
+        self.base_norm = nn.LayerNorm(output_dim)
+        self.delta_norm = nn.LayerNorm(output_dim)
+        self.gate_mlp = nn.Sequential(nn.Linear(2 * output_dim + 3, 128),
+                                      nn.GELU(), nn.Linear(128, 1))
+        nn.init.zeros_(self.gate_mlp[-1].weight)
+        nn.init.zeros_(self.gate_mlp[-1].bias)
+        self.last_diagnostics = {}
+
+    def forward(self, full_anchor, base_anchor, delta, availability, valid):
+        mask = valid.unsqueeze(-1)
+        base_anchor = torch.where(mask, base_anchor, torch.zeros_like(base_anchor))
+        delta = torch.where(mask, delta, torch.zeros_like(delta))
+        available = torch.where(mask, availability, torch.zeros_like(availability))
+        gate = 1 + torch.tanh(self.gate_mlp(torch.cat((
+            self.base_norm(base_anchor), self.delta_norm(delta), available), -1)))
+        modulation = (gate - 1) * delta
+        with torch.no_grad():
+            n = int(valid.sum())
+            g = gate[valid]
+            mod_norm = modulation[valid].norm(dim=-1)
+            self.last_diagnostics = {
+                'valid_tokens': n,
+                'gate_mean': float(g.mean()) if n else 0.,
+                'gate_saturation_fraction': float(((g < .1) | (g > 1.9)).float().mean()) if n else 0.,
+                'gate_low_fraction': float((g < .1).float().mean()) if n else 0.,
+                'gate_high_fraction': float((g > 1.9).float().mean()) if n else 0.,
+                'delta_norm': float(delta[valid].norm(dim=-1).mean()) if n else 0.,
+                'modulation_norm': float(mod_norm.mean()) if n else 0.,
+                'modulation_full_anchor_ratio': float((mod_norm / full_anchor[valid].norm(dim=-1).clamp_min(1e-8)).mean()) if n else 0.,
+            }
+        return torch.where(mask, full_anchor + modulation, torch.zeros_like(full_anchor))
+
+
 class OSRAMBackbone(nn.Module):
     """Bidirectional slot-conditioned associative memory.
 
@@ -803,8 +841,19 @@ class OSRAMBackbone(nn.Module):
         osram_relation_mode: str = 'pairwise',
         osram_relation_dim: int = 128,
         osram_relation_out_dim: int = 64,
+        osram_gap_increment_filter: bool = False,
     ) -> None:
         super().__init__()
+        self.osram_gap_increment_filter = bool(osram_gap_increment_filter)
+        if self.osram_gap_increment_filter and (
+            bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat'
+            or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter
+            or osram_history_input_gate or osram_local_evidence_gate
+            or osram_hierarchical_evidence_gate or osram_hierarchical_feature_only
+            or history_query_adapter or osram_relation_block or osram_relation_dual_readout
+            or osram_ablation != 'full' or osram_emotion_ablation != 'full'
+        ):
+            raise ValueError('Gap increment filter requires original causal Flat without other adaptations')
         self.osram_relation_block = bool(osram_relation_block)
         self.osram_relation_dual_readout = bool(osram_relation_dual_readout)
         self.last_relation_base_hidden = None
@@ -1024,6 +1073,9 @@ class OSRAMBackbone(nn.Module):
             with torch.random.fork_rng(devices=[]):
                 self.post_grn = PostGRN(self.latent_dim, self.context_dim, self.output_dim, dropout)
         self.last_diagnostics: dict[str, object] = {}
+        if self.osram_gap_increment_filter:
+            with torch.random.fork_rng(devices=[]):
+                self.gap_increment_filter = GapIncrementFilter(self.output_dim)
         if self.osram_relation_block:
             with torch.random.fork_rng(devices=[]):
                 self.relation_block = CurrentHistoryRelationBlock(
@@ -1564,12 +1616,16 @@ class OSRAMBackbone(nn.Module):
         else:
             # The opt-in path also sanitizes the Flat inputs; the disabled
             # historical path is deliberately byte-for-byte unchanged.
-            if self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+            if self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
                 local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
                 emotion_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
                 emotion_gap = torch.where(
                     (valid.unsqueeze(-1) & ~availability.bool()).unsqueeze(-1),
                     emotion_gap, torch.zeros_like(emotion_gap))
+                if self.osram_gap_increment_filter:
+                    # A transposed mask can make where's result noncontiguous.
+                    # Preserve the legacy Linear GEMM layout (and CUDA rounding).
+                    local = local.contiguous()
             if self.osram_hierarchical_evidence_gate:
                 evidence = self.hierarchical_evidence_gate(local, emotion_base, emotion_gap, availability, umask)
                 emotion_base, emotion_gap = evidence[..., 0, :], evidence[..., 1:, :]
@@ -1597,7 +1653,25 @@ class OSRAMBackbone(nn.Module):
                     ),
                     dim=-1,
                 )
-            if self.osram_relation_block:
+            if self.osram_gap_increment_filter:
+                # Save the exact adapter dropout stream, then replay it locally.
+                # The enclosing stream advances for the original full call only.
+                skip = self.local_skip(local)
+                cpu_rng = torch.get_rng_state()
+                devices = [emotion_input.device.index] if emotion_input.is_cuda else []
+                device_rng = torch.cuda.get_rng_state(emotion_input.device) if devices else None
+                full_adapter = self.emotion_adapter(emotion_input)
+                base_input = torch.cat((local, emotion_base, torch.zeros_like(emotion_gap).flatten(2)), -1)
+                with torch.random.fork_rng(devices=devices):
+                    torch.set_rng_state(cpu_rng)
+                    if devices:
+                        torch.cuda.set_rng_state(device_rng, emotion_input.device)
+                    base_adapter = self.emotion_adapter(base_input)
+                full_anchor = skip + full_adapter
+                hidden = self.emotion_norm(self.gap_increment_filter(
+                    full_anchor, skip + base_adapter, full_adapter - base_adapter,
+                    availability, valid))
+            elif self.osram_relation_block:
                 flat_anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)
                 if self.osram_relation_dual_readout and self.training:
                     base_hidden = self.emotion_norm(flat_anchor)
@@ -1616,7 +1690,7 @@ class OSRAMBackbone(nn.Module):
                 )
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+        elif self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
@@ -1709,6 +1783,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics['local_evidence_gate'] = self.local_evidence_gate.last_diagnostics
         if self.osram_relation_block:
             diagnostics['current_history_relation'] = self.relation_block.last_diagnostics
+        if self.osram_gap_increment_filter:
+            diagnostics['gap_increment_filter'] = self.gap_increment_filter.last_diagnostics
         self.last_diagnostics = diagnostics
         contexts = {
             "base": active_base_context,
