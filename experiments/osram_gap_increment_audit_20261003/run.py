@@ -57,14 +57,27 @@ def replay_readouts(model, emotion_input, skip, latent_dim, context_dim):
     return outputs
 
 
+def mask_head_input(emotion_input, latent_dim, context_dim, value_dim, head, evidence):
+    """Zero one forward read slice; retain Local, all other heads and zero half."""
+    if evidence not in ('base', 'gap') or head < 0 or (head+1)*value_dim > context_dim // 2:
+        raise ValueError('Invalid forward-head intervention')
+    result = emotion_input.clone()
+    for slot in ((0,) if evidence == 'base' else (1, 2, 3)):
+        start = latent_dim + slot * context_dim + head * value_dim
+        result[..., start:start+value_dim] = 0
+    return result
+
+
 class Capture:
     """Read-only hooks/profile capture; replay never calls encoder, queries or scan."""
-    def __init__(self, model):
+    def __init__(self, model, head_ablation=False):
         self.model = model
         self.batches = []
         self.scans = 0
         self.replaying = False
         self.handles = []
+        self.head_ablation = head_ablation
+        self.head_batches = []
 
     def profile(self, frame, event, arg):
         if event == 'return' and frame.f_code is self.model.osram._scan.__func__.__code__:
@@ -106,6 +119,20 @@ class Capture:
             return tensor.squeeze(-1).T[selected].detach().cpu().numpy()
         pl, pb, pf = [flatten(p) for p in predictions]
         verify_replay(pf, flatten(output[0]))
+        if self.head_ablation:
+            self.replaying = True
+            try:
+                offset = len(self.batches)
+                for evidence in ('base', 'gap'):
+                    for head in range(module.osram.num_heads):
+                        modified = mask_head_input(self.emotion_input, latent, context,
+                                                   module.osram.value_dim, head, evidence)
+                        masked = flatten(module.smax_fc(module.osram.emotion_norm(
+                            self.skip_output + module.osram.emotion_adapter(modified))))
+                        self.head_batches.extend(dict(artifact_row=offset+i, intervention=evidence,
+                            head=head, pred_masked=float(value)) for i,value in enumerate(masked))
+            finally:
+                self.replaying = False
         first = valid & (valid.long().cumsum(0) == 1)
         full = valid & self.availability.bool().all(-1)
         for mask in (first, full):
@@ -148,6 +175,8 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--commit', required=True)
     parser.add_argument('--gpu', default='5')
+    parser.add_argument('--head-ablation', action='store_true',
+                        help='Also replay 16 classifier-only single-head interventions; never another scan')
     parser.add_argument('--reference-dir', type=Path, default=ROOT/'experiments/osram_cfg84_history_scale_20260929/results')
     args = parser.parse_args()
     import numpy as np
@@ -182,6 +211,7 @@ def main():
                           str(Path(__file__).relative_to(ROOT)))},
                       environment=dict(torch=torch.__version__,cuda=torch.version.cuda,python=sys.version),
                       utterance_index_semantics='Original sample-ID numeric suffix; not a reconstructed zero-based sequence index',
+                      head_ablation=args.head_ablation,
                       intervention='Same full checkpoint; one scan; only Flat history inputs zeroed',
                       protocol='INTERNAL DIAGNOSTIC ONLY; original per-rate Test-oracle BEST')
     write(args.output/'PROVENANCE.json', provenance)
@@ -193,7 +223,7 @@ def main():
         model = _build_model(c, (ad,td,vd)).cuda().eval().requires_grad_(False)
         assert not model.osram.bidirectional
         schedules = _schedules(c, 'test')
-        all_rows, checks = [], []
+        all_rows, checks, all_head_rows = [], [], []
         for rate in [i/10 for i in range(8)]:
             checkpoint = args.source/f'best_miss_{str(rate).replace(".", "p")}.pt'
             checkpoint_sha = sha(checkpoint)
@@ -202,7 +232,7 @@ def main():
             reference_path = args.reference_dir/f'seed_66_miss_{rate:.1f}_alpha_1.0.npz'
             with np.load(reference_path) as stream:
                 reference = {key:stream[key].copy() for key in stream.files}
-            with torch.no_grad(), Capture(model) as capture:
+            with torch.no_grad(), Capture(model, head_ablation=args.head_ablation) as capture:
                 metrics, artifacts = evaluate_rate(model, loaders[0], schedules[rate], c.dataset,
                     (ad,td,vd), torch.device('cuda:0'), True, c.mosi_task_mode,
                     c.task_regression_loss, c.task_smooth_l1_beta)
@@ -221,6 +251,12 @@ def main():
                 all_rows.append(dict(seed=66,rate=rate,artifact_row=i,utterance_id=uid,conversation_id=conversation,
                     utterance_index=int(index),label=y,availability=''.join(m for m,a in zip('ATV',artifacts['availability'][i]) if a),
                     delta_gap=(y-row['pred_base'])**2-(y-row['pred_full'])**2,polarity_category=category,**row))
+            rate_rows = all_rows[-len(ids):]
+            for intervention in capture.head_batches:
+                original = rate_rows[intervention['artifact_row']]
+                all_head_rows.append(dict(seed=66,rate=rate,utterance_id=original['utterance_id'],
+                    label=original['label'],availability=original['availability'],
+                    pred_full=original['pred_full'],**intervention))
             for key,value in model.state_dict().items():
                 assert torch.equal(value.cpu(),state['model'][key]), key
             assert sha(checkpoint) == checkpoint_sha
@@ -232,6 +268,10 @@ def main():
             print(f'rate={rate:.1f} rows={len(capture.batches)} scans={capture.scans} full_wf1={100*metrics["weighted_f1"]:.6f}',flush=True)
         with (args.output/'utterances.csv').open('w',newline='') as stream:
             writer=csv.DictWriter(stream,fieldnames=list(all_rows[0]));writer.writeheader();writer.writerows(all_rows)
+        if args.head_ablation:
+            assert len(all_head_rows) == len(all_rows) * 2 * model.osram.num_heads
+            with (args.output/'head_predictions.csv').open('w',newline='') as stream:
+                writer=csv.DictWriter(stream,fieldnames=list(all_head_rows[0]));writer.writeheader();writer.writerows(all_head_rows)
         provenance.update(status='complete',rows=len(all_rows),scans=sum(r['scans'] for r in checks))
     except BaseException as error:
         provenance.update(status='failed',error=repr(error));raise

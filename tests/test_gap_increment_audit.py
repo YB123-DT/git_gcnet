@@ -60,3 +60,31 @@ def test_real_model_profile_keeps_original_predictions_and_one_scan():
     assert torch.equal(expected, actual)
     assert capture.scans == 1
     assert len(capture.batches) == int(u.sum())
+
+
+def test_head_ablation_only_requested_forward_slice():
+    x = torch.arange(34.).reshape(1, 1, 34)
+    for evidence in ('base', 'gap'):
+        result = module().mask_head_input(x, 2, 8, 2, 1, evidence)
+        expected = x.clone()
+        slots = (0,) if evidence == 'base' else (1, 2, 3)
+        for slot in slots:
+            start = 2 + 8 * slot + 2
+            expected[..., start:start+2] = 0
+        assert torch.equal(result, expected)
+        assert torch.equal(x, torch.arange(34.).reshape(1, 1, 34))
+
+
+def test_real_head_replays_do_not_add_scan_or_change_full():
+    from gcnet_missing_m3.model import MissingM3GraphModel
+    from tests.test_completion_memory_write import model_kwargs, inputs
+    kwargs = model_kwargs(); kwargs.update(completion_path='none')
+    model = MissingM3GraphModel(**kwargs).eval()
+    x,a,q,u,lengths = inputs()
+    with torch.no_grad():
+        expected = model([x],a,q,u,lengths,predict_missing=False)[0]
+        with module().Capture(model, head_ablation=True) as capture:
+            actual = model([x],a,q,u,lengths,predict_missing=False)[0]
+    assert torch.equal(expected, actual)
+    assert capture.scans == 1
+    assert len(capture.head_batches) == 2 * model.osram.num_heads * int(u.sum())
