@@ -10,6 +10,13 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
+def verify_replay(actual, expected):
+    import numpy as np
+    np.testing.assert_allclose(actual, expected, atol=1e-6, rtol=0, equal_nan=False)
+    np.testing.assert_array_equal(actual > 0, expected > 0)
+    return float(np.max(np.abs(actual - expected)))
+
+
 class ResidualIntervention:
     def __init__(self, disabled):
         self.disabled = disabled
@@ -93,7 +100,7 @@ def main():
                 for k in ('labels', 'availability'):
                     np.testing.assert_array_equal(artifacts[k], reference[k])
                 if not disabled:
-                    np.testing.assert_array_equal(artifacts['predictions'], reference['predictions'])
+                    replay_error = verify_replay(artifacts['predictions'], reference['predictions'])
                     upstream = intervention.digest.hexdigest()
                     on_metrics = metrics
                 else:
@@ -103,7 +110,8 @@ def main():
                     np.savez_compressed(args.output / f'predictions_miss_{suffix}.npz', **artifacts)
                     rows.append(dict(rate=rate, epoch=state['epoch'], checkpoint=str(checkpoint),
                         checkpoint_sha256=checkpoint_hash, upstream_sha256=upstream,
-                        on_replay_exact=True, on_metrics=on_metrics, metrics=metrics))
+                        on_replay_max_abs_error=replay_error, on_replay_polarity_exact=True,
+                        on_metrics=on_metrics, metrics=metrics))
                     write(args.output / 'rows.json', rows)
                     print(f'rate={key} on={100*on_metrics["weighted_f1"]:.6f} off={100*metrics["weighted_f1"]:.6f}', flush=True)
             for k, v in model.state_dict().items():

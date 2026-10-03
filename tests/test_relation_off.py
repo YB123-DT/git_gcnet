@@ -3,6 +3,14 @@ import torch
 
 
 class RelationOffTests(unittest.TestCase):
+    def test_replay_checks_float_error_and_exact_polarity(self):
+        import numpy as np
+        from experiments.osram_current_history_relation_20261003.residual_off import verify_replay
+        self.assertLess(verify_replay(np.array([1.+2e-7]), np.array([1.])), 1e-6)
+        for actual, expected in [([1.001], [1.]), ([-1e-8], [1e-8])]:
+            with self.assertRaises(AssertionError):
+                verify_replay(np.array(actual), np.array(expected))
+
     def test_hook_zero_without_mutating_parameters_or_inputs(self):
         from experiments.osram_current_history_relation_20261003.residual_off import ResidualIntervention
         module = torch.nn.Linear(3, 2)
