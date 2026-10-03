@@ -14,9 +14,9 @@ from experiments.osram_paired_history_rho025_20261002.sweep import (
 VARIANTS={'D2-W128':(2,128),'D2-W256':(2,256),'D3-W128':(3,128),'D3-W256':(3,256)}
 
 
-def configuration(name):
-    common.configuration_dict(66,REFERENCE)
-    cfg=read(REFERENCE/'seed_66/config.json')
+def configuration(name, seed=66):
+    common.configuration_dict(seed,REFERENCE)
+    cfg=read(REFERENCE/f'seed_{seed}/config.json')
     depth,width=VARIANTS[name]
     return dict(cfg,osram_readout_fusion='memory-shift-residual',
                 osram_shift_filter_depth=depth,osram_shift_filter_width=width)
@@ -27,8 +27,8 @@ def train(args):
     from gcnet_missing_m3.train_gcnet import TrainConfig,run_experiment
     assert os.environ['CUDA_VISIBLE_DEVICES']==args.gpu
     gpu_check(args.gpu)
-    cfg=configuration(args.variant)
-    output=args.root/args.variant
+    cfg=configuration(args.variant,args.seed)
+    output=args.root/(args.variant if args.seed==66 else f'{args.variant}_seed_{args.seed}')
     output.mkdir(exist_ok=False)
     record=dict(status='training',config=cfg,code_commit=args.commit,gpu=args.gpu,
                 started_at=datetime.now(timezone.utc).isoformat(),label=common.LABEL,
@@ -39,7 +39,7 @@ def train(args):
         torch.set_num_threads(2)
         roots=[str(DATASET/'CMUMOSI/features'/n) for n in ('wav2vec-large-c-UTT','deberta-large-4-UTT','manet_UTT')]
         run_experiment(TrainConfig(**cfg),*roots,output_dir=str(output))
-        common.verify_outputs(output,REFERENCE/'seed_66')
+        common.verify_outputs(output,REFERENCE/f'seed_{args.seed}')
         record['status']='complete'
     except BaseException as e:
         record.update(status='failed',error=repr(e));raise
@@ -49,6 +49,7 @@ def train(args):
 
 
 def coordinate(args):
+    assert args.seed==66, 'The four-variant coordinator is seed66 only; specify a variant for follow-up seeds'
     args.root.mkdir(parents=True,exist_ok=False)
     write(args.root/'status.json',dict(status='running',commit=args.commit))
     children=[];records=[]
@@ -79,6 +80,7 @@ def coordinate(args):
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--root',type=Path,required=True)
     p.add_argument('--variant',choices=VARIANTS);p.add_argument('--gpu',choices=('5','6'),default='5')
+    p.add_argument('--seed',type=int,choices=(66,67,68),default=66)
     p.add_argument('--commit',required=True);a=p.parse_args()
     if a.variant:train(a)
     else:coordinate(a)
