@@ -844,10 +844,17 @@ class OSRAMBackbone(nn.Module):
         osram_gap_increment_filter: bool = False,
         osram_decision_correction: bool = False,
         osram_readout_candidate: str = 'none',
+        osram_meaningful_block: str = 'none',
     ) -> None:
         super().__init__()
+        self.osram_meaningful_block = osram_meaningful_block
+        if osram_meaningful_block != 'none':
+            from .meaningful_blocks import MEANINGFUL_METHODS
+            if (osram_meaningful_block not in MEANINGFUL_METHODS or osram_readout_candidate != 'none'
+                    or (num_heads,value_dim) != (8,64)):
+                raise ValueError('meaningful block requires original cfg84 heads and a known independent method')
         self.osram_readout_candidate = osram_readout_candidate
-        if self.osram_readout_candidate != 'none' and (
+        if (self.osram_readout_candidate != 'none' or osram_meaningful_block != 'none') and (
             bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat'
             or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter
             or osram_history_input_gate or osram_local_evidence_gate
@@ -1103,6 +1110,12 @@ class OSRAMBackbone(nn.Module):
             with torch.random.fork_rng(devices=[]):
                 self.post_grn = PostGRN(self.latent_dim, self.context_dim, self.output_dim, dropout)
         self.last_diagnostics: dict[str, object] = {}
+        if self.osram_meaningful_block != 'none':
+            from .meaningful_blocks import MeaningfulReadoutResidual
+            with torch.random.fork_rng(devices=[]):
+                self.meaningful_block = MeaningfulReadoutResidual(
+                    self.latent_dim,self.context_dim,self.output_dim,self.osram_meaningful_block,
+                    self.num_heads,self.value_dim)
         if self.osram_readout_candidate != 'none':
             from .readout_candidates import ExternalReadoutResidual
             with torch.random.fork_rng(devices=[]):
@@ -1669,13 +1682,13 @@ class OSRAMBackbone(nn.Module):
         else:
             # The opt-in path also sanitizes the Flat inputs; the disabled
             # historical path is deliberately byte-for-byte unchanged.
-            if self.osram_readout_candidate != 'none' or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+            if self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none' or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
                 local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
                 emotion_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
                 emotion_gap = torch.where(
                     (valid.unsqueeze(-1) & ~availability.bool()).unsqueeze(-1),
                     emotion_gap, torch.zeros_like(emotion_gap))
-                if self.osram_gap_increment_filter or self.osram_readout_candidate != 'none':
+                if self.osram_gap_increment_filter or self.osram_readout_candidate != 'none' or self.osram_meaningful_block != 'none':
                     # A transposed mask can make where's result noncontiguous.
                     # Preserve the legacy Linear GEMM layout (and CUDA rounding).
                     local = local.contiguous()
@@ -1706,7 +1719,12 @@ class OSRAMBackbone(nn.Module):
                     ),
                     dim=-1,
                 )
-            if self.osram_readout_candidate != 'none':
+            if self.osram_meaningful_block != 'none':
+                flat_anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)
+                residual = self.meaningful_block(
+                    local,emotion_base,emotion_gap,availability,umask,flat_anchor)
+                hidden = self.emotion_norm(flat_anchor + residual)
+            elif self.osram_readout_candidate != 'none':
                 flat_anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)
                 residual = self.readout_candidate(
                     local, emotion_base, emotion_gap, availability, umask, flat_anchor)
@@ -1748,7 +1766,7 @@ class OSRAMBackbone(nn.Module):
                 )
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_readout_candidate != 'none' or self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+        elif self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none' or self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
@@ -1846,6 +1864,8 @@ class OSRAMBackbone(nn.Module):
         if self.osram_readout_candidate != 'none':
             diagnostics['readout_candidate'] = self.readout_candidate.last_diagnostics
         self.last_diagnostics = diagnostics
+        if self.osram_meaningful_block != 'none':
+            diagnostics['meaningful_block'] = self.meaningful_block.last_diagnostics
         contexts = {
             "base": active_base_context,
             "gap": active_gap_context,

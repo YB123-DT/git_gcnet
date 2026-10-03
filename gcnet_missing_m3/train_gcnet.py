@@ -138,6 +138,7 @@ class TrainConfig:
     osram_gap_increment_filter: bool = False
     osram_decision_correction: bool = False
     osram_readout_candidate: str = 'none'
+    osram_meaningful_block: str = 'none'
     completion_path: str = "none"
     completion_write_to_memory: bool = False
     osram_history_query_adapter: bool = False
@@ -171,9 +172,15 @@ class TrainConfig:
     simple_regression_predictor: bool = False
 
     def __post_init__(self) -> None:
-        if self.osram_readout_candidate != 'none':
+        if self.osram_meaningful_block != 'none':
+            from .meaningful_blocks import MEANINGFUL_METHODS
+            if self.osram_meaningful_block not in MEANINGFUL_METHODS:
+                raise ValueError('unsupported osram_meaningful_block')
+            if self.osram_readout_candidate != 'none' or (self.osram_num_heads,self.osram_value_dim) != (8,64):
+                raise ValueError('meaningful blocks require original cfg84 heads and no old candidate')
+        if self.osram_readout_candidate != 'none' or self.osram_meaningful_block != 'none':
             from .readout_candidates import CANDIDATE_METHODS
-            if self.osram_readout_candidate not in CANDIDATE_METHODS:
+            if self.osram_readout_candidate != 'none' and self.osram_readout_candidate not in CANDIDATE_METHODS:
                 raise ValueError('unsupported osram_readout_candidate')
             if (
                 self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
@@ -2977,7 +2984,16 @@ def run_experiment(
     text_root: str,
     visual_root: str,
     output_dir: str | Path,
+    *,
+    training_state=None,
 ) -> Dict[str, object]:
+    if training_state is not None and (
+        config_value.checkpoint_selection != 'test-oracle-per-rate'
+        or config_value.training_objective != 'emotion-only'
+        or config_value.train_rate_mode != 'cyclic'
+        or config_value.emotion_loss_mode != 'sample-mean'
+    ):
+        raise ValueError('Complete-state recovery currently supports the fixed cfg84 screening protocol only')
     if config_value.osram_history_query_adapter and (
         config_value.backbone_type != 'osram' or config_value.osram_bidirectional
         or config_value.completion_path != 'none'
@@ -3162,6 +3178,7 @@ def run_experiment(
         osram_gap_increment_filter=config_value.osram_gap_increment_filter,
         osram_decision_correction=config_value.osram_decision_correction,
         osram_readout_candidate=config_value.osram_readout_candidate,
+        osram_meaningful_block=config_value.osram_meaningful_block,
         completion_path=config_value.completion_path,
         completion_write_to_memory=config_value.completion_write_to_memory,
         osram_history_query_adapter=config_value.osram_history_query_adapter,
@@ -3299,7 +3316,35 @@ def run_experiment(
     selected_score_by_rate: Dict[str, float] = {}
     selected_weighted_f1_by_rate: Dict[str, float] = {}
     selected_accuracy_by_rate: Dict[str, float] = {}
-    for epoch in range(config_value.epochs):
+    start_epoch = 0
+    if training_state is not None:
+        sampler = train_loader.sampler
+        schedule_identity = {
+            'train_masks': {str(k): v.config_hash for k,v in train_schedules.items()},
+            'test_masks': {str(k): v.config_hash for k,v in test_schedules.items()},
+            'sampler_class': type(sampler).__name__,
+            'sampler_seed': getattr(sampler,'seed',None),
+            'sampler_indices': list(getattr(sampler,'indices',[])),
+            'cyclic_rates': list(config_value.train_missing_rates),
+        }
+        if type(sampler).__name__ != 'EpochSeededSubsetSampler' or train_loader.generator is not None:
+            raise ValueError('Recovery requires the audited epoch-seeded sampler without an extra loader generator')
+        if training_state.schedule_identity not in (None,schedule_identity):
+            raise ValueError('Requested recovery schedule does not match actual loader/masks')
+        training_state.schedule_identity = schedule_identity
+        restored = training_state.bind(model,optimizer).restore()
+        if restored is not None:
+            start_epoch = restored['next_epoch']
+            history = restored['history']
+            selected_epoch_by_rate = restored['selection_state']['epochs']
+            selected_score_by_rate = restored['selection_state']['scores']
+            selected_weighted_f1_by_rate = restored['selection_state']['weighted_f1']
+            selected_accuracy_by_rate = restored['selection_state']['accuracy']
+            if restored['schedule_state'] != {'next_epoch':start_epoch}:
+                raise ValueError('Committed schedule progress mismatch')
+            if start_epoch > config_value.epochs:
+                raise ValueError('Recovery progress exceeds configured training length')
+    for epoch in range(start_epoch, config_value.epochs):
         _apply_epoch_learning_rate(optimizer, config_value, epoch)
         sampler = getattr(train_loader, "sampler", None)
         if sampler is not None and hasattr(sampler, "set_epoch"):
@@ -3411,7 +3456,7 @@ def run_experiment(
                     accuracy_value = selection_metrics[rate].get("accuracy")
                     if accuracy_value is not None:
                         selected_accuracy_by_rate[rate_key] = float(accuracy_value)
-                    torch.save({
+                    selected_checkpoint = {
                         "model": _state_to_cpu(model),
                         "config": asdict(config_value),
                         "text_subspace_provenance": getattr(model, "text_subspace_provenance", None),
@@ -3429,7 +3474,17 @@ def run_experiment(
                             if accuracy_value is None
                             else float(accuracy_value)
                         ),
-                    }, output / ("best_miss_" + rate_key.replace(".", "p") + ".pt"))
+                    }
+                    if training_state is None:
+                        torch.save(selected_checkpoint, output / ("best_miss_" + rate_key.replace(".", "p") + ".pt"))
+                    else:
+                        training_state.save_best(epoch=epoch+1,rate=rate_key,checkpoint=selected_checkpoint)
+            if training_state is not None:
+                training_state.commit_epoch(
+                    next_epoch=epoch+1,history=history,
+                    selection_state={'epochs':selected_epoch_by_rate,'scores':selected_score_by_rate,
+                                     'weighted_f1':selected_weighted_f1_by_rate,'accuracy':selected_accuracy_by_rate},
+                    schedule_state={'next_epoch':epoch+1})
             continue
         if best_score is None:
             raise RuntimeError("emotion checkpoint score was not initialized")
@@ -3676,6 +3731,7 @@ def run_experiment(
         "osram_gap_increment_filter": config_value.osram_gap_increment_filter,
         "osram_decision_correction": config_value.osram_decision_correction,
         "osram_readout_candidate": config_value.osram_readout_candidate,
+        "osram_meaningful_block": config_value.osram_meaningful_block,
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
         **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
@@ -3726,6 +3782,7 @@ def run_experiment(
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from .meaningful_blocks import MEANINGFUL_METHODS
     parser = argparse.ArgumentParser()
     parser.add_argument('--paired-history-views', action='store_true')
     parser.add_argument('--history-drop-prob', type=float, default=0.2)
@@ -3973,6 +4030,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Modulate the shared Flat adapter Gap increment with an identity-initialized scalar.')
     parser.add_argument('--osram-decision-correction', action='store_true',
                         help='Replace Flat readout with three equally supervised evidence-centered decision exits.')
+    parser.add_argument('--osram-meaningful-block', default='none', choices=('none',)+MEANINGFUL_METHODS)
     parser.add_argument('--osram-readout-candidate', default='none',
                         help='Optional external residual before the original Flat LayerNorm; default none.')
     parser.add_argument('--osram-relation-dual-readout', action='store_true')
@@ -4148,6 +4206,7 @@ def main(argv=None) -> None:
         osram_gap_increment_filter=args.osram_gap_increment_filter,
         osram_decision_correction=args.osram_decision_correction,
         osram_readout_candidate=args.osram_readout_candidate,
+        osram_meaningful_block=args.osram_meaningful_block,
         text_core=args.text_core,
         disable_unused_aux_modules=args.disable_unused_aux_modules,
         simple_regression_predictor=args.simple_regression_predictor,

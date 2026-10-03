@@ -1286,8 +1286,15 @@ class MissingM3GraphModel(GraphModel):
         osram_gap_increment_filter=False,
         osram_decision_correction=False,
         osram_readout_candidate='none',
+        osram_meaningful_block='none',
     ) -> None:
-        if osram_readout_candidate != 'none' and (
+        if osram_meaningful_block != 'none':
+            from .meaningful_blocks import MEANINGFUL_METHODS
+            if (osram_meaningful_block not in MEANINGFUL_METHODS or osram_readout_candidate != 'none'
+                    or (osram_num_heads,osram_value_dim) != (8,64)):
+                raise ValueError('meaningful block requires a known method and original cfg84 heads')
+        self.osram_meaningful_block = osram_meaningful_block
+        if (osram_readout_candidate != 'none' or osram_meaningful_block != 'none') and (
             backbone_type != 'osram' or osram_readout_fusion != 'flat'
             or osram_bidirectional or osram_forward_slot_reuse
             or training_objective != 'emotion-only' or completion_path != 'none'
@@ -1757,6 +1764,7 @@ class MissingM3GraphModel(GraphModel):
                 osram_gap_increment_filter=osram_gap_increment_filter,
                 osram_decision_correction=osram_decision_correction,
                 osram_readout_candidate=osram_readout_candidate,
+                osram_meaningful_block=osram_meaningful_block,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,

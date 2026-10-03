@@ -114,6 +114,7 @@ def _build_model(config, dimensions):
         osram_gap_increment_filter=getattr(config, 'osram_gap_increment_filter', False),
         osram_decision_correction=getattr(config, 'osram_decision_correction', False),
         osram_readout_candidate=getattr(config, 'osram_readout_candidate', 'none'),
+        osram_meaningful_block=getattr(config, 'osram_meaningful_block', 'none'),
         teacher_mode=config.teacher_mode,
         teacher_checkpoint=config.teacher_checkpoint,
         target_space=config.target_space,

@@ -1,0 +1,1404 @@
+{
+  "cards": [
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Rasmus Berg Palm",
+          "Ulrich Paquet",
+          "Ole Winther"
+        ],
+        "code_license": "No license detected; source inspected as reference only. Independent implementation required.",
+        "code_url": "https://github.com/rasmusbergpalm/recurrent-relational-networks",
+        "codepin": "d3a5a27f6e73e51aac1edb9556ac47be3350d748",
+        "corechain": [
+          "Construct typed head graph",
+          "Initialize message state h_i^0=x_i; LSTM hidden/cell state zeros",
+          "Repeat shared pair-message MLP -> sum incoming messages -> post-MLP with original x_i -> LSTM node state, five rounds",
+          "Typed final-state pooling and common bridge"
+        ],
+        "decision": "accept",
+        "distinct_from_others": "Only this candidate has within-readout LSTM state and shared iterative message/update parameters. It sums unrestricted learned pair messages; it is neither dense edge-state attention, feed-forward sigmoid graph convolution nor multi-statistic aggregation.",
+        "exact_mapping": {
+          "bridge": "Return z128 to the existing readout integration; use one common Linear128->D_flat zero-initialized residual bridge added at original Flat pre-norm, where D_flat is the existing anchor width. Retain original Flat, classifier, objective, checkpoint protocol and causal scan. D_flat is inferred from the unchanged anchor, not a new choice.",
+          "controls": "All newly added dropout/edge-dropout/attention-maskout=0. No extra sampling, losses, targets, feature prediction, OSRAM query/write or history cache. All stated depths and widths are fixed design choices before experiments; no performance claim.",
+          "edge_features": "r_(j->i) in R^14: concatenate onehot(source_type(j),5), onehot(source_type(i),5), indicator(i=j), indicator(either endpoint Local), indicator(source_type(i)=source_type(j)), indicator(both memory and same head_id). The four Boolean fields are independent, not exclusive. For RRN use learned 14->16 edge projection; for EGT use 14->32; PNA learns 14->32; original GatedGCN uses only adjacency and typed node features.",
+          "embedding": "d=128. x_Local=LayerNorm(P_L L+t_Local), P_L:256->128. x_(s,h)=LayerNorm(P_h read_(s,h)+t_s+p_h), P_h:64->128 shared across Base/Gap for each fixed h; t_s has five source types and p_h eight true-head IDs. Each P_h is independent across head indices. These are new-task input embeddings, not extra memory reads.",
+          "graph_degrees": "With g=1+number_missing in {1,2,3} active memory types, Local indegree=8g; every memory node indegree=7+(g-1)+1=7+g. Thus memory degrees 8/9/10 and Local degrees 8/16/24. Every active node has neighbors.",
+          "input": "Per valid utterance with preceding valid history: L in R^256; B and G_A/G_T/G_V are already-read forward vectors in R^512, reshaped only by their genuine 8x64 producer layout.",
+          "masking": "Use availability only to activate missing-modality Gap blocks; Base and Local require valid current utterance and preceding valid history. torch.where sanitize inactive raw inputs BEFORE projections/normalization; exclude both endpoints of inactive edges; zero inactive states after every biased operation. Process active subgraphs separately or masked padded batches with safe all-masked handling. Skip no-history/padding rows entirely and return exact zero residual for them. No cross-utterance node, edge, recurrent or normalization state.",
+          "node_order": "Fixed padded order: Local index0; Base heads0..7 indices1..8; Gap-A indices9..16; Gap-T indices17..24; Gap-V indices25..32. Only Base plus the missing modalities' Gap blocks are active. With >=1 observed modality: 9,17,25 active nodes. No-history utterances do not enter the module.",
+          "parameters": "T=5 shared iterations, hidden/message/LSTM width128; edge embedding16. f is MLP272->128->128->128->128 with ReLU after first three maps and linear last map. Post-MLP256->128->128->128->128 uses same activation pattern; concatenate [summed message128, original x_i128]. One shared LSTMCell128->128.",
+          "pooling": "After the final complete core block, concatenate [h_Local, mean_h h_(Base,h), mean_h h_(GapA,h), mean_h h_(GapT,h), mean_h h_(GapV,h)] in R^640. Each absent Gap contributes exactly a zero128 vector, not a learned missing token. z=LayerNorm(Linear640->128(concat)). This typed pooling is a new-task readout shared across candidates, not an attributed paper component.",
+          "pooling_stage": "Pool after t=5 only; no intermediate predictions or stepwise losses.",
+          "provenance": "gcnet_missing_m3/osram.py:20 MODALITIES=(audio,text,visual); _scan:1407-1411 flattens base_read [B,H,V]; :1438-1450 analogous Gap reads; :1560 appends zero backward half. Same-index Base/Gap heads share the Memory value space (parent verified).",
+          "sparse_edges": "For distinct active nodes i,j include BOTH directed edges iff (i or j is Local) OR (both are memory heads and source_type(i)=source_type(j)) OR (both are memory heads and head_id(i)=head_id(j)). No self-edge. Duplicates collapsed. No edge depends on labels, values, predicted confidence, time distance or a fabricated geometry.",
+          "update": "m_(j->i)^t=f([h_j^(t-1),h_i^(t-1),E r_(j->i)]); m_i^t=sum_j m_(j->i)^t; u_i^t=post([m_i^t,x_i]); (h_i^t,c_i^t)=LSTMCell(u_i^t,(s_i^(t-1),c_i^(t-1))) with s_i^0=c_i^0=0 and s_i^t=h_i^t. The first message round uses x_i, as in author code; later messages use LSTM outputs."
+        },
+        "id": "rrn_evidence",
+        "limitations": [
+          "Original per-step supervision is deliberately omitted to keep the existing objective; do not claim the source convergence encouragement.",
+          "Graph diameter is <=2 through Local; five rounds are nonlinear refinement, not access to new temporal evidence.",
+          "No license found in author repo or inspected source: no code copying; future implementation must be independent from paper formulas.",
+          "The source bAbI word/question encoders, graph task head and losses are excluded; this is an architecture transfer, not paper reproduction."
+        ],
+        "paper_evidence": "Section2 equations1-4: pairwise messages, target sum, recurrent update with original node input; section Variations permits arbitrary/fully connected graphs and graph-level outputs.",
+        "pdf": "https://arxiv.org/pdf/1711.08028",
+        "runnable_design_resolved": true,
+        "source_verified": true,
+        "symbols": [
+          {
+            "lines": "4-31",
+            "path": "message_passing.py",
+            "symbol": "message_passing",
+            "url": "https://github.com/rasmusbergpalm/recurrent-relational-networks/blob/d3a5a27f6e73e51aac1edb9556ac47be3350d748/message_passing.py#L4-L31"
+          },
+          {
+            "lines": "119-142",
+            "path": "tasks/babi/rrn.py",
+            "symbol": "BaBiRecurrentRelationalNet recurrent steps",
+            "url": "https://github.com/rasmusbergpalm/recurrent-relational-networks/blob/d3a5a27f6e73e51aac1edb9556ac47be3350d748/tasks/babi/rrn.py#L119-L142"
+          }
+        ],
+        "title": "Recurrent Relational Networks",
+        "url": "https://arxiv.org/abs/1711.08028",
+        "why_meaningful": "A complete shared-parameter reasoning loop lets source-specific head evidence repeatedly revise node representations while original evidence remains available. This changes information processing, not only the weight of an already-pooled vector."
+      },
+      "card_file_sha256": "234097064a489437841812bd4be77e8757be8757b95600bab946a4f409dcef42",
+      "design_sha256": "ab8c3cf965d467595647be6ffb42cefbed0edf57953b6c9dd8d2252aac931687",
+      "family": "graph",
+      "id": "rrn_evidence",
+      "source": {
+        "code": "https://github.com/rasmusbergpalm/recurrent-relational-networks",
+        "paper": "https://arxiv.org/abs/1711.08028"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Md Shamim Hussain",
+          "Mohammed J. Zaki",
+          "Dharmashankar Subramanian"
+        ],
+        "code_license": "MIT",
+        "code_url": "https://github.com/shamim-hussain/egt_pytorch",
+        "codepin": "9e66956a5fdc6f6e8a865863d029468380bb63e5",
+        "corechain": [
+          "Initialize nodes plus all-pair structural edge embeddings",
+          "Per layer, pre-normalized node Q/K/V and edge bias/gates produce global attention",
+          "Update nodes using gated attention and dynamic centrality",
+          "Update persistent edge states from pre-softmax pair scores",
+          "Separate residual node/edge FFNs in the first two complete joint layers; third node-ended layer updates nodes only",
+          "Typed node pooling and common bridge"
+        ],
+        "decision": "accept",
+        "distinct_from_others": "Only candidate with dense persistent edge embeddings co-evolving with nodes and unrestricted global attention. Edge gating is one component of a two-stream architecture, not the modification by itself.",
+        "exact_mapping": {
+          "bridge": "Return z128 to the existing readout integration; use one common Linear128->D_flat zero-initialized residual bridge added at original Flat pre-norm, where D_flat is the existing anchor width. Retain original Flat, classifier, objective, checkpoint protocol and causal scan. D_flat is inferred from the unchanged anchor, not a new choice.",
+          "controls": "All newly added dropout/edge-dropout/attention-maskout=0. No extra sampling, losses, targets, feature prediction, OSRAM query/write or history cache. All stated depths and widths are fixed design choices before experiments; no performance claim.",
+          "edge_features": "r_(j->i) in R^14: concatenate onehot(source_type(j),5), onehot(source_type(i),5), indicator(i=j), indicator(either endpoint Local), indicator(source_type(i)=source_type(j)), indicator(both memory and same head_id). The four Boolean fields are independent, not exclusive. For RRN use learned 14->16 edge projection; for EGT use 14->32; PNA learns 14->32; original GatedGCN uses only adjacency and typed node features.",
+          "edges_override": "Maintain e_ij for EVERY ordered pair of active nodes, including self and pairs absent from the sparse graph. Initialize e_ij=Linear14->32(r_(j->i)); sparse relation predicates are input features, NOT an attention adjacency mask. Only padding/inactive endpoints are masked.",
+          "embedding": "d=128. x_Local=LayerNorm(P_L L+t_Local), P_L:256->128. x_(s,h)=LayerNorm(P_h read_(s,h)+t_s+p_h), P_h:64->128 shared across Base/Gap for each fixed h; t_s has five source types and p_h eight true-head IDs. Each P_h is independent across head indices. These are new-task input embeddings, not extra memory reads.",
+          "graph_degrees": "With g=1+number_missing in {1,2,3} active memory types, Local indegree=8g; every memory node indegree=7+(g-1)+1=7+g. Thus memory degrees 8/9/10 and Local degrees 8/16/24. Every active node has neighbors.",
+          "input": "Per valid utterance with preceding valid history: L in R^256; B and G_A/G_T/G_V are already-read forward vectors in R^512, reshaped only by their genuine 8x64 producer layout.",
+          "masking": "Use availability only to activate missing-modality Gap blocks; Base and Local require valid current utterance and preceding valid history. torch.where sanitize inactive raw inputs BEFORE projections/normalization; exclude both endpoints of inactive edges; zero inactive states after every biased operation. Process active subgraphs separately or masked padded batches with safe all-masked handling. Skip no-history/padding rows entirely and return exact zero residual for them. No cross-utterance node, edge, recurrent or normalization state.",
+          "masking_detail": "Mask inactive keys in the attention softmax and exclude inactive pairs from gate sums. Overwrite invalid node/pair outputs after each residual/FFN; never store -inf in learned edge state. Softmax must always have active keys for active queries. Current Local is a real node, so dynamic centrality applies to it; do not treat it as a virtual node.",
+          "node_order": "Fixed padded order: Local index0; Base heads0..7 indices1..8; Gap-A indices9..16; Gap-T indices17..24; Gap-V indices25..32. Only Base plus the missing modalities' Gap blocks are active. With >=1 observed modality: 9,17,25 active nodes. No-history utterances do not enter the module.",
+          "parameters": "Three independently parameterized EGT layers; d_h=128, d_e=32, H=8 heads, d_k=d_v=16. Both node_update and edge_update true in layers1-2; layer3 is node-ended with edge_update=false, because a final edge update has no consumer under node pooling. This author-supported correction was approved before any training (lib/models/egt.py lines94-101 at the pinned commit). scale_dot=true; scale_degree=true; ELU FFNs with expansion2 (128->256->128 and32->64->32); logit clip[-5,5]; all dropout=0; no virtual nodes; no SVD/distance-prediction branch.",
+          "pooling": "After the final complete core block, concatenate [h_Local, mean_h h_(Base,h), mean_h h_(GapA,h), mean_h h_(GapT,h), mean_h h_(GapV,h)] in R^640. Each absent Gap contributes exactly a zero128 vector, not a learned missing token. z=LayerNorm(Linear640->128(concat)). This typed pooling is a new-task readout shared across candidates, not an attributed paper component.",
+          "provenance": "gcnet_missing_m3/osram.py:20 MODALITIES=(audio,text,visual); _scan:1407-1411 flattens base_read [B,H,V]; :1438-1450 analogous Gap reads; :1560 appends zero backward half. Same-index Base/Gap heads share the Memory value space (parent verified).",
+          "sparse_edges": "For distinct active nodes i,j include BOTH directed edges iff (i or j is Local) OR (both are memory heads and source_type(i)=source_type(j)) OR (both are memory heads and head_id(i)=head_id(j)). No self-edge. Duplicates collapsed. No edge depends on labels, values, predicted confidence, time distance or a fabricated geometry.",
+          "update": "Let hn=LN(h), en=LN(e). Per head a: H_ij^a=clip(q_i^a dot k_j^a/sqrt(16),-5,5)+E_a(en_ij); g_ij^a=sigmoid(G_a(en_ij)); A_ij^a=softmax_j(H_ij^a)*g_ij^a; c_i^a=log(1+sum_valid_j g_ij^a). h'=h+O_h(concat_a[c_i^a sum_j A_ij^a v_j^a]); e'=e+O_e(concat_a H_ij^a). Then h_next=h'+FFN_h(LN(h')); e_next=e'+FFN_e(LN(e')). Final node LN before common pooling."
+        },
+        "id": "egt_evidence",
+        "limitations": [
+          "Typed relation inputs replace molecule/task-specific encodings; no SVD positional encoding or source auxiliary structural objective is used.",
+          "Quadratic pair-state storage remains, though <=25 active nodes makes the proposed design bounded.",
+          "Pair states are learned evidence relations, not calibrated reliability or discovered physical structure.",
+          "Keep edge updates and edge FFNs in the first two layers; use the author-supported node-only final layer to avoid dead trainable edge parameters. Edge-bias-only attention in every layer would be an ablation, not this candidate."
+        ],
+        "paper_evidence": "Sections3.2-3.3 equations3-9: residual node AND edge channels, edge bias/gates, global attention, node/edge FFNs and dynamic centrality scaling. Section3.4 positional encoding is input representation, not required to invent a spatial grid.",
+        "pdf": "https://arxiv.org/pdf/2108.03348",
+        "runnable_design_resolved": true,
+        "source_verified": true,
+        "symbols": [
+          {
+            "lines": "25-80",
+            "path": "lib/models/egt_layers.py",
+            "symbol": "EGT_Layer._egt",
+            "url": "https://github.com/shamim-hussain/egt_pytorch/blob/9e66956a5fdc6f6e8a865863d029468380bb63e5/lib/models/egt_layers.py#L25-L80"
+          },
+          {
+            "lines": "141-238",
+            "path": "lib/models/egt_layers.py",
+            "symbol": "EGT_Layer projections and forward",
+            "url": "https://github.com/shamim-hussain/egt_pytorch/blob/9e66956a5fdc6f6e8a865863d029468380bb63e5/lib/models/egt_layers.py#L141-L238"
+          }
+        ],
+        "title": "Global Self-Attention as a Replacement for Graph Convolution",
+        "url": "https://doi.org/10.1145/3534678.3539296",
+        "why_meaningful": "Relations persist and change over layers rather than disappearing after each attention sum. The block can revise Base/Gap same-head and cross-head interactions jointly with the node evidence using explicit pair states."
+      },
+      "card_file_sha256": "234097064a489437841812bd4be77e8757be8757b95600bab946a4f409dcef42",
+      "design_sha256": "ca79d652f530348f17c3ba7455408a9fa0e3d0ebc0012b9e5e776b1a6777ef15",
+      "family": "graph",
+      "id": "egt_evidence",
+      "source": {
+        "code": "https://github.com/shamim-hussain/egt_pytorch",
+        "paper": "https://doi.org/10.1145/3534678.3539296"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Xavier Bresson",
+          "Thomas Laurent"
+        ],
+        "code_license": "MIT",
+        "code_url": "https://github.com/xbresson/spatial_graph_convnets",
+        "codepin": "f1da7d7f91a2ce0f324c43d787de05d0cc47e4cf",
+        "corechain": [
+          "Typed sparse head graph",
+          "Endpoint-conditioned vector routing of transformed neighbor features",
+          "Self-plus-neighbor graph convolution, normalization, ReLU",
+          "Second graph convolution plus learned residual projection",
+          "Stack three complete two-convolution cells",
+          "Typed pooling and common bridge"
+        ],
+        "decision": "accept",
+        "distinct_from_others": "Feed-forward local graph convolution with endpoint-recomputed vector gates and independent depth parameters. No iterative LSTM state, no persistent pair representation, no softmax attention and no multi-statistic aggregation.",
+        "exact_mapping": {
+          "bridge": "Return z128 to the existing readout integration; use one common Linear128->D_flat zero-initialized residual bridge added at original Flat pre-norm, where D_flat is the existing anchor width. Retain original Flat, classifier, objective, checkpoint protocol and causal scan. D_flat is inferred from the unchanged anchor, not a new choice.",
+          "controls": "All newly added dropout/edge-dropout/attention-maskout=0. No extra sampling, losses, targets, feature prediction, OSRAM query/write or history cache. All stated depths and widths are fixed design choices before experiments; no performance claim.",
+          "edge_features": "r_(j->i) in R^14: concatenate onehot(source_type(j),5), onehot(source_type(i),5), indicator(i=j), indicator(either endpoint Local), indicator(source_type(i)=source_type(j)), indicator(both memory and same head_id). The four Boolean fields are independent, not exclusive. For RRN use learned 14->16 edge projection; for EGT use 14->32; PNA learns 14->32; original GatedGCN uses only adjacency and typed node features.",
+          "edge_handling": "Use only common sparse adjacency; no learned persistent edge state, no softmax, and no gate-sum denominator. Do not silently substitute the later benchmarking-gnns normalized edge-state variant under the 2017 attribution.",
+          "embedding": "d=128. x_Local=LayerNorm(P_L L+t_Local), P_L:256->128. x_(s,h)=LayerNorm(P_h read_(s,h)+t_s+p_h), P_h:64->128 shared across Base/Gap for each fixed h; t_s has five source types and p_h eight true-head IDs. Each P_h is independent across head indices. These are new-task input embeddings, not extra memory reads.",
+          "graph_degrees": "With g=1+number_missing in {1,2,3} active memory types, Local indegree=8g; every memory node indegree=7+(g-1)+1=7+g. Thus memory degrees 8/9/10 and Local degrees 8/16/24. Every active node has neighbors.",
+          "input": "Per valid utterance with preceding valid history: L in R^256; B and G_A/G_T/G_V are already-read forward vectors in R^512, reshaped only by their genuine 8x64 producer layout.",
+          "masking": "Use availability only to activate missing-modality Gap blocks; Base and Local require valid current utterance and preceding valid history. torch.where sanitize inactive raw inputs BEFORE projections/normalization; exclude both endpoints of inactive edges; zero inactive states after every biased operation. Process active subgraphs separately or masked padded batches with safe all-masked handling. Skip no-history/padding rows entirely and return exact zero residual for them. No cross-utterance node, edge, recurrent or normalization state.",
+          "node_order": "Fixed padded order: Local index0; Base heads0..7 indices1..8; Gap-A indices9..16; Gap-T indices17..24; Gap-V indices25..32. Only Base plus the missing modalities' Gap blocks are active. With >=1 observed modality: 9,17,25 active nodes. No-history utterances do not enter the module.",
+          "normalization": "Replace author's BatchNorm with per-node LayerNorm128 in each convolution, explicitly to keep utterances independent and avoid running batch statistics/future-utterance coupling. This is a normalization adaptation, not a change to graph routing/convolution/residual core.",
+          "parameters": "Three independently parameterized OurConvNetcell-style residual cells, each with two graph convolutions, for six propagation operations total; all node widths128. For every convolution U_i,U_j,V_i,V_j:128->128, learned vector biases b_u,b_v. Each cell has residual projection R:128->128 without bias.",
+          "pooling": "After the final complete core block, concatenate [h_Local, mean_h h_(Base,h), mean_h h_(GapA,h), mean_h h_(GapT,h), mean_h h_(GapV,h)] in R^640. Each absent Gap contributes exactly a zero128 vector, not a learned missing token. z=LayerNorm(Linear640->128(concat)). This typed pooling is a new-task readout shared across candidates, not an attributed paper component.",
+          "provenance": "gcnet_missing_m3/osram.py:20 MODALITIES=(audio,text,visual); _scan:1407-1411 flattens base_read [B,H,V]; :1438-1450 analogous Gap reads; :1560 appends zero backward half. Same-index Base/Gap heads share the Memory value space (parent verified).",
+          "sparse_edges": "For distinct active nodes i,j include BOTH directed edges iff (i or j is Local) OR (both are memory heads and source_type(i)=source_type(j)) OR (both are memory heads and head_id(i)=head_id(j)). No self-edge. Duplicates collapsed. No edge depends on labels, values, predicted confidence, time distance or a fabricated geometry.",
+          "update": "For each of the two convolutions: eta_(j->i)=sigmoid(V_i h_i+V_j h_j+b_v), q_i=U_i h_i+sum_(j in neighbors(i)) eta_(j->i) elementwise U_j h_j+b_u. First convolution outputs ReLU(LN(q_i)); second outputs ReLU(LN(q_i)+R h_i_cell_input). Recompute gates from current endpoint features at every convolution."
+        },
+        "id": "residual_gated_graph_evidence",
+        "limitations": [
+          "This is the original residual gated convolution, not every later model called GatedGCN.",
+          "The unnormalized neighbor sum can change magnitude with degree; per-node LayerNorm and residual paths are fixed adaptations, not a robustness guarantee.",
+          "Using LayerNorm rather than author's BatchNorm must be reported.",
+          "The six layers do not imply six steps of causal history; all operate on one already-read evidence graph."
+        ],
+        "paper_evidence": "Section3 equations9,11,12: endpoint-dependent vector gates, self transform plus summed transformed neighbors, and residual graph convolutions. Author notebook preserves this in two-convolution residual cells.",
+        "pdf": "https://arxiv.org/pdf/1711.07553",
+        "runnable_design_resolved": true,
+        "source_verified": true,
+        "symbols": [
+          {
+            "lines": "raw notebook JSON119-212; code cell index3 lines5-98",
+            "path": "01_residual_gated_graph_convnets_subgraph_matching.ipynb",
+            "symbol": "OurConvNetcell",
+            "url": "https://github.com/xbresson/spatial_graph_convnets/blob/f1da7d7f91a2ce0f324c43d787de05d0cc47e4cf/01_residual_gated_graph_convnets_subgraph_matching.ipynb"
+          },
+          {
+            "lines": "code cell index3 lines129-139 and188-192",
+            "path": "01_residual_gated_graph_convnets_subgraph_matching.ipynb",
+            "symbol": "Graph_OurConvNet stacked two-convolution cells",
+            "url": "https://github.com/xbresson/spatial_graph_convnets/blob/f1da7d7f91a2ce0f324c43d787de05d0cc47e4cf/01_residual_gated_graph_convnets_subgraph_matching.ipynb"
+          }
+        ],
+        "title": "Residual Gated Graph ConvNets",
+        "url": "https://arxiv.org/abs/1711.07553",
+        "why_meaningful": "Six complete neighbor-mixing operations learn which feature channels to transmit over semantically defined edges while preserving node identity through block residuals. Evidence is transformed and exchanged, not simply rescaled at final fusion."
+      },
+      "card_file_sha256": "234097064a489437841812bd4be77e8757be8757b95600bab946a4f409dcef42",
+      "design_sha256": "d11bbdeb75b0041f7e6b079380d608a00f10733b5c4766748cde9f419563c86e",
+      "family": "graph",
+      "id": "residual_gated_graph_evidence",
+      "source": {
+        "code": "https://github.com/xbresson/spatial_graph_convnets",
+        "paper": "https://arxiv.org/abs/1711.07553"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Gabriele Corso",
+          "Luca Cavalleri",
+          "Dominique Beaini",
+          "Pietro Li\u00f2",
+          "Petar Veli\u010dkovi\u0107"
+        ],
+        "code_license": "MIT",
+        "code_url": "https://github.com/lukecavabarrett/pna",
+        "codepin": "6867d9aadcbff620542683a9168908c5c1ca6d8f",
+        "corechain": [
+          "Typed sparse head graph",
+          "Four tower-wise endpoint+edge message transforms",
+          "Neighbor mean/std/max/min in every tower",
+          "Each statistic multiplied by identity/amplification/attenuation scalers",
+          "Concatenate twelve statistic channels plus self; tower post-MLPs and cross-tower mixing",
+          "Repeat four complete layers; typed pooling and common bridge"
+        ],
+        "decision": "accept",
+        "distinct_from_others": "Only candidate without learned attention or edge gates: information selection is via multiple fixed statistics and degree scalers followed by learned message/update networks. Its mechanism is complementary to recurrent refinement and learned relation weighting.",
+        "exact_mapping": {
+          "bridge": "Return z128 to the existing readout integration; use one common Linear128->D_flat zero-initialized residual bridge added at original Flat pre-norm, where D_flat is the existing anchor width. Retain original Flat, classifier, objective, checkpoint protocol and causal scan. D_flat is inferred from the unchanged anchor, not a new choice.",
+          "controls": "All newly added dropout/edge-dropout/attention-maskout=0. No extra sampling, losses, targets, feature prediction, OSRAM query/write or history cache. All stated depths and widths are fixed design choices before experiments; no performance claim.",
+          "degree_reference": "FIXED before training: enumerate the seven nonempty observed-modality masks, each once, build the common active graph, and average log(1+degree) over all135 nodes across these seven graphs. delta=[9log9 +3(16log10+log17)+3(24log11+log25)]/135=2.3785469096888603. Store as a constant buffer. This replaces the source's empirical training-degree average with an explicit label-free protocol prior; it is not estimated from test data or tuned per missing rate.",
+          "edge_features": "r_(j->i) in R^14: concatenate onehot(source_type(j),5), onehot(source_type(i),5), indicator(i=j), indicator(either endpoint Local), indicator(source_type(i)=source_type(j)), indicator(both memory and same head_id). The four Boolean fields are independent, not exclusive. For RRN use learned 14->16 edge projection; for EGT use 14->32; PNA learns 14->32; original GatedGCN uses only adjacency and typed node features.",
+          "embedding": "d=128. x_Local=LayerNorm(P_L L+t_Local), P_L:256->128. x_(s,h)=LayerNorm(P_h read_(s,h)+t_s+p_h), P_h:64->128 shared across Base/Gap for each fixed h; t_s has five source types and p_h eight true-head IDs. Each P_h is independent across head indices. These are new-task input embeddings, not extra memory reads.",
+          "graph_degrees": "With g=1+number_missing in {1,2,3} active memory types, Local indegree=8g; every memory node indegree=7+(g-1)+1=7+g. Thus memory degrees 8/9/10 and Local degrees 8/16/24. Every active node has neighbors.",
+          "input": "Per valid utterance with preceding valid history: L in R^256; B and G_A/G_T/G_V are already-read forward vectors in R^512, reshaped only by their genuine 8x64 producer layout.",
+          "masking": "Use availability only to activate missing-modality Gap blocks; Base and Local require valid current utterance and preceding valid history. torch.where sanitize inactive raw inputs BEFORE projections/normalization; exclude both endpoints of inactive edges; zero inactive states after every biased operation. Process active subgraphs separately or masked padded batches with safe all-masked handling. Skip no-history/padding rows entirely and return exact zero residual for them. No cross-utterance node, edge, recurrent or normalization state.",
+          "masking_detail": "Reduce statistics strictly on incoming neighbor axis. Exclude inactive edges from sums/counts and +/-infinity min/max sentinels; reset outputs for absent nodes. Active nodes have degree>=8 by construction. For a generic zero-degree padded row, return zero aggregate and safe scale1 before masking, never divide by log1=0.",
+          "node_order": "Fixed padded order: Local index0; Base heads0..7 indices1..8; Gap-A indices9..16; Gap-T indices17..24; Gap-V indices25..32. Only Base plus the missing modalities' Gap blocks are active. With >=1 observed modality: 9,17,25 active nodes. No-history utterances do not enter the module.",
+          "parameters": "Four independently parameterized PNA layers, d128, four towers, divide_input=true so tower width32. Shared-in-layer edge encoder14->32; each tower message MLP96->32->32 with intermediate ReLU; post-MLP416->32->32 with intermediate ReLU. Concatenate four outputs then Linear128->128 mixing; output ReLU(LayerNorm128(mixed)). No GRU or attention.",
+          "pooling": "After the final complete core block, concatenate [h_Local, mean_h h_(Base,h), mean_h h_(GapA,h), mean_h h_(GapT,h), mean_h h_(GapV,h)] in R^640. Each absent Gap contributes exactly a zero128 vector, not a learned missing token. z=LayerNorm(Linear640->128(concat)). This typed pooling is a new-task readout shared across candidates, not an attributed paper component.",
+          "pooling_stage": "Use common typed pooling after layer4. No source multi-task graph targets, set2set controller, GRU architecture wrapper, or source task head is imported; the complete PNA message-processing block is retained.",
+          "provenance": "gcnet_missing_m3/osram.py:20 MODALITIES=(audio,text,visual); _scan:1407-1411 flattens base_read [B,H,V]; :1438-1450 analogous Gap reads; :1560 appends zero backward half. Same-index Base/Gap heads share the Memory value space (parent verified).",
+          "sparse_edges": "For distinct active nodes i,j include BOTH directed edges iff (i or j is Local) OR (both are memory heads and source_type(i)=source_type(j)) OR (both are memory heads and head_id(i)=head_id(j)). No self-edge. Duplicates collapsed. No edge depends on labels, values, predicted confidence, time distance or a fabricated geometry.",
+          "update": "For tower a and edge j->i, m_ji^a=M_a([h_i^a,h_j^a,E r_ji]). Aggregate population mean mu, population std sqrt(max(mean(m^2)-mu^2,0)+1e-5), elementwise min and max over j. For degree d_i multiply the concatenated four statistics by each of 1,log(1+d_i)/delta,delta/log(1+d_i). Concatenate these twelve32-dimensional vectors with self32, then U_a and cross-tower mixing."
+        },
+        "id": "pna_evidence",
+        "limitations": [
+          "Chosen graph degrees vary modestly (8..24); retain but do not overclaim benefits of scalers.",
+          "Min/max can emphasize outliers and std is not calibrated uncertainty.",
+          "The fixed seven-mask degree reference and per-node normalization are explicit new-task adaptations.",
+          "Author PyG source is the semantic reference; a pure-PyTorch independent implementation can avoid new dependencies. Do not blindly port dense-reference tensor reduction axes."
+        ],
+        "paper_evidence": "Section2 equations5-8: logarithmic degree scalers, mean/std/max/min statistics, their Cartesian product, endpoint/edge message M and update U. Towers are explicitly part of the implementation.",
+        "pdf": "https://arxiv.org/pdf/2004.05718",
+        "runnable_design_resolved": true,
+        "source_verified": true,
+        "symbols": [
+          {
+            "lines": "56-159",
+            "path": "models/pytorch_geometric/pna.py",
+            "symbol": "PNAConv: towers, endpoint/edge message, posttransform, aggregate/scaler product",
+            "url": "https://github.com/lukecavabarrett/pna/blob/6867d9aadcbff620542683a9168908c5c1ca6d8f/models/pytorch_geometric/pna.py#L56-L159"
+          },
+          {
+            "lines": "13-32",
+            "path": "models/pytorch_geometric/aggregators.py",
+            "symbol": "mean/min/max/std",
+            "url": "https://github.com/lukecavabarrett/pna/blob/6867d9aadcbff620542683a9168908c5c1ca6d8f/models/pytorch_geometric/aggregators.py#L13-L32"
+          },
+          {
+            "lines": "8-19",
+            "path": "models/pytorch_geometric/scalers.py",
+            "symbol": "identity/amplification/attenuation",
+            "url": "https://github.com/lukecavabarrett/pna/blob/6867d9aadcbff620542683a9168908c5c1ca6d8f/models/pytorch_geometric/scalers.py#L8-L19"
+          }
+        ],
+        "title": "Principal Neighbourhood Aggregation for Graph Nets",
+        "url": "https://arxiv.org/abs/2004.05718",
+        "why_meaningful": "Mean-only fusion loses disagreement and extremal evidence. PNA transports neighborhood distribution statistics and degree information through several relation-aware message-passing layers, preserving its defining twelve-channel aggregation rather than attaching a statistic to final pooling."
+      },
+      "card_file_sha256": "234097064a489437841812bd4be77e8757be8757b95600bab946a4f409dcef42",
+      "design_sha256": "c536278eaa1d3492914cad6ce99e8b949982111418cb9c5218855af00d01c913",
+      "family": "graph",
+      "id": "pna_evidence",
+      "source": {
+        "code": "https://github.com/lukecavabarrett/pna",
+        "paper": "https://arxiv.org/abs/2004.05718"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Eli Chien",
+          "Chao Pan",
+          "Jianhao Peng",
+          "Olgica Milenkovic"
+        ],
+        "code_url": "https://github.com/jianhao2016/AllSet",
+        "codepin": "6281a2f1a91f6f26040777bb0b2578fc035dc57a",
+        "corechain": "Node-to-hyperedge learned-seed multihead pooling, then hyperedge-to-node learned-seed pooling. Each PMA retains key/value transforms, target-group softmax, seed residual, LayerNorm and residual feedforward LayerNorm. Repeat complete V\u2192E\u2192V rounds; not ordinary flat token self-attention.",
+        "decision": "ACCEPT as one complete fixed screening design",
+        "distinct_from_others": "Learned seed chooses a multiset summary in BOTH incidence directions; no destination-feature-conditioned ED message, static/dynamic discrepancy, or transported stalk geometry.",
+        "exact_mapping": {
+          "dimension": 128,
+          "graph": "shared_mapping exactly",
+          "head_dimension": 32,
+          "heads": 4,
+          "layers": 2,
+          "parameters": "Independent V\u2192E and E\u2192V PMAs in each round, one learned seed per attention head. FFN128\u2192128\u2192128 with ReLU; source PMA uses LeakyReLU(0.2) seed-key scores before grouped softmax. ReLU after each half-round, matching SetGNN backbone. GPR=False, LearnMask=False, dropout=0, no batch normalization.",
+          "readout": "shared_mapping.common_readout"
+        },
+        "id": "allset_transformer",
+        "inspected_sources": [
+          "https://github.com/jianhao2016/AllSet/blob/6281a2f1a91f6f26040777bb0b2578fc035dc57a/src/layers.py",
+          "https://github.com/jianhao2016/AllSet/blob/6281a2f1a91f6f26040777bb0b2578fc035dc57a/src/models.py"
+        ],
+        "license": "MIT",
+        "limitations": [
+          "Only 9\u201325 nodes: graph-scale efficiency claims do not transfer.",
+          "Original graph node-classification embedding/head/objective replaced by provided evidence projection and original task readout.",
+          "Do not count AllDeepSets, PMA-only, or generic Set Transformer as additional distinct entries."
+        ],
+        "pdf": "https://arxiv.org/pdf/2106.13264",
+        "symbols": [
+          "src/layers.py:PMA",
+          "src/layers.py:HalfNLHconv",
+          "src/models.py:SetGNN"
+        ],
+        "title": "You are AllSet: A Multiset Learning Framework for Hypergraph Neural Networks",
+        "url": "https://arxiv.org/abs/2106.13264",
+        "why_meaningful": "Tests whether content-selective aggregation within actual shared-head groups and evidence-type groups is better than uniformly mixing all already-read evidence. Two full bipartite rounds let a head-specific discrepancy change another group's readout through Local."
+      },
+      "card_file_sha256": "b165aebc6fa6e98be22a3642c76d733c4b970a17bf3e996bdd6035b34dbb8416",
+      "design_sha256": "e4104b21663d3420887cbe304b16441bedae27bbccde2a91aa3111b096c2b00f",
+      "family": "hypergraph",
+      "id": "allset_transformer",
+      "source": {
+        "code": "https://github.com/jianhao2016/AllSet",
+        "paper": "https://arxiv.org/abs/2106.13264"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Peihao Wang",
+          "Shenghao Yang",
+          "Yunyu Liu",
+          "Zhangyang Wang",
+          "Pan Li"
+        ],
+        "code_url": "https://github.com/Graph-COM/ED-HNN",
+        "codepin": "fea3b8f5f11c2eb7265dd4d880e7b5796eddf958",
+        "corechain": "m_e=sum_{u in e} phi(x_u); r_ve=rho(concat(x_v,m_e)); r_v=sum_{e containing v} r_ve; x_next=ReLU(psi((1-alpha)r_v+alpha*x0)). The recipient-conditioned incidence message and restart are retained.",
+        "decision": "ACCEPT as one complete fixed screening design",
+        "distinct_from_others": "Full sum\u2013recipient-conditioned-return\u2013restart iteration; not an AllSet shared edge broadcast or attention normalization.",
+        "exact_mapping": {
+          "dimension": 128,
+          "graph": "shared_mapping exactly",
+          "layers": 3,
+          "parameters": "x0=ReLU(Linear128to128(projected_nodes)); one EquivSetConv shared for three iterations as author EquivSetGNN. phi128\u2192128\u2192128, rho256\u2192128\u2192128, psi128\u2192128\u2192128; ReLU hidden activations, sum in both directions, alpha=0.1, dropout=0, no normalization across nodes/batch.",
+          "readout": "shared_mapping.common_readout"
+        },
+        "id": "ed_hnn",
+        "inspected_sources": [
+          "https://github.com/Graph-COM/ED-HNN/blob/fea3b8f5f11c2eb7265dd4d880e7b5796eddf958/models/edgnn.py"
+        ],
+        "license": "MIT",
+        "limitations": [
+          "Sum magnitudes depend on actual missing-modality edge sizes; this is intentional and must not silently become mean aggregation.",
+          "Retains a learned diffusion operator, not a numerical solver for an added energy loss.",
+          "Original input/classifier/task replaced; no claim of reproducing original hypergraph benchmarks."
+        ],
+        "pdf": "https://arxiv.org/pdf/2207.06680",
+        "symbols": [
+          "models/edgnn.py:EquivSetConv",
+          "models/edgnn.py:EquivSetGNN"
+        ],
+        "title": "Equivariant Hypergraph Diffusion Neural Operators",
+        "url": "https://arxiv.org/abs/2207.06680",
+        "why_meaningful": "A Base head and a Gap head can receive different messages from the same evidence group. Source restart preserves the originally read evidence against repeated mixing. Tests conditional group disagreement without making extra memory requests."
+      },
+      "card_file_sha256": "b165aebc6fa6e98be22a3642c76d733c4b970a17bf3e996bdd6035b34dbb8416",
+      "design_sha256": "f973b0cd3ae1813a43c1c8f1f8ff77169b9c7baf3c9ad4d521c7b814ad0d27c3",
+      "family": "hypergraph",
+      "id": "ed_hnn",
+      "source": {
+        "code": "https://github.com/Graph-COM/ED-HNN",
+        "paper": "https://arxiv.org/abs/2207.06680"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Ruochi Zhang",
+          "Yuesong Zou",
+          "Jian Ma"
+        ],
+        "code_url": "https://github.com/ma-compbio/Hyper-SAGNN",
+        "codepin": "69f2fbe21c455aca084497fb2d26a8207a95decd",
+        "corechain": "For EACH hyperedge separately, compute context-independent static node embeddings and dynamic multihead attention embeddings excluding self. Retain separate static/dynamic position-wise networks and LayerNorm, then q_ve=(dynamic_ve-static_v)^2. This vector discrepancy, rather than attention alone, is the transferred core.",
+        "decision": "ACCEPT as one complete core with explicitly replaced output task",
+        "distinct_from_others": "Only candidate with separate static and leave-self-out contextual representations and elementwise squared discrepancy. It evaluates each predefined hyperedge rather than diffusing node states over graph rounds.",
+        "exact_mapping": {
+          "dimension": 128,
+          "graph": "shared_mapping exactly; incidence occurrences of the same node share input but have different dynamic context",
+          "head_dimension": 32,
+          "heads": 4,
+          "layers": 1,
+          "parameters": "One source EncoderLayer; both static and dynamic position-wise networks128\u2192128\u2192128; source residual/LN settings retained (dynamic residual, static no residual); separate output LayerNorm for each branch. diag_mask=True, dropout=0. Every edge has at least two nodes, so leave-self-out softmax always has an allowed key.",
+          "readout": "q_e=mean_{v in e}q_ve. q_H=mean eight same-head q_e; q_T=mean 1\u20133 evidence-type q_e. Concatenate original projected Local128,q_H128,q_T128; Linear384to128 then common zero-initialized Linear128to1600 Flat correction. Replace source scalar sigmoid hyperedge classifier/average probability with this task readout, not the static/dynamic discrepancy block."
+        },
+        "id": "hyper_sagnn",
+        "inspected_sources": [
+          "https://github.com/ma-compbio/Hyper-SAGNN/blob/69f2fbe21c455aca084497fb2d26a8207a95decd/Code/Modules.py"
+        ],
+        "license": "MIT",
+        "limitations": [
+          "We are not predicting whether these constructed hyperedges exist; no negative-edge sampling or hyperedge labels.",
+          "A scalar probability from the original classifier is not a calibrated evidence reliability score; that output head is explicitly removed.",
+          "At zero Gap, discrepancy still compares Local with Base; no invented missing modality."
+        ],
+        "pdf": "https://arxiv.org/pdf/1911.02613",
+        "symbols": [
+          "Code/Modules.py:Classifier",
+          "Code/Modules.py:EncoderLayer",
+          "Code/Modules.py:MultiHeadAttention",
+          "Code/Modules.py:ScaledDotProductAttention"
+        ],
+        "title": "Hyper-SAGNN: a self-attention based graph neural network for hypergraphs",
+        "url": "https://arxiv.org/abs/1911.02613",
+        "why_meaningful": "Directly measures whether an evidence component agrees with other components in its actual group while retaining its standalone representation. This is a disagreement-sensitive fusion mechanism, not merely attention under a famous model name."
+      },
+      "card_file_sha256": "b165aebc6fa6e98be22a3642c76d733c4b970a17bf3e996bdd6035b34dbb8416",
+      "design_sha256": "377a48e9affac3bafebcde96d50f8f13e8f0a53bbaa3189450d6b6bacf7a6762",
+      "family": "hypergraph",
+      "id": "hyper_sagnn",
+      "source": {
+        "code": "https://github.com/ma-compbio/Hyper-SAGNN",
+        "paper": "https://arxiv.org/abs/1911.02613"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Iulia Duta",
+          "Giulia Cassar\u00e0",
+          "Fabrizio Silvestri",
+          "Pietro Li\u00f3"
+        ],
+        "code_url": "https://github.com/IuliaDuta/sheaf_HNN",
+        "codepin": "45a5ebc16ec4b8e865431f9035eefc7719e7e7dc",
+        "corechain": "Predict a diagonal restriction map per node\u2013hyperedge incidence from node and current edge features; construct lifted sheaf incidence; normalize, transport node fibers into each edge, aggregate and transport back; apply learned stalk/feature transforms and nonlinearity. Recompute maps at the next layer.",
+        "decision": "ACCEPT runnable author-code-defined diagonal SheafHyperGNN variant; not the nonlinear HyperGCN variant",
+        "distinct_from_others": "Structured per-incidence linear maps plus a normalized lifted diffusion operator, not scalar node attention. Diagonal stalk maps remain learned feature-dependent transport; do not count orthogonal/general variants as more papers.",
+        "exact_mapping": {
+          "channels_per_stalk": 32,
+          "dimension": 128,
+          "graph": "shared_mapping exactly",
+          "layers": 2,
+          "operator": "Pin author diagonal-convolution behavior including source order: H has incidence blocks F_ve (nd\u00d7Ed); D_(v,j)=sum_e f_ve,j^2, clamped at 1e-6 before inverse square root; B_(e,j)=|e|. Let R=D^-1/2. Source first computes X_pre=R Z, then Q=R H B^-1 H^T and output=(I+Q-2*blockdiag_node(Q)) X_pre+b. Equivalently A=R H B^-1 H^T R and P=R+A-2*blockdiag_node(A), output=PZ+b. The leading term is R, NOT I, because source pre-normalizes the input. Z=(I_n kron W_left4x4)X W_right32x32. ELU only after first layer, no extra residual. Dense construction follows this author-code convention; do not add source persistent shape caches.",
+          "parameters": "Reshape learned node128 into mathematical fiber4\u00d732, NOT spatial or memory-head coordinates. For each layer a_v=mean over four stalk rows; a_e=mean active a_v in edge; f_ve=tanh(Linear64to4([a_v,a_e])); F_ve=diag(f_ve). dynamic_sheaf=True, MLP_var2, special_head=False, dropout=0, left_proj=True, sym_block_norm, independent layer weights.",
+          "readout": "Flatten final4\u00d732 to128 per node; shared_mapping.common_readout",
+          "stalk_dimension": 4
+        },
+        "id": "sheaf_hypergnn_diag",
+        "inspected_sources": [
+          "https://github.com/IuliaDuta/sheaf_HNN/blob/45a5ebc16ec4b8e865431f9035eefc7719e7e7dc/sheaf_builder.py",
+          "https://github.com/IuliaDuta/sheaf_HNN/blob/45a5ebc16ec4b8e865431f9035eefc7719e7e7dc/layers.py",
+          "https://github.com/IuliaDuta/sheaf_HNN/blob/45a5ebc16ec4b8e865431f9035eefc7719e7e7dc/models.py"
+        ],
+        "license": "MIT stated in layers.py/models.py headers; repository-wide license unverified",
+        "limitations": [
+          "The paper's displayed diagonal block definition, its expanded Eq.1, and author implementation do not transparently coincide for edges larger than two. This design explicitly pins the author-code P operator; do not assert the paper energy-decrease theorem for this adaptation.",
+          "The original code caches hyperedge attributes/shape-dependent identity masks; recompute them per utterance and layer because graph sizes vary.",
+          "Diagonal maps may approach zero; epsilon stabilization is an explicit adaptation.",
+          "File headers state MIT, but repository API did not establish a root license; prefer independent equation-based implementation and resolve license before vendoring source."
+        ],
+        "pdf": "https://arxiv.org/pdf/2309.17116",
+        "symbols": [
+          "sheaf_builder.py:SheafBuilderDiag",
+          "sheaf_builder.py:predict_blocks_var2",
+          "layers.py:HyperDiffusionDiagSheafConv",
+          "layers.py:normalisation_matrices",
+          "models.py:SheafHyperGNN"
+        ],
+        "title": "Sheaf Hypergraph Networks",
+        "url": "https://arxiv.org/abs/2309.17116",
+        "why_meaningful": "Incidence-specific feature transport permits the same Base head to express different coordinates in head-compatibility and evidence-type groups. Tests agreement in learned group spaces without forcing all Base/Gap node vectors to be identical."
+      },
+      "card_file_sha256": "b165aebc6fa6e98be22a3642c76d733c4b970a17bf3e996bdd6035b34dbb8416",
+      "design_sha256": "4f02765481f1903cda1fa20d466f46000ff15464310b72207d7e0a5c2eaeb3e8",
+      "family": "hypergraph",
+      "id": "sheaf_hypergnn_diag",
+      "source": {
+        "code": "https://github.com/IuliaDuta/sheaf_HNN",
+        "paper": "https://arxiv.org/abs/2309.17116"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Sara Sabour",
+          "Nicholas Frosst",
+          "Geoffrey E. Hinton"
+        ],
+        "codeURL": "https://github.com/Sarasra/models/tree/984fbc754943c849c55a57923f4223099a1ff88c/research/capsules",
+        "code_evidence": [
+          {
+            "finding": "Vector-length squash.",
+            "lines": "32-47",
+            "url": "https://github.com/Sarasra/models/blob/984fbc754943c849c55a57923f4223099a1ff88c/research/capsules/models/layers/layers.py#L32"
+          },
+          {
+            "finding": "Parent-specific votes, zero logit initialization, parent competition, squash and cumulative dot-product agreement.",
+            "lines": "75-199",
+            "url": "https://github.com/Sarasra/models/blob/984fbc754943c849c55a57923f4223099a1ff88c/research/capsules/models/layers/layers.py#L75"
+          }
+        ],
+        "code_revision": "984fbc754943c849c55a57923f4223099a1ff88c",
+        "distinct_reason": "Agreement is accumulated into per-input routing logits and followed by vector squash; there is no GRU state, covariance posterior, or balanced transport constraint.",
+        "exact_mapping": [
+          "Use all active common-contract tokens. For each of 33 typed positions i and each parent j in 1..4, compute a 32-vector vote uhat_ij=W_ij x_i with W_ij in R^(32x64), bias-free. Exclude inactive i from every sum and agreement update.",
+          "Reset b_ij=0 on every utterance. In each of three rounds: c_ij=softmax over the four parents; s_j=sum_active_i c_ij uhat_ij; v_j=q/(1+q) * s_j/sqrt(max(q,1e-8)), q=sum_d s_jd^2.",
+          "After rounds 1 and 2, b_ij += dot(uhat_ij,v_j); the equivalent unused last-round logit update may be omitted. Do not detach votes or intermediate routing logits.",
+          "Concatenate the four final 32-vectors in learned-parent order to produce z in R^128. All-inactive/no-history guards follow the common contract."
+        ],
+        "fixed_hyperparameters": {
+          "capsule_width": 32,
+          "input_width": 64,
+          "leaky_routing": false,
+          "output_width": 128,
+          "parent_capsules": 4,
+          "routing_bias": false,
+          "routing_iterations": 3,
+          "squash_epsilon": 1e-08
+        },
+        "hypothesis": "Parent-specific transforms may combine mutually consistent Local/Base/Gap votes while allowing incompatible evidence to support different latent groups.",
+        "id": "capsule_dynamic_routing",
+        "input_output_mask": "Inactive votes and their logit updates are zero/excluded. Parent states are temporary within the utterance; output is hard-zero outside valid-history rows.",
+        "license": "Apache-2.0",
+        "limitations": [
+          "Agreement can amplify correlated or redundant read heads.",
+          "Four groups and three rounds are fixed preregistered choices, not evidence of optimality.",
+          "Capsules are latent evidence groups; no object/pose or missing-modality reconstruction claim."
+        ],
+        "local_conditioning": "Local appears as one lower capsule and conditions all Base/Gap tokens in the shared input adapter; parent logits are still initialized to zero, preserving routing-by-agreement.",
+        "original_to_adapted_changes": [
+          "Replace visual lower capsules with typed read-head vectors.",
+          "Use the paper's bias-free sum rather than the optional bias in released code; use zero-safe squash.",
+          "Output capsule vectors, not class probabilities; omit image convolutions, margin loss and reconstruction decoder."
+        ],
+        "paper_evidence": "Section 2, equations 1-3, Procedure 1.",
+        "pdf": "https://arxiv.org/pdf/1710.09829",
+        "performance_claim": "None; source-backed structural hypothesis only.",
+        "retained_core": [
+          "Input-parent transformation matrices",
+          "Multiple competing vector capsules",
+          "Weighted vote aggregation",
+          "Vector squash",
+          "Accumulated agreement over repeated routing"
+        ],
+        "source_provenance": "First-author repository README identifies this as the code used for Dynamic Routing Between Capsules; README and actual routing file inspected.",
+        "status": "accepted_core_adaptation",
+        "title": "Dynamic Routing Between Capsules",
+        "unresolved_design_choices": [],
+        "url": "https://arxiv.org/abs/1710.09829",
+        "venue": "NeurIPS",
+        "year": 2017
+      },
+      "card_file_sha256": "49dd9544d3dfefc390c377f370f5ecb73d67533c4ae476f4634c0c977fc37b3c",
+      "design_sha256": "3f66a7d896683722023185026d81ce0a44b09657d08798738f4234a01edf674c",
+      "family": "grouping",
+      "id": "capsule_dynamic_routing",
+      "source": {
+        "code": "https://github.com/Sarasra/models/tree/984fbc754943c849c55a57923f4223099a1ff88c/research/capsules",
+        "paper": "https://arxiv.org/abs/1710.09829"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Francesco Locatello",
+          "Dirk Weissenborn",
+          "Thomas Unterthiner",
+          "Aravindh Mahendran",
+          "Georg Heigold",
+          "Jakob Uszkoreit",
+          "Alexey Dosovitskiy",
+          "Thomas Kipf"
+        ],
+        "codeURL": "https://github.com/google-research/google-research/tree/e49bbfe381c9c0e564b937f1c4e163a2273c65cc/slot_attention",
+        "code_evidence": [
+          {
+            "finding": "Shared Gaussian parameters, bias-free Q/K/V, competition over slots, input-axis weighted mean, GRU and residual MLP.",
+            "lines": "43-103",
+            "url": "https://github.com/google-research/google-research/blob/e49bbfe381c9c0e564b937f1c4e163a2273c65cc/slot_attention/model.py#L43"
+          }
+        ],
+        "code_revision": "e49bbfe381c9c0e564b937f1c4e163a2273c65cc",
+        "distinct_reason": "The essential chain is competition -> normalized evidence summary -> GRU state update -> residual refinement, not just a different softmax axis.",
+        "exact_mapping": [
+          "Use common-contract tokens, then per-token LayerNorm64 and bias-free K,V projections 64-to-64. Re-mask after normalization.",
+          "Initialize four slots s_j=mu+exp(log_sigma)*epsilon_j using shared learned 64-vector mu and log_sigma. Set log_sigma=0 at initialization, mu Xavier; slots do not have separate learned means.",
+          "Training: use a dedicated branch-owned torch.Generator(device='cpu'), initialized with seed (experiment_seed+104729) modulo 2^63. Its state is held in a persistent uint8 checkpoint buffer named training_noise_rng_state. Before each executed training call, restore this private CPU generator from training_noise_rng_state.detach().cpu(); draw independent standard-normal float32 epsilon[N_active_history,4,64] on CPU using only that generator, in the existing batch-row order; then save its updated state back to the persistent buffer and transfer epsilon to the slot device/dtype. No call to global manual_seed, randn without this generator, or CUDA random generation is allowed. Thus the branch noise consumes neither baseline global CPU/CUDA RNG nor dropout/mask streams. If no row has valid history, skip the draw and leave private state unchanged.",
+          "Strict checkpoint loading and full training resume restore training_noise_rng_state before the next branch draw; do not reseed it from experiment_seed after loading. The state buffer follows module checkpoint/device handling, while generator.set_state receives a CPU copy. A complete resume additionally restores the original optimizer/progress/global RNG states under the unchanged experiment protocol. Evaluation uses one fixed epsilon_eval[4,64] sampled once with a separate isolated CPU generator seed 1729, saved as a persistent checkpoint buffer and broadcast to all rows; evaluation neither draws noise nor changes the private training RNG state. Reset slot state for every utterance.",
+          "For exactly three rounds, compute logits_ij=dot(K_i,Q(LN(s_j)))/sqrt(64); A_ij=softmax_j(logits_ij). Form W_ij=mask_i*(A_ij+1e-8)/sum_active_k(A_kj+1e-8); update_j=sum_i W_ij V_i.",
+          "Set s_j=GRU64(update_j,old_s_j); then s_j += Linear128to64(ReLU(Linear64to128(LN(s_j)))). Share all refinement weights over slots and rounds.",
+          "Apply shared phi=Linear64to64+GELU to final slots; concatenate mean_j(phi(s_j)) and max_j(phi(s_j)) into z in R^128. This symmetric readout does not attach class meaning to slot indices."
+        ],
+        "fixed_hyperparameters": {
+          "attention_epsilon": 1e-08,
+          "evaluation_noise_seed": 1729,
+          "input_width": 64,
+          "mlp_hidden_width": 128,
+          "output_width": 128,
+          "refinement_iterations": 3,
+          "slot_width": 64,
+          "slots": 4,
+          "training_noise_generator_device": "cpu",
+          "training_noise_rng_state_buffer": "training_noise_rng_state",
+          "training_noise_seed_modulus": "2^63",
+          "training_noise_seed_offset": 104729
+        },
+        "hypothesis": "Competition followed by a learned recurrent update may allocate different temporary slots to complementary evidence groups, rather than only reinforcing instantaneous agreement.",
+        "id": "slot_attention",
+        "input_output_mask": "Inactive input rows are excluded before the epsilon renormalization, not merely zeroed as values. All-inactive rows bypass the core. Final z follows valid-history hard-zero guard.",
+        "license": "Apache-2.0",
+        "limitations": [
+          "Task-only supervision may produce redundant or source-specialized slots; no object-discovery claim.",
+          "Fixed evaluation noise is a disclosed adaptation and must be held constant across checkpoints/seeds, not chosen using test results.",
+          "Stochastic training needs the persistent private RNG-state buffer as well as the original training state for exact resume; changing active-row batching changes private draw assignment and is not claimed trajectory-equivalent."
+        ],
+        "local_conditioning": "Local is a real input token and conditions each memory token through the shared adapter. No extra query is made against OSRAM; Q refers only to temporary slot-to-token attention.",
+        "original_to_adapted_changes": [
+          "Read-head token features replace image features.",
+          "Fixed common-random-number evaluation replaces the reference implementation's random evaluation draws; training retains Gaussian resampling but uses an isolated, experiment-seeded, checkpointed CPU generator to preserve the baseline dropout/mask RNG streams. This RNG isolation is an engineering adaptation, not a claim about the original implementation.",
+          "Symmetric mean/max readout replaces object decoder or set-prediction head; only original task loss is used."
+        ],
+        "paper_evidence": "Section 2.1, Algorithm 1 and equations 1-2.",
+        "pdf": "https://arxiv.org/pdf/2006.15055",
+        "performance_claim": "None; source-backed structural hypothesis only.",
+        "retained_core": [
+          "Distinct initial slot draws from shared Gaussian parameters",
+          "Competition across output slots",
+          "Per-slot normalized aggregation across inputs",
+          "Shared GRU refinement",
+          "Residual MLP and LayerNorm",
+          "Repeated refinement"
+        ],
+        "source_provenance": "Paper-linked Google reference implementation; README and actual SlotAttention class inspected.",
+        "status": "accepted_core_adaptation",
+        "title": "Object-Centric Learning with Slot Attention",
+        "unresolved_design_choices": [],
+        "url": "https://arxiv.org/abs/2006.15055",
+        "venue": "NeurIPS",
+        "year": 2020
+      },
+      "card_file_sha256": "49dd9544d3dfefc390c377f370f5ecb73d67533c4ae476f4634c0c977fc37b3c",
+      "design_sha256": "5ce3a6817074d963d9e4eb19ffe3ad385254d8d23b82628238b20c53e6d21f8d",
+      "family": "grouping",
+      "id": "slot_attention",
+      "source": {
+        "code": "https://github.com/google-research/google-research/tree/e49bbfe381c9c0e564b937f1c4e163a2273c65cc/slot_attention",
+        "paper": "https://arxiv.org/abs/2006.15055"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Gr\u00e9goire Mialon",
+          "Dexiong Chen",
+          "Alexandre d'Aspremont",
+          "Julien Mairal"
+        ],
+        "codeURL": "https://github.com/claying/OTK",
+        "code_evidence": [
+          {
+            "finding": "Learned supports, Sinkhorn attention and support-wise feature aggregation.",
+            "lines": "10-32,77-109",
+            "url": "https://github.com/claying/OTK/blob/2a4d3be10d305e76d55251d8f01c7f2ea7d9bf8c/otk/layers.py#L10"
+          },
+          {
+            "finding": "Log-domain alternating marginal scaling and dot-product support similarities.",
+            "lines": "36-99",
+            "url": "https://github.com/claying/OTK/blob/2a4d3be10d305e76d55251d8f01c7f2ea7d9bf8c/otk/sinkhorn.py#L36"
+          },
+          {
+            "finding": "Released example explicitly precedes OTKernel with Linear and ReLU.",
+            "lines": "Using OTKernel as a module in NNs",
+            "url": "https://github.com/claying/OTK/blob/2a4d3be10d305e76d55251d8f01c7f2ea7d9bf8c/README.md"
+          }
+        ],
+        "code_revision": "2a4d3be10d305e76d55251d8f01c7f2ea7d9bf8c",
+        "distinct_reason": "Assignments are coupled through both source and target mass constraints and a learned reference geometry. Thirty Sinkhorn updates solve this constrained allocation; they are not independent attention or recurrent slot updates.",
+        "exact_mapping": [
+          "On active tokens compute h_i=normalize(ReLU(Linear64to64(x_i)),eps=1e-8); re-mask. Learn four support vectors z_j in R^64, Xavier initialized, and normalize each with the same epsilon. These are persistent parameters, not cached sample state.",
+          "Construct C_ij=-dot(h_i,z_j). Use uniform source mass a_i=1/n for n active tokens and target mass b_j=1/4. Solve the entropy-regularized OT approximation with exactly 30 differentiable log-domain Sinkhorn rounds.",
+          "For packed active rows, logK=-C/0.5; initialize log_u=0, log_v=0. Each round: log_u_i=log(1/n)-logsumexp_j(logK_ij+log_v_j); log_v_j=log(1/4)-logsumexp_i(logK_ij+log_u_i). Then T=exp(logK+log_u+log_v). Unpack inactive rows as exact zero.",
+          "Use the paper's unit-mass normalization: Phi_j=sqrt(4)*sum_i T_ij h_i. Flatten four 64-vectors and apply Linear256to128 to obtain z. Do not collapse supports to an ordinary mean before the learned output projection.",
+          "The OT entropy term defines the internal transport plan; it is NOT added to the training loss. All references, nonlinear map and output projection train only through the original task loss."
+        ],
+        "fixed_hyperparameters": {
+          "entropy_epsilon": 0.5,
+          "feature_width": 64,
+          "input_width": 64,
+          "norm_epsilon": 1e-08,
+          "output_width": 128,
+          "position_encoding": false,
+          "references": 1,
+          "sinkhorn_iterations": 30,
+          "supports": 4
+        },
+        "hypothesis": "Global mass constraints can discourage all read evidence from collapsing into a single support and retain several complementary summaries despite varying numbers of missing modalities.",
+        "id": "otke",
+        "input_output_mask": "Operate on packed active tokens so zero-mass inactive rows never enter logarithms. The empty set returns zero before Sinkhorn. No-Gap uses exactly nine tokens; no-history correction remains zero.",
+        "license": "No repository license located in inspected root/README; do not copy source. This card specifies an independent mathematical adaptation.",
+        "limitations": [
+          "Uniform target capacity may force weak evidence into a support; this is the intended bias being tested.",
+          "Finite Sinkhorn iterations approximate the source marginals; marginal residuals must be logged in unit checks, not turned into an extra loss.",
+          "No claim of a discovered object, calibrated uncertainty, or recovered missing latent."
+        ],
+        "local_conditioning": "Both the Local token and Local-conditioned memory tokens enter the transport problem. References remain global learned parameters as in the source; no label-conditioned or per-dialogue reference cache.",
+        "original_to_adapted_changes": [
+          "Use the source-supported neural nonlinear feature map rather than a Gaussian Nystr\u00f6m approximation; do not claim the original Gaussian kernel guarantee.",
+          "No positional encoding or sequence convolution because heads have no spatial order.",
+          "Use paper sqrt(p)*T aggregation; official OTKernel returns p*T-style per-support means, a known fixed scale difference.",
+          "Random supervised parameter initialization replaces unsupervised K-means pretraining; no new objective or dataset pass."
+        ],
+        "paper_evidence": "Section 3.2 Definition 3.1: nonlinear feature embedding, transport alignment to learned reference, and multi-bin embedding; paper also evaluates a neural-network module variant.",
+        "pdf": "https://arxiv.org/pdf/2006.12065",
+        "performance_claim": "None; source-backed structural hypothesis only.",
+        "retained_core": [
+          "Nonlinear feature map",
+          "Learned reference support set",
+          "Entropically regularized transport with both marginals constrained",
+          "Multiple support-specific pooled embeddings"
+        ],
+        "source_provenance": "Paper explicitly links claying/OTK; README, OTKernel and both Sinkhorn implementations inspected.",
+        "status": "accepted_core_adaptation",
+        "title": "A Trainable Optimal Transport Embedding for Feature Aggregation and its Relationship to Attention",
+        "unresolved_design_choices": [],
+        "url": "https://arxiv.org/abs/2006.12065",
+        "venue": "ICLR",
+        "year": 2021
+      },
+      "card_file_sha256": "49dd9544d3dfefc390c377f370f5ecb73d67533c4ae476f4634c0c977fc37b3c",
+      "design_sha256": "b43f06d7241efb9fccd0838d3541ea48f6877aa3950477b60f4ec109ea686a59",
+      "family": "grouping",
+      "id": "otke",
+      "source": {
+        "code": "https://github.com/claying/OTK",
+        "paper": "https://arxiv.org/abs/2006.12065"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Fabio De Sousa Ribeiro",
+          "Georgios Leontidis",
+          "Stefanos Kollias"
+        ],
+        "codeURL": "https://github.com/fabio-deep/Variational-Capsule-Routing",
+        "code_evidence": [
+          {
+            "finding": "Per-child/per-parent trainable matrix transformations produce vectorized matrix votes.",
+            "lines": "62-151",
+            "url": "https://github.com/fabio-deep/Variational-Capsule-Routing/blob/78fb69dc10c71210fad8f456f1f2ce97766c4bb3/src/layers.py#L62"
+          },
+          {
+            "finding": "Uniform initialization, sufficient-statistic/conjugate updates, expected-log responsibility calculation and entropy-based final activation.",
+            "lines": "79-232",
+            "url": "https://github.com/fabio-deep/Variational-Capsule-Routing/blob/78fb69dc10c71210fad8f456f1f2ce97766c4bb3/src/vb_routing.py#L79"
+          }
+        ],
+        "code_revision": "78fb69dc10c71210fad8f456f1f2ce97766c4bb3",
+        "distinct_reason": "Unlike dynamic routing, agreement uses learned-matrix votes and uncertainty-aware Gaussian statistics with fixed conjugate priors; unlike Slot Attention there is no GRU; unlike OTKE there are no forced equal target masses.",
+        "exact_mapping": [
+          "For each common token x_i, create M_i=reshape(Linear64to16(x_i),4,4) and a_i=clamp(sigmoid(Linear64to1(x_i)),1e-6,1-1e-6). Use per-type projection maps. Inactive inputs have M_i=a_i=0 after where, regardless of biases.",
+          "For each typed input position i and parent j in 1..4, learn W_ij in R^(4x4); set v_ij=vec(M_i W_ij). Use one fully connected grouping region; no spatial unfolding, coordinate addition or sequential neighborhoods.",
+          "Initialize r_ij=1/4 for active i. Each of three rounds computes w_ij=a_i r_ij, N_j=sum_i w_ij, mean_j=sum_i w_ij v_ij/max(N_j,1e-8), and scatter_j=sum_i w_ij(v_ij-mean_j)(v_ij-mean_j)^T.",
+          "Posterior parameters: alpha_j=1+N_j, kappa_j=1+N_j, nu_j=17+N_j, m_j=N_j mean_j/kappa_j, invPsi_j=I+scatter_j+(N_j/kappa_j)mean_j mean_j^T. Use Cholesky with 1e-6 I numerical jitter and solves, not an unstable explicit inverse.",
+          "Compute Elogpi_j=digamma(alpha_j)-digamma(sum_k alpha_k), Elogdet_j=16 log(2)-logdet(invPsi_j)+sum_(d=0..15)digamma((nu_j-d)/2). For rounds 1 and 2, score_ij=Elogpi_j+0.5 Elogdet_j-0.5*(16/kappa_j+nu_j*(v_ij-m_j)^T solve(invPsi_j,v_ij-m_j)); r_ij=softmax_j(score_ij). Round 3 finalizes posterior statistics.",
+          "Choose the released-code entropy-activation variant explicitly: H_j=8*log(2*pi*e)-0.5*Elogdet_j; A_j=sigmoid(beta_a_j-exp(Elogpi_j)*H_j-beta_u_j), with learned beta_a=beta_u=0 initially. Omit source BatchNorm on means/activation so rows cannot affect one another.",
+          "Concatenate the four A_j*m_j vectors (64 scalars) and four A_j scalars, then Linear68to128 gives z. For N_j<=1e-8 force A_j and its weighted mean output to zero; whole-row no-history/all-inactive guards apply.",
+          "Unroll the closed-form posterior calculations with gradients; do not add an ELBO, KL, reconstruction, spread/margin loss, posterior sampling, VAE path, or labels to the readout inputs."
+        ],
+        "fixed_hyperparameters": {
+          "activation_floor": 1e-06,
+          "alpha0": 1,
+          "cholesky_jitter": 1e-06,
+          "covariance": "full",
+          "input_width": 64,
+          "kappa0": 1,
+          "mass_epsilon": 1e-08,
+          "matrix_columns": 4,
+          "matrix_rows": 4,
+          "nu0": 17,
+          "output_width": 128,
+          "parent_capsules": 4,
+          "prior_inverse_scale": "I_16",
+          "prior_mean": "zero 16-vector",
+          "routing_iterations": 3,
+          "vote_dimension": 16
+        },
+        "hypothesis": "Posterior shrinkage and covariance-aware agreement may prevent small, contradictory head groups from acquiring overconfident assignments when few Gap heads are active.",
+        "id": "capsule_variational_bayes",
+        "input_output_mask": "Inactive rows contribute zero mass, no scatter and no assignments. Temporary posterior statistics reset every utterance. No batch normalization, persistent posterior cache or sample mixing.",
+        "license": "Apache-2.0",
+        "limitations": [
+          "This is a deterministic differentiable Bayesian-routing computation, not a claim of calibrated Bayesian uncertainty for emotion prediction.",
+          "16-dimensional matrices are learned arrangements of features, not poses.",
+          "Cholesky/statistical updates cost more than the other three grouping cores; small current-read sets keep the design bounded.",
+          "The selected entropy activation and normalization choices differ from the published equation, so label it adapted VB routing, not exact reproduction."
+        ],
+        "local_conditioning": "Local-conditioned common tokens produce all lower matrices and activations. The Local vector participates once; no geometric interpretation is attached to its matrix reshape.",
+        "original_to_adapted_changes": [
+          "Use one nonspatial fully connected group and typed readout-derived matrices.",
+          "Preserve full-covariance conjugate updates from Algorithm 1; omit image backbone, coordinates and source classification head.",
+          "Select the official code's entropy activation rather than claiming it equals paper equation 14; the code omits the paper's outer mass factor and uses exp(Elogpi)*entropy.",
+          "Omit post-routing batch normalization for utterance isolation; numerical floors and output projection are declared adaptations."
+        ],
+        "paper_evidence": "Section 2.2 and Algorithm 1: transformed matrix votes, conjugate posterior updates, responsibility refinement and post-routing activation. Capsule-VAE extension in Section 2.3 is not used.",
+        "pdf": "https://arxiv.org/pdf/1905.11455",
+        "performance_claim": "None; source-backed structural hypothesis only.",
+        "replaces": "matrix_capsules_em_routing",
+        "retained_core": [
+          "4x4 input matrices and parent-specific matrix multiplication votes",
+          "Activation-weighted sufficient statistics",
+          "Dirichlet and Gaussian-Wishart posterior parameters",
+          "Expected log mixing/precision and Mahalanobis responsibilities",
+          "Repeated posterior refinement",
+          "Posterior mean and entropy-derived activation outputs"
+        ],
+        "source_provenance": "Paper footnote links the first author's official implementation; README, matrix-vote layer and complete VB-routing source inspected.",
+        "status": "accepted_core_adaptation",
+        "title": "Capsule Routing via Variational Bayes",
+        "unresolved_design_choices": [],
+        "url": "https://doi.org/10.1609/aaai.v34i04.5785",
+        "venue": "AAAI",
+        "year": 2020
+      },
+      "card_file_sha256": "49dd9544d3dfefc390c377f370f5ecb73d67533c4ae476f4634c0c977fc37b3c",
+      "design_sha256": "8ae70e06e6ed92ae1d78330ddbc1acb826172798fd270a081f1a196abd1ab873",
+      "family": "grouping",
+      "id": "capsule_variational_bayes",
+      "source": {
+        "code": "https://github.com/fabio-deep/Variational-Capsule-Routing",
+        "paper": "https://doi.org/10.1609/aaai.v34i04.5785"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Andrew Jaegle",
+          "Sebastian Borgeaud",
+          "Jean-Baptiste Alayrac",
+          "Carl Doersch",
+          "Catalin Ionescu",
+          "David Ding",
+          "Skanda Koppula",
+          "Daniel Zoran",
+          "Andrew Brock",
+          "Evan Shelhamer",
+          "Olivier H\u00e9naff",
+          "Matthew M. Botvinick",
+          "Andrew Zisserman",
+          "Oriol Vinyals",
+          "Jo\u00e3o Carreira"
+        ],
+        "code_url": "https://github.com/google-deepmind/deepmind-research/tree/master/perceiver",
+        "codepin": "9176a9f23ced8e3d6024718d757be8d67cfb6927",
+        "corechain": "Learned latent queries cross-attend to the input set; repeated latent-only self-attention processes the compressed representation; an explicit output query cross-attends to the processed latents. Preserve attention projections, normalization, residual connections and feedforward sublayers in all three stages.",
+        "decision": "ACCEPT: complete encode-process-decode core with current-conditioned output query",
+        "distinct_from_others": "Unlike DGCNN there is no kNN graph. Unlike GMT there is no explicit adjacency or GNN-generated key/value. Unlike SetTransformer, processing stays exclusively in a latent array instead of returning to all input tokens after each inducing exchange; decode uses Local, not a fixed bank of output seeds.",
+        "exact_mapping": {
+          "current_conditioning": "Local participates in the input set and separately determines the output query, so the processed evidence summary is requested for the current utterance rather than decoded with a task-constant seed.",
+          "decode": "q=Linear256to128(safe_Local)+learned_query_bias128, shape[1,128], with its own projection independent of input Local projection. One four-head CrossAttention(q,Z4), query residual disabled as in BasicDecoder default, then its residual FFN128\u2192128\u2192128/GELU. The resulting single128 output goes to shared_mapping.integration. No new memory read occurs.",
+          "encode": "One independent pre-LN CrossAttention(Z0,X), four heads of size32, query residual enabled. Attention logits use sqrt(32) scaling; FFN128\u2192128\u2192128 with GELU (widening_factor=1). This yields Z1[8,128]. Input KV masking must exactly match token compaction.",
+          "input": "shared_mapping produces X[N,128]. Eight learned latent vectors Z0[8,128], initialized once as model parameters, are broadcast independently to each utterance. They are never persistent state or OSRAM slots.",
+          "parameters_and_masks": "No tied processing layers, no added Fourier/spatial encoding, no extra positional sequence, no dropout. Only active evidence enters encode; eight latent tokens remain valid within a processed utterance. Whole-row bypass precedes all attention for padding/no-history.",
+          "process": "Exactly three independent pre-LN latent SelfAttention blocks, each four heads of size32 with residual attention and residual FFN128\u2192128\u2192128/GELU. Equivalent configuration: num_blocks=1, num_self_attends_per_block=3, num_z_channels=128, z_index_dim=8. Do not replace these blocks by one cross-attention call or pooling."
+        },
+        "id": "perceiver_io",
+        "inspected_sources": [
+          "https://github.com/google-deepmind/deepmind-research/blob/9176a9f23ced8e3d6024718d757be8d67cfb6927/perceiver/perceiver.py",
+          "https://arxiv.org/pdf/2107.14795"
+        ],
+        "license": {
+          "identifier": "Apache-2.0",
+          "url": "https://github.com/google-deepmind/deepmind-research/blob/9176a9f23ced8e3d6024718d757be8d67cfb6927/LICENSE",
+          "verified": true
+        },
+        "limits": [
+          "N is only9\u201325: the source's large-input scaling advantage is not an experimental justification here.",
+          "Depth, latent count and channel width are reduced, but all three architectural stages remain.",
+          "Input-derived output queries are supported by the paper; using this exact Local query is our adaptation, not a published OSRAM method.",
+          "Source is JAX/Haiku. An eventual PyTorch implementation must test operator equivalence without importing a new runtime or copying source without notices."
+        ],
+        "paper_sections": "Section 3, especially 3.1 encode/process/decode and 3.2 output-query construction; paper PDF opened and inspected.",
+        "pdf": "https://arxiv.org/pdf/2107.14795",
+        "symbols": [
+          "perceiver/perceiver.py:PerceiverEncoder",
+          "perceiver/perceiver.py:CrossAttention",
+          "perceiver/perceiver.py:SelfAttention",
+          "perceiver/perceiver.py:BasicDecoder",
+          "perceiver/perceiver.py:MLP"
+        ],
+        "title": "Perceiver IO: A General Architecture for Structured Inputs & Outputs",
+        "url": "https://arxiv.org/abs/2107.14795",
+        "why_meaningful": "Tests a genuine intermediate reasoning bottleneck: evidence is compressed, transformed through multiple latent interactions, and selectively decoded for Local. A single attention-pooling substitute would remove both latent processing and the Local-dependent decoding stage."
+      },
+      "card_file_sha256": "2885abfc456fe9c3c205a0c8d8377a3118d53f45324c7963386236f47ea16d5c",
+      "design_sha256": "3e8978e2d26dd1f8aa4cdaa2aa1ac637671ea869e27385095ff7073e35d10afd",
+      "family": "set_context",
+      "id": "perceiver_io",
+      "source": {
+        "code": "https://github.com/google-deepmind/deepmind-research/tree/master/perceiver",
+        "paper": "https://arxiv.org/abs/2107.14795"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Yue Wang",
+          "Yongbin Sun",
+          "Ziwei Liu",
+          "Sanjay E. Sarma",
+          "Michael M. Bronstein",
+          "Justin M. Solomon"
+        ],
+        "code_url": "https://github.com/WangYueFt/dgcnn",
+        "codepin": "f765b469a67730658ba554e97dc11723a7bab628",
+        "corechain": "Recompute a feature-space neighbor graph before each EdgeConv stage; learn center-relative edge features; max-aggregate neighbors; concatenate all stage outputs; project and retain both global max and global mean pooling. The repeated topology updates and multiscale aggregation are essential.",
+        "decision": "ACCEPT: four-stage feature-space dynamic EdgeConv backbone, not a one-layer edge operator",
+        "distinct_from_others": "Only accepted method here uses hard, recomputed feature-space neighborhoods and center-difference edge messages followed by neighbor maxima. GMT uses fixed semantic adjacency and graph-aware soft pooling; Perceiver uses learned latent compression without graph edges.",
+        "exact_mapping": {
+          "current_conditioning": "Local is a full graph node at every stage, can be selected as a neighbor, and always contributes to global max/mean readout. Graph distances include learned role/head-aware features, so this is evidence similarity, not a claim of physical distance.",
+          "edgeconv": "Widths are c0=128,c1=64,c2=64,c3=128,c4=256. At stage r: e_ij=concat(x_j-x_i,x_i) in R^(2*c_(r-1)); z_ij=LeakyReLU0.2(LayerNorm(Linear(2*c_(r-1),c_r,bias=False)(e_ij))); x_i^r=max_j z_ij. Four stages have independent parameters. Neighbor selection is discrete; selected feature values retain gradients.",
+          "graph": "At each of exactly four stages, for each active node i choose the four smallest squared Euclidean distances in that stage's current feature space among all N active nodes, including i itself to match author knn behavior. k=min(4,N). Resolve exact distance ties by canonical role/head ID, not batch padding index. The graph is directed i\u2192selected j and is recomputed independently at every stage.",
+          "input": "X0[N,128] from shared_mapping. No xyz, radius graph, farthest-point sampling, spatial transform network or token ordering is introduced.",
+          "masks_and_no_history": "Compact before distances, top-k, edge construction and pooling; padding or inactive Gap cannot become neighbors or affect maxima/means. Entire padding/no-history utterances bypass as in shared_mapping.",
+          "multiscale": "Concatenate x_i^1,x_i^2,x_i^3,x_i^4 into512, apply Linear512to128(bias=False)\u2192LayerNorm128\u2192LeakyReLU0.2. Compute both active-node maximum128 and mean128; concatenate into256; Linear256to128\u2192LeakyReLU0.2 returns feature128 for shared_mapping.integration."
+        },
+        "id": "dgcnn_dynamic_edgeconv",
+        "inspected_sources": [
+          "https://github.com/WangYueFt/dgcnn/blob/f765b469a67730658ba554e97dc11723a7bab628/pytorch/model.py",
+          "https://arxiv.org/pdf/1801.07829"
+        ],
+        "license": {
+          "identifier": "MIT",
+          "url": "https://github.com/WangYueFt/dgcnn/blob/f765b469a67730658ba554e97dc11723a7bab628/LICENSE",
+          "verified": true
+        },
+        "limits": [
+          "Source BatchNorm is deliberately replaced by per-edge/per-token LayerNorm to avoid cross-utterance statistics and invalid-padding contamination. This is a disclosed normalization adaptation, not exact original DGCNN numerical behavior.",
+          "The source's xyz first stage is replaced with genuine learned evidence features. Later-layer feature-space recomputation is retained, but useful proximity between heterogeneous roles is a modeling hypothesis.",
+          "k=4, embedding width128 and the final task readout are new small-set choices; original point-cloud classifier/dropout is not retained.",
+          "A fixed graph or a single EdgeConv would fail the intended design. No differentiability claim is made for top-k indices at neighbor changes."
+        ],
+        "paper_sections": "Section 3 EdgeConv/dynamic graph update and classification architecture; paper PDF opened and inspected.",
+        "pdf": "https://arxiv.org/pdf/1801.07829",
+        "symbols": [
+          "pytorch/model.py:knn",
+          "pytorch/model.py:get_graph_feature",
+          "pytorch/model.py:DGCNN.__init__",
+          "pytorch/model.py:DGCNN.forward"
+        ],
+        "title": "Dynamic Graph CNN for Learning on Point Clouds",
+        "url": "https://arxiv.org/abs/1801.07829",
+        "why_meaningful": "Tests whether evidence relationships should evolve after each stage of interaction. Base/Gap affinity can change as relative disagreements are encoded; multiscale readout preserves early comparisons together with later mixed evidence."
+      },
+      "card_file_sha256": "2885abfc456fe9c3c205a0c8d8377a3118d53f45324c7963386236f47ea16d5c",
+      "design_sha256": "85a5caad0088467d073bf57581a82c77944391ed03d182a5e2963b69a31d6bd5",
+      "family": "set_context",
+      "id": "dgcnn_dynamic_edgeconv",
+      "source": {
+        "code": "https://github.com/WangYueFt/dgcnn",
+        "paper": "https://arxiv.org/abs/1801.07829"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Jinheon Baek",
+          "Minki Kang",
+          "Sung Ju Hwang"
+        ],
+        "code_url": "https://github.com/JinheonBaek/GMT",
+        "codepin": "a178b590b158b21423ac0dbc3fcf1b41a94fc52a",
+        "corechain": "Message-pass on the input graph; use graph convolutions, not pointwise linear maps, to produce keys and values for learned-seed pooling; apply self-attention among compressed nodes; pool those nodes to one graph representation. Preserve GNN-derived K/V and all three pooling stages.",
+        "decision": "ACCEPT: GNN encoder plus complete graph-aware pooling/interseed/final-pooling chain; implement independently from paper, do not vendor unlicensed source",
+        "distinct_from_others": "Not a SetTransformer alias: both encoder and first pooling K/V use the defined adjacency. Not DGCNN: adjacency is fixed by role/head identities, messages are normalized graph convolutions, and output uses graph-aware seed pooling rather than max/mean. Not AllSet: no node\u2194hyperedge incidence rounds or per-hyperedge multiset aggregation.",
+        "exact_mapping": {
+          "current_conditioning": "Local is the unique hub in the input graph, so each Base/Gap key and value receives Local-dependent information before pooled attention. This is separate from using Local as a decoder query and separate from dynamic-neighbor similarity.",
+          "encoder": "Ahat=D^(-1/2)(A+I)D^(-1/2), counting each undirected edge in both directions and self loops once. H1=ReLU(Ahat X W1+b1), H2=ReLU(Ahat H1 W2+b2), each128 channels. Concatenate H=[H1,H2] into N\u00d7256, retaining the author's jumping-knowledge concat. No BatchNorm or dropout.",
+          "final_pool": "GMPool_I uses one learned128 seed and ordinary linear K/V on V (identity post-pooling graph); four heads of32, scaling sqrt(128), the same MAB residual/LN sequence. Apply the author's final Linear128to128 to the resulting1\u00d7128 vector, then shared_mapping.integration. Exact stage string: GMPool_G-SelfAtt-GMPool_I.",
+          "graph": "Use the active tokens from shared_mapping. Undirected edges connect Local to every memory token and connect any two distinct memory tokens with the same actual head ID across Base/active-Gap roles. No edges connect different heads except through Local. Store a loop-free adjacency A; each GCN uses A+I with exactly one self-loop per node. This is a proposed role/head graph, not measured geometry.",
+          "graph_pool": "GMPool_G uses four learned seeds S[4,256]. Q=S Wq+bq; K=Ahat H Wk+bk and V=Ahat H Wv+bv from separate one-layer GCNs, each256 channels. Four heads of64, scores divided by sqrt(256), softmax over active input nodes. Concatenate per-head(Q_head+attention*V_head), apply LN256, then residual ReLU(Linear256to256) and LN256, matching pinned MAB behavior. Output U[4,256]. cluster=False.",
+          "interseed": "Exactly one source-style SAB projects Q,K,V from256to128 on U, four heads of32, score scaling sqrt(128), projected-query residual, LN128, residual ReLU(Linear128to128), LN128. Output V[4,128]. This stage models interactions among the four graph summaries; it is not removed because the final task is scalar regression.",
+          "mask": "Build compact graph and degrees only from active nodes. A block-diagonal batch is allowed, but no cross-utterance graph edge/statistic. Graph_pool excludes any padded KV; four compressed seeds and final seed are fully valid only for processed utterances. No-history/padding bypass is shared_mapping."
+        },
+        "id": "graph_multiset_transformer",
+        "inspected_sources": [
+          "https://github.com/JinheonBaek/GMT/blob/a178b590b158b21423ac0dbc3fcf1b41a94fc52a/models/nets.py",
+          "https://github.com/JinheonBaek/GMT/blob/a178b590b158b21423ac0dbc3fcf1b41a94fc52a/models/layers.py",
+          "https://arxiv.org/pdf/2102.11533"
+        ],
+        "license": {
+          "identifier": "UNVERIFIED / no license file found",
+          "implementation_route": "Independent equation-based implementation; no source vendoring.",
+          "url": "https://github.com/JinheonBaek/GMT/tree/a178b590b158b21423ac0dbc3fcf1b41a94fc52a",
+          "verified": false
+        },
+        "limits": [
+          "The proposed Local-star/same-head topology is an inductive bias; useful edges are not established by the paper and may oversmooth this tiny graph.",
+          "Do not transfer graph-isomorphism/injectivity theorems to this finite-width, continuous-feature adaptation or claim graph reconstruction ability.",
+          "GCN rather than GIN is fixed to avoid source GIN BatchNorm; GCN is explicitly supported by the official model.",
+          "Paper equation7 uses a conventional MAB presentation while pinned author MAB uses projected-query residual and sqrt(total width) scaling. The proposed numeric contract above explicitly follows the author implementation; verify it on tiny graphs.",
+          "No root LICENSE, LICENSE.md, LICENSE.txt, COPYING or equivalent license notice was verified at the immutable source revision. Use the paper and source only as references for an independent implementation; do not copy/vend repository code or assume a permissive license."
+        ],
+        "paper_sections": "Section3.2, equations6\u201310 and Figure2; paper PDF opened and inspected. Adjacency after pooling is explicitly chosen as identity, which equation10 permits.",
+        "pdf": "https://arxiv.org/pdf/2102.11533",
+        "symbols": [
+          "models/nets.py:GraphRepresentation.get_convs",
+          "models/nets.py:GraphMultisetTransformer.forward",
+          "models/nets.py:GraphMultisetTransformer.get_pools",
+          "models/layers.py:MAB.get_fc_kv",
+          "models/layers.py:MAB.forward",
+          "models/layers.py:PMA",
+          "models/layers.py:SAB"
+        ],
+        "title": "Accurate Learning of Graph Representations with Graph Multiset Pooling",
+        "url": "https://arxiv.org/abs/2102.11533",
+        "why_meaningful": "Tests whether graph-structured evidence should inform not just token embeddings but the actual keys and values used to form multiple pooled summaries, followed by explicit summary interaction and a final learned reduction."
+      },
+      "card_file_sha256": "2885abfc456fe9c3c205a0c8d8377a3118d53f45324c7963386236f47ea16d5c",
+      "design_sha256": "9907f34fce7af3398260496c90a688707e5500033334c0ca6236058a7457575d",
+      "family": "set_context",
+      "id": "graph_multiset_transformer",
+      "source": {
+        "code": "https://github.com/JinheonBaek/GMT",
+        "paper": "https://arxiv.org/abs/2102.11533"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "accept_or_reject": "accept",
+        "authors": [
+          "Zhengyang Geng",
+          "Meng-Hao Guo",
+          "Hongxu Chen",
+          "Xia Li",
+          "Ke Wei",
+          "Zhouchen Lin"
+        ],
+        "code_permalinks": [
+          "https://github.com/Gsunshine/Enjoy-Hamburger/blob/d9b51f6f197486df68c6e059e396520680157c08/seg/HamNet/hamburger/burger.py",
+          "https://github.com/Gsunshine/Enjoy-Hamburger/blob/d9b51f6f197486df68c6e059e396520680157c08/seg/HamNet/hamburger/ham.py"
+        ],
+        "code_pin": "d9b51f6f197486df68c6e059e396520680157c08",
+        "code_url": "https://github.com/Gsunshine/Enjoy-Hamburger",
+        "corechain": "Lower linear bread and ReLU -> alternating nonnegative basis/code inference -> one differentiable coefficient update -> low-rank reconstruction -> upper linear bread and normalization -> token residual and ReLU. Preserve the full chain, not just matrix multiplication.",
+        "exactmapping": {
+          "critical_source_difference": "Author ham.py automatically calls online_update in eval when rand_init=False. That branch MUST NOT be copied: inferred bases may never persist between utterances or test batches. Source random initialization is replaced with deterministic fresh copies to avoid introducing inference RNG drift.",
+          "mask_and_zero": "Compact tokens before factorization; all-zero ReLU input returns zero reconstruction with epsilon denominators. Skip the entire branch if no prior history, and never infer padded tokens.",
+          "matrix": "Compact active evidence tokens become columns X in R^(128 x N), without imposing image-grid geometry.",
+          "normalization": "Replace upper-bread batch normalization with tokenwise LayerNorm128 to prohibit cross-conversation dependence; 1x1 convolutions become per-token linear maps. Explicit adaptation, not exact source execution.",
+          "output": "Use common rolewise residual readout described above; do not output estimates for inactive modality slots or write inferred factors into OSRAM.",
+          "preliminary_fixed_configuration": {
+            "denominator_epsilon": 1e-06,
+            "eval_iterations": 6,
+            "internal_dim": 128,
+            "online_update": false,
+            "rank": 4,
+            "token_dim": 128,
+            "train_iterations": 6
+          },
+          "preliminary_parameters": "Core33152 = Linear128,128(bias)16512 + upper Linear128,128(no bias)16384 + LayerNorm256. Total with proposed wrapper364480; fixed rank4 basis has512 buffer entries, not parameters. Actual count must be verified in code.",
+          "solver": "Initialize a positive normalized128x4 basis from one fixed seed at construction; copy that same immutable buffer per utterance, then reset all inferred bases/codes after each forward. Softmax initializes codes; alternate original NMF multiplicative updates under no_grad; retain the original final differentiable coefficient update and reconstruction."
+        },
+        "id": "hamburger_nmf_full",
+        "implementation_policy": "Source-reference-only: independently implement the paper's mathematical operations and retain paper/code attribution; do not copy or translate repository source into this project without a separate license-compatibility review.",
+        "license": "GPL-3.0 license text verified at pinned repository LICENSE; no source code copied in this research task",
+        "license_url": "https://github.com/Gsunshine/Enjoy-Hamburger/blob/d9b51f6f197486df68c6e059e396520680157c08/LICENSE",
+        "limits": [
+          "Real sentiment shifts may be high-rank or minority evidence and can be suppressed.",
+          "Rank4 and deterministic initialization are proposed choices, not validated MOSI hyperparameters.",
+          "Nonnegativity and tokenwise LayerNorm are modeling choices; preserving source NMF does not establish sentiment reliability.",
+          "Internal factor reconstruction is not missing-feature completion: inactive modality tokens are absent and no output is written to persistent memory."
+        ],
+        "mechanistic_prediction_not_result": "If nuisance components are inconsistent across memory heads while task-relevant components share a low-rank structure, inferred reconstruction should suppress high-rank disagreement. Inspect reconstruction rank/energy and task errors rather than interpreting small residuals as success.",
+        "pdf": "https://zhouchenlin.github.io/Publications/2021-ICLR-Attention.pdf",
+        "pdf_verified_sections": [
+          "2.2.1 Hamburger, equations5-7",
+          "Algorithm2 NMF multiplicative updates",
+          "2.3 one-step gradient",
+          "3.1 iteration-count ablation"
+        ],
+        "symbols": [
+          "seg/HamNet/hamburger/burger.py::HamburgerV1",
+          "seg/HamNet/hamburger/ham.py::_MatrixDecomposition2DBase.local_inference",
+          "seg/HamNet/hamburger/ham.py::NMF2D.local_step",
+          "seg/HamNet/hamburger/ham.py::NMF2D.compute_coef"
+        ],
+        "title": "Is Attention Better Than Matrix Decomposition?",
+        "url": "https://openreview.net/forum?id=1FvkSpWosOl",
+        "why": "A complete optimization-defined global-context block whose output is reconstructed from jointly inferred low-rank factors; it cannot be reduced to independent scalar/feature gates or one basic attention primitive."
+      },
+      "card_file_sha256": "7ad543aecc9fff222bf2d9a7d64d06c078520da12a6f21e0798a520138520571",
+      "design_sha256": "a8d68b42afdd5fc0a831e434093f9a17e473dbb7c27a2a507379874a39699028",
+      "family": "optimization",
+      "id": "hamburger_nmf_full",
+      "source": {
+        "code": "https://github.com/Gsunshine/Enjoy-Hamburger",
+        "paper": "https://openreview.net/forum?id=1FvkSpWosOl"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "accept_or_reject": "accept",
+        "authors": [
+          "Yaodong Yu",
+          "Sam Buchanan",
+          "Druv Pai",
+          "Tianzhe Chu",
+          "Ziyang Wu",
+          "Shengbang Tong",
+          "Benjamin D. Haeffele",
+          "Yi Ma"
+        ],
+        "code_permalinks": [
+          "https://github.com/Ma-Lab-Berkeley/CRATE/blob/674408fa82475fe1f172aa8213e21d4ba608afc4/model/crate.py",
+          "https://github.com/Ma-Lab-Berkeley/CRATE/blob/674408fa82475fe1f172aa8213e21d4ba608afc4/main.py"
+        ],
+        "code_pin": "674408fa82475fe1f172aa8213e21d4ba608afc4",
+        "code_url": "https://github.com/Ma-Lab-Berkeley/CRATE",
+        "corechain": "PreNorm -> tied-projection multihead subspace self-attention -> residual -> PreNorm -> dictionary-gradient ISTA shrinkage with ReLU; stack complete compression/sparsification blocks. The source ISTA replaces an ordinary FFN and does NOT have a second standard Transformer residual added after it.",
+        "exactmapping": {
+          "attention": "One shared QKV projection W generates w, and attention is softmax(w*w^T/sqrt32)*w, followed by output projection. Preserve tied projections; substituting generic unrelated Q/K/V attention changes the core mechanism.",
+          "ista": "Preserve source FeedForward computation: x1=Linear(x,D); grad1=Linear(x1,D.T); grad2=Linear(x,D.T); output=ReLU(x +0.1*(grad2-grad1)-0.01). D is a learned128x128 dictionary, not an independent two-layer MLP.",
+          "mask_and_zero": "Compact active tokens per utterance or explicitly key-mask attention and zero invalid query rows after every substep. Local is always present on valid positions, so no all-masked softmax. No-history branch bypasses residual; pad bypasses all computation.",
+          "output": "No source CLS token required: use transformed real Local and memory rolewise differences through common wrapper. No additional OSRAM query or recurrent state.",
+          "preliminary_fixed_configuration": {
+            "depth": 2,
+            "dropout": 0.0,
+            "head_dim": 32,
+            "ista_lambda": 0.1,
+            "ista_step_size": 0.1,
+            "subspace_heads": 4,
+            "token_dim": 128
+          },
+          "preliminary_parameters": "Per block49792 = two LayerNorm512 + tied projection16384 + output projection16512 + dictionary16384. Two blocks99584; total with proposed wrapper430912. Arithmetic estimate, not measured.",
+          "task_loss": "Original paper's supervised experiments use ordinary classification cross-entropy; author main.py uses LabelSmoothingCrossEntropy, then loss=criterion(output,target). Therefore no added sparse-rate objective is needed to retain the core block; MOSI keeps its existing task MSE.",
+          "tokens": "Use compact active Local/memory-head evidence tokens; role/head identity embeddings replace image-patch positional embeddings. No image patch embedding or image-grid encoding."
+        },
+        "id": "crate_mssa_ista_full",
+        "implementation_policy": "Prefer independent mathematical implementation with attribution. If source is copied or adapted, preserve the MIT copyright and permission notice in the distributed implementation.",
+        "license": "MIT; Copyright (c) 2023 Ma-Lab-Berkeley; verified pinned LICENSE",
+        "license_url": "https://github.com/Ma-Lab-Berkeley/CRATE/blob/674408fa82475fe1f172aa8213e21d4ba608afc4/LICENSE",
+        "limits": [
+          "Contains attention internally; it is not appropriate if the user bans all attention rather than simple standalone attention blocks.",
+          "CRATE is a published architecture transfer, not a new OSRAM mechanism or guaranteed innovation.",
+          "Two layers128d and rolewise readout are adaptations, not the source ImageNet model.",
+          "The low-dimensional-subspace interpretation is an inductive bias; task-only training does not prove an explicit rate objective is minimized on MOSI."
+        ],
+        "mechanistic_prediction_not_result": "Unlike Hamburger's explicit low-rank reconstruction, this branch should alter representation support through dictionary shrinkage after subspace interaction. Sparsity/support changes, and failure to retain sparse minority sentiment evidence, are separable predictions.",
+        "pdf": "https://arxiv.org/pdf/2306.01129",
+        "pdf_verified_sections": [
+          "Figure1 and sections2.3-2.5: alternating compression/sparsification",
+          "Section3 supervised-classification cross-entropy paragraph",
+          "AppendixB.1 architecture"
+        ],
+        "symbols": [
+          "model/crate.py::Attention",
+          "model/crate.py::FeedForward",
+          "model/crate.py::Transformer",
+          "main.py::train"
+        ],
+        "title": "White-Box Transformers via Sparse Rate Reduction",
+        "url": "https://arxiv.org/abs/2306.01129",
+        "why": "Accept ONLY the complete MSSA-plus-ISTA block: jointly compressing token subspaces and sparsifying against a learned dictionary is materially different from a basic attention reweighting or a Hadamard gate. Removing ISTA would fail this screening criterion."
+      },
+      "card_file_sha256": "7ad543aecc9fff222bf2d9a7d64d06c078520da12a6f21e0798a520138520571",
+      "design_sha256": "2550bc05725ff6103fba67d911375fbaa16b3d4a9c7896b5daa64ce3863a2c00",
+      "family": "optimization",
+      "id": "crate_mssa_ista_full",
+      "source": {
+        "code": "https://github.com/Ma-Lab-Berkeley/CRATE",
+        "paper": "https://arxiv.org/abs/2306.01129"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "accept_or_reject": "accept",
+        "authors": [
+          "Sergey Bartunov",
+          "Fabian B. Fuchs",
+          "Timothy P. Lillicrap"
+        ],
+        "code_pin": "sha256:49ddc166e326ca06b86b1c647113109a7f77bfeb81dbc02d9255835361687261",
+        "code_source_kind": "Actual author JAX/Haiku code published as supplementary Listings1 and2; no verified standalone author Git repository. SHA256 pins the publisher PDF, not a fabricated Git commit.",
+        "code_url": "https://proceedings.mlr.press/v180/bartunov22a/bartunov22a-supp.pdf",
+        "corechain": "Typed set elements and temporary aggregate y -> shared learned nonnegative potential -> cardinality-scaled set energy plus positive L2 energy term -> unrolled Nesterov updates -> optimized aggregate. Differentiate through the complete inner loop using only the downstream task loss.",
+        "exactmapping": {
+          "author_code_caveat": "Publisher Listing2 omits the loop_body carry return statement and references np in inverse_softplus without importing numpy in that listing. These publication-code omissions require explicit mechanical repair when porting; preserve its Nesterov lookahead and per-example stopping mask. Do not describe the PDF listing as a directly executed verified package.",
+          "backprop": "Training uses explicit differentiation through ten updates, including gradient-of-energy operations (PyTorch create_graph=True), not a detached solver or approximate implicit backward. Evaluation locally enables gradients only to obtain dE/dy, detaches temporary iterates between updates and does not retain outer graphs. Under inference_mode the implementation must locally disable inference mode as well as enable grad. Never call backward on the energy to accumulate parameter gradients during inference.",
+          "energy": "E(X,y) = [softplus(raw_lambda)*sum(y*y) + sum_over_active_i F(x_i,y)] * log2(N+1)/(N+1e-8), preserving supplementary C.1 cardinality scaling. N counts only real active tokens. This scalar is an internal forward objective, never added to MOSI task loss.",
+          "initialization": "At every utterance and every forward reset y0=zeros128 and momentum0=zeros128. No learned init, no reuse of the previous utterance optimum, no persistent optimizer buffers. Trainable inner scalars are shared model parameters, not state caches.",
+          "inputs": "Use the same proposed 128d tokenizer with actual Local256 and active Base/Gap head64 inputs. Role/head IDs remain attached to each token under permutation. No head adjacency or temporal index is invented.",
+          "mask_and_empty": "Compact active tokens after safe torch.where masking before all projections. Only Local and genuinely available current memory read evidence enter. No-history positions and padding bypass the whole added branch as exact zero. Defensive N=0 case returns zero without invoking the solver. No invalid token is treated as an observed zero-valued sample.",
+          "not_using_pyg_shortcut": "Inspected current PyG equilibrium.py only as a cross-check, not author code. It differs from the publisher listings in potential squaring, residual mapping, Nesterov lookahead and energy scaling. Copying that implementation would not preserve the core chain resolved here.",
+          "output": "This method returns an aggregate rather than transformed token rows: send y_final128 through one zero-initialized Linear128,1600 and add to the original Flat pre-norm anchor. Therefore it does not use the tokenwise role-pool output adapter of the other two accepted cards. Original Flat, Memory, query and task head are untouched.",
+          "potential": "Concatenate each128d token with temporary y128. Residual stages256->256->128->32: each stage has a main linear map and a skip identity or learned dimensional projection; apply tokenwise LayerNorm+tanh on the first two main branches only. The last main branch is linear. Square the final32 channels and mean them to produce nonnegative F(x_i,y). Unlike a fixed Huber centroid, this potential is learned and need not be a function only of x_i-y.",
+          "preliminary_fixed_configuration": {
+            "clip_state": null,
+            "gradient_max_tolerance": 0.001,
+            "initial_effective_l2_coefficient": 0.1,
+            "initial_effective_learning_rate": 0.125,
+            "initial_effective_momentum": 0.9,
+            "inner_steps_eval": 10,
+            "inner_steps_train": 10,
+            "outer_auxiliary_loss_weight": 0.0,
+            "output_dim": 128,
+            "potential_widths": [
+              256,
+              128,
+              32
+            ],
+            "token_dim": 128
+          },
+          "preliminary_parameters": "Potential140608 = first stage66304 + second66048 + third8256; add three learned scalars ->140611. Shared tokenizer42880 and output projector206400 yield389891 added parameters for this exact proposal. Arithmetic estimate awaiting implementation verification.",
+          "solver": "eta=softplus(raw_eta), mu=sigmoid(raw_mu), raw_eta initialized by inverse_softplus(.125), raw_mu by logit(.9), raw_lambda by inverse_softplus(.1). For ten steps: grad=dE/dy evaluated at y+mu*v; v_new=mu*v-eta*grad; y_new=y+I(maxabs(grad)>=1e-3)*v_new. Thresholding is per utterance, never one shared batch stopping decision. All temporary state is reset per forward.",
+          "training_deviation": "Original experiments also use the gradient-norm auxiliary loss in main Eq5; supplementary E.3 reports its effects. The authorized task-only variant explicitly omits that outer auxiliary term. The internal positive quadratic energy term is retained because it defines the forward aggregation; it is not an extra task loss. Initial effective lambda=.1 is a fixed adaptation choice, not asserted to be the source experimental setting."
+        },
+        "id": "equilibrium_aggregation",
+        "implementation_policy": "Source-reference-only: independently implement the mathematical energy and Nesterov update with attribution. Do not copy or directly translate the unlicensed PDF code listings, and do not describe them as an MIT-licensed author package.",
+        "license": "No separate software license verified for the author code listings embedded in the publisher supplement",
+        "license_url": null,
+        "limits": [
+          "Task-only omission of the source gradient-norm auxiliary removes a convergence aid; report this adaptation honestly.",
+          "Ten explicit inner steps need higher-order derivatives during training and increase memory/time; correctness and feasibility must be measured before any authorized run.",
+          "Nonconvex learned potentials do not guarantee a unique or global minimum. The actual deployed map is the fixed ten-step procedure, not an asserted exact equilibrium.",
+          "Memory heads outnumber Local and are correlated; role embeddings allow conditioning but do not guarantee reliability or prevent historical majority bias.",
+          "Official code evidence is publisher author listings with documented omissions, not a verified standalone GitHub repository; do not fabricate a repository or Git pin."
+        ],
+        "mechanistic_prediction_not_result": "The same evidence token can exert different influence as the temporary aggregate evolves, since dF(x_i,y)/dy depends on both x_i and the current y. This permits nonlinear joint set summaries without re-reading OSRAM. Finite-step energy/gradient traces can check whether the intended iterative computation operates, but neither convergence nor smaller energy proves sentiment correctness.",
+        "pdf": "https://proceedings.mlr.press/v180/bartunov22a/bartunov22a.pdf",
+        "pdf_verified_sections": [
+          "Main section2 equations3-5",
+          "Supplement C.1-C.5 and Listings1-2",
+          "Supplement E.3 auxiliary-loss ablation"
+        ],
+        "symbols": [
+          "Supplement Listing1::SuperMLP",
+          "Supplement Listing1::potential_net",
+          "Supplement Listing2::MomentumOptimizer"
+        ],
+        "title": "Equilibrium Aggregation: Encoding Sets via Optimization",
+        "url": "https://proceedings.mlr.press/v180/bartunov22a.html",
+        "why": "A complete learned-energy inference block: the readout representation is generated through multiple coupled optimization updates, not a simple scalar/channel gate, fixed robust mean, or one attention operation. Its expressive learned potential and unrolled inference are mechanistically distinct from Hamburger's constrained factor reconstruction and CRATE's prescribed subspace/shrinkage updates."
+      },
+      "card_file_sha256": "7ad543aecc9fff222bf2d9a7d64d06c078520da12a6f21e0798a520138520571",
+      "design_sha256": "3eda5139c2eb776098bd56fba6f6f575c749fb71ddd96362aef91e1a199a91a9",
+      "family": "optimization",
+      "id": "equilibrium_aggregation",
+      "source": {
+        "code": "https://proceedings.mlr.press/v180/bartunov22a/bartunov22a-supp.pdf",
+        "paper": "https://proceedings.mlr.press/v180/bartunov22a.html"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "authors": [
+          "Sercan \u00d6. Ar\u0131k",
+          "Tomas Pfister"
+        ],
+        "code_commit": "e49bbfe381c9c0e564b937f1c4e163a2273c65cc",
+        "code_license": "Apache-2.0",
+        "code_url": "https://github.com/google-research/google-research/blob/e49bbfe381c9c0e564b937f1c4e163a2273c65cc/tabnet/tabnet_model.py",
+        "corechain": "Sequential sparse feature selection -> shared+step-specific feature processing -> split decision and next-step attention -> update feature-use prior -> accumulate decision features across steps.",
+        "decision": "accept_for_fixed_single_seed_test",
+        "distinct_from_others": "Unlike NODE's fixed-depth split conjunctions, each step conditions new feature selection on the previous transformed sample and past feature-use budget.",
+        "domain": "Tabular classification/regression",
+        "exact_mapping": {
+          "dimensions": "decision_dim64,attention_dim64; feature transformer width128; two shared GLU layers and two step-specific GLU layers per transformer; one warmup transformer followed by three sparse-selection/decision steps (four source-style passes total).",
+          "input": "Project Local256->64 and each safely-masked forward memory512->128 (shared memory projection). Concatenate [L64,B128,GA128,GT128,GV128,availability3], total579. Apply per-slot LN before bias-free projection, then re-mask absent slots. Preserve fixed slot meanings, not a spatial/temporal sequence.",
+          "iteration": "Initial full-feature pass supplies attention state but no accumulated decision. At each of3 decision steps: mask=sparsemax(prior*attention_logits) over eligible coordinates only; transform(mask*input); add ReLU(decision64); update prior*=1.5-mask. Keep invalid coordinate eligibility false independently of the prior values.",
+          "loss": "Original emotion task loss only; lambda_sparse=0 (source-paper ablation), no masked-feature pretraining/decoder.",
+          "masking": "Masked sparsemax excludes all128 coordinates of inactive Gap slots. Zero priors alone are NOT a sufficient exclusion. availability coordinates and Local/Base remain eligible on history-valid rows. Biased outputs cannot reactivate invalid raw features because original safe input is re-multiplied each step.",
+          "normalization": "Replace source BN/GhostBN with per-utterance LayerNorm at corresponding transform positions to prohibit across-utterance/future mixing; this is explicitly TabNet-inspired, not benchmark reproduction.",
+          "output": "sum of three64-dimensional decision vectors -> common zero-init residual output projection; no independent task exits."
+        },
+        "id": "tabnet",
+        "limitations": [
+          "Mask coefficients are not causal attributions.",
+          "LN and learned-latent input replace source GhostBN/raw columns, so original TabNet accuracy claims do not transfer.",
+          "End-to-end learned features can make feature selection unstable; the experiment may fail."
+        ],
+        "pdf": "https://arxiv.org/pdf/1908.07442",
+        "source_evidence": "Paper model section/Fig4; Table6 explicitly includes no sparsity regularization. Actual encoder lines102-201 contains four GLU transforms (first two shared), decision/attention split, sparsemax mask, prior-use product and summed decision outputs.",
+        "title": "TabNet: Attentive Interpretable Tabular Learning",
+        "url": "https://arxiv.org/abs/1908.07442",
+        "venue": "AAAI 2021",
+        "why_meaningful": "Tests whether staged selection with a feature-use budget can extract complementary Local/history combinations rather than globally scaling Memory once."
+      },
+      "card_file_sha256": "dd00f1950c767dc446533c2173124fc14091b62dfd99469ce3d1ad2e41b1af59",
+      "design_sha256": "227efb5e3c0627d4b0e5923236fe411a7090e4943890d42933345494be3341e0",
+      "family": "feature_reasoning",
+      "id": "tabnet",
+      "source": {
+        "code": "https://github.com/google-research/google-research/blob/e49bbfe381c9c0e564b937f1c4e163a2273c65cc/tabnet/tabnet_model.py",
+        "paper": "https://arxiv.org/abs/1908.07442"
+      }
+    },
+    {
+      "accepted": true,
+      "card": {
+        "additional_code": "https://github.com/Qwicen/node/blob/3bae6a8a63f0205683270b6d566d9cfa659403e4/lib/arch.py",
+        "authors": [
+          "Sergei Popov",
+          "Stanislav Morozov",
+          "Artem Babenko"
+        ],
+        "code_commit": "3bae6a8a63f0205683270b6d566d9cfa659403e4",
+        "code_license": "MIT",
+        "code_url": "https://github.com/Qwicen/node/blob/3bae6a8a63f0205683270b6d566d9cfa659403e4/lib/odst.py",
+        "corechain": "Sparse feature choice -> learned threshold/temperature decisions at each tree depth -> products over complete split paths -> learned leaf response vectors -> densely connected tree layers.",
+        "decision": "accept_for_fixed_single_seed_test",
+        "distinct_from_others": "Not a single scalar gate: complete path probabilities select vector leaf responses, and later ensembles operate on earlier ensemble representations. Distinct from graph message passing, competitive grouping and matrix factorization.",
+        "domain": "Tabular representation learning",
+        "exact_mapping": {
+          "dimensions": "3 dense-connected layers,32 trees/layer, depth4, leaf response width2; layer input widths579/643/707; all96 tree outputs retained as192-dimensional representation.",
+          "initialization": "Construct finite provisional thresholds=0 and log_temperatures=0 with initialized=False, allowing fresh zero-bridge evaluation without mutation or NaN placeholders. Source-style data-aware threshold/temperature initialization replaces them from detached valid history-bearing rows of the FIRST NORMAL TRAINING batch with such rows, under forked RNG, using the same per-sample masked selectors as forward. No additional OSRAM scan, label use or optimizer step. Floors ensure finite log temperatures. Save initialized flag and parameters; prohibit automatic initialization from validation/test. Small first-batch sample size is a recorded risk, not silently enlarged training protocol.",
+          "input": "Same579-dimensional fixed-slot vector as TabNet: Local64 + four safe projected history128 + availability3. No input image/token sequence. Per-slot LN, bias-free projections and post-projection masking.",
+          "masking": "Inactive raw Gap coordinates stay exact zero before every tree layer. Selection logits for those raw coordinates are excluded with per-sample masked entmax; previous tree features are allowed because they summarize safe evidence. This sample-specific eligibility extends source shared selectors; their learnable scores remain shared.",
+          "normalization": "No external quantile preprocessing, QHAdam, checkpoint averaging or source optimizer changes. Original cfg84 optimizer/protocol retained; only branch per-slot LN used.",
+          "operation": "Feature selection entmax1.5 and two-class entmoid1.5;16 leaves per tree; each deeper layer sees original input and all earlier tree outputs. Do not replace path-product with a generic MLP.",
+          "output": "concatenate192 -> common zero-init residual output projection; existing task head unchanged."
+        },
+        "id": "node",
+        "limitations": [
+          "Learned latent coordinates differ from static source tabular columns; no interpretable sentiment-rule claim.",
+          "Per-sample inactive-coordinate exclusion is a deliberate adaptation of shared selectors.",
+          "Small-batch data-aware initialization and near-saturated tree paths require numerical correctness tests; no guaranteed benefit."
+        ],
+        "pdf": "https://arxiv.org/pdf/1909.06312",
+        "source_evidence": "Paper sections3.1-3.3; ODST.forward lines69-97 computes sparse feature selectors, split responses, path-products and leaf mixtures. DenseBlock.forward lines17-32 concatenates all earlier tree features. lib/nn_utils.py supplies entmax15 and entmoid15; source defaults sparsemax but paper favored alpha1.5.",
+        "title": "Neural Oblivious Decision Ensembles for Deep Learning on Tabular Data",
+        "url": "https://arxiv.org/abs/1909.06312",
+        "venue": "ICLR 2020",
+        "why_meaningful": "Tests an alternative interaction inductive bias: task-relevant conjunctions of Local and history feature thresholds, with deeper learned combinations, instead of one-shot feature weighting."
+      },
+      "card_file_sha256": "dd00f1950c767dc446533c2173124fc14091b62dfd99469ce3d1ad2e41b1af59",
+      "design_sha256": "e9f55a68f668ad032192beee9dad207fa3839875fb2d1f243a1c962b95a6b054",
+      "family": "feature_reasoning",
+      "id": "node",
+      "source": {
+        "code": "https://github.com/Qwicen/node/blob/3bae6a8a63f0205683270b6d566d9cfa659403e4/lib/odst.py",
+        "paper": "https://arxiv.org/abs/1909.06312"
+      }
+    }
+  ],
+  "created_at": "2026-10-03T16:16:32.082802+00:00",
+  "label": "INTERNAL TEST-ORACLE ADAPTIVE SEARCH; NOT A PAPER CLAIM",
+  "round_id": "meaningful20_round1",
+  "status": "source_accepted"
+}
