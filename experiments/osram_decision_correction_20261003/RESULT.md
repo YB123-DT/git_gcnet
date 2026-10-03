@@ -2,8 +2,8 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: implementation verified and all three seeds launched on biggpu GPU0;
-training in progress, no final performance result yet. Code commit: 2b00639.
+Status: all three seeds completed 100 epochs on biggpu GPU0. No improvement
+over original Flat in this screening. Code commit: 2b00639.
 
 ## Fixed experiment
 
@@ -69,8 +69,7 @@ not independently selected oracle outputs.
 | 68 | 80.053 | 74.440 |
 | Mean | 80.559 | 75.594 |
 
-New model results pending. Do not interpret tests or successful launch as a
-performance improvement. No additional configuration sweep is authorized.
+Completed results are below. No additional configuration sweep is authorized.
 
 ## Measured capacity and pre-launch checks
 
@@ -120,3 +119,83 @@ GPU identity/free-memory checks. Independent persistent processes run concurrent
 this is not serial training. Logs/checkpoints are separate. See launch.json for
 exact commands/timestamps. Earlier SSH transport resets occurred before formal
 launch; no training process was duplicated or migrated to a local GPU.
+
+## Completed three-seed results
+
+W-F1 (%); deltas are percentage points. Arithmetic mean across the eight rates
+within each seed, then equal-weight across seeds. High missing = .5/.6/.7.
+All scores use per-rate BEST Test-oracle; INTERNAL DIAGNOSTIC ONLY.
+
+| Seed | Flat 8-rate | Decision 8-rate | Delta | Flat high | Decision high | Delta |
+|---|---:|---:|---:|---:|---:|---:|
+| 66 | 81.068 | 79.575 | -1.493 | 76.352 | 74.781 | -1.572 |
+| 67 | 80.556 | 78.892 | -1.664 | 75.990 | 74.176 | -1.814 |
+| 68 | 80.053 | 79.403 | -0.650 | 74.440 | 73.537 | -0.903 |
+| Mean | 80.559 | 79.290 | -1.269 | 75.594 | 74.164 | -1.429 |
+
+Sample SD across seeds (ddof=1): Flat/Decision eight-rate 0.507/0.355;
+high missing 1.016/0.622. No significance claim from this exploratory three-seed
+screening and no claim that centering alone caused the loss. This experiment
+changes readout structure, active capacity and supervision simultaneously.
+
+| Rate | Flat mean | Decision mean | Delta | Decision seed66 | seed67 | seed68 |
+|---|---:|---:|---:|---:|---:|---:|
+| .0 | 88.419 | 87.252 | -1.167 | 86.988 | 87.153 | 87.616 |
+| .1 | 85.845 | 84.551 | -1.294 | 84.715 | 84.324 | 84.615 |
+| .2 | 83.431 | 81.695 | -1.737 | 81.010 | 82.743 | 81.330 |
+| .3 | 80.999 | 80.405 | -0.595 | 80.054 | 79.238 | 81.922 |
+| .4 | 78.996 | 77.923 | -1.073 | 79.489 | 75.149 | 79.131 |
+| .5 | 77.327 | 75.795 | -1.531 | 75.746 | 73.803 | 77.836 |
+| .6 | 75.848 | 74.108 | -1.741 | 73.816 | 73.896 | 74.611 |
+| .7 | 73.607 | 72.590 | -1.016 | 74.780 | 74.828 | 68.162 |
+
+Verification: each provenance status is complete; each history contains exactly
+100 epochs; all eight BEST checkpoints exist; each seed's evaluation mask
+hashes match its original Flat reference; provenance configs differ only by
+the enabled decision flag; recorded source hashes match the immutable snapshot.
+Full exit metrics exactly equal the main reported scores. Original run PIDs
+have exited. Archived results/ contains model metrics/config/provenance/parameter
+counts plus corresponding baseline metrics/config. No new inference or training
+was performed to produce this report.
+
+## Three exits at the same Full-selected checkpoints
+
+These are cumulative outputs of ONE jointly trained model, not separately
+trained Local/Base ablations and not independently selected exit checkpoints.
+
+| Scope | Seed | Local | Local+Base | Full |
+|---|---:|---:|---:|---:|
+| 8-rate | 66 | 75.6783 | 79.4109 | 79.5749 |
+| 8-rate | 67 | 77.2317 | 78.7534 | 78.8919 |
+| 8-rate | 68 | 76.9709 | 78.9949 | 79.4029 |
+| 8-rate | Mean | 76.6270 | 79.0531 | 79.2899 |
+| High | 66 | 70.3764 | 74.7466 | 74.7807 |
+| High | 67 | 71.5727 | 74.0574 | 74.1759 |
+| High | 68 | 70.3251 | 73.4485 | 73.5367 |
+| High | Mean | 70.7581 | 74.0842 | 74.1644 |
+
+Sample SD (Local/LB/Full): 8-rate 0.8318/0.3326/0.3552;
+high 0.7060/0.6495/0.6221. Local->LB gains +2.4261 points overall,
++3.3261 high; LB->Full gains +0.2368 overall, +0.0803 high.
+
+| Scope | Transition | Corrections | Harms | Repeated evaluation exposures |
+|---|---|---:|---:|---:|
+| 8-rate | L->LB | 755 | 350 | 15,744 |
+| 8-rate | LB->Full | 130 | 89 | 15,744 |
+| High | L->LB | 453 | 238 | 5,904 |
+| High | LB->Full | 59 | 52 | 5,904 |
+
+Counts pool seeds/rates and are NOT unique utterances or independent samples.
+Each seed/rate evaluates 686 valid utterances, with 656 nonzero-label utterances
+used for binary W-F1/transitions. Threshold remains prediction>0 and label>0.
+At rate0 all seeds have exact zero Gap correction and identical LB/Full metrics,
+with zero corrections/harms. Gap is not uniformly helpful across rates: at .6,
+mean LB74.5149 -> Full74.1079 (-0.4071 points).
+
+Interpretation: Base corrections provide positive aggregate incremental value
+within the new architecture, and Gap adds a smaller aggregate increment. Thus
+failure to beat original Flat does not mean the correction branches learned
+nothing. However, these conditional exit gains do not establish superiority
+over Flat or identify whether readout capacity, objective weighting or centered
+parameterization caused the overall deficit. Retain original Flat as baseline;
+do not automatically expand this configuration.

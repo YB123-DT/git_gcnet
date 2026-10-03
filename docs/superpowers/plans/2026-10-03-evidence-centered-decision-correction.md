@@ -67,8 +67,9 @@ tests/test_decision_correction_runner.py. Main owns these files.
   results: per-rate W-F1, eight-rate and high(.5/.6/.7) means vs original Flat;
   all INTERNAL DIAGNOSTIC ONLY, not formal validation-selected paper scores.
 
-- [ ] Collect completed 100-epoch three-seed metrics. Current run code2b00639;
-  PID3995805/4050144/4104634, all biggpu hostGPU0. No performance claim at launch.
+- [x] Collect completed 100-epoch three-seed metrics. Run code2b00639;
+  original PID3995805/4050144/4104634 have exited, all biggpu hostGPU0.
+  Mean W-F1 79.290 vs Flat80.559; high74.164 vs75.594. Negative internal result.
 
 Unit sketch (required assertions, not a substitute for executable tests):
 ```python
