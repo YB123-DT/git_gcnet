@@ -1,0 +1,354 @@
+{
+  "backbone_initialization": null,
+  "backbone_lr_multiplier": 1.0,
+  "backbone_type": "osram",
+  "best_epoch": null,
+  "best_selection_mean_accuracy": null,
+  "best_selection_mean_score": null,
+  "best_selection_mean_weighted_f1": null,
+  "best_validation_mean_weighted_f1": null,
+  "beta_mode": "embedded",
+  "classifier_lr_multiplier": 1.0,
+  "ema_steps": 0,
+  "emotion_loss_mode": "sample-mean",
+  "evaluation_stage": "train-test-oracle",
+  "frozen_completion_integrity": null,
+  "frozen_readout_integrity": null,
+  "gap_residual_strength": 1.0,
+  "graph_message_calibration": "none",
+  "graph_second_layer": "graphconv",
+  "group_dro_eta": 0.1,
+  "jepa_contrastive_source": "contrastive",
+  "jepa_rate_weighting": "uniform",
+  "jepa_regression_aggregation": "target",
+  "joint_pretrained_integrity": null,
+  "lr_schedule": "constant",
+  "mask_sha256": {
+    "0.0": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+    "0.1": "eb2795dc2edf8b07135ed297a0d25e9c7cb42530214cbed97f650c76fbd48509",
+    "0.2": "992cda7724b267e584f66b16f96a79efafaaf360f4d9a4abd72130824315403c",
+    "0.3": "2479f1c5c543be6d83a1a43fe04247c688b58cb1ca94ca709199dfff0a868f43",
+    "0.4": "68171473b0f9f645f95ac216dab871fe910e54b4f8c9a01be15d21db34795b76",
+    "0.5": "d42e61495e88243750c9e238cae18b61f31063f90528f3fc353de7fab35d464d",
+    "0.6": "6b52889567e922a3d693c4a6cc057ff1ceb96acaef17527989a70e21abfe1fe7",
+    "0.7": "f1208aad19deff6a211236caa7b64e705390ff94e26bc77d8c86717fbffed9cb"
+  },
+  "optimizer": "adam",
+  "optimizer_parameter_groups": {
+    "backbone": {
+      "learning_rate": 0.001,
+      "multiplier": 1.0,
+      "parameter_count": 12858560
+    },
+    "classifier": {
+      "learning_rate": 0.001,
+      "multiplier": 1.0,
+      "parameter_count": 1601
+    },
+    "projector": {
+      "learning_rate": 0.001,
+      "multiplier": 1.0,
+      "parameter_count": 929280
+    }
+  },
+  "osram_ablation": "full",
+  "osram_bidirectional": false,
+  "osram_dimensions": {
+    "key_dim": 64,
+    "latent_dim": 256,
+    "num_heads": 8,
+    "output_dim": 1600,
+    "read_ridge": 0.001,
+    "value_dim": 64,
+    "write_ridge": 0.001
+  },
+  "osram_emotion_ablation": "full",
+  "osram_forward_slot_reuse": false,
+  "osram_gap_read": "residual",
+  "osram_predictor_mode": "structured",
+  "osram_query_availability": true,
+  "osram_readout_fusion": "flat",
+  "osram_relation_block": true,
+  "osram_relation_dim": 128,
+  "osram_relation_dual_readout": true,
+  "osram_relation_mode": "pairwise",
+  "osram_relation_out_dim": 64,
+  "osram_shift_filter_depth": 1,
+  "osram_shift_filter_width": 128,
+  "osram_write_step": 0.6,
+  "parameter_count": 13789441,
+  "postgraph_bilstm_ablation": "none",
+  "postgraph_sequence_mode": "independent",
+  "projector_lr_multiplier": 1.0,
+  "readout_parameter_count": 0,
+  "readout_rank": 8,
+  "readout_type": "shared",
+  "recurrent_padding_mode": "legacy",
+  "selected_accuracy_by_rate": {
+    "0.0": 0.875,
+    "0.1": 0.8658536585365854,
+    "0.2": 0.8277439024390244,
+    "0.3": 0.8048780487804879,
+    "0.4": 0.8048780487804879,
+    "0.5": 0.7698170731707317,
+    "0.6": 0.7515243902439024,
+    "0.7": 0.7545731707317073
+  },
+  "selected_epoch_by_rate": {
+    "0.0": 64,
+    "0.1": 43,
+    "0.2": 73,
+    "0.3": 79,
+    "0.4": 51,
+    "0.5": 72,
+    "0.6": 78,
+    "0.7": 65
+  },
+  "selected_score_by_rate": {
+    "0.0": 0.8746649050245099,
+    "0.1": 0.8657179437936112,
+    "0.2": 0.8282756237117752,
+    "0.3": 0.80590540229719,
+    "0.4": 0.80590540229719,
+    "0.5": 0.7701803953871976,
+    "0.6": 0.7509305667348266,
+    "0.7": 0.750362005099341
+  },
+  "selected_weighted_f1_by_rate": {
+    "0.0": 0.8746649050245099,
+    "0.1": 0.8657179437936112,
+    "0.2": 0.8282756237117752,
+    "0.3": 0.80590540229719,
+    "0.4": 0.80590540229719,
+    "0.5": 0.7701803953871976,
+    "0.6": 0.7509305667348266,
+    "0.7": 0.750362005099341
+  },
+  "selection_metric": "weighted_f1",
+  "selection_missing_rates": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7
+  ],
+  "selection_protocol": "per-rate-test-oracle",
+  "selection_split": "test",
+  "target_space": "all-modalities",
+  "task_regression_loss": "mse",
+  "task_smooth_l1_beta": 1.0,
+  "teacher_integrity": null,
+  "teacher_mode": "ema",
+  "teacher_provenance": null,
+  "test": {
+    "0.0": {
+      "accuracy": 0.875,
+      "correlation": 0.7997645513724083,
+      "current_history_relation": {
+        "active_evidence_count_mean": 0.9548105597496033,
+        "history_count": 655,
+        "per_slot_relation_norm": {
+          "base": 2.7699079513549805,
+          "gap_audio": 0.0,
+          "gap_text": 0.0,
+          "gap_visual": 0.0
+        },
+        "relation_anchor_norm_ratio": 0.008128127083182335,
+        "relation_residual_norm": 3.0710058212280273,
+        "scope": "Norms and residual/anchor ratios: valid-token mean; slot norms: active history-supported evidence mean. No semantic interpretation.",
+        "valid_count": 686
+      },
+      "loss": 0.9663687944412231,
+      "macro_f1": 0.8712469362745099,
+      "mae": 0.7529234886169434,
+      "mask_sha256": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.3000508546829224,
+      "weighted_f1": 0.8746649050245099
+    },
+    "0.1": {
+      "accuracy": 0.8658536585365854,
+      "correlation": 0.7404620072748317,
+      "current_history_relation": {
+        "active_evidence_count_mean": 1.2565598487854004,
+        "history_count": 655,
+        "per_slot_relation_norm": {
+          "base": 3.266573190689087,
+          "gap_audio": 3.356478691101074,
+          "gap_text": 3.4383544921875,
+          "gap_visual": 2.825739622116089
+        },
+        "relation_anchor_norm_ratio": 0.011649534106254578,
+        "relation_residual_norm": 4.037079334259033,
+        "scope": "Norms and residual/anchor ratios: valid-token mean; slot norms: active history-supported evidence mean. No semantic interpretation.",
+        "valid_count": 686
+      },
+      "loss": 1.3555487394332886,
+      "macro_f1": 0.862257217847769,
+      "mae": 0.9542654752731323,
+      "mask_sha256": "eb2795dc2edf8b07135ed297a0d25e9c7cb42530214cbed97f650c76fbd48509",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.8493155241012573,
+      "weighted_f1": 0.8657179437936112
+    },
+    "0.2": {
+      "accuracy": 0.8277439024390244,
+      "correlation": 0.7213278853528582,
+      "current_history_relation": {
+        "active_evidence_count_mean": 1.5335277318954468,
+        "history_count": 655,
+        "per_slot_relation_norm": {
+          "base": 3.045919418334961,
+          "gap_audio": 3.016064167022705,
+          "gap_text": 3.123891830444336,
+          "gap_visual": 2.8314859867095947
+        },
+        "relation_anchor_norm_ratio": 0.008371254429221153,
+        "relation_residual_norm": 3.241964101791382,
+        "scope": "Norms and residual/anchor ratios: valid-token mean; slot norms: active history-supported evidence mean. No semantic interpretation.",
+        "valid_count": 686
+      },
+      "loss": 1.2287946939468384,
+      "macro_f1": 0.8246599190570693,
+      "mae": 0.8410993218421936,
+      "mask_sha256": "992cda7724b267e584f66b16f96a79efafaaf360f4d9a4abd72130824315403c",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.1801539659500122,
+      "weighted_f1": 0.8282756237117752
+    },
+    "0.3": {
+      "accuracy": 0.8048780487804879,
+      "correlation": 0.6776834250409148,
+      "current_history_relation": {
+        "active_evidence_count_mean": 1.7434402704238892,
+        "history_count": 655,
+        "per_slot_relation_norm": {
+          "base": 2.8674800395965576,
+          "gap_audio": 2.8634698390960693,
+          "gap_text": 2.9587128162384033,
+          "gap_visual": 2.622910261154175
+        },
+        "relation_anchor_norm_ratio": 0.007456597406417131,
+        "relation_residual_norm": 2.884554862976074,
+        "scope": "Norms and residual/anchor ratios: valid-token mean; slot norms: active history-supported evidence mean. No semantic interpretation.",
+        "valid_count": 686
+      },
+      "loss": 1.4250184297561646,
+      "macro_f1": 0.8026307129627018,
+      "mae": 0.938679039478302,
+      "mask_sha256": "2479f1c5c543be6d83a1a43fe04247c688b58cb1ca94ca709199dfff0a868f43",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.033712387084961,
+      "weighted_f1": 0.80590540229719
+    },
+    "0.4": {
+      "accuracy": 0.8048780487804879,
+      "correlation": 0.6399835271580167,
+      "current_history_relation": {
+        "active_evidence_count_mean": 2.037900924682617,
+        "history_count": 655,
+        "per_slot_relation_norm": {
+          "base": 2.6524264812469482,
+          "gap_audio": 2.8342933654785156,
+          "gap_text": 2.913037061691284,
+          "gap_visual": 2.642613172531128
+        },
+        "relation_anchor_norm_ratio": 0.009104947559535503,
+        "relation_residual_norm": 3.285947561264038,
+        "scope": "Norms and residual/anchor ratios: valid-token mean; slot norms: active history-supported evidence mean. No semantic interpretation.",
+        "valid_count": 686
+      },
+      "loss": 1.582236647605896,
+      "macro_f1": 0.8026307129627018,
+      "mae": 1.006034255027771,
+      "mask_sha256": "68171473b0f9f645f95ac216dab871fe910e54b4f8c9a01be15d21db34795b76",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.027886986732483,
+      "weighted_f1": 0.80590540229719
+    },
+    "0.5": {
+      "accuracy": 0.7698170731707317,
+      "correlation": 0.6351752779039823,
+      "current_history_relation": {
+        "active_evidence_count_mean": 2.2959184646606445,
+        "history_count": 655,
+        "per_slot_relation_norm": {
+          "base": 3.139235019683838,
+          "gap_audio": 3.13299560546875,
+          "gap_text": 3.1647377014160156,
+          "gap_visual": 3.0300230979919434
+        },
+        "relation_anchor_norm_ratio": 0.008451820351183414,
+        "relation_residual_norm": 3.447751522064209,
+        "scope": "Norms and residual/anchor ratios: valid-token mean; slot norms: active history-supported evidence mean. No semantic interpretation.",
+        "valid_count": 686
+      },
+      "loss": 1.5546859502792358,
+      "macro_f1": 0.7648862716615517,
+      "mae": 1.0094419717788696,
+      "mask_sha256": "d42e61495e88243750c9e238cae18b61f31063f90528f3fc353de7fab35d464d",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9330193400382996,
+      "weighted_f1": 0.7701803953871976
+    },
+    "0.6": {
+      "accuracy": 0.7515243902439024,
+      "correlation": 0.5931313577579109,
+      "current_history_relation": {
+        "active_evidence_count_mean": 2.4737610816955566,
+        "history_count": 655,
+        "per_slot_relation_norm": {
+          "base": 2.9407103061676025,
+          "gap_audio": 2.9438536167144775,
+          "gap_text": 3.0038959980010986,
+          "gap_visual": 2.8033335208892822
+        },
+        "relation_anchor_norm_ratio": 0.007370860781520605,
+        "relation_residual_norm": 2.991319179534912,
+        "scope": "Norms and residual/anchor ratios: valid-token mean; slot norms: active history-supported evidence mean. No semantic interpretation.",
+        "valid_count": 686
+      },
+      "loss": 1.659706473350525,
+      "macro_f1": 0.7442005669653002,
+      "mae": 1.0377005338668823,
+      "mask_sha256": "6b52889567e922a3d693c4a6cc057ff1ceb96acaef17527989a70e21abfe1fe7",
+      "predicted_sign_count": 2,
+      "prediction_std": 0.9012839198112488,
+      "weighted_f1": 0.7509305667348266
+    },
+    "0.7": {
+      "accuracy": 0.7545731707317073,
+      "correlation": 0.5696849267259645,
+      "current_history_relation": {
+        "active_evidence_count_mean": 2.639941692352295,
+        "history_count": 655,
+        "per_slot_relation_norm": {
+          "base": 2.6209185123443604,
+          "gap_audio": 2.636772871017456,
+          "gap_text": 2.6408090591430664,
+          "gap_visual": 2.4706943035125732
+        },
+        "relation_anchor_norm_ratio": 0.007178098428994417,
+        "relation_residual_norm": 2.7761566638946533,
+        "scope": "Norms and residual/anchor ratios: valid-token mean; slot norms: active history-supported evidence mean. No semantic interpretation.",
+        "valid_count": 686
+      },
+      "loss": 1.9857765436172485,
+      "macro_f1": 0.7412228796844182,
+      "mae": 1.0986326932907104,
+      "mask_sha256": "f1208aad19deff6a211236caa7b64e705390ff94e26bc77d8c86717fbffed9cb",
+      "predicted_sign_count": 2,
+      "prediction_std": 1.430362343788147,
+      "weighted_f1": 0.750362005099341
+    }
+  },
+  "text_subspace_integrity": null,
+  "text_subspace_provenance": null,
+  "train_missing_rate": null,
+  "trainable_parameter_count": 13789441,
+  "training_objective": "emotion-only",
+  "warmup_ratio": 0.05
+}
