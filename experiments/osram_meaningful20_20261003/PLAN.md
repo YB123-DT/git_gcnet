@@ -1,5 +1,12 @@
 # Meaningful twenty-block continuous search
 
+User update (2026-10-03): **at most 60 distinct meaningful methods, twenty per
+round, at most three rounds**. This supersedes all earlier unlimited-loop
+wording. Replication seeds/retries are not new methods. At the cap, finish the
+authorized replication/results and stop; no automatic fourth round. Use one
+shared minimal correctness/real-batch preflight template; passing candidates
+may start immediately without waiting for other candidates or new review rounds.
+
 Plan approved sequentially by Architect and independent Critic, 2026-10-03. Implementation/testing is in progress; approval is not training/performance verification.
 
 - [中文执行摘要](PLAN.zh.md)

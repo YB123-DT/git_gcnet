@@ -1,5 +1,13 @@
 # PRD: meaningful Local/Base/Gap search and experiment loop
 
+User override, 2026-10-03: hard cap of **60 distinct methods / three rounds of
+20**, superseding unlimited continuation below. Count a distinct method once
+even when repeated or replicated across seeds; failed attempted methods must
+not be hidden to circumvent the cap. No automatic fourth round. If the cap is
+reached, finish authorized replication and report all outcomes, even if none
+improves. Use the shared minimal verification template; no additional generic
+review rounds before dispatch.
+
 Status: sequential Architect and independent Critic APPROVED on 2026-10-03. Implementation may proceed under the user's continuous authorization; training still requires each candidate's correctness/resource gates. Context: `.omx/context/osram-meaningful20-loop-20261003T000000Z.md`.
 
 ## Outcome and scope
