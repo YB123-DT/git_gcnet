@@ -2,7 +2,14 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: implementation verified; seed66 launch pending. No performance claim.
+Status: implementation verified; seed66 training launched on biggpu GPU5,
+PID 725686, implementation commit 22fdbdf. No performance claim.
+Remote log: /data2/yb/remote_experiments/osram_gap_increment_filter_20261003/train.log.
+The five recorded implementation source hashes matched the committed local
+files before launch. Snapshot is isolated from subsequent working-tree edits.
+
+Measured parameters: Flat 13,509,793; Filter 13,926,434; added 416,641.
+All 13,926,434 model parameters remain trainable.
 
 The original Flat anchor is preserved. With the same Local, Base, Gap and one
 Memory scan, shared Adapter calls produce uF (full) and uB (Gap zeroed), using
