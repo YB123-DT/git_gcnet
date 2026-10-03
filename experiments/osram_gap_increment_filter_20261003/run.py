@@ -5,13 +5,25 @@ import os
 from pathlib import Path
 import platform
 import sys
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from experiments.osram_current_history_relation_20261003.run import relation_config
 from experiments.osram_paired_history_rho025_20261002.sweep import (
-    REFERENCE, DATASET, UUIDS, gpu_check, common, read, write, sha,
+    REFERENCE, DATASET, common, read, write, sha,
 )
+
+UUIDS = {'0': 'GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45',
+         '5': 'GPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62'}
+
+
+def gpu_check(gpu):
+    values = subprocess.check_output(['nvidia-smi', '-i', gpu,
+        '--query-gpu=uuid,memory.free', '--format=csv,noheader,nounits'], text=True).strip().split(',')
+    if values[0].strip() != UUIDS[gpu]:
+        raise RuntimeError('GPU UUID mismatch')
+    return int(values[1])
 
 
 def filter_config(base, seed=66):
@@ -42,7 +54,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--commit', required=True)
-    parser.add_argument('--gpu', choices=('5',), default='5')
+    parser.add_argument('--gpu', choices=tuple(UUIDS), default='5')
     parser.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     args = parser.parse_args()
     import torch
