@@ -68,9 +68,51 @@ def mask_head_input(emotion_input, latent_dim, context_dim, value_dim, head, evi
     return result
 
 
+def query_observables(queries, base, gap, availability, valid, diagnostics, heads, value_dim):
+    """Describe existing tensors; raw query comparisons do not undo residual addressing."""
+    import numpy as np
+    import torch
+    valid_np=valid.detach().cpu().numpy().astype(bool)
+    raw=np.full((*valid_np.shape,3,3,heads),np.nan)
+    for m,name in enumerate(('audio','text','visual')):
+        for j,metric in enumerate(('rho','eta','cosine')):
+            raw[...,m,j,:][valid_np]=np.asarray(diagnostics[name][metric]).reshape(-1,heads)
+    q=queries.detach().cpu()
+    b=base.detach().cpu().reshape(*valid.shape,heads,value_dim)
+    g=gap.detach().cpu().reshape(*valid.shape,3,heads,value_dim)
+    a=availability.detach().cpu().bool()
+    def cosine(x,y):
+        if float(x.norm())<=1e-8 or float(y.norm())<=1e-8:
+            return float('nan')
+        return float(torch.nn.functional.cosine_similarity(x,y,dim=-1))
+    rows=[];index=0
+    for batch in range(valid.shape[1]):
+        for time in range(valid.shape[0]):
+            if not valid_np[time,batch]:
+                continue
+            for m,name in enumerate('ATV'):
+                if bool(a[time,batch,m]):
+                    continue
+                for head in range(heads):
+                    qb,qg=q[time,batch,0,head],q[time,batch,m+1,head]
+                    br,gr=b[time,batch,head],g[time,batch,m,head]
+                    rho=float(raw[time,batch,m,0,head])
+                    residual_cosine=float(raw[time,batch,m,2,head])
+                    if float(qg.norm())<=1e-8 or rho*float(qg.norm())<=1e-8:
+                        residual_cosine=float('nan')
+                    rows.append(dict(artifact_row=index,modality=name,head=head,
+                        cos_base_gap_query=cosine(qb,qg),
+                        cos_gap_residual_query=residual_cosine,
+                        cos_base_gap_read=cosine(br,gr),rho=rho,
+                        eta=float(raw[time,batch,m,1,head]),norm_q_base=float(qb.norm()),
+                        norm_q_gap=float(qg.norm()),norm_base_read=float(br.norm()),norm_gap_read=float(gr.norm())))
+            index+=1
+    return rows
+
+
 class Capture:
     """Read-only hooks/profile capture; replay never calls encoder, queries or scan."""
-    def __init__(self, model, head_ablation=False):
+    def __init__(self, model, head_ablation=False, query_audit=False):
         self.model = model
         self.batches = []
         self.scans = 0
@@ -78,12 +120,18 @@ class Capture:
         self.handles = []
         self.head_ablation = head_ablation
         self.head_batches = []
+        self.query_audit = query_audit
+        self.query_batches = []
 
     def profile(self, frame, event, arg):
         if event == 'return' and frame.f_code is self.model.osram._scan.__func__.__code__:
             state = frame.f_locals
             assert not state['reverse']
             self.scan_diagnostics = unpack_diagnostics(state['diagnostics'], state['valid'], self.model.osram.num_heads)
+            if self.query_audit:
+                rows=query_observables(state['queries'],state['base'],state['gap'],state['availability'],
+                    state['valid'],state['diagnostics'],self.model.osram.num_heads,self.model.osram.value_dim)
+                self.query_batches.extend(dict(row,artifact_row=row['artifact_row']+len(self.batches)) for row in rows)
             self.scans += 1
 
     def pre(self, module, args):
@@ -177,6 +225,7 @@ def main():
     parser.add_argument('--gpu', default='5')
     parser.add_argument('--head-ablation', action='store_true',
                         help='Also replay 16 classifier-only single-head interventions; never another scan')
+    parser.add_argument('--query-audit', action='store_true',help='Capture existing per-head queries/read values/diagnostics')
     parser.add_argument('--reference-dir', type=Path, default=ROOT/'experiments/osram_cfg84_history_scale_20260929/results')
     args = parser.parse_args()
     import numpy as np
@@ -212,6 +261,8 @@ def main():
                       environment=dict(torch=torch.__version__,cuda=torch.version.cuda,python=sys.version),
                       utterance_index_semantics='Original sample-ID numeric suffix; not a reconstructed zero-based sequence index',
                       head_ablation=args.head_ablation,
+                      query_audit=args.query_audit,
+                      query_comparison='qB vs raw qG; read G uses residual-addressed qG. Do not interpret raw-query/read mismatch alone as mapping collapse.',
                       intervention='Same full checkpoint; one scan; only Flat history inputs zeroed',
                       protocol='INTERNAL DIAGNOSTIC ONLY; original per-rate Test-oracle BEST')
     write(args.output/'PROVENANCE.json', provenance)
@@ -223,7 +274,7 @@ def main():
         model = _build_model(c, (ad,td,vd)).cuda().eval().requires_grad_(False)
         assert not model.osram.bidirectional
         schedules = _schedules(c, 'test')
-        all_rows, checks, all_head_rows = [], [], []
+        all_rows, checks, all_head_rows, all_query_rows = [], [], [], []
         for rate in [i/10 for i in range(8)]:
             checkpoint = args.source/f'best_miss_{str(rate).replace(".", "p")}.pt'
             checkpoint_sha = sha(checkpoint)
@@ -232,7 +283,7 @@ def main():
             reference_path = args.reference_dir/f'seed_66_miss_{rate:.1f}_alpha_1.0.npz'
             with np.load(reference_path) as stream:
                 reference = {key:stream[key].copy() for key in stream.files}
-            with torch.no_grad(), Capture(model, head_ablation=args.head_ablation) as capture:
+            with torch.no_grad(), Capture(model, head_ablation=args.head_ablation,query_audit=args.query_audit) as capture:
                 metrics, artifacts = evaluate_rate(model, loaders[0], schedules[rate], c.dataset,
                     (ad,td,vd), torch.device('cuda:0'), True, c.mosi_task_mode,
                     c.task_regression_loss, c.task_smooth_l1_beta)
@@ -257,6 +308,10 @@ def main():
                 all_head_rows.append(dict(seed=66,rate=rate,utterance_id=original['utterance_id'],
                     label=original['label'],availability=original['availability'],
                     pred_full=original['pred_full'],**intervention))
+            for query in capture.query_batches:
+                original=rate_rows[query['artifact_row']]
+                all_query_rows.append(dict(seed=66,rate=rate,utterance_id=original['utterance_id'],
+                    label=original['label'],availability=original['availability'],**query))
             for key,value in model.state_dict().items():
                 assert torch.equal(value.cpu(),state['model'][key]), key
             assert sha(checkpoint) == checkpoint_sha
@@ -272,6 +327,9 @@ def main():
             assert len(all_head_rows) == len(all_rows) * 2 * model.osram.num_heads
             with (args.output/'head_predictions.csv').open('w',newline='') as stream:
                 writer=csv.DictWriter(stream,fieldnames=list(all_head_rows[0]));writer.writeheader();writer.writerows(all_head_rows)
+        if args.query_audit:
+            with (args.output/'query_observables.csv').open('w',newline='') as stream:
+                writer=csv.DictWriter(stream,fieldnames=list(all_query_rows[0]));writer.writeheader();writer.writerows(all_query_rows)
         provenance.update(status='complete',rows=len(all_rows),scans=sum(r['scans'] for r in checks))
     except BaseException as error:
         provenance.update(status='failed',error=repr(error));raise

@@ -88,3 +88,36 @@ def test_real_head_replays_do_not_add_scan_or_change_full():
     assert torch.equal(expected, actual)
     assert capture.scans == 1
     assert len(capture.head_batches) == 2 * model.osram.num_heads * int(u.sum())
+
+
+def test_query_audit_uses_existing_perhead_diagnostics_and_nan_zero_reads():
+    valid=torch.tensor([[True],[True]])
+    availability=torch.tensor([[[1,0,1]],[[0,1,1]]])
+    queries=torch.ones(2,1,4,2,2)
+    queries[:,:,0,:,1]=0
+    base=torch.zeros(2,1,4);base[1]=1
+    gap=torch.zeros(2,1,3,4);gap[1,:,0]=1
+    diagnostics={m:{key:list(range(4)) for key in ('rho','eta','cosine')}
+                 for m in ('audio','text','visual')}
+    rows=module().query_observables(queries,base,gap,availability,valid,diagnostics,2,2)
+    assert len(rows)==4
+    assert rows[0]['modality']=='T' and rows[2]['modality']=='A'
+    assert np.isnan(rows[0]['cos_base_gap_read'])
+    assert abs(rows[2]['cos_base_gap_read']-1)<1e-6
+    assert rows[3]['cos_gap_residual_query']==3
+    assert rows[3]['rho']==3 and rows[3]['eta']==3
+
+
+def test_real_query_audit_keeps_full_prediction_and_single_scan():
+    from gcnet_missing_m3.model import MissingM3GraphModel
+    from tests.test_completion_memory_write import model_kwargs, inputs
+    kwargs=model_kwargs();kwargs.update(completion_path='none')
+    model=MissingM3GraphModel(**kwargs).eval()
+    x,a,q,u,lengths=inputs()
+    with torch.no_grad():
+        expected=model([x],a,q,u,lengths,predict_missing=False)[0]
+        with module().Capture(model,query_audit=True) as capture:
+            actual=model([x],a,q,u,lengths,predict_missing=False)[0]
+    assert torch.equal(expected,actual)
+    assert capture.scans==1
+    assert len(capture.query_batches)==int(((1-a)*u.T.unsqueeze(-1)).sum())*model.osram.num_heads
