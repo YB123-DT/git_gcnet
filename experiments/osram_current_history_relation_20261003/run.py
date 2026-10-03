@@ -1,4 +1,4 @@
-"""Single authorized seed66 relation run; unchanged cfg84 task/mask protocol."""
+"""Authorized relation seeds; unchanged cfg84 task/mask protocol."""
 import argparse
 from datetime import datetime, timezone
 import os
@@ -13,8 +13,8 @@ from experiments.osram_paired_history_rho025_20261002.sweep import (
 )
 
 
-def relation_config(base):
-    expected = dict(seed=66, epochs=100, osram_readout_fusion='flat',
+def relation_config(base, seed=66):
+    expected = dict(seed=seed, epochs=100, osram_readout_fusion='flat',
                     training_objective='emotion-only', completion_path='none')
     for key, value in expected.items():
         if base.get(key) != value:
@@ -56,9 +56,9 @@ def train(args):
         raise ValueError('Visible device must match recorded host GPU')
     if gpu_check(args.gpu) < 4000:
         raise RuntimeError('Insufficient free memory; do not change the protocol')
-    common.configuration_dict(66, REFERENCE)  # Validate only: returned query variant is NOT used.
-    reference = REFERENCE / 'seed_66'
-    config = relation_config(read(reference / 'config.json'))
+    common.configuration_dict(args.seed, REFERENCE)  # Validate only: returned query variant is NOT used.
+    reference = REFERENCE / f'seed_{args.seed}'
+    config = relation_config(read(reference / 'config.json'), seed=args.seed)
     if args.dual_readout:
         config['osram_relation_dual_readout'] = True
     args.output.mkdir(parents=True, exist_ok=False)
@@ -95,6 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--gpu', choices=('5', '6'), default='5')
     parser.add_argument('--commit', required=True)
+    parser.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     parser.add_argument('--dual-readout', action='store_true',
                         help='Same-trajectory 0.5 base + 0.5 full task supervision')
     train(parser.parse_args())
