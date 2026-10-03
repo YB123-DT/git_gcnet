@@ -43,4 +43,25 @@ CUDA_VISIBLE_DEVICES=5 OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=
 PROVENANCE.json records source hashes, reference hashes, environment, GPU UUID
 and effective config. PARAMETERS.json records measured parameter counts.
 Completion requires 100 epochs, eight BEST checkpoints and unchanged evaluation
-mask hashes. No automatic multi-seed expansion.
+mask hashes.
+
+## User-authorized three-seed extension
+
+User explicitly requested seeds 66/67/68 after the initial launch. Seed66 remains
+on GPU5 with its immutable original snapshot. Seeds67/68 use commit 38883d0
+and code_multiseed, with identical model files and only seed-aware launcher and
+GPU whitelist changes. Each loads its corresponding original Flat configuration.
+
+| Seed | Host GPU | PID | Log |
+|---|---|---|---|
+| 66 | 5 | 725686 | train.log |
+| 67 | 0 | 1335471 | seed_67_gpu0.log |
+| 68 | 0 | 1369299 | seed_68_gpu0.log |
+
+Logs live under the remote experiment root above. All runs are from scratch,
+100 epochs, with separate checkpoints; no loss/hyperparameter change. GPU0 UUID
+is GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45. Seed67's first GPU5 attempt was
+blocked before training by the free-memory guard (4091 MiB); that failed launch
+log is retained as seed_67.log. The two additional runs were moved to free GPU0
+on the same server, not to a different machine. Three launcher tests passed.
+Results remain pending; this table records launches, not completed experiments.
