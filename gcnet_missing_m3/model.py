@@ -1285,7 +1285,24 @@ class MissingM3GraphModel(GraphModel):
         osram_relation_out_dim=64,
         osram_gap_increment_filter=False,
         osram_decision_correction=False,
+        osram_readout_candidate='none',
     ) -> None:
+        if osram_readout_candidate != 'none' and (
+            backbone_type != 'osram' or osram_readout_fusion != 'flat'
+            or osram_bidirectional or osram_forward_slot_reuse
+            or training_objective != 'emotion-only' or completion_path != 'none'
+            or classification_completion or completion_write_to_memory or text_core
+            or local_context_residual or node_interaction_residual or readout_type != 'shared'
+            or complete_state_jepa or write_state_completion or future_state_jepa
+            or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter
+            or osram_history_input_gate or osram_local_evidence_gate
+            or osram_hierarchical_evidence_gate or osram_hierarchical_feature_only
+            or osram_history_query_adapter or osram_relation_block or osram_relation_dual_readout
+            or osram_gap_increment_filter or osram_decision_correction
+            or teacher_mode != 'ema' or simple_regression_predictor or not disable_unused_aux_modules
+        ):
+            raise ValueError('readout candidates require the unmodified shared causal Flat emotion-only path')
+        self.osram_readout_candidate = osram_readout_candidate
         if osram_decision_correction and (
             backbone_type != 'osram' or osram_readout_fusion != 'flat'
             or osram_bidirectional or osram_forward_slot_reuse
@@ -1739,6 +1756,7 @@ class MissingM3GraphModel(GraphModel):
                 osram_relation_out_dim=osram_relation_out_dim,
                 osram_gap_increment_filter=osram_gap_increment_filter,
                 osram_decision_correction=osram_decision_correction,
+                osram_readout_candidate=osram_readout_candidate,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,

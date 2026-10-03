@@ -843,8 +843,19 @@ class OSRAMBackbone(nn.Module):
         osram_relation_out_dim: int = 64,
         osram_gap_increment_filter: bool = False,
         osram_decision_correction: bool = False,
+        osram_readout_candidate: str = 'none',
     ) -> None:
         super().__init__()
+        self.osram_readout_candidate = osram_readout_candidate
+        if self.osram_readout_candidate != 'none' and (
+            bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat'
+            or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter
+            or osram_history_input_gate or osram_local_evidence_gate
+            or osram_hierarchical_evidence_gate or osram_hierarchical_feature_only
+            or history_query_adapter or osram_relation_block or osram_relation_dual_readout
+            or osram_gap_increment_filter or osram_decision_correction
+        ):
+            raise ValueError('readout candidates require causal Flat without other adaptations')
         self.osram_decision_correction = bool(osram_decision_correction)
         self.last_decision_evidence = None
         if self.osram_decision_correction and (
@@ -1092,6 +1103,11 @@ class OSRAMBackbone(nn.Module):
             with torch.random.fork_rng(devices=[]):
                 self.post_grn = PostGRN(self.latent_dim, self.context_dim, self.output_dim, dropout)
         self.last_diagnostics: dict[str, object] = {}
+        if self.osram_readout_candidate != 'none':
+            from .readout_candidates import ExternalReadoutResidual
+            with torch.random.fork_rng(devices=[]):
+                self.readout_candidate = ExternalReadoutResidual(
+                    self.latent_dim, self.context_dim, self.output_dim, self.osram_readout_candidate)
         if self.osram_gap_increment_filter:
             with torch.random.fork_rng(devices=[]):
                 self.gap_increment_filter = GapIncrementFilter(self.output_dim)
@@ -1653,13 +1669,13 @@ class OSRAMBackbone(nn.Module):
         else:
             # The opt-in path also sanitizes the Flat inputs; the disabled
             # historical path is deliberately byte-for-byte unchanged.
-            if self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+            if self.osram_readout_candidate != 'none' or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_post_grn or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
                 local = torch.where(valid.unsqueeze(-1), local, torch.zeros_like(local))
                 emotion_base = torch.where(valid.unsqueeze(-1), emotion_base, torch.zeros_like(emotion_base))
                 emotion_gap = torch.where(
                     (valid.unsqueeze(-1) & ~availability.bool()).unsqueeze(-1),
                     emotion_gap, torch.zeros_like(emotion_gap))
-                if self.osram_gap_increment_filter:
+                if self.osram_gap_increment_filter or self.osram_readout_candidate != 'none':
                     # A transposed mask can make where's result noncontiguous.
                     # Preserve the legacy Linear GEMM layout (and CUDA rounding).
                     local = local.contiguous()
@@ -1690,7 +1706,12 @@ class OSRAMBackbone(nn.Module):
                     ),
                     dim=-1,
                 )
-            if self.osram_gap_increment_filter:
+            if self.osram_readout_candidate != 'none':
+                flat_anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)
+                residual = self.readout_candidate(
+                    local, emotion_base, emotion_gap, availability, umask, flat_anchor)
+                hidden = self.emotion_norm(flat_anchor + residual)
+            elif self.osram_gap_increment_filter:
                 # Save the exact adapter dropout stream, then replay it locally.
                 # The enclosing stream advances for the original full call only.
                 skip = self.local_skip(local)
@@ -1727,7 +1748,7 @@ class OSRAMBackbone(nn.Module):
                 )
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+        elif self.osram_readout_candidate != 'none' or self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
@@ -1822,6 +1843,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics['current_history_relation'] = self.relation_block.last_diagnostics
         if self.osram_gap_increment_filter:
             diagnostics['gap_increment_filter'] = self.gap_increment_filter.last_diagnostics
+        if self.osram_readout_candidate != 'none':
+            diagnostics['readout_candidate'] = self.readout_candidate.last_diagnostics
         self.last_diagnostics = diagnostics
         contexts = {
             "base": active_base_context,

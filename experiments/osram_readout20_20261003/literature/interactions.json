@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "verified_on": "2026-10-03",
+  "scope": "Seven non-MSA/MERC interaction/fusion papers; mechanism-level Local/Base/Gap readout adaptations, never full-paper reproductions.",
+  "shared_adaptation_contract": {
+    "tokens": "At each valid utterance, project existing current Local L, Base B, and three masked Gap vectors G_a,G_t,G_v to a common width. Mask inactive Gap with torch.where before and after biased projection; exclude inactive positions from pooling/attention. No cross-utterance attention.",
+    "boundary": "Reuse existing single Local/Memory trajectory. No new Memory scan, Memory query, cache, auxiliary loss, frozen module, or separate task head. Query projections inside a finite readout token operator are not another Memory query.",
+    "output": "Produce one readout contribution compatible with existing output dimension, normalization and task head. Any common zero-initialized output projection / residual wrapper is an experimental adaptation, not a claimed paper component.",
+    "screening": "One seed is a screening comparison only; fix width/depth before running, retain all results and parameter/runtime costs."
+  },
+  "duplicate_warnings": [
+    "Do not count AFF and iAFF separately: same paper and family.",
+    "AutoInt and embedded-Gaussian Non-local reduce to closely related softmax dot-product attention. Use the paper's non-softmax dot-product Non-local variant for a substantively different candidate.",
+    "DLRM dot interactions overlap FM/PNN inner-product candidates. If other lanes select those, count this overlap explicitly or replace a duplicate.",
+    "CIN is the interaction component of xDeepFM; do not count xDeepFM and CIN as two papers.",
+    "DCNv2 full-rank and low-rank variants count as one method/paper."
+  ],
+  "papers": [
+    {
+      "id": "dcn_v2",
+      "title": "DCN V2: Improved Deep & Cross Network and Practical Lessons for Web-scale Learning to Rank Systems",
+      "authors": [
+        "Ruoxi Wang",
+        "Rakesh Shivanna",
+        "Derek Z. Cheng",
+        "Sagar Jain",
+        "Dong Lin",
+        "Lichan Hong",
+        "Ed H. Chi"
+      ],
+      "url": "https://arxiv.org/abs/2008.13535",
+      "method_source": "https://arxiv.org/html/2008.13535v2",
+      "method_location": "Section 3.2 Eq.1; Section 3.5 Eq.2",
+      "domain": "Recommendation / web-scale learning to rank",
+      "year": 2021,
+      "code_url": "https://github.com/tensorflow/recommenders/blob/7f3e76f277494ae2dfe5d0c6f7a26aea35d6cfc1/tensorflow_recommenders/layers/feature_interaction/dcn.py",
+      "code_symbol": "Cross.call",
+      "code_provenance": "Official TensorFlow/Google implementation explicitly cites DCNv2 Eqs.1-2; individual paper-author ownership of this file was not established.",
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/tensorflow/recommenders/blob/7f3e76f277494ae2dfe5d0c6f7a26aea35d6cfc1/LICENSE",
+      "formula": "x_(l+1)=x_l+x_0⊙(W_l x_l+b_l); low-rank option W_l=U_l V_l^T.",
+      "adaptation": "Flatten five projected tokens into x0; use a fixed small cross stack and output projection. Preserve all token slots and explicit availability.",
+      "limitations": [
+        "Mechanism adaptation omits CTR embedding tables and original deep/cross prediction architecture.",
+        "Full-rank crossing grows quadratically with concatenated width; low-rank is from the same paper, not another candidate.",
+        "Code supports extra diagonal scale and preactivation; set these to paper-compatible defaults."
+      ],
+      "verification": "Original method HTML and actual official framework file inspected; author-personal-repository attribution remains unverified."
+    },
+    {
+      "id": "xdeepfm_cin",
+      "title": "xDeepFM: Combining Explicit and Implicit Feature Interactions for Recommender Systems",
+      "authors": [
+        "Jianxun Lian",
+        "Xiaohuan Zhou",
+        "Fuzheng Zhang",
+        "Zhongxia Chen",
+        "Xing Xie",
+        "Guangzhong Sun"
+      ],
+      "url": "https://arxiv.org/abs/1803.05170",
+      "method_source": "https://arxiv.org/pdf/1803.05170",
+      "method_location": "Section 3.1 Eqs.6-7",
+      "domain": "Recommendation / CTR prediction",
+      "year": 2018,
+      "code_url": "https://github.com/Leavingseason/xDeepFM/blob/114c4c45b1cb6144b2540f92a2b357c3f445e98e/exdeepfm/src/CIN.py",
+      "code_symbol": "_build_extreme_FM",
+      "code_provenance": "Paper links this author repository; README identifies it as paper code.",
+      "license": "No LICENSE file found in inspected repository tree; no redistribution permission inferred.",
+      "license_url": null,
+      "formula": "X_h^k=Σ_iΣ_j W_ij^(k,h)(X_i^(k-1)⊙X_j^0); p_h^k=Σ_d X_hd^k.",
+      "adaptation": "Use five same-width tokens as fields; compute fixed-depth vector-wise products, compress feature maps, sum channels and project concatenated layer summaries to the readout.",
+      "limitations": [
+        "CIN-only adaptation is not complete xDeepFM: original combines linear, CIN and DNN outputs.",
+        "Biased projections must be remasked; multiplicative features are sensitive to scale.",
+        "Independently implement equations; do not copy unlicensed source."
+      ],
+      "verification": "Original PDF method and author CIN code inspected; missing code license recorded."
+    },
+    {
+      "id": "autoint",
+      "title": "AutoInt: Automatic Feature Interaction Learning via Self-Attentive Neural Networks",
+      "authors": [
+        "Weiping Song",
+        "Chence Shi",
+        "Zhiping Xiao",
+        "Zhijian Duan",
+        "Yewen Xu",
+        "Ming Zhang",
+        "Jian Tang"
+      ],
+      "url": "https://arxiv.org/abs/1810.11921",
+      "method_source": "https://arxiv.org/pdf/1810.11921",
+      "method_location": "Section 4.4 Eqs.5-7",
+      "domain": "Recommendation / CTR prediction",
+      "year": 2019,
+      "code_url": "https://github.com/shichence/AutoInt/blob/d88536fbe9733e45d182fb600657d0bdf82b640c/model.py",
+      "code_symbol": "multihead_attention",
+      "code_provenance": "Author Chence Shi repository; README points to successor DeepGraphLearning/RecommenderSystems/featureRec.",
+      "license": "MIT",
+      "license_url": "https://github.com/shichence/AutoInt/blob/d88536fbe9733e45d182fb600657d0bdf82b640c/LICENSE",
+      "formula": "α_ij^h=softmax_j((W_Q^h e_i)^T W_K^h e_j); e'_i=ReLU(concat_h Σ_j α_ij^h W_V^h e_j+W_R e_i).",
+      "adaptation": "Apply a fixed multi-head interacting stack only across current five tokens; mask inactive keys and query outputs, then flatten/project valid token outputs.",
+      "limitations": [
+        "Readout projections Q/K do not read Memory again.",
+        "Author code uses ReLU Q/K/V projections and scaling; paper equations use linear embeddings and unscaled scores. Record selected variant.",
+        "Do not call this a full Transformer; no FFN is required by this interacting block.",
+        "Avoid counting embedded-Gaussian Non-local as another equivalent implementation."
+      ],
+      "verification": "Original method PDF, author code and MIT license metadata inspected."
+    },
+    {
+      "id": "din",
+      "title": "Deep Interest Network for Click-Through Rate Prediction",
+      "authors": [
+        "Guorui Zhou",
+        "Chengru Song",
+        "Xiaoqiang Zhu",
+        "Ying Fan",
+        "Han Zhu",
+        "Xiao Ma",
+        "Yanghui Yan",
+        "Junqi Jin",
+        "Han Li",
+        "Kun Gai"
+      ],
+      "authors_note": "Names and order transcribed from inspected arXiv PDF first page; proceedings metadata may differ in ordering/spelling.",
+      "url": "https://arxiv.org/abs/1706.06978",
+      "method_source": "https://arxiv.org/pdf/1706.06978",
+      "method_location": "Section 4.3 Eq.3; page4 explicitly removes softmax normalization",
+      "domain": "Recommendation / candidate-conditioned user interest modeling",
+      "year": 2018,
+      "code_url": "https://github.com/zhougr1993/DeepInterestNetwork/blob/9765f96202f849e59ff260c8b46931a0ddf01d77/din/model.py",
+      "code_symbol": "attention",
+      "code_provenance": "First-author repository; README recommends updated mouna99/dien implementation and warns about earlier BatchNorm errors.",
+      "license": "No LICENSE file found in inspected repository tree; no redistribution permission inferred.",
+      "license_url": null,
+      "formula": "v(L)=Σ_j a(e_j,L)e_j with unnormalized learned activation a; author implementation scores concat(L,e_j,L-e_j,L⊙e_j) through MLP.",
+      "adaptation": "Condition readout activation on current Local; weight already-read Base and active Gap tokens; concatenate Local and pooled context for one output projection.",
+      "limitations": [
+        "Local activation is over already available contexts, not a new Memory query.",
+        "Paper has unnormalized weights; inspected demo applies softmax. Prefer paper equation and document departure from demo.",
+        "No behavior sequence, mini-batch-aware embedding regularizer, or extra DIN task loss is transferred.",
+        "Independently implement formula; author demo is deprecated and unlicensed."
+      ],
+      "verification": "Original PDF method, exact author demo function and README warnings inspected; code-paper mismatch explicitly retained."
+    },
+    {
+      "id": "dlrm_dot",
+      "title": "Deep Learning Recommendation Model for Personalization and Recommendation Systems",
+      "authors": [
+        "Maxim Naumov",
+        "Dheevatsa Mudigere",
+        "Hao-Jun Michael Shi",
+        "Jianyu Huang",
+        "Narayanan Sundaraman",
+        "Jongsoo Park",
+        "Xiaodong Wang",
+        "Udit Gupta",
+        "Carole-Jean Wu",
+        "Alisson G. Azzolini",
+        "Dmytro Dzhulgakov",
+        "Andrey Mallevich",
+        "Ilia Cherniavskii",
+        "Yinghai Lu",
+        "Raghuraman Krishnamoorthi",
+        "Ansha Yu",
+        "Volodymyr Kondratenko",
+        "Stephanie Pereira",
+        "Xianjie Chen",
+        "Wenlin Chen",
+        "Vijay Rao",
+        "Bill Jia",
+        "Liang Xiong",
+        "Misha Smelyanskiy"
+      ],
+      "url": "https://arxiv.org/abs/1906.00091",
+      "method_source": "https://arxiv.org/pdf/1906.00091",
+      "method_location": "Section 2.2",
+      "domain": "Recommendation / personalization",
+      "year": 2019,
+      "code_url": "https://github.com/facebookresearch/dlrm/blob/9bc1bc3602aea22afad3206910cec50f2dbe7364/dlrm_s_pytorch.py",
+      "code_symbol": "DLRM_Net.interact_features",
+      "code_provenance": "Facebook Research release linked to original paper.",
+      "license": "MIT",
+      "license_url": "https://github.com/facebookresearch/dlrm/blob/9bc1bc3602aea22afad3206910cec50f2dbe7364/LICENSE",
+      "formula": "Z=EE^T; r=concat(e_dense,{Z_ij:i>j}); output=MLP(r).",
+      "adaptation": "Treat projected Local as dense path and projected Base/Gap as additional fields; concatenate Local with ten distinct pairwise dot products, then project to original readout width.",
+      "limitations": [
+        "Retains only second-order scalar similarities; channel-level signed detail can be lost.",
+        "No categorical embeddings, distributed embedding system or original sigmoid task head is reproduced.",
+        "Closely overlaps FM/inner-product PNN; avoid duplicate counting across the 20 candidates."
+      ],
+      "verification": "Original architecture PDF and official interact_features file inspected."
+    },
+    {
+      "id": "aff",
+      "title": "Attentional Feature Fusion",
+      "authors": [
+        "Yimian Dai",
+        "Fabian Gieseke",
+        "Stefan Oehmcke",
+        "Yiquan Wu",
+        "Kobus Barnard"
+      ],
+      "url": "https://arxiv.org/abs/2009.14082",
+      "method_source": "https://arxiv.org/pdf/2009.14082",
+      "method_location": "Section 4.1 Eq.4; MS-CAM combines local and global channel context",
+      "domain": "Vision / image feature fusion",
+      "year": 2021,
+      "code_url": "https://github.com/YimianDai/open-aff/blob/0bcfd8a1b010a66075db6232b1141b35f0f07532/model/fusion.py",
+      "code_symbol": "ASKCFuse.hybrid_forward",
+      "code_provenance": "Paper-linked author repository; original MXNet implementation inspected, not contributor PyTorch port.",
+      "license": "No LICENSE file found in inspected repository tree; no redistribution permission inferred.",
+      "license_url": null,
+      "formula": "M(X+Y)=sigmoid(local(X+Y)+global(X+Y)); Z=M⊙X+(1-M)⊙Y.",
+      "adaptation": "Implemented pooled adaptation: X is projected Local; Y is the active mean of Base/Gap. The local bottleneck sees X+Y; the global bottleneck sees the active mean of all five typed tokens. Their summed logits produce a channel sigmoid, followed by the paper's convex blend. This deliberately removes spatial maps; it is not the full MS-CAM spatial operator.",
+      "limitations": [
+        "Token-space interpretation of spatial MS-CAM is an explicit adaptation.",
+        "Pooling across conversation time would change causality and is excluded.",
+        "Original BatchNorm requires padding-aware valid-token statistics; replacing with LN is another documented adaptation.",
+        "Author ASKCFuse output has factor2 relative to paper Eq.4; freeze the chosen convention.",
+        "AFF/iAFF count once; independently implement due missing license."
+      ],
+      "verification": "Original PDF Eq.4 and author MXNet fusion class inspected; code-paper scaling difference recorded."
+    },
+    {
+      "id": "nonlocal_dot",
+      "title": "Non-local Neural Networks",
+      "authors": [
+        "Xiaolong Wang",
+        "Ross Girshick",
+        "Abhinav Gupta",
+        "Kaiming He"
+      ],
+      "url": "https://arxiv.org/abs/1711.07971",
+      "method_source": "https://arxiv.org/pdf/1711.07971",
+      "method_location": "Section 3.2 dot-product Eq.4 and Section 3.3 residual Eq.6",
+      "domain": "Vision / video classification and image recognition",
+      "year": 2018,
+      "code_url": "https://github.com/facebookresearch/video-nonlocal-net/blob/c253ed5eb004fa2cae0490ed46f5018a3c3b060f/lib/models/nonlocal_helper.py",
+      "code_symbol": "spacetime_nonlocal; add_nonlocal; USE_SOFTMAX=False branch",
+      "code_provenance": "Official author/Facebook repository linked in paper.",
+      "license": "CC-BY-NC-4.0",
+      "license_url": "https://github.com/facebookresearch/video-nonlocal-net/blob/c253ed5eb004fa2cae0490ed46f5018a3c3b060f/LICENSE",
+      "formula": "y_i=(1/N)Σ_j (θ(e_i)^Tφ(e_j))g(e_j); z_i=e_i+W_z y_i.",
+      "adaptation": "Use non-softmax signed dot-product variant on current five-token set; N is active-token count. Mask key/value/query outputs, preserve residual, then flatten/project.",
+      "limitations": [
+        "No spatiotemporal neighborhood or new Memory read is introduced.",
+        "Choose this signed 1/N operator to avoid duplicating AutoInt softmax attention.",
+        "Original code is Caffe2 and noncommercial licensed; independent paper-based implementation avoids vendoring incompatible source.",
+        "Zero-initialized residual output is compatible with the paper, but enclosing Flat residual adapter remains project-specific."
+      ],
+      "verification": "Original PDF exact variant and official non-softmax code branch plus full LICENSE inspected."
+    }
+  ]
+}

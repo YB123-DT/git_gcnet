@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "reviewed_on": "2026-10-03",
+  "status": "Research reconsideration only; withdrawn twenty-candidate implementation is not reinstated.",
+  "decision_summary": {
+    "fully_accepted": 0,
+    "rejected": [
+      "restormer",
+      "xcit",
+      "crossvit"
+    ],
+    "deferred": [
+      "egt",
+      "hgt"
+    ],
+    "priority": "EGT is the strongest structural lead, conditional on a defensible within-utterance graph and retention of evolving edge states. HGT is lower priority because it updates nodes with relation parameters, not a coupled edge-state pathway."
+  },
+  "hard_constraints": [
+    "Only current Local, already computed Base and masked Gap, optionally preserving genuine 8x64 memory-head grouping.",
+    "A head index or latent coordinate is not an image coordinate, spatial frequency, temporal position, or patch scale.",
+    "No new OSRAM query/scan/write, past cache, future access, labels, completion target or auxiliary loss.",
+    "Every proposed graph lives and dies within one utterance forward. Layerwise edge activations are not persistent Memory.",
+    "Substantiality is assessed from retained dataflow and state updates, not paper reputation, layer count or parameter count.",
+    "No automatic replacement shortlist or training authorization follows these cards."
+  ],
+  "cards": [
+    {
+      "id": "restormer",
+      "title": "Restormer: Efficient Transformer for High-Resolution Image Restoration",
+      "authors": [
+        "Syed Waqas Zamir",
+        "Aditya Arora",
+        "Salman Khan",
+        "Munawar Hayat",
+        "Fahad Shahbaz Khan",
+        "Ming-Hsuan Yang"
+      ],
+      "domain": "Image restoration",
+      "url": "https://arxiv.org/abs/2111.09881",
+      "paper_method_url": "https://arxiv.org/pdf/2111.09881",
+      "paper_evidence": "Sections 3.1–3.2, MDTA and GDFN; encoder-decoder hierarchy.",
+      "code_url": "https://github.com/swz30/Restormer/blob/68dc6ac472db26f16361150cb7a96a1bc87da93f/basicsr/models/archs/restormer_arch.py",
+      "code_symbols": [
+        "Attention",
+        "FeedForward",
+        "TransformerBlock",
+        "Downsample",
+        "Upsample"
+      ],
+      "code_lines": "76–149: spatial depthwise convolution in both Attention and FeedForward; 171 onward: resampling hierarchy.",
+      "license": "MIT",
+      "pipeline": [
+        "Spatial feature map -> normalization -> pointwise QKV -> 3x3 depthwise spatial mixing -> per-head channel-covariance attention -> projected residual.",
+        "Normalized feature -> expanded two-branch pointwise projection -> depthwise spatial mixing -> GELU/product gating -> projected residual.",
+        "These blocks sit in a multiresolution restoration encoder-decoder."
+      ],
+      "missing_assumptions": [
+        "Neither five typed vectors nor 8x64 memory heads supply a 2-D image neighborhood.",
+        "No image resolution pyramid, aligned degraded/clean image pair, or pixel reconstruction objective exists.",
+        "Memory head order has no local translation-equivariant geometry."
+      ],
+      "decision": "REJECT_UNDER_CURRENT_INTERFACE",
+      "reason": "Retaining the defining local-context operations requires fabricated spatial geometry. Removing them leaves channel attention plus gated FFN, precisely an attenuated primitive transfer rather than the requested substantial restoration block.",
+      "admissible_future_change": "Only reconsider if the actual upstream model exposes real aligned spatial feature maps; this would be outside the present frozen evidence interface.",
+      "non_claim": "A channel-covariance fragment could run on vectors but must not be promoted as an accepted Restormer candidate."
+    },
+    {
+      "id": "xcit",
+      "title": "XCiT: Cross-Covariance Image Transformers",
+      "authors": [
+        "Alaaeldin El-Nouby",
+        "Hugo Touvron",
+        "Mathilde Caron",
+        "Piotr Bojanowski",
+        "Matthijs Douze",
+        "Armand Joulin",
+        "Ivan Laptev",
+        "Natalia Neverova",
+        "Gabriel Synnaeve",
+        "Jakob Verbeek",
+        "Hervé Jégou"
+      ],
+      "domain": "Image recognition",
+      "url": "https://arxiv.org/abs/2106.09681",
+      "paper_method_url": "https://arxiv.org/pdf/2106.09681",
+      "paper_evidence": "Section3: XCA plus local patch interaction plus FFN and class-attention aggregation.",
+      "code_url": "https://github.com/facebookresearch/xcit/blob/82f5291f412604970c39a912586e008ec009cdca/xcit.py",
+      "code_symbols": [
+        "XCA",
+        "LPI",
+        "XCABlock",
+        "ClassAttentionBlock"
+      ],
+      "code_lines": "111–140: LPI reshapes to H,W and uses depthwise Conv2d; 221–291: normalized channel attention, LPI, FFN residual paths.",
+      "license": "Apache-2.0",
+      "pipeline": [
+        "Patch features -> normalized Q/K across patch positions -> per-head channel attention with learned temperature -> residual.",
+        "Separate local patch interaction applies depthwise convolutions on the original spatial grid.",
+        "FFN residual then class-attention layers aggregate the resulting patch field."
+      ],
+      "missing_assumptions": [
+        "Typed Local/Base/Gap slots are heterogeneous roles, not sampled positions of one image.",
+        "8x64 preserves head grouping but does not supply the H,W coordinates required by LPI.",
+        "Five-token covariance is low-sample and dominated by role/missingness; it does not inherit the image covariance evidence."
+      ],
+      "decision": "REJECT_AS_SUBSTANTIAL_BLOCK",
+      "reason": "XCA alone is mathematically usable without a grid, but stripping LPI and patch architecture reduces this proposal to another attention/FFN variant. Retaining LPI would invent forbidden geometry.",
+      "admissible_future_change": "A standalone XCA control might be honest if explicitly requested later; it does not satisfy this substantial-block screen.",
+      "overlap": "Without spatial paths, Restormer MDTA and XCiT XCA share normalized per-head channel-attention structure; do not count both as major independent transfers."
+    },
+    {
+      "id": "crossvit",
+      "title": "CrossViT: Cross-Attention Multi-Scale Vision Transformer for Image Classification",
+      "authors": [
+        "Chun-Fu (Richard) Chen",
+        "Quanfu Fan",
+        "Rameswar Panda"
+      ],
+      "domain": "Multiscale image classification",
+      "url": "https://arxiv.org/abs/2103.14899",
+      "paper_method_url": "https://arxiv.org/pdf/2103.14899",
+      "paper_evidence": "Section3, dual-scale branches and projected CLS cross-attention exchange.",
+      "code_url": "https://github.com/IBM/CrossViT/blob/main/models/crossvit.py",
+      "code_commit": null,
+      "code_pin_note": "Actual main file inspected; GitHub commit API returned403, so immutable SHA not verified.",
+      "code_symbols": [
+        "CrossAttention",
+        "CrossAttentionBlock",
+        "MultiScaleBlock"
+      ],
+      "code_lines": "186–197: independent branch blocks, projected CLS swap into opposite patch set, cross-attention, back-projection and branch reassembly.",
+      "license": "Apache-2.0",
+      "pipeline": [
+        "Two patch scales of the same image -> independent branch encoders with their own CLS tokens.",
+        "Project one branch CLS to the other width -> concatenate with other branch patch tokens -> query-only cross-attention -> project CLS back.",
+        "Repeat branch encoding and bidirectional CLS exchange; combine branch predictions."
+      ],
+      "missing_assumptions": [
+        "Local versus Memory is not a fine versus coarse sampling of the same signal.",
+        "Base and Gap describe different evidence roles, not two aligned scales.",
+        "There is no genuine Local patch set corresponding to the eight memory heads; reshaping Local cannot manufacture one."
+      ],
+      "decision": "REJECT_WITHOUT_REAL_DUAL_SCALE_INPUT",
+      "reason": "A two-stream module could be built, but naming arbitrary evidence groups two scales misstates the architecture. With one Local token, the exchange degenerates toward generic query pooling rather than retaining meaningful dual-scale processing.",
+      "admissible_future_change": "Reconsider only for real multi-resolution features already emitted by the upstream encoder, with correspondence explained independently of this paper.",
+      "source_gap": "Code access succeeded; commit pin remains unresolved. This is additional provenance incompleteness, not the main rejection reason."
+    },
+    {
+      "id": "egt",
+      "title": "Global Self-Attention as a Replacement for Graph Convolution",
+      "authors": [
+        "Md Shamim Hussain",
+        "Mohammed J. Zaki",
+        "Dharmashankar Subramanian"
+      ],
+      "method_name": "Edge-augmented Graph Transformer (EGT)",
+      "domain": "Graph learning / molecular property prediction",
+      "url": "https://doi.org/10.1145/3534678.3539296",
+      "paper_method_url": "https://arxiv.org/pdf/2108.03348",
+      "paper_evidence": "Section3 Eqs.3–5 and edge residual channel updates; graph structural matrices initialize pair states.",
+      "code_url": "https://github.com/shamim-hussain/egt_pytorch/blob/9e66956a5fdc6f6e8a865863d029468380bb63e5/lib/models/egt_layers.py",
+      "code_symbols": [
+        "EGT_Layer._egt",
+        "EGT_Layer.forward"
+      ],
+      "code_lines": "45–80: clipped node logits + edge bias, edge sigmoid gates, dynamic centrality; 175–237: separate residual/FFN node and edge updates.",
+      "license": "MIT",
+      "pipeline": [
+        "Initialize node features h_i and pairwise edge features e_ij from graph structure.",
+        "Per layer compute H_ij=clip(q_i·k_j/sqrt(d))+W_E(e_ij); A_ij=softmax_j(H_ij)*sigmoid(W_G(e_ij)); use gated aggregation and optional dynamic centrality for node residual update.",
+        "Project H_ij back into edge channels, add edge residual and edge FFN; later layers use the updated edges.",
+        "Read out node/graph representation after coupled propagation."
+      ],
+      "missing_assumptions": [
+        "Present interface has typed vectors and head identities, but no observed adjacency, path distances or measured pair-edge attributes.",
+        "Role/head-derived relations would be a newly specified graph prior, not recovered physical connectivity.",
+        "At least two layers are needed for newly updated edge states to affect later node aggregation; one layer discarding edge outputs is not this proposed substantial transfer."
+      ],
+      "decision": "DEFER_HIGH_PRIORITY_STRUCTURE_DESIGN",
+      "acceptance_conditions": [
+        "Define a label-free graph schema before implementation: nodes may preserve Base/Gap per genuine memory head plus current Local; edge labels can only encode known roles/head identity, not invented distances or reliability.",
+        "Keep explicit pairwise edge state, edge-to-node bias/gating, node-to-edge update, and subsequent-layer feedback. If these are removed, reject as renamed attention.",
+        "Define per-head projection/alignment; different heads need not share channel semantics.",
+        "Prove masks remove inactive nodes AND incident edge states from normalization/centrality; no utterance-to-utterance edge cache.",
+        "Freeze schema and depth before tests; justify why pair-state feedback solves a stated evidence-fusion issue rather than simply adding parameters."
+      ],
+      "proposed_fit": "A within-utterance coupled relation-state fusion block is possible without spatial grids or new Memory access. This is a new EGT-inspired application, not full original benchmark reproduction.",
+      "limitations": [
+        "Complete type-only graph may offer little information beyond typed attention.",
+        "No causal or reliability interpretation is warranted for learned edge gates.",
+        "Not yet accepted for implementation/training; this card identifies concrete design work needed."
+      ]
+    },
+    {
+      "id": "hgt",
+      "title": "Heterogeneous Graph Transformer",
+      "authors": [
+        "Ziniu Hu",
+        "Yuxiao Dong",
+        "Kuansan Wang",
+        "Yizhou Sun"
+      ],
+      "domain": "Heterogeneous knowledge/academic graphs",
+      "url": "https://doi.org/10.1145/3366423.3380027",
+      "paper_method_url": "https://arxiv.org/pdf/2003.01332",
+      "paper_evidence": "Section3: meta-relation attention/message transforms and target-specific aggregation; optional relative temporal encoding.",
+      "code_url": "https://github.com/acbull/pyHGT/blob/85eaccd482bc1d1af56c2de297b6e3a88b96d5cd/pyHGT/conv.py",
+      "code_symbols": [
+        "HGTConv.message",
+        "HGTConv.update"
+      ],
+      "code_lines": "91–108: optional RTE, node-type Q/K/V and relation-specific attention/message maps; 114–133: target-specific transform and residual interpolation.",
+      "license": "MIT",
+      "pipeline": [
+        "Known source type, relation type and target type select factorized Q/K/V and relation transforms.",
+        "Normalize relation-aware attention over incoming neighbors; aggregate relation-transformed messages.",
+        "Apply target-type output transformation, learned residual interpolation and normalization; repeat across heterogeneous neighborhoods."
+      ],
+      "missing_assumptions": [
+        "Local/Base/Gap have known roles, but relational edges between them are not currently defined.",
+        "No distinct observed multihop semantic paths or timestamped graph edges are available.",
+        "The source paper's temporal encoding and sampling solve a large dynamic graph problem absent here."
+      ],
+      "decision": "DEFER_LOW_PRIORITY_OR_REJECT_IF_ONLY_TYPED_ATTENTION",
+      "acceptance_conditions": [
+        "Provide meaningful directed relation categories from actual readout construction, not arbitrary labels for every pair merely to add parameters.",
+        "Preserve both relation-specific message transforms and type-specific output updates over a genuine multistep graph; a single Local-to-context attention pool fails the substantiality gate.",
+        "Disable RTE rather than inventing timestamps for already pooled Memory; avoid new temporal state.",
+        "Demonstrate a reason multiple rounds/relations are needed beyond existing typed projections. If not possible, reject instead of using HGT's name."
+      ],
+      "proposed_fit": "Could operate on an explicit current-utterance heterogeneous evidence graph; preserving actual memory heads is permissible without imposing head adjacency.",
+      "limitations": [
+        "HGT does NOT evolve explicit per-edge hidden states like EGT; do not advertise it as a node-edge coupled updater.",
+        "On a complete five-role graph its distinguishing structure may reduce to relation-parameterized attention, which may still be too trivial for the user's revised criterion.",
+        "No acceptance or training claim is made."
+      ]
+    }
+  ]
+}

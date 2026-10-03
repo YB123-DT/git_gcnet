@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "reviewed_at_utc": "2026-10-03",
+  "scope": "Research-only reconsideration of complete non-MSA/non-MERC matching blocks for a same-utterance OSRAM readout. This is not an implementation or launch approval.",
+  "skill_used": "Research Literature Trace",
+  "evidence_policy": "Primary method PDFs and actual official-source files were inspected. Author/institution provenance, paper-versus-code differences, and missing evidence are reported separately.",
+  "input_contract": {
+    "available": "One Local vector L, one already-computed Base readout B, and three already-computed masked Gap readouts G_A/G_T/G_V. Under the requested 8-head configuration, the existing flattened B and G can be reshaped to 8 head vectors without another memory query.",
+    "local_code_evidence": "gcnet_missing_m3/osram.py:1369-1375,1406-1411,1444-1451 allocate per-head memory, compute reads, then flatten the head axis.",
+    "not_available": [
+      "Word/subword sequences underlying Local",
+      "A natural temporal or spatial order over memory-head indices",
+      "Textual answer options or answer spans",
+      "Additional gold labels"
+    ],
+    "prohibited": [
+      "Another OSRAM query or memory scan",
+      "Memory trajectory/cache or update changes",
+      "Completion",
+      "Additional loss or target construction",
+      "Cross-utterance readout processing"
+    ],
+    "caveat": "The number of heads is not a tokenization argument: heads are distinct learned subspaces, not eight chronologically ordered utterances. Shared-width projections can align coordinates but cannot establish missing sequence semantics.",
+    "required_masking_if_reconsidered": "Inactive Gap heads must be removed or safely masked before similarities, recurrent/convolutional operations, max pooling, and biased projections. All-inactive Gap and no-history cases need explicit fallback. These are necessary adaptations, not properties established by the original code."
+  },
+  "summary": {
+    "inspected_papers": 5,
+    "fully_qualified_now": 0,
+    "conditional_research_reserves": [
+      "esim",
+      "bidaf"
+    ],
+    "hard_reject_for_current_full_module_scope": [
+      "qanet",
+      "dcmn_plus",
+      "dcn"
+    ],
+    "official_source_evidence": "BiDAF and ESIM: author/institution repositories and matching core chain inspected. DCMN+: paper-linked repository inspected, but released main path covers DCMN core rather than all '+' components. QANet: historical Google/coauthor-supported source inspected, explicitly a reduced TPU variant. DCN: no official implementation located in the checked primary links; code requirement remains unmet.",
+    "ranking_basis": "Fit of the complete distinguishing processing chain to existing readouts, not parameter count or benchmark reputation. Rank is investigation priority, not expected OSRAM performance.",
+    "conclusion": "Do not fill a quota with simplified aliases. None of these five should be launched unchanged as a full-module replacement under the present input contract. Prefer a genuinely set-structured matching architecture in subsequent research, or first justify a nondegenerate two-stream tokenization without expanding OSRAM access."
+  },
+  "cards": [
+    {
+      "id": "esim",
+      "rank": 1,
+      "title": "Enhanced LSTM for Natural Language Inference",
+      "authors": [
+        "Qian Chen",
+        "Xiaodan Zhu",
+        "Zhenhua Ling",
+        "Si Wei",
+        "Hui Jiang",
+        "Diana Inkpen"
+      ],
+      "year": 2017,
+      "venue": "ACL",
+      "source_domain": "Natural language inference",
+      "url": "https://aclanthology.org/P17-1152/",
+      "paper_pdf": "https://arxiv.org/pdf/1609.06038",
+      "codeURL": "https://github.com/lukecq1231/nli",
+      "code_commit": "f503a1bdb34a36525ce03b0b0426b246d2a84659",
+      "license": "Apache-2.0",
+      "paper_evidence": "Sections 3.1-3.3, equations 11-15 and pooling discussion; sequential ESIM, not the additional syntax-tree model.",
+      "complete_processing_chain": [
+        "Shared bidirectional LSTM encodes premise and hypothesis token sequences.",
+        "Pairwise dot products yield two normalized soft alignments.",
+        "Each side concatenates original, aligned, signed difference, and elementwise product; shared ReLU projection reduces width.",
+        "A second shared bidirectional LSTM composes local inference along each sequence.",
+        "Mean and max pooling from both sides are concatenated, then a tanh classifier predicts the relationship."
+      ],
+      "distinguishing_formula": "E_ij=a_i^T b_j; btilde_i=sum_j softmax_j(E_ij)b_j; a-side enhancement=[a_i;btilde_i;a_i-btilde_i;a_i*btilde_i], with the symmetric b-side, followed by recurrent composition.",
+      "official_code_evidence": [
+        {
+          "url": "https://github.com/lukecq1231/nli/blob/f503a1bdb34a36525ce03b0b0426b246d2a84659/scripts/ESIM/main.py#L425",
+          "location": "425-446",
+          "observed": "Shared forward/reverse premise and hypothesis encoders."
+        },
+        {
+          "url": "https://github.com/lukecq1231/nli/blob/f503a1bdb34a36525ce03b0b0426b246d2a84659/scripts/ESIM/main.py#L453",
+          "location": "453-474",
+          "observed": "Bidirectional alignment and signed-difference/product enhancement plus ReLU projection."
+        },
+        {
+          "url": "https://github.com/lukecq1231/nli/blob/f503a1bdb34a36525ce03b0b0426b246d2a84659/scripts/ESIM/main.py#L483",
+          "location": "483-518",
+          "observed": "Inference-composition recurrent layers, four pooled summaries, classifier."
+        }
+      ],
+      "osram_mapping_assessment": {
+        "status": "conditional_reserve_not_qualified",
+        "hard_reject_now": false,
+        "launch_approved": false,
+        "possible_but_unapproved_mapping": "X=[projected L; projected B_1..B_8], Y=active projected Gap heads, all from the same utterance. Retain both encoders, both alignments, enhancement, second composition encoder, and four poolings; replace only task classifier.",
+        "obstacles": [
+          "The X/Y split gives Local/Base versus Gap distinct roles but invents an ordered sequence from a set of heads.",
+          "With Q=[L] alone, every memory-to-Local softmax is identically one; the bilateral alignment is partly degenerate.",
+          "No active Gap leaves Y empty; a masked fallback is needed.",
+          "Removing the two LSTM stages to avoid arbitrary ordering removes the defining ESIM workflow."
+        ],
+        "admissible_claim_if_resolved": "ESIM-inspired readout adaptation, not ESIM reproduction; original language embeddings and NLI classifier are replaced.",
+        "forbidden_shortcut": "A product/absolute-difference MLP is not ESIM; the paper/code use signed difference and preserve alignment plus recurrent composition.",
+        "reason_for_rank": "Naturally ends in a fixed-dimensional classification representation and has a verified full inference chain; nevertheless sequence semantics are unresolved."
+      }
+    },
+    {
+      "id": "bidaf",
+      "rank": 2,
+      "title": "Bi-Directional Attention Flow for Machine Comprehension",
+      "authors": [
+        "Minjoon Seo",
+        "Aniruddha Kembhavi",
+        "Ali Farhadi",
+        "Hannaneh Hajishirzi"
+      ],
+      "year": 2017,
+      "venue": "ICLR",
+      "source_domain": "Machine reading comprehension",
+      "url": "https://arxiv.org/abs/1611.01603",
+      "paper_pdf": "https://arxiv.org/pdf/1611.01603",
+      "codeURL": "https://github.com/allenai/bi-att-flow",
+      "code_commit": "49004549e9a88b78c359b31481afa7792dbb3f4a",
+      "license": "Apache-2.0",
+      "provenance_url": "https://prior.allenai.org/projects/bidaf",
+      "paper_evidence": "Section 2, attention equations 1-2 and modeling layer; output layer is explicitly task-specific.",
+      "complete_processing_chain": [
+        "Character CNN and word embeddings pass through highways and context/query bidirectional LSTMs.",
+        "One trilinear similarity matrix produces context-to-query soft alignment and max-over-query query-to-context attention.",
+        "Unpooled query-aware context features flow into two modeling bidirectional LSTM layers.",
+        "A task-specific output layer predicts spans or cloze answers."
+      ],
+      "distinguishing_formula": "S_ij=w^T[h_i;u_j;h_i*u_j]; Uhat_i=sum_j softmax_j(S_ij)u_j; hhat=sum_i softmax_i(max_j S_ij)h_i; G_i=[h_i;Uhat_i;h_i*Uhat_i;h_i*hhat].",
+      "official_code_evidence": [
+        {
+          "url": "https://github.com/allenai/bi-att-flow/blob/49004549e9a88b78c359b31481afa7792dbb3f4a/basic/model.py#L135",
+          "location": "135-167",
+          "observed": "Context/query recurrent encoding, attention_layer, and two modeling recurrent layers."
+        },
+        {
+          "url": "https://github.com/allenai/bi-att-flow/blob/49004549e9a88b78c359b31481afa7792dbb3f4a/basic/model.py#L380",
+          "location": "380-409",
+          "observed": "Both attention directions; query-to-context uses max over query scores."
+        },
+        {
+          "url": "https://github.com/allenai/bi-att-flow/blob/49004549e9a88b78c359b31481afa7792dbb3f4a/basic/model.py#L169",
+          "location": "169-186",
+          "observed": "Source task-specific start/end prediction, not a generic readout head."
+        }
+      ],
+      "osram_mapping_assessment": {
+        "status": "conditional_reserve_not_qualified",
+        "hard_reject_now": false,
+        "launch_approved": false,
+        "possible_but_unapproved_mapping": "Context=active Gap head vectors; query=[L; Base head vectors], with typed width projections. Retain both attention directions and the entire modeling stack, then masked pooling and the existing task head.",
+        "obstacles": [
+          "Meaningful ordered neighborhoods for both recurrent encoders remain absent.",
+          "Using Local alone makes context-to-query alignment constant and collapses max-over-query to a single score.",
+          "Gap-as-context creates an empty-context boundary when no Gap is active.",
+          "A generic pool after only one cross-attention would discard attention-flow preservation and modeling."
+        ],
+        "admissible_claim_if_resolved": "BiDAF-inspired readout adaptation; task-head replacement is supported by the paper, while head-tokenization is a new unvalidated design.",
+        "reason_for_rank": "The source explicitly separates attention flow, modeling, and replaceable task output; it does not justify head order."
+      }
+    },
+    {
+      "id": "qanet",
+      "rank": 3,
+      "title": "QANet: Combining Local Convolution with Global Self-Attention for Reading Comprehension",
+      "authors": [
+        "Adams Wei Yu",
+        "David Dohan",
+        "Minh-Thang Luong",
+        "Rui Zhao",
+        "Kai Chen",
+        "Mohammad Norouzi",
+        "Quoc V. Le"
+      ],
+      "year": 2018,
+      "venue": "ICLR",
+      "source_domain": "Extractive question answering",
+      "url": "https://arxiv.org/abs/1804.09541",
+      "paper_pdf": "https://arxiv.org/pdf/1804.09541",
+      "codeURL": "https://github.com/tensorflow/tpu/tree/cd8dc6d00bfeadd3476fea5701f71a9ad6e23e3b/models/experimental/qanet",
+      "code_commit": "cd8dc6d00bfeadd3476fea5701f71a9ad6e23e3b",
+      "license": "Apache-2.0",
+      "paper_evidence": "Section 2.2, Figure 1: encoder block, context-query attention, seven-block model encoder repeated three times with shared weights.",
+      "complete_processing_chain": [
+        "Word/character embeddings and highways feed position-aware residual depthwise-convolution/self-attention/feedforward encoding.",
+        "Trilinear context-query attention computes direct alignment and a two-hop return alignment.",
+        "Fused per-context features traverse a seven-block convolution/self-attention model encoder three times with shared weights.",
+        "Two projections over successive encoded states yield start/end distributions."
+      ],
+      "distinguishing_formula": "With S row-normalized and T column-normalized, A=S Q and B=S T^T C; concatenate [C;A;C*A;C*B], then repeated convolution+self-attention+FFN residual blocks.",
+      "official_code_evidence": [
+        {
+          "url": "https://github.com/tensorflow/tpu/blob/cd8dc6d00bfeadd3476fea5701f71a9ad6e23e3b/models/experimental/qanet/README.md",
+          "location": "Introduction and Questions",
+          "observed": "Google-hosted release calls itself a stripped-down TPU-friendly variant; names coauthor David Dohan as contact."
+        },
+        {
+          "url": "https://github.com/tensorflow/tpu/blob/cd8dc6d00bfeadd3476fea5701f71a9ad6e23e3b/models/experimental/qanet/model.py#L130",
+          "location": "130-214,340-428,539-579",
+          "observed": "Actual trilinear/two-hop attention, timing signals, separable convolutions, self-attention, FFNs, shared encoder calls and span heads."
+        }
+      ],
+      "code_gap": "This official variant defaults to one model block and four attention heads (model.py:68-92), not the paper's seven blocks/eight heads. Its context mask is unused in bi_attention_memory_efficient_dcn (130-141); copying it would not satisfy OSRAM inactive-Gap masking. Current master removed this directory in commit 077cd8acabfc1163fad5ff720b7228aa45c7d53e; the pinned historical source remains accessible. Do not confuse it with the unrelated human-parsing repository soeaver/QANet.",
+      "osram_mapping_assessment": {
+        "status": "hard_reject_current_scope",
+        "hard_reject_now": true,
+        "launch_approved": false,
+        "attempted_mapping": "Treat memory heads as context positions and Local/Base as query positions, preserving convolution, positions, bidirectional attention and repeated encoders.",
+        "blockers": [
+          "No meaningful adjacency exists between head indices for the distinguishing local convolutions.",
+          "The length-one Local query degenerates one attention direction; artificial Local chunks do not solve that semantically.",
+          "Dropping convolution/positions and reducing the encoder to one attention block is not a QANet transfer.",
+          "Available official code is a reduced variant, not complete paper-code parity."
+        ],
+        "allowed_only_after_scope_change": "Reconsider only with a justified ordered within-utterance token source. Do not add historical trajectories or backtranslation/data augmentation to force a fit."
+      }
+    },
+    {
+      "id": "dcmn_plus",
+      "rank": 4,
+      "title": "DCMN+: Dual Co-Matching Network for Multi-choice Reading Comprehension",
+      "authors": [
+        "Shuailiang Zhang",
+        "Hai Zhao",
+        "Yuwei Wu",
+        "Zhuosheng Zhang",
+        "Xi Zhou",
+        "Xiang Zhou"
+      ],
+      "year": 2020,
+      "venue": "AAAI",
+      "source_domain": "Multiple-choice reading comprehension",
+      "url": "https://arxiv.org/abs/1908.11511",
+      "paper_pdf": "https://arxiv.org/pdf/1908.11511",
+      "codeURL": "https://github.com/Qzsl123/dcmn",
+      "code_commit": "d0c34f2350731e5cbf88f69ccd7d08f48d1e5b04",
+      "license": "No repository-level LICENSE found; inspected dcmn.py has Apache-2.0 file header. No copying proposed.",
+      "paper_evidence": "Figure 1 and sections Passage Sentence Selection, Answer Option Interaction, Bidirectional Matching; equations 7-8; paper footnote on page 5 links this repository.",
+      "complete_processing_chain": [
+        "Contextualize passage, question and textual answer candidates.",
+        "Score passage sentences against question/options, then retain top-K evidence sentences.",
+        "Compare answer options and fuse comparison information into each option.",
+        "Build both directions for passage-question, passage-option and question-option matches; ReLU, max-pool and gated fusion produce three pair summaries.",
+        "Concatenate summaries and rank answer candidates."
+      ],
+      "distinguishing_formula": "For every pair X,Y: A_XY=softmax(X W Y^T), R_X=ReLU(A_XY Y V), followed by max pooling; fuse both directional summaries. All three pair relations plus sentence selection and option interaction are required for DCMN+.",
+      "official_code_evidence": [
+        {
+          "url": "https://github.com/Qzsl123/dcmn/blob/d0c34f2350731e5cbf88f69ccd7d08f48d1e5b04/dcmn.py#L63",
+          "location": "63-94,113-171",
+          "observed": "Main entrypoint's FuseNet, SSingleMatchNet, six directional calls, three pair fusions and choice classifier."
+        },
+        {
+          "url": "https://github.com/Qzsl123/dcmn/blob/d0c34f2350731e5cbf88f69ccd7d08f48d1e5b04/dcmn.py#L304",
+          "location": "304-371",
+          "observed": "Full-context truncation and independent candidate encoding; no top-K sentence selector or cross-option interaction in this inspected path."
+        }
+      ],
+      "code_gap": "The official entrypoint verifies the DCMN core, not the complete '+' chain. No PSS/AOI modules were found in the repository tree or inspected entrypoint. It also imports an absent mctest helper at line 40. The vendored modeling.py contains a different incomplete class and an undefined pq_output_pq at line 920, but that is NOT the main entrypoint class and is not evidence that its six-direction core is missing.",
+      "osram_mapping_assessment": {
+        "status": "hard_reject_full_dcmn_plus",
+        "hard_reject_now": true,
+        "launch_approved": false,
+        "attempted_mapping": "P=Base heads, Q=Local, O=Gap heads. This can suggest a three-way DCMN-core relation network but does not instantiate the full DCMN+ task structure.",
+        "blockers": [
+          "The three Gap modalities provide complementary evidence, not mutually exclusive textual answer candidates.",
+          "There are no passage sentences for sentence selection; eight memory heads are not eight evidence sentences.",
+          "Treating class labels as answer text/prototypes would create a materially different label-conditioned system and is not authorized.",
+          "Dropping PSS/AOI and retaining only gated pair matching is not DCMN+; a gate alone also repeats the rejected simple-operator strategy.",
+          "Paper-code parity for '+' components is unverified."
+        ],
+        "narrower_honest_label": "A future full six-direction three-pair block could be called DCMN-core-inspired, only after separately reviewing singleton-Local degeneracy and masking; it must not count as a qualified DCMN+ reproduction."
+      }
+    },
+    {
+      "id": "dcn",
+      "rank": 5,
+      "title": "Dynamic Coattention Networks For Question Answering",
+      "authors": [
+        "Caiming Xiong",
+        "Victor Zhong",
+        "Richard Socher"
+      ],
+      "year": 2017,
+      "venue": "ICLR",
+      "source_domain": "Extractive question answering",
+      "url": "https://arxiv.org/abs/1611.01604",
+      "paper_pdf": "https://arxiv.org/pdf/1611.01604",
+      "codeURL": null,
+      "license": null,
+      "paper_evidence": "Sections 2.1-2.3; equations 1-4 coattention and equations 5-12 iterative dynamic pointer/Highway Maxout; cumulative span supervision described on page 5.",
+      "complete_processing_chain": [
+        "Shared sequence LSTM encodes document/question; question projection and sentinels permit nonalignment.",
+        "Row/column-normalized affinity computes question-conditioned document summaries and their return alignment.",
+        "Bidirectional LSTM fuses document/coattention features.",
+        "An iterative decoder conditions on previous start/end states; separate Highway Maxout networks revise span endpoints until stable or iteration-limited."
+      ],
+      "distinguishing_formula": "L=D^T Q; C_Q=D A_Q; C_D=[Q;C_Q] A_D; U=BiLSTM([D;C_D]). Decoder state consumes previous selected endpoints and separate HMN_start/HMN_end revise their indices.",
+      "official_code_evidence": [],
+      "code_gap": "Official implementation not located; actual official model files could not be inspected. Checked paper links, the coauthor's publication entry, Salesforce announcement, coauthor GitHub listing and Salesforce CoVe repository. This is a bounded failed verification, not proof that no official implementation ever existed. Third-party DCN/DCN+ implementations were not promoted to official evidence.",
+      "checked_primary_links": [
+        "https://www.victorzhong.com/publications/",
+        "https://www.salesforce.com/blog/state-of-the-art-deep-learning-model-for-question-answering/",
+        "https://github.com/salesforce/cove"
+      ],
+      "osram_mapping_assessment": {
+        "status": "hard_reject_current_scope_and_code_gap",
+        "hard_reject_now": true,
+        "launch_approved": false,
+        "attempted_mapping": "Document=memory heads, question=Local; retain coattention fusion and dynamic decoder.",
+        "blockers": [
+          "Start/end intervals over arbitrary memory-head indices have no meaningful answer-span interpretation.",
+          "The defining dynamic pointer uses endpoint states and span supervision; keeping only its encoder removes a central DCN component.",
+          "Training a new span objective or inventing gold endpoint labels violates the task contract.",
+          "Singleton Local reduces the query-side alignment; sentinels add a null choice but not a real query sequence.",
+          "Official implementation evidence is missing."
+        ],
+        "clarification": "Iterative computation on fixed readout vectors need not itself query OSRAM again. Rejection is based on the span-specific workflow and missing semantics/evidence, not an incorrect claim that every internal iteration violates causality."
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "status": "withdrawn_before_launch_archived_correctness",
+  "new_tests": {"passed": 41, "failed": 0, "includes_local_cuda_cfg84_film": true, "includes_withdrawal_launch_guard": true},
+  "legacy_regression_suite": {
+    "passed": 21,
+    "failed": 1,
+    "failure": "tests.test_current_history_relation.RelationTests.test_cuda_cfg84_initial_logits",
+    "historical_reproduction_commit": "5eb6061",
+    "historical_and_current_both_fail": true,
+    "current_vs_historical_flat_logits_bit_equal": true,
+    "current_vs_historical_relation_logits_bit_equal": true,
+    "historical_flat_vs_relation_max_abs_train": 9.6857548e-8,
+    "historical_flat_vs_relation_max_abs_eval": 3.5762787e-7,
+    "cause": "Existing Relation path changes Local tensor contiguity before local_skip GEMM; layout-dependent CUDA floating point rounding, unchanged by this patch.",
+    "action": "Document only; do not change the unrelated Relation path or weaken its test.",
+    "environment": "Local NVIDIA TITAN Xp, Torch2.2.2+cu121; historical osram.py and model.py loaded without writing over current code."
+  },
+  "spec_review": "No blocking finding; independent review excluded its author's interaction module, which the root reviewed.",
+  "quality_review": "No blocking finding; independent review excluded its author's bilinear module, which the root reviewed.",
+  "source_hash_coverage": "Expanded to all gcnet, gcnet_missing_m3, experiments and root Python runtime files before freezing the runtime manifest.",
+  "performance_claim": false,
+  "remote_training_started": false
+}

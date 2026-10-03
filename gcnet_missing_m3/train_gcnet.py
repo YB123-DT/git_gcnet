@@ -137,6 +137,7 @@ class TrainConfig:
     osram_relation_out_dim: int = 64
     osram_gap_increment_filter: bool = False
     osram_decision_correction: bool = False
+    osram_readout_candidate: str = 'none'
     completion_path: str = "none"
     completion_write_to_memory: bool = False
     osram_history_query_adapter: bool = False
@@ -170,6 +171,29 @@ class TrainConfig:
     simple_regression_predictor: bool = False
 
     def __post_init__(self) -> None:
+        if self.osram_readout_candidate != 'none':
+            from .readout_candidates import CANDIDATE_METHODS
+            if self.osram_readout_candidate not in CANDIDATE_METHODS:
+                raise ValueError('unsupported osram_readout_candidate')
+            if (
+                self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
+                or self.osram_bidirectional or self.osram_forward_slot_reuse
+                or self.training_objective != 'emotion-only' or self.completion_path != 'none'
+                or self.classification_completion or self.completion_write_to_memory or self.text_core
+                or self.local_context_residual or self.node_interaction_residual or self.readout_type != 'shared'
+                or self.osram_post_grn or self.osram_local_skip_gate or self.osram_memory_only_adapter
+                or self.osram_history_input_gate or self.osram_local_evidence_gate
+                or self.osram_hierarchical_evidence_gate or self.osram_hierarchical_feature_only
+                or self.osram_history_query_adapter or self.osram_relation_block or self.osram_relation_dual_readout
+                or self.osram_gap_increment_filter or self.osram_decision_correction
+                or self.teacher_mode != 'ema' or self.simple_regression_predictor
+                or self.paired_history_views or self.train_rate_mode != 'cyclic'
+                or self.emotion_loss_mode != 'sample-mean' or not self.disable_unused_aux_modules
+                or self.joint_pretrain_checkpoint is not None or self.initial_backbone_checkpoint is not None
+                or self.b2_base_checkpoint is not None or self.b2_pretrain_checkpoint is not None
+                or self.pretrained_learning_rate is not None
+            ):
+                raise ValueError('readout candidates require unmodified single-view causal Flat emotion-only sample-mean training from scratch')
         if self.osram_decision_correction and (
             self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
             or self.osram_bidirectional or self.osram_forward_slot_reuse
@@ -3137,6 +3161,7 @@ def run_experiment(
         osram_relation_out_dim=config_value.osram_relation_out_dim,
         osram_gap_increment_filter=config_value.osram_gap_increment_filter,
         osram_decision_correction=config_value.osram_decision_correction,
+        osram_readout_candidate=config_value.osram_readout_candidate,
         completion_path=config_value.completion_path,
         completion_write_to_memory=config_value.completion_write_to_memory,
         osram_history_query_adapter=config_value.osram_history_query_adapter,
@@ -3650,6 +3675,7 @@ def run_experiment(
         "osram_relation_out_dim": config_value.osram_relation_out_dim,
         "osram_gap_increment_filter": config_value.osram_gap_increment_filter,
         "osram_decision_correction": config_value.osram_decision_correction,
+        "osram_readout_candidate": config_value.osram_readout_candidate,
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
         **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
@@ -3947,6 +3973,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Modulate the shared Flat adapter Gap increment with an identity-initialized scalar.')
     parser.add_argument('--osram-decision-correction', action='store_true',
                         help='Replace Flat readout with three equally supervised evidence-centered decision exits.')
+    parser.add_argument('--osram-readout-candidate', default='none',
+                        help='Optional external residual before the original Flat LayerNorm; default none.')
     parser.add_argument('--osram-relation-dual-readout', action='store_true')
     parser.add_argument('--osram-relation-mode', choices=('pairwise','control'), default='pairwise')
     parser.add_argument('--osram-relation-dim', type=int, default=128)
@@ -4119,6 +4147,7 @@ def main(argv=None) -> None:
         osram_relation_out_dim=args.osram_relation_out_dim,
         osram_gap_increment_filter=args.osram_gap_increment_filter,
         osram_decision_correction=args.osram_decision_correction,
+        osram_readout_candidate=args.osram_readout_candidate,
         text_core=args.text_core,
         disable_unused_aux_modules=args.disable_unused_aux_modules,
         simple_regression_predictor=args.simple_regression_predictor,

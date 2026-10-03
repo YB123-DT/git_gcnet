@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-03",
+  "scope": "Six non-MSA/non-MERC VQA bilinear readout adaptations; literature and official implementation inspection only. No source-paper reproduction or cfg84 performance claim.",
+  "provenance_policy": "Primary PDFs and actual author-owned code files were read. URLs below are sources, not copied implementation. Small dimensions and cfg84 integration are proposed adaptations.",
+  "common_adaptation": {
+    "input": "Existing Local L[N,D_L] and four already-computed contexts E=[Base,GapA,GapT,GapV], with authoritative active/history/padding masks. No new memory scan, state write, completion or JEPA.",
+    "pooling": "For non-BAN candidates, use the active mean of the four typed history/context tokens as C. Do not infer context validity from zero-valued features. Sanitize inactive tokens with where before operations, and reapply masks after biased projections.",
+    "integration": "Return interaction delta in a small latent space, then use the common output projection into original cfg84 Flat pre-normalization width1600. This residual wrapper and its zero initialization are cfg84 choices, not claims about the source architectures.",
+    "masks": "All-inactive context rows return exactly zero and remain finite. BAN masks attention logits using explicit active flags and handles all-masked rows separately. No future/history trajectory access is introduced.",
+    "training": "Original cfg84 objective, optimizer, missing-mask protocol and checkpoint selection stay unchanged. All original and new trainable parameters retain gradients. Proposed fixed dimensions are initial choices, not literature-tuned cfg84 hyperparameters."
+  },
+  "methods": [
+    {
+      "id": "mlb",
+      "title": "Hadamard Product for Low-rank Bilinear Pooling",
+      "authors": [
+        "Jin-Hwa Kim",
+        "Kyoung-Woon On",
+        "Woosang Lim",
+        "Jeonghee Kim",
+        "Jung-Woo Ha",
+        "Byoung-Tak Zhang"
+      ],
+      "year": 2017,
+      "venue": "ICLR",
+      "domain": "Visual question answering",
+      "url": "https://arxiv.org/abs/1610.04325",
+      "canonicalURL": "https://arxiv.org/abs/1610.04325",
+      "paperPDF": "https://arxiv.org/pdf/1610.04325",
+      "paperEvidence": "Sections2–3, Eq.(3) and Eq.(5): projected Hadamard product followed by output projection; Section4 is the larger attention architecture.",
+      "codeURL": "https://github.com/jnhwkim/MulLowBiVQA",
+      "codeCommit": "dc82db9af1dd8ad2490c8cd9b147c83cd7de687f",
+      "codeFiles": [
+        {
+          "url": "https://github.com/jnhwkim/MulLowBiVQA/blob/dc82db9af1dd8ad2490c8cd9b147c83cd7de687f/netdef/MLB.lua",
+          "symbol": "netdef.MLB",
+          "lines": "10–111",
+          "verified": "Tanh-projected question and visual embeddings, CMulTable for elementwise fusion, final Linear projection."
+        }
+      ],
+      "license": {
+        "id": "BSD-3-Clause",
+        "url": "https://github.com/jnhwkim/MulLowBiVQA/blob/dc82db9af1dd8ad2490c8cd9b147c83cd7de687f/LICENSE",
+        "note": "Manual LICENSE inspection and README identify BSD3; GitHub API reports NOASSERTION. README also carries a patent-pending notice; no legal conclusion inferred."
+      },
+      "algorithm": {
+        "formula": "z=P(tanh(U L) elementwise_mul tanh(V C))",
+        "dimensions": "L[N,D_L], C[N,D_C]; U:D_L→r, V:D_C→r, P:r→D; proposed r=D=128.",
+        "pytorch_plan": "Two Linear projections, tanh, elementwise product, output Linear. This extracts the pooling operator; it omits the VQA attention and classifiers."
+      },
+      "distinctness": "One learned joint rank space, without factor-group sum, rank-constrained second-stage Tucker core, blockwise core, fixed sketch or evidence attention.",
+      "caveats": [
+        "A learned residual around existing Flat is our wrapper; the final MLB VQA model itself is described as no-shortcut.",
+        "Learned projections may change signs/scales; there is no inherited guarantee of better cfg84 W-F1."
+      ],
+      "verification_status": "primary_pdf_and_official_code_verified",
+      "source_reproduced": false
+    },
+    {
+      "id": "mfb",
+      "title": "Multi-modal Factorized Bilinear Pooling with Co-Attention Learning for Visual Question Answering",
+      "authors": [
+        "Zhou Yu",
+        "Jun Yu",
+        "Jianping Fan",
+        "Dacheng Tao"
+      ],
+      "year": 2017,
+      "venue": "ICCV",
+      "domain": "Visual question answering",
+      "url": "https://arxiv.org/abs/1708.01471",
+      "canonicalURL": "https://arxiv.org/abs/1708.01471",
+      "paperPDF": "https://arxiv.org/pdf/1708.01471",
+      "paperEvidence": "Section3, Eq.(4), Fig.1: projected product to k*o, nonoverlapping sum pooling of k factors, signed-square-root and L2 normalization.",
+      "codeURL": "https://github.com/yuzcccc/vqa-mfb",
+      "codeCommit": "7fab8dddca5924ed1023149795cdaeacf029ff34",
+      "codeFiles": [
+        {
+          "url": "https://github.com/yuzcccc/vqa-mfb/blob/7fab8dddca5924ed1023149795cdaeacf029ff34/mfb_baseline/train_mfb_baseline.py",
+          "symbol": "mfb_baseline",
+          "lines": "80–92",
+          "verified": "Original Caffe construction projects both inputs, multiplies, reshapes to output-by-factor, sum pools, then SignedSqrt and L2Normalize."
+        },
+        {
+          "url": "https://github.com/MILVLG/openvqa/blob/f8f9966f202d5edf2a84096e1bc05ebf58ef55e6/openvqa/models/mfb/mfb.py",
+          "symbol": "MFB.forward",
+          "lines": "18–45",
+          "verified": "Original repo explicitly links OpenVQA as its maintained implementation. First-stage path expands K*O, multiplies, AvgPool1d*K, signed sqrt, and normalization."
+        }
+      ],
+      "license": {
+        "id": "NOT_FOUND_IN_ORIGINAL_REPO",
+        "url": "https://github.com/yuzcccc/vqa-mfb/tree/7fab8dddca5924ed1023149795cdaeacf029ff34",
+        "successor": {
+          "id": "Apache-2.0 at repository root; MIT named in file header",
+          "url": "https://github.com/MILVLG/openvqa/blob/f8f9966f202d5edf2a84096e1bc05ebf58ef55e6/LICENSE"
+        },
+        "note": "Original repo has no detected license file; successor root/file license labels conflict. Use a fresh formula-based implementation rather than copying either source."
+      },
+      "algorithm": {
+        "formula": "q=reshape((U L) elementwise_mul (V C),[N,o,k]).sum(-1); z=P(L2Normalize(sign(q)*sqrt(abs(q))))",
+        "dimensions": "U:D_L→k*o, V:D_C→k*o, o=128,k=4,P:128→128.",
+        "pytorch_plan": "Product, reshape N,o,k and sum over k. The implementation uses continuous q/sqrt(abs(q)+1e-8) and L2 epsilon1e-8 to keep gradients finite. Do not use HIGH_ORDER/MFH, attention or VQA loss."
+      },
+      "distinctness": "k>1 independent factor products are pooled into each output coordinate; preserves MFB expansion/squeeze and normalization. Setting k=1 weakens distinction from MLB.",
+      "caveats": [
+        "Omitting the source dropout is an explicit adaptation to the shared no-extra-dropout protocol.",
+        "Safe signed-square-root differs near zero from the ideal formula; record epsilon.",
+        "The small output width is not a reproduction of the source VQA model."
+      ],
+      "verification_status": "primary_pdf_and_official_code_verified_with_license_ambiguity",
+      "source_reproduced": false
+    },
+    {
+      "id": "mutan",
+      "title": "MUTAN: Multimodal Tucker Fusion for Visual Question Answering",
+      "authors": [
+        "Hedi Ben-younes",
+        "Rémi Cadene",
+        "Matthieu Cord",
+        "Nicolas Thome"
+      ],
+      "year": 2017,
+      "venue": "ICCV",
+      "domain": "Visual question answering",
+      "url": "https://arxiv.org/abs/1705.06676",
+      "canonicalURL": "https://arxiv.org/abs/1705.06676",
+      "paperPDF": "https://arxiv.org/pdf/1705.06676",
+      "paperEvidence": "Sections3.1–3.3, Eq.(4)–(10): latent Tucker projections and rank-R slice factorization, giving a sum of second-stage projected products.",
+      "codeURL": "https://github.com/Cadene/vqa.pytorch",
+      "codeCommit": "69d7a43fb02c0332176915a4a23fc47cab08b1d2",
+      "codeFiles": [
+        {
+          "url": "https://github.com/Cadene/vqa.pytorch/blob/69d7a43fb02c0332176915a4a23fc47cab08b1d2/vqa/models/fusion.py",
+          "symbol": "MutanFusion",
+          "lines": "53–120",
+          "verified": "First-stage linear_v/linear_q embeddings; R second-stage pairs in ModuleLists; sum of paired products."
+        },
+        {
+          "url": "https://github.com/Cadene/block.bootstrap.pytorch/blob/e938e9e269d2ec67499db327b903edbe821fed5f/block/models/networks/fusions/fusions.py",
+          "symbol": "Mutan",
+          "lines": "182–240",
+          "verified": "Author-maintained successor, linked from original README: first projections then rank*mm_dim merge projections, reshape, sum across rank, final projection."
+        }
+      ],
+      "license": {
+        "id": "Original repo: NOT_FOUND; author successor: BSD-3-Clause",
+        "url": "https://github.com/Cadene/block.bootstrap.pytorch/blob/e938e9e269d2ec67499db327b903edbe821fed5f/LICENSE.txt",
+        "note": "Do not assign the successor license retroactively to the original repository. New implementation follows the paper equations."
+      },
+      "algorithm": {
+        "formula": "x=tanh(U0 L); y=tanh(V0 C); z=P(sum_{r=1..R} ((M_r x) elementwise_mul (N_r y)))",
+        "dimensions": "First-stage widths t_L=t_C=128; each second-stage factor maps128→128; R=4; P:128→128.",
+        "pytorch_plan": "Keep separate first-stage projections and nonlinearity; produce factor tensors[N,R,128], multiply and sum R. This expresses rank-constrained Tucker-core interaction."
+      },
+      "distinctness": "Two-stage latent projections and rank-R per-output core slices. Without intermediate nonlinearity, composed linear maps can collapse algebraically toward direct MFB factorization; do not silently remove this stage.",
+      "caveats": [
+        "The source permits optional nonlinearities; this candidate fixes first-stage tanh and no extra dropout.",
+        "R=4 and width128 are proposed resource-bounded settings, not the original paper hyperparameters."
+      ],
+      "verification_status": "primary_pdf_and_official_code_verified",
+      "source_reproduced": false
+    },
+    {
+      "id": "block",
+      "title": "BLOCK: Bilinear Superdiagonal Fusion for Visual Question Answering and Visual Relationship Detection",
+      "authors": [
+        "Hedi Ben-younes",
+        "Rémi Cadene",
+        "Nicolas Thome",
+        "Matthieu Cord"
+      ],
+      "year": 2019,
+      "venue": "AAAI",
+      "domain": "Visual question answering and visual relationship detection",
+      "url": "https://arxiv.org/abs/1902.00038",
+      "canonicalURL": "https://arxiv.org/abs/1902.00038",
+      "paperPDF": "https://arxiv.org/pdf/1902.00038",
+      "paperEvidence": "Section2, Eq.(3)–(5): block-term decomposition, independent interactions within projected chunks, concatenation and output projection; rank constraints can be placed on block slices.",
+      "codeURL": "https://github.com/Cadene/block.bootstrap.pytorch",
+      "codeCommit": "e938e9e269d2ec67499db327b903edbe821fed5f",
+      "codeFiles": [
+        {
+          "url": "https://github.com/Cadene/block.bootstrap.pytorch/blob/e938e9e269d2ec67499db327b903edbe821fed5f/block/models/networks/fusions/fusions.py",
+          "symbol": "Block",
+          "lines": "30–108",
+          "verified": "linear0/linear1 to mm_dim, get_chunks, per-chunk rank expansion, product reshape[batch,rank,chunk], rank sum, per-chunk signed-sqrt/L2, concatenate, linear_out."
+        }
+      ],
+      "license": {
+        "id": "BSD-3-Clause",
+        "url": "https://github.com/Cadene/block.bootstrap.pytorch/blob/e938e9e269d2ec67499db327b903edbe821fed5f/LICENSE.txt"
+      },
+      "algorithm": {
+        "formula": "x=U L,y=V C; split x,y into B chunks. q_b=sum_{r=1..R}(M_br x_b elementwise_mul N_br y_b); z=P(concat_b L2Normalize(signed_sqrt(q_b)))",
+        "dimensions": "mm_dim=128,B=4,chunk width32,R=4; each per-chunk factor maps32→128 then reshape[N,R,32]; concat128→output128.",
+        "pytorch_plan": "Preserve independent within-block modules and normalize each block before concatenation, following pos_norm=before_cat."
+      },
+      "distinctness": "Block-restricted core trades cross-block interactions for several wider projected subspaces. Use B>1 and chunk width>1; a single block approaches MUTAN, scalar blocks approach CP/MLB.",
+      "caveats": [
+        "This is the low-rank Block class, not its full-core BlockTucker alternative.",
+        "BLOCK and MUTAN are related tensor factorizations, not unrelated mechanisms.",
+        "Use stable signed-square-root near zero and record its numerical adaptation."
+      ],
+      "verification_status": "primary_pdf_and_official_code_verified",
+      "source_reproduced": false
+    },
+    {
+      "id": "mcb",
+      "title": "Multimodal Compact Bilinear Pooling for Visual Question Answering and Visual Grounding",
+      "authors": [
+        "Akira Fukui",
+        "Dong Huk Park",
+        "Daylen Yang",
+        "Anna Rohrbach",
+        "Trevor Darrell",
+        "Marcus Rohrbach"
+      ],
+      "year": 2016,
+      "venue": "EMNLP",
+      "domain": "Visual question answering and visual grounding",
+      "url": "https://doi.org/10.18653/v1/D16-1044",
+      "canonicalURL": "https://aclanthology.org/D16-1044/",
+      "paperPDF": "https://arxiv.org/pdf/1606.01847",
+      "paperEvidence": "Section3.1 and Algorithm1: fixed independent CountSketch hashes/signs and FFT convolution approximate an outer-product feature without materializing it.",
+      "codeURL": "https://github.com/akirafukui/vqa-mcb",
+      "codeCommit": "172775b2ec927456eecbe1aa5878b673482f2a54",
+      "codeFiles": [
+        {
+          "url": "https://github.com/akirafukui/vqa-mcb/blob/172775b2ec927456eecbe1aa5878b673482f2a54/train/v4/train_v4.py",
+          "symbol": "qlstm (CompactBilinear construction)",
+          "lines": "61–74",
+          "verified": "Invokes CompactBilinear with width16000, followed by SignedSqrt, L2Normalize and classifier."
+        },
+        {
+          "url": "https://github.com/akirafukui/caffe/blob/fa7bab7e71e0d145a033d69e9c67d0adf5166126/src/caffe/layers/compact_bilinear_layer.cpp",
+          "symbol": "CompactBilinearLayer.Reshape / Forward_cpu",
+          "lines": "108–126,224–235,254–318",
+          "verified": "Author README links this Caffe branch. Fixed random hashes/signs, signed hash accumulation, FFT, complex multiplication and inverse FFT are present."
+        }
+      ],
+      "license": {
+        "id": "BSD-2-Clause for VQA repo; separate UC Berkeley permission notice for CompactBilinear dependency",
+        "url": "https://github.com/akirafukui/vqa-mcb/blob/172775b2ec927456eecbe1aa5878b673482f2a54/LICENSE",
+        "dependencyURL": "https://github.com/akirafukui/caffe/blob/fa7bab7e71e0d145a033d69e9c67d0adf5166126/src/caffe/layers/compact_bilinear_layer.cpp",
+        "note": "Do not flatten dependency terms into the VQA root license. Implement the mathematical sketch afresh in native torch."
+      },
+      "algorithm": {
+        "formula": "S_h,s(x)[j]=sum_{i:h(i)=j} s_i*x_i; q=IFFT(FFT(S1(L))*FFT(S2(C))); z=P(L2Normalize(signed_sqrt(q)))",
+        "dimensions": "Local/context tokens each128 after shared wrapper; independent CountSketch width1024; P:1024→128.",
+        "pytorch_plan": "Private seeded generator initializes independent hash/sign buffers once; serialize buffers in state_dict. Use scatter_add or equivalent signed accumulation and native rfft/irfft with explicit length1024. Keep float32 FFT and stabilized power transform."
+      },
+      "distinctness": "Interaction sketch itself is fixed and randomized, unlike the five learned interaction mechanisms; only downstream projection and upstream encoders learn.",
+      "caveats": [
+        "1024 is a smaller sketch than the paper's common16000; collision/noise tradeoff is an adaptation, not equivalent source capacity.",
+        "Hash/sign buffers must not change per forward or disturb the run's global RNG.",
+        "MCB can add FFT overhead despite its compact output; no throughput claim is established."
+      ],
+      "verification_status": "primary_pdf_and_official_code_verified",
+      "source_reproduced": false
+    },
+    {
+      "id": "ban",
+      "title": "Bilinear Attention Networks",
+      "authors": [
+        "Jin-Hwa Kim",
+        "Jaehyun Jun",
+        "Byoung-Tak Zhang"
+      ],
+      "year": 2018,
+      "venue": "NeurIPS",
+      "domain": "Visual question answering and phrase grounding",
+      "url": "https://arxiv.org/abs/1805.07932",
+      "canonicalURL": "https://arxiv.org/abs/1805.07932",
+      "paperPDF": "https://arxiv.org/pdf/1805.07932",
+      "paperEvidence": "Section3 Eq.(5)–(10): bilinear attention across channel pairs and attention-weighted bilinear features. Eq.(11) describes optional multi-glimpse residual stacking.",
+      "codeURL": "https://github.com/jnhwkim/ban-vqa",
+      "codeCommit": "ef4cc36d63f6b31344301ac1bd91afd807d132e5",
+      "codeFiles": [
+        {
+          "url": "https://github.com/jnhwkim/ban-vqa/blob/ef4cc36d63f6b31344301ac1bd91afd807d132e5/bc.py",
+          "symbol": "BCNet.forward / forward_with_weights",
+          "lines": "41–70",
+          "verified": "Low-rank bilinear logits over pairs via einsum; weighted einsum gives bilinear pooled feature."
+        },
+        {
+          "url": "https://github.com/jnhwkim/ban-vqa/blob/ef4cc36d63f6b31344301ac1bd91afd807d132e5/attention.py",
+          "symbol": "BiAttention.forward_all",
+          "lines": "31–42",
+          "verified": "Masks invalid visual tokens and softmaxes the flattened pair axis."
+        },
+        {
+          "url": "https://github.com/jnhwkim/ban-vqa/blob/ef4cc36d63f6b31344301ac1bd91afd807d132e5/base_model.py",
+          "symbol": "BanModel.forward",
+          "lines": "52–63",
+          "verified": "Full VQA model uses sequential residual glimpses and optional counting; these components are not copied into the restricted readout."
+        }
+      ],
+      "license": {
+        "id": "MIT",
+        "url": "https://github.com/jnhwkim/ban-vqa/blob/ef4cc36d63f6b31344301ac1bd91afd807d132e5/LICENSE"
+      },
+      "algorithm": {
+        "formula": "s_j=p^T(ReLU(U L) elementwise_mul ReLU(V E_j)); a=masked_softmax_j(s); z=P(sum_j a_j*(ReLU(Uv L) elementwise_mul ReLU(Vv E_j)))",
+        "dimensions": "Local query[N,1,128], evidence[N,4,128], rank128, one attention glimpse, pooled output[N,128].",
+        "pytorch_plan": "Use distinct learned score and value projections, mask inactive evidence logits, and apply explicit all-masked zero handling. Normalize only over four legal current readout evidence tokens."
+      },
+      "distinctness": "Learns evidencewise pair scores and aggregates multiplicative values; the other five candidates use a fixed active-mean context vector before fusion.",
+      "caveats": [
+        "One Local query is the single-query special case of BAN, not its full two-multichannel advantage; label BAN-inspired readout.",
+        "No tokenization of past trajectory, box counting, VQA classifier, new auxiliary loss, or multi-glimpse recurrence is included.",
+        "Zero-test masking in old source is replaced by authoritative explicit masks; this is necessary for legitimate zero features and inactive NaNs."
+      ],
+      "verification_status": "primary_pdf_and_official_code_verified",
+      "source_reproduced": false
+    }
+  ],
+  "gaps": [
+    "OpenReview/CVF endpoints were challenged or denied during this audit; the corresponding arXiv primary PDFs were read successfully.",
+    "Original MFB and original MUTAN repositories have no detected root license; precise successor/dependency licensing distinctions are recorded per method.",
+    "No source model was executed or reproduced; these six entries authorize only source-grounded readout adaptations and do not establish cfg84 effectiveness."
+  ]
+}

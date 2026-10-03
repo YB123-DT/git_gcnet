@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-03",
+  "scope": "Research and independent mathematical adaptations of seven non-MSA/non-MERC conditioning/recalibration papers for one OSRAM readout. No original benchmark reproduction or copied implementation.",
+  "common_contract": {
+    "tokens": "X[N,5,D], fixed slots [Local,Base,GapA,GapT,GapV], D=128 after the shared wrapper's projections; active[N,5] is boolean.",
+    "boundary": "No new memory scan, memory update, temporal query, cache, loss, or train/test mask. Modules see only one utterance's five tokens. The parent wrapper owns the zero-initialized output projection to the existing Flat width.",
+    "masking": "Remove inactive values using torch.where before arithmetic; mask biased slot transformations afterwards; mean/max/variance exclude inactive slots; all-inactive rows return exact zero.",
+    "axes": "Convolution in ECA operates on feature channels; convolution in CBAM operates only on the five fixed typed slots. Neither sees utterance/time indices. No BatchNorm, dropout, random operations, or sample mixing in forward.",
+    "interpretation": "All OSRAM constructions below are adaptations. Published gains concern visual tasks and do not establish an OSRAM benefit. Existing failed gates must remain baselines; identical functions under new names do not count as new methods."
+  },
+  "verification_summary": {
+    "primary_papers": 7,
+    "direct_official_code_access": 6,
+    "original_official_code_access_gaps": [
+      "sk"
+    ],
+    "notes": "SK original repository and raw model URL return HTTP 404; original source is recoverable from a GitHub-confirmed fork, and a coauthor hosts an explicitly modified dense/grouped SK-ResNet variant. License absence is recorded rather than inferred."
+  },
+  "papers": [
+    {
+      "id": "film",
+      "title": "FiLM: Visual Reasoning with a General Conditioning Layer",
+      "authors": [
+        "Ethan Perez",
+        "Florian Strub",
+        "Harm de Vries",
+        "Vincent Dumoulin",
+        "Aaron Courville"
+      ],
+      "year": 2018,
+      "venue": "AAAI",
+      "url": "https://doi.org/10.1609/aaai.v32i1.11671",
+      "method_url": "https://arxiv.org/pdf/1709.07871",
+      "method_evidence": "Section 2.1, equations (1)-(2): a conditioner predicts independent feature-wise scale and shift.",
+      "codeURL": "https://github.com/ethanjperez/film",
+      "code_files": [
+        {
+          "url": "https://github.com/ethanjperez/film/blob/master/vr/models/filmed_net.py",
+          "symbol": "FiLM.forward"
+        },
+        {
+          "url": "https://github.com/ethanjperez/film/blob/master/vr/models/film_gen.py",
+          "symbol": "FiLMGen.modify_output"
+        }
+      ],
+      "official_evidence": "The AAAI paper names ethanjperez/film, whose README identifies this as its reproduction code.",
+      "verification": "paper_and_official_code_verified",
+      "license": {
+        "id": "CC-BY-NC-4.0",
+        "url": "https://github.com/ethanjperez/film/blob/master/LICENSE",
+        "note": "Repository text explicitly names Attribution-NonCommercial 4.0 International; no code copied."
+      },
+      "original_formula": "gamma=f(c), beta=h(c); FiLM(F|c)=gamma(c) elementwise_mul F + beta(c).",
+      "adaptation": {
+        "formula": "c=Local; (delta_gamma,beta)=MLP(c); Z0=Local; Zi=where(active_i,(1+delta_gamma)*Xi+beta,0) for i=1..4; output=masked_mean(Z).",
+        "fixed_hyperparameters": {
+          "dim": 128,
+          "reduction": 16,
+          "hidden": 8,
+          "activation": "ReLU",
+          "gamma_offset": 1
+        },
+        "changed": "Replace language GRU/image features with a current-Local conditioner and four memory-read tokens; retain affine scale plus shift. No normalization or temporal conditioning.",
+        "limitation": "Affine shift can change an active zero-valued token; it is a readout offset, not recovered modality evidence. Inactive tokens remain zero.",
+        "duplicate_risk": "High if reduced to scale-only sigmoid gating; compare explicitly with existing availability-affine and local/history gates.",
+        "relevance": "Moderate; useful as an established affine-conditioning control, not a new contribution."
+      }
+    },
+    {
+      "id": "se",
+      "title": "Squeeze-and-Excitation Networks",
+      "authors": [
+        "Jie Hu",
+        "Li Shen",
+        "Gang Sun"
+      ],
+      "year": 2018,
+      "venue": "CVPR",
+      "url": "https://openaccess.thecvf.com/content_cvpr_2018/html/Hu_Squeeze-and-Excitation_Networks_CVPR_2018_paper.html",
+      "method_url": "https://arxiv.org/pdf/1709.01507v2",
+      "method_evidence": "Section 3, equations (2)-(4). Version v2 matches the three-author CVPR paper; later arXiv/journal versions add authors.",
+      "codeURL": "https://github.com/hujie-frank/SENet",
+      "code_files": [
+        {
+          "url": "https://github.com/hujie-frank/SENet/blob/master/models/SE-ResNet-50.prototxt",
+          "symbol": "conv2_1_global_pool -> conv2_1_1x1_down -> ReLU -> conv2_1_1x1_up -> Sigmoid -> Axpy"
+        }
+      ],
+      "official_evidence": "CVPR paper directly links this author Caffe repository.",
+      "verification": "paper_and_official_code_verified",
+      "license": {
+        "id": "Apache-2.0",
+        "url": "https://github.com/hujie-frank/SENet/blob/master/LICENSE",
+        "note": "Verified root license; no code copied."
+      },
+      "original_formula": "z_c=mean_spatial(U_c); s=sigmoid(W2 ReLU(W1 z)); U'_c=s_c U_c.",
+      "adaptation": {
+        "formula": "z=masked_mean_slots(X); s=sigmoid(W2 ReLU(W1 z)); output=masked_mean_slots(where(active,X*s,0)).",
+        "fixed_hyperparameters": {
+          "dim": 128,
+          "reduction": 16,
+          "hidden": 8,
+          "activation": "ReLU"
+        },
+        "changed": "The squeeze axis is five projected evidence types, not image pixels. A shared channel weight rescales all active slots.",
+        "limitation": "No spatial evidence exists here; this is a small evidence-pooling adaptation. The excitation can be a generic MLP gate already tested in the project.",
+        "duplicate_risk": "Very high; count as an established SE control only after checking functional overlap with prior gates.",
+        "relevance": "Low-to-moderate as a diagnostic baseline; not inherently a new mechanism."
+      }
+    },
+    {
+      "id": "eca",
+      "title": "ECA-Net: Efficient Channel Attention for Deep Convolutional Neural Networks",
+      "authors": [
+        "Qilong Wang",
+        "Banggu Wu",
+        "Pengfei Zhu",
+        "Peihua Li",
+        "Wangmeng Zuo",
+        "Qinghua Hu"
+      ],
+      "year": 2020,
+      "venue": "CVPR",
+      "url": "https://openaccess.thecvf.com/content_CVPR_2020/html/Wang_ECA-Net_Efficient_Channel_Attention_for_Deep_Convolutional_Neural_Networks_CVPR_2020_paper.html",
+      "method_url": "https://arxiv.org/pdf/1910.03151",
+      "method_evidence": "Section 3.2.2 equation (9) and Section 3.2.3: shared local channel interaction without an MLP bottleneck.",
+      "codeURL": "https://github.com/BangguWu/ECANet",
+      "code_files": [
+        {
+          "url": "https://github.com/BangguWu/ECANet/blob/master/models/eca_module.py",
+          "symbol": "eca_layer"
+        }
+      ],
+      "official_evidence": "Author repository README cites the matching ECA-Net paper and provides its models.",
+      "verification": "paper_and_official_code_verified",
+      "license": {
+        "id": "MIT",
+        "url": "https://github.com/BangguWu/ECANet/blob/master/LICENSE",
+        "note": "Verified root license; no code copied."
+      },
+      "original_formula": "z=GAP(X); w=sigmoid(Conv1D_k(z)); X'=X*w; kernel spans adjacent channel descriptors.",
+      "adaptation": {
+        "formula": "z=masked_mean_slots(X); w=sigmoid(channel_Conv1D_k(z)); output=masked_mean_slots(X*w).",
+        "fixed_hyperparameters": {
+          "dim": 128,
+          "gamma": 2,
+          "b": 1,
+          "kernel": 5,
+          "kernel_rule": "t=floor(abs((log2(D)+1)/2)); k=t if odd else t+1",
+          "bias": false
+        },
+        "changed": "Only the squeeze axis changes to active evidence slots. The convolution remains over feature coordinates, never utterance positions.",
+        "limitation": "Neighboring learned coordinates lack a guaranteed semantic locality; channel ordering is an inductive assumption.",
+        "duplicate_risk": "Lower than generic MLP gating only if the shared banded channel operator is retained.",
+        "relevance": "Moderate; very small, structurally distinct channel-interaction control."
+      }
+    },
+    {
+      "id": "cbam",
+      "title": "CBAM: Convolutional Block Attention Module",
+      "authors": [
+        "Sanghyun Woo",
+        "Jongchan Park",
+        "Joon-Young Lee",
+        "In So Kweon"
+      ],
+      "year": 2018,
+      "venue": "ECCV",
+      "url": "https://openaccess.thecvf.com/content_ECCV_2018/html/Sanghyun_Woo_Convolutional_Block_Attention_ECCV_2018_paper.html",
+      "method_url": "https://arxiv.org/pdf/1807.06521",
+      "method_evidence": "Section 3 equations (1)-(3): sequential channel then spatial attention; shared MLP for average and maximum descriptors.",
+      "codeURL": "https://github.com/Jongchan/attention-module",
+      "code_files": [
+        {
+          "url": "https://github.com/Jongchan/attention-module/blob/master/MODELS/cbam.py",
+          "symbol": "ChannelGate, SpatialGate, CBAM"
+        }
+      ],
+      "official_evidence": "Repository explicitly identifies itself as official PyTorch code for CBAM and BAM.",
+      "verification": "paper_and_official_code_verified",
+      "license": {
+        "id": "MIT",
+        "url": "https://github.com/Jongchan/attention-module/blob/master/LICENSE",
+        "note": "Verified root license; no code copied."
+      },
+      "original_formula": "Mc=sigmoid(MLP(AvgPool_spatial(F))+MLP(MaxPool_spatial(F))); F'=Mc*F; Ms=sigmoid(Conv7x7([AvgPool_channel(F'),MaxPool_channel(F')])); F''=Ms*F'.",
+      "adaptation": {
+        "formula": "Use masked mean/max over five slots for Mc; then concatenate per-slot feature mean/max and apply Conv1D(kernel=7) over the fixed five slots for Ms; mask slots and average.",
+        "fixed_hyperparameters": {
+          "dim": 128,
+          "reduction": 16,
+          "hidden": 8,
+          "slot_kernel": 7,
+          "slot_padding": 3,
+          "slot_conv_bias": false,
+          "batch_norm": false
+        },
+        "changed": "Replace two image axes by the fixed evidence-slot axis; remove official spatial-branch BatchNorm to avoid batch mixing. No time axis is available.",
+        "limitation": "Typed-slot adjacency is arbitrary. Applying unmodified CBAM to a 1x1 vector degenerates its spatial component; this construction is explicitly different from original CBAM.",
+        "duplicate_risk": "High if either stage is omitted; keep shared avg/max channel MLP and the separate current-slot gate to distinguish the control.",
+        "relevance": "Low-to-moderate; more assumptions than SE/ECA."
+      }
+    },
+    {
+      "id": "gct",
+      "title": "Gated Channel Transformation for Visual Recognition",
+      "authors": [
+        "Zongxin Yang",
+        "Linchao Zhu",
+        "Yu Wu",
+        "Yi Yang"
+      ],
+      "year": 2020,
+      "venue": "CVPR",
+      "url": "https://arxiv.org/abs/1909.11519",
+      "method_url": "https://arxiv.org/pdf/1909.11519",
+      "method_evidence": "Section 3 equations (2)-(5), Figure 3: L2 embedding, channel normalization, identity-centered tanh scaling.",
+      "codeURL": "https://github.com/z-x-yang/GCT",
+      "code_files": [
+        {
+          "url": "https://github.com/z-x-yang/GCT/blob/master/PyTorch/GCT.py",
+          "symbol": "GCT.forward"
+        },
+        {
+          "url": "https://github.com/z-x-yang/GCT/blob/master/TensorFlow/convnet_builder.py",
+          "symbol": "ConvNetBuilder.GCT"
+        }
+      ],
+      "official_evidence": "Author repository README identifies TensorFlow and PyTorch implementations of the CVPR paper.",
+      "verification": "paper_and_official_code_verified",
+      "license": {
+        "id": "MIT_in_TensorFlow_subtree_only",
+        "url": "https://github.com/z-x-yang/GCT/blob/master/TensorFlow/LICENSE",
+        "note": "No root/PyTorch license detected; do not infer the subtree license covers PyTorch. Independent formulas only."
+      },
+      "original_formula": "s_c=alpha_c*sqrt(sum_spatial x_c^2+eps); s_hat=s/sqrt(mean_channels(s^2)+eps); y_c=x_c*(1+tanh(gamma_c*s_hat_c+beta_c)).",
+      "adaptation": {
+        "formula": "Sum squared values only over active evidence slots, normalize across D channels, scale each active token, masked-average the result.",
+        "fixed_hyperparameters": {
+          "dim": 128,
+          "epsilon": 0.00001,
+          "alpha_init": 1,
+          "gamma_init": 0,
+          "beta_init": 0,
+          "parameter_count": 384
+        },
+        "changed": "The original spatial reduction becomes a within-utterance slot reduction. Identity initialization and 3D channel parameters are retained.",
+        "limitation": "Magnitude-based scaling is not a reliability estimator. Repository training advice on gating-bias weight decay is not imported into the fixed OSRAM optimizer.",
+        "duplicate_risk": "Moderate; distinguish exact L2-normalized 3-vector operator from arbitrary MLP/tanh gates and existing GRN.",
+        "relevance": "Moderate; compact normalization-based recalibration with explicit identity initialization."
+      }
+    },
+    {
+      "id": "simam",
+      "title": "SimAM: A Simple, Parameter-Free Attention Module for Convolutional Neural Networks",
+      "authors": [
+        "Lingxiao Yang",
+        "Ru-Yuan Zhang",
+        "Lida Li",
+        "Xiaohua Xie"
+      ],
+      "year": 2021,
+      "venue": "ICML",
+      "url": "https://proceedings.mlr.press/v139/yang21o.html",
+      "method_url": "https://proceedings.mlr.press/v139/yang21o/yang21o.pdf",
+      "method_evidence": "Section 3 equations (5)-(6) and Figure 3. Code uses M-1 variance denominator.",
+      "codeURL": "https://github.com/ZjjConan/SimAM",
+      "code_files": [
+        {
+          "url": "https://github.com/ZjjConan/SimAM/blob/master/networks/attentions/simam_module.py",
+          "symbol": "simam_module.forward"
+        }
+      ],
+      "official_evidence": "Repository explicitly identifies the official PyTorch implementation of the ICML paper.",
+      "verification": "paper_and_official_code_verified",
+      "license": {
+        "id": "not_declared",
+        "url": "https://github.com/ZjjConan/SimAM",
+        "note": "Recursive repository tree and relevant file contain no detected LICENSE/COPYING declaration. Independent formulas only."
+      },
+      "original_formula": "d=(x-mu)^2; v=sum_spatial(d)/(M-1); E_inv=d/(4*(v+lambda))+0.5; y=x*sigmoid(E_inv).",
+      "adaptation": {
+        "formula": "For each feature channel compute mean/variance over active slots only; apply the inverse-energy weight to each active token, then masked-mean. If fewer than two slots are active, use identity.",
+        "fixed_hyperparameters": {
+          "dim": 128,
+          "lambda": 0.0001,
+          "variance_denominator": "active_count-1",
+          "singleton": "identity",
+          "trainable_parameters": 0
+        },
+        "changed": "Evidence types replace spatial neurons. Singleton identity is a necessary explicit adaptation: official code divides by zero at H*W=1.",
+        "limitation": "Five heterogeneous token types do not satisfy an established common spatial-neuron distribution. With two active slots, symmetric deviations can make weights identical; no learned selector is added.",
+        "duplicate_risk": "Low structural overlap with learned gates, but any learned MLP would cease to be this parameter-free control.",
+        "relevance": "Low; useful cheap negative/control case, not strong transfer evidence."
+      }
+    },
+    {
+      "id": "sk",
+      "title": "Selective Kernel Networks",
+      "authors": [
+        "Xiang Li",
+        "Wenhai Wang",
+        "Xiaolin Hu",
+        "Jian Yang"
+      ],
+      "year": 2019,
+      "venue": "CVPR",
+      "url": "https://arxiv.org/abs/1903.06586",
+      "method_url": "https://arxiv.org/pdf/1903.06586",
+      "method_evidence": "Section 3.1 equations (1)-(6): multiple spatial receptive-field branches, pooled descriptor, per-channel branch softmax and weighted fusion.",
+      "codeURL": "https://github.com/implus/SKNet",
+      "code_files": [
+        {
+          "url": "https://github.com/implus/SKNet/blob/master/models/sknet50.prototxt",
+          "symbol": "original Caffe two-branch SK block",
+          "access": "HTTP 404"
+        },
+        {
+          "url": "https://github.com/roy-wong-d24h/SKNet/blob/17dd7086d4959be0c8c6ccce52e4fd8187836770/models/sknet50.prototxt",
+          "symbol": "conv2_1/3x3g32 and conv2_1/3x3g32d2; B_global_pool; B_fc1; branch softmax",
+          "access": "verified author-source snapshot in fork"
+        },
+        {
+          "url": "https://github.com/whai362/PytorchInsight/blob/main/classification/models/imagenet/resnet_sk.py",
+          "symbol": "Bottleneck.forward",
+          "access": "verified coauthor-hosted modified SK-ResNet"
+        }
+      ],
+      "official_evidence": "Original paper names implus/SKNet. GitHub API for roy-wong-d24h/SKNet identifies parent and source as implus/SKNet; snapshot commit 17dd7086d4959be0c8c6ccce52e4fd8187836770 is authored by xiangli (2019-03-26). Coauthor repository README explicitly calls SK-ResNet a modified version.",
+      "verification": "paper_verified_original_source_preserved_in_fork_direct_official_repository_unavailable",
+      "license": {
+        "id": "not_declared",
+        "url": "https://github.com/roy-wong-d24h/SKNet",
+        "note": "No root license detected in preserved original-source tree or coauthor mirror; no source copied."
+      },
+      "original_formula": "U=sum_m U_m; z=ReLU(BN(W*GAP(U))); a_m,c=softmax_m(A_m z)_c; V_c=sum_m a_m,c U_m,c.",
+      "adaptation": {
+        "formula": "U_m,i=where(active_i,ReLU(W_m Xi+b_m),0), m=1,2; z=ReLU(W*masked_mean(U1+U2)+b); a=softmax_over_branches(A_m z+b_m); output=masked_mean(sum_m a_m*U_m).",
+        "fixed_hyperparameters": {
+          "dim": 128,
+          "branches": 2,
+          "reduction": 16,
+          "minimum_hidden": 32,
+          "hidden": 32,
+          "activation": "ReLU",
+          "batch_norm": false
+        },
+        "changed": "Dense D->D channel transformations replace multiscale spatial kernels; BatchNorm removed. Retain separate transformed branches, shared fused descriptor, and per-channel branch competition.",
+        "limitation": "This is dense SK-inspired branch selection, not SK convolution or original SKNet reproduction; receptive-field adaptivity is absent. Direct official repository access remains a provenance gap.",
+        "duplicate_risk": "High if branches become raw Local/Base/Gap weights or scalar gates. Keep two distinct channel transforms and per-channel branch softmax.",
+        "relevance": "Moderate as a branch-selection control; not evidence of a new memory/readout contribution."
+      }
+    }
+  ]
+}

@@ -1,0 +1,251 @@
+{
+  "status": "PROVISIONAL_RESEARCH_CARDS_NOT_QUALIFIED_20",
+  "date": "2026-10-03",
+  "owner": "set_reasoning",
+  "scope": "Read-only reconsideration following withdrawal of the earlier twenty lightweight methods. No implementation, training, inference, old-file edits, or Git action.",
+  "workflow_skill": "Research Literature Trace",
+  "screening": {
+    "requirements": [
+      "Substantial learned structure, competitive refinement, or iterative reasoning",
+      "Only already-read causal Local/Base/Gap evidence",
+      "No added OSRAM memory operation, OSRAM query, history cache, completion objective, or loss",
+      "No invented image grid or asserted object/graph semantics"
+    ],
+    "nominal_slots": [
+      "Local",
+      "Base",
+      "Gap_A",
+      "Gap_T",
+      "Gap_V"
+    ],
+    "active_slots": "Existing wrapper requires >=1 observed modality: Local+Base+0..2 active Gap slots, hence normally 2..4 active tokens, not five simultaneously. No-history/padding rows must bypass the new block.",
+    "optional_real_heads": "Parent independently verified genuine 8x64 read-head provenance: gcnet_missing_m3/osram.py line 20 orders modalities as audio,text,visual; _scan lines 1407-1411 produces base_read [B,H,V] then reshape(B,-1), lines 1438-1450 do the analogous Gap read, and line 1560 concatenates zero backward evidence. Head-token readout therefore has 9/17/25 active tokens including one projected Local token. Preserve the forward block, evidence type and true head identity. This is not arbitrary channel chunking, a spatial grid, or known object decomposition.",
+    "source_contract": "Primary method sections and actual author/organization code files inspected. Mathematical adaptation judgments below are this audit's inferences, not results reported by the papers.",
+    "result": "1 preferred provisional architecture, 2 conditional architectures, 1 reserve-only architecture, 1 rejected for current contract. None is an approved experiment or performance claim."
+  },
+  "cards": [
+    {
+      "id": "set_transformer",
+      "title": "Set Transformer: A Framework for Attention-based Permutation-Invariant Neural Networks",
+      "authors": [
+        "Juho Lee",
+        "Yoonho Lee",
+        "Jungtaek Kim",
+        "Adam R. Kosiorek",
+        "Seungjin Choi",
+        "Yee Whye Teh"
+      ],
+      "year": 2019,
+      "venue": "ICML",
+      "domain": "Set-structured prediction, amortized clustering, point-cloud classification",
+      "canonicalURL": "https://proceedings.mlr.press/v97/lee19d.html",
+      "primaryPDF": "https://proceedings.mlr.press/v97/lee19d/lee19d.pdf",
+      "paper_evidence": "Sections 3.1-3.3, equations (6)-(16), PDF pp.3-4: MAB/SAB, inducing-point two-stage attention, learned-seed pooling and output-set self-attention.",
+      "codeURL": "https://github.com/juho-lee/set_transformer",
+      "code_revision": "73432c640ac78140496d6738416c54d32c686d65",
+      "official_evidence": "Author repository README explicitly calls this the official PyTorch implementation.",
+      "license": "MIT",
+      "code_evidence": [
+        {
+          "url": "https://github.com/juho-lee/set_transformer/blob/73432c640ac78140496d6738416c54d32c686d65/modules.py#L43-L63",
+          "lines": "43-63",
+          "finding": "ISAB uses learned inducing vectors, then input-to-induced attention; PMA uses learned seed vectors."
+        },
+        {
+          "url": "https://github.com/juho-lee/set_transformer/blob/73432c640ac78140496d6738416c54d32c686d65/models.py#L30-L44",
+          "lines": "30-44",
+          "finding": "Complete model is two ISABs, PMA, two SABs and an output projection."
+        }
+      ],
+      "verified_core": "H=MAB(I,X); Z=MAB(X,H); Y=SAB(PMA_K(Z)), with PMA_K(Z)=MAB(S,rFF(Z)). I and S are learned, fixed-size readout-internal vectors.",
+      "minimal_substantial_block": "Full set encoder plus multi-seed pooling and inter-seed interaction, not two generic attention layers followed by mean pooling. Direct SAB encoder is also explicitly supported by the paper.",
+      "fit_five_slots": "Weak under the user's stronger filter. Attention is valid, but with only 2..4 active inputs, inducing-point scaling is irrelevant. K=1 makes post-pooling self-attention a singleton operation.",
+      "fit_real_heads": "More defensible learned set-to-latent-set structure; head tokens need typed provenance and are still not objects. There is no large-set efficiency need at <=25 active tokens.",
+      "adaptation_boundary": "Only readout-local attention queries; no new OSRAM query. Typed tokens preserve slot roles. K>1 latent outputs and their interactions must survive; aggregating them to the existing classifier is a new task adaptation.",
+      "caveats": [
+        "The model is feed-forward, not iterative competitive refinement.",
+        "ISAB is described as a low-rank-like bottleneck; do not sell that alone as a new substantial reasoning mechanism.",
+        "Official code scales attention by sqrt(total dim) and omits explicit rFF before PMA; paper/code details must be chosen and recorded, not silently mixed."
+      ],
+      "decision": "RESERVE_ONLY_NOT_SELECTED",
+      "rationale": "Source-valid full architecture, but weakest novelty/fit relative to the user rejecting simple low-rank and attention-layer add-ons. Do not count this as qualified merely because the paper is famous."
+    },
+    {
+      "id": "slot_attention",
+      "title": "Object-Centric Learning with Slot Attention",
+      "authors": [
+        "Francesco Locatello",
+        "Dirk Weissenborn",
+        "Thomas Unterthiner",
+        "Aravindh Mahendran",
+        "Georg Heigold",
+        "Jakob Uszkoreit",
+        "Alexey Dosovitskiy",
+        "Thomas Kipf"
+      ],
+      "year": 2020,
+      "venue": "NeurIPS",
+      "domain": "Object-centric visual representation and supervised set prediction",
+      "canonicalURL": "https://arxiv.org/abs/2006.15055",
+      "primaryPDF": "https://arxiv.org/pdf/2006.15055",
+      "paper_evidence": "Section 2.1, Algorithm 1 and equations (1)-(2), PDF pp.2-3: competition over output slots, weighted-mean aggregation, recurrent refinement.",
+      "codeURL": "https://github.com/google-research/google-research/tree/master/slot_attention",
+      "code_revision": "e49bbfe381c9c0e564b937f1c4e163a2273c65cc",
+      "official_evidence": "Paper footnote links this repository; its README labels it the reference implementation.",
+      "license": "Apache-2.0",
+      "code_evidence": [
+        {
+          "url": "https://github.com/google-research/google-research/blob/e49bbfe381c9c0e564b937f1c4e163a2273c65cc/slot_attention/model.py#L43-L103",
+          "lines": "43-103",
+          "finding": "Shared Gaussian slot initialization; bias-free q/k/v; softmax across slots, normalization across inputs; GRU and residual MLP on each iteration."
+        }
+      ],
+      "verified_core": "A_ij=softmax_j(k(x_i)^T q(s_j)/sqrt(d)); W_ij=(A_ij+eps)/sum_i(A_ij+eps); u_j=sum_i W_ij v(x_i); s_j <- GRU(u_j,s_j), then s_j <- s_j+MLP(LN(s_j)); repeat T rounds.",
+      "minimal_substantial_block": "At least two competing latent slots and multiple shared-parameter refinement rounds, retaining slot-axis softmax, input-axis renormalization, recurrent state and residual refinement.",
+      "fit_five_slots": "Mechanically survives, but only 2..4 aggregate evidence vectors provide little composition to discover. Multiple slots can duplicate evidence or specialize to source identity rather than meaningful groups.",
+      "fit_real_heads": "Preferred representation for this candidate: genuine head tokens provide more elements for competitive grouping. This is latent evidence grouping, not object segmentation.",
+      "adaptation_boundary": "Slots reset within every utterance readout. Keep existing supervised task loss; add no reconstruction/set-matching objective. Pool slot outputs symmetrically or disclose a changed ordered-slot interpretation.",
+      "caveats": [
+        "Official source samples slots on every call, including evaluation. A deterministic fixed-noise protocol is a stated adaptation; distinct learned slot seeds change the published exchangeable initialization.",
+        "Initializing every slot identically causes symmetry/duplicate-slot risk.",
+        "Mask inputs before projections and exclude masked rows from the post-softmax epsilon/weighted-mean normalization.",
+        "No object-discovery claim without the original task and supervision."
+      ],
+      "decision": "CONDITIONAL_PREFER_REAL_HEADS",
+      "rationale": "Genuine competition plus refinement clearly differs from gates. Retain only if real head provenance and initialization/evaluation semantics can be specified honestly."
+    },
+    {
+      "id": "recurrent_relational_network",
+      "title": "Recurrent Relational Networks",
+      "authors": [
+        "Rasmus Berg Palm",
+        "Ulrich Paquet",
+        "Ole Winther"
+      ],
+      "year": 2018,
+      "venue": "NeurIPS",
+      "domain": "Multi-step relational reasoning, bAbI question answering, Sudoku",
+      "canonicalURL": "https://arxiv.org/abs/1711.08028",
+      "primaryPDF": "https://arxiv.org/pdf/1711.08028",
+      "paper_evidence": "Section 2, equations (1)-(4), PDF pp.2-4: pair messages, summed incoming messages, recurrent state with original input reinjection; fully connected graph allowed when edges unknown.",
+      "codeURL": "https://github.com/rasmusbergpalm/recurrent-relational-networks",
+      "code_revision": "d3a5a27f6e73e51aac1edb9556ac47be3350d748",
+      "official_evidence": "First-author repository identifies itself as the code accompanying the paper.",
+      "license": "No license detected in repository root or relevant inspected files; do not copy source without resolving permission. Independent paper-based implementation is a separate possible action, not performed.",
+      "code_evidence": [
+        {
+          "url": "https://github.com/rasmusbergpalm/recurrent-relational-networks/blob/d3a5a27f6e73e51aac1edb9556ac47be3350d748/message_passing.py#L4-L31",
+          "lines": "4-31",
+          "finding": "Gather endpoint states and edge features, apply message network, sum messages at target nodes."
+        },
+        {
+          "url": "https://github.com/rasmusbergpalm/recurrent-relational-networks/blob/d3a5a27f6e73e51aac1edb9556ac47be3350d748/tasks/babi/rrn.py#L119-L142",
+          "lines": "119-142",
+          "finding": "Five recurrent steps; original x0 reinjected, shared LSTM updates, graph-sum prediction and loss on every step."
+        }
+      ],
+      "verified_core": "m_ij^t=f(h_i^(t-1),h_j^(t-1),e_ij); m_j^t=sum_i m_ij^t; h_j^t=g(h_j^(t-1),x_j,m_j^t); repeat shared f/g; readout r(sum_j h_j^T). Official bAbI g includes a post-message MLP and LSTM.",
+      "minimal_substantial_block": "Typed evidence nodes, all valid directed pair messages, shared recurrent node refinement over multiple steps, and reinjection of original evidence each step.",
+      "fit_five_slots": "Best direct fit among these five: treat evidence sources as nodes, not physical objects. A complete interaction graph is expressly allowed by the paper. Local and history can iteratively contextualize each other even with 2..4 active nodes.",
+      "fit_real_heads": "Possible but optional: more true evidence nodes, O(T*N^2) pair processing. No invented spatial or temporal edges needed.",
+      "adaptation_boundary": "Recurrent state is readout-local, zero/reset each utterance; this is not another OSRAM memory or cross-utterance cache. Use only final representation under the existing objective.",
+      "caveats": [
+        "Dropping original per-step supervision is an explicit departure; the paper's convergence encouragement no longer applies.",
+        "A fully connected small graph already has one-hop reachability: more iterations mean nonlinear refinement, not access to new or more distant historical evidence.",
+        "Mask both edge endpoints; bias-bearing message/update functions must not reactivate invalid nodes.",
+        "Recurrent updates use internal LSTM gates, but the candidate is the complete message-passing/refinement block, not a gate-only modification."
+      ],
+      "decision": "PREFERRED_PROVISIONAL",
+      "rationale": "Core iterative reasoning survives the actual evidence abstraction with the fewest invented semantics. Source license remains a code-reuse caveat, not an empirical result."
+    },
+    {
+      "id": "graph_matching_network",
+      "title": "Graph Matching Networks for Learning the Similarity of Graph Structured Objects",
+      "authors": [
+        "Yujia Li",
+        "Chenjie Gu",
+        "Thomas Dullien",
+        "Oriol Vinyals",
+        "Pushmeet Kohli"
+      ],
+      "year": 2019,
+      "venue": "ICML",
+      "domain": "Graph similarity learning and binary-function similarity",
+      "canonicalURL": "https://arxiv.org/abs/1904.12787",
+      "primaryPDF": "https://arxiv.org/pdf/1904.12787",
+      "paper_evidence": "Section 3.2, equations (4)-(11), PDF pp.4-5: within-graph messages and cross-graph mismatch refine both graphs jointly.",
+      "codeURL": "https://github.com/google-deepmind/deepmind-research/tree/master/graph_matching_networks",
+      "code_revision": "f5de0ede8430809180254ee957abf36ed62579ef",
+      "official_evidence": "DeepMind research repository README identifies the associated ICML paper and describes its notebook as an example implementation.",
+      "license": "Apache-2.0",
+      "code_evidence": [
+        {
+          "url": "https://github.com/google-deepmind/deepmind-research/blob/f5de0ede8430809180254ee957abf36ed62579ef/graph_matching_networks/graph_matching_networks.ipynb",
+          "lines": "Raw notebook JSON lines 951-1037, code cell index 21",
+          "finding": "compute_cross_attention and batch_block_pair_attention require graph pairs and normalize in both cross-graph directions."
+        },
+        {
+          "url": "https://github.com/google-deepmind/deepmind-research/blob/f5de0ede8430809180254ee957abf36ed62579ef/graph_matching_networks/graph_matching_networks.ipynb",
+          "lines": "Raw notebook JSON lines 1062-1109, code cell index 23",
+          "finding": "GraphPropMatchingLayer computes node_states minus cross_graph_attention and combines this mismatch with within-graph messages in each update."
+        }
+      ],
+      "verified_core": "Within each graph m_i=sum_j f(h_i,h_j,e_ij). Across the other graph a_ij=softmax_j(sim(h_i,h_j)), delta_i=h_i-sum_j a_ij*h_j. Update h_i'=g(h_i,m_i,delta_i) in both graphs for T steps, then compare graph embeddings.",
+      "minimal_substantial_block": "Two defensible graph inputs, iterative internal message passing in each, and bidirectional cross-graph mismatch updates. Merely subtracting an attended history vector from Local is not this architecture.",
+      "fit_five_slots": "Reject. The existing contract supplies one heterogeneous evidence set, not a pair of structured objects. A singleton Local graph versus history collapses one cross-attention direction and has no internal Local graph reasoning.",
+      "fit_real_heads": "Head count alone does not solve semantic fit. Base versus Gap could only become a future adaptation if meaningful graph pairing and correspondence are justified; currently it is an arbitrary partition, with absent Gap branches common.",
+      "adaptation_boundary": "Original graph-similarity output and pair/triplet training do not match the fixed classification objective. Adding pair supervision is forbidden here.",
+      "caveats": [
+        "Do not cite generic graph_nets code as GMN; the verified source is the GMN notebook.",
+        "An empty counterpart graph needs explicit handling, which is frequent for observed modalities.",
+        "No approved substitute graph topology or matching target has been established."
+      ],
+      "decision": "REJECT_CURRENT_CONTRACT",
+      "rationale": "A substantial method whose necessary two-graph structure does not naturally survive current inputs; should not be forced into the candidate count."
+    },
+    {
+      "id": "capsule_dynamic_routing",
+      "title": "Dynamic Routing Between Capsules",
+      "authors": [
+        "Sara Sabour",
+        "Nicholas Frosst",
+        "Geoffrey E. Hinton"
+      ],
+      "year": 2017,
+      "venue": "NeurIPS",
+      "domain": "Visual part-whole representation and image classification",
+      "canonicalURL": "https://arxiv.org/abs/1710.09829",
+      "primaryPDF": "https://arxiv.org/pdf/1710.09829",
+      "paper_evidence": "Section 2, equations (1)-(3), Procedure 1, PDF pp.2-3: transformed votes, parent competition, squash and accumulated agreement over routing rounds.",
+      "codeURL": "https://github.com/Sarasra/models/tree/master/research/capsules",
+      "code_revision": "984fbc754943c849c55a57923f4223099a1ff88c",
+      "official_evidence": "Sara Sabour's repository research/capsules/README identifies this as the code used for the paper.",
+      "license": "Apache-2.0",
+      "code_evidence": [
+        {
+          "url": "https://github.com/Sarasra/models/blob/984fbc754943c849c55a57923f4223099a1ff88c/research/capsules/models/layers/layers.py#L32-L47",
+          "lines": "32-47",
+          "finding": "Vector squash implementation."
+        },
+        {
+          "url": "https://github.com/Sarasra/models/blob/984fbc754943c849c55a57923f4223099a1ff88c/research/capsules/models/layers/layers.py#L75-L199",
+          "lines": "75-199",
+          "finding": "Fully connected capsule vote transform, parent-axis softmax, weighted vote sum, squash, dot-product agreement and logit accumulation in a routing loop."
+        }
+      ],
+      "verified_core": "u_hat_ij=W_ij*u_i; initialize b_ij=0; repeat c_ij=softmax_j(b_ij), s_j=sum_i c_ij*u_hat_ij, v_j=(||s_j||^2/(1+||s_j||^2))*s_j/||s_j||, b_ij+=u_hat_ij^T*v_j.",
+      "minimal_substantial_block": "Parent-specific vector votes, >=2 competing upper capsules, >=2 agreement-refinement rounds and vector squash; not a scalar softmax gate or one-shot weighted sum.",
+      "fit_five_slots": "Core routing survives on typed evidence vectors without any spatial grid. However, few aggregate inputs weaken part-whole interpretation; call outputs latent evidence hypotheses, not discovered objects.",
+      "fit_real_heads": "More votes can be routed using genuine read-head vectors. Preserve their actual source/head identities; per-input transformation banks scale with input count and are not permutation invariant unless parameter sharing is redesigned.",
+      "adaptation_boundary": "Use fully connected routing only, reset logits each readout, and feed capsule vectors to the existing classifier. No convolutional grid, reconstruction, capsule margin objective, class-probability norm interpretation, or persistent routing state.",
+      "caveats": [
+        "Changing the original classification losses is prohibited, so this is a routing-block adaptation rather than CapsNet reproduction.",
+        "Use a zero-safe differentiable squash; official division by norm is unsafe for all-zero masked inputs.",
+        "Biases and inactive votes require masking to prevent artificial capsule activity.",
+        "Agreement can reinforce correlated/redundant votes; more routing rounds have no guaranteed benefit."
+      ],
+      "decision": "CONDITIONAL",
+      "rationale": "Distinct iterative competition and agreement mechanism fits current evidence structurally better than GMN, but semantic claims must stay narrow."
+    }
+  ]
+}
