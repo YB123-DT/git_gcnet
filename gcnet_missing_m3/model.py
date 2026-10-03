@@ -1279,10 +1279,22 @@ class MissingM3GraphModel(GraphModel):
         osram_shift_filter_width=128,
         osram_shift_filter_depth=1,
         osram_relation_block=False,
+        osram_relation_dual_readout=False,
         osram_relation_mode='pairwise',
         osram_relation_dim=128,
         osram_relation_out_dim=64,
     ) -> None:
+        if osram_relation_dual_readout and (
+            not osram_relation_block or backbone_type != 'osram'
+            or training_objective != 'emotion-only' or completion_path != 'none'
+            or classification_completion or completion_write_to_memory or text_core
+            or local_context_residual or node_interaction_residual or readout_type != 'shared'
+            or complete_state_jepa or write_state_completion or future_state_jepa
+            or osram_emotion_ablation != 'full' or osram_ablation != 'full'
+        ):
+            raise ValueError('dual readout requires original shared Flat relation emotion-only path')
+        self.osram_relation_dual_readout = bool(osram_relation_dual_readout)
+        self.last_relation_base_logits = None
         if osram_memory_only_adapter and (
             backbone_type != 'osram' or osram_readout_fusion != 'flat'
             or osram_bidirectional or text_core or training_objective != 'emotion-only'
@@ -1687,6 +1699,7 @@ class MissingM3GraphModel(GraphModel):
                 osram_shift_filter_width=osram_shift_filter_width,
                 osram_shift_filter_depth=osram_shift_filter_depth,
                 osram_relation_block=osram_relation_block,
+                osram_relation_dual_readout=osram_relation_dual_readout,
                 osram_relation_mode=osram_relation_mode,
                 osram_relation_dim=osram_relation_dim,
                 osram_relation_out_dim=osram_relation_out_dim,
@@ -1863,6 +1876,7 @@ class MissingM3GraphModel(GraphModel):
         predict_missing=False,
         completion_predictions_override=None,
     ):
+        self.last_relation_base_logits = None
         features = self._feature_tensor(inputfeats)
         encoded, latents = self.observed_set(features, availability, umask)
         if self.node_interaction_residual:
@@ -1996,6 +2010,13 @@ class MissingM3GraphModel(GraphModel):
                 umask,
             )
         logits = self.smax_fc(readout_hidden)
+        if self.osram_relation_dual_readout and self.training:
+            base_hidden = self.osram.last_relation_base_hidden
+            if base_hidden is None:
+                raise RuntimeError('dual readout did not expose same-trajectory base hidden')
+            base_logits = self.smax_fc(base_hidden)
+            self.last_relation_base_logits = torch.where(
+                umask.T.bool().unsqueeze(-1), base_logits, torch.zeros_like(base_logits))
         if self.readout_type in {
             "availability-low-rank",
             "shared-low-rank-parammatch",

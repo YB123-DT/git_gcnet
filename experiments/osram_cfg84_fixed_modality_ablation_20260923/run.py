@@ -107,6 +107,7 @@ def _build_model(config, dimensions):
         osram_shift_filter_width=getattr(config, 'osram_shift_filter_width', 128),
         osram_shift_filter_depth=getattr(config, 'osram_shift_filter_depth', 1),
         osram_relation_block=getattr(config, 'osram_relation_block', False),
+        osram_relation_dual_readout=getattr(config, 'osram_relation_dual_readout', False),
         osram_relation_mode=getattr(config, 'osram_relation_mode', 'pairwise'),
         osram_relation_dim=getattr(config, 'osram_relation_dim', 128),
         osram_relation_out_dim=getattr(config, 'osram_relation_out_dim', 64),

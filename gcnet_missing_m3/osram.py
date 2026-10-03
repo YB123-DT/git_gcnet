@@ -799,12 +799,17 @@ class OSRAMBackbone(nn.Module):
         osram_shift_filter_width: int = 128,
         osram_shift_filter_depth: int = 1,
         osram_relation_block: bool = False,
+        osram_relation_dual_readout: bool = False,
         osram_relation_mode: str = 'pairwise',
         osram_relation_dim: int = 128,
         osram_relation_out_dim: int = 64,
     ) -> None:
         super().__init__()
         self.osram_relation_block = bool(osram_relation_block)
+        self.osram_relation_dual_readout = bool(osram_relation_dual_readout)
+        self.last_relation_base_hidden = None
+        if self.osram_relation_dual_readout and not self.osram_relation_block:
+            raise ValueError('dual readout requires relation block')
         if self.osram_relation_block and (bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat' or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter or osram_history_input_gate or osram_local_evidence_gate or osram_hierarchical_evidence_gate or history_query_adapter):
             raise ValueError('relation block requires causal Flat without other adaptations')
         if osram_post_grn and osram_readout_fusion != "flat":
@@ -1419,6 +1424,7 @@ class OSRAMBackbone(nn.Module):
         before the local path/readout. It can shape the current representation,
         but it cannot change the already-completed persistent write.
         """
+        self.last_relation_base_hidden = None
         read_node = node if read_node is None else read_node
         write_node = node if write_node is None else write_node
         if post_write_observer is not None and self.bidirectional:
@@ -1593,6 +1599,10 @@ class OSRAMBackbone(nn.Module):
                 )
             if self.osram_relation_block:
                 flat_anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)
+                if self.osram_relation_dual_readout and self.training:
+                    base_hidden = self.emotion_norm(flat_anchor)
+                    self.last_relation_base_hidden = torch.where(
+                        valid.unsqueeze(-1), base_hidden, torch.zeros_like(base_hidden))
                 hidden = self.emotion_norm(flat_anchor + self.relation_block(
                     local, emotion_base, emotion_gap, availability, umask, flat_anchor))
             elif self.osram_local_skip_gate:

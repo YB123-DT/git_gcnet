@@ -131,6 +131,7 @@ class TrainConfig:
     osram_shift_filter_width: int = 128
     osram_shift_filter_depth: int = 1
     osram_relation_block: bool = False
+    osram_relation_dual_readout: bool = False
     osram_relation_mode: str = 'pairwise'
     osram_relation_dim: int = 128
     osram_relation_out_dim: int = 64
@@ -167,6 +168,13 @@ class TrainConfig:
     simple_regression_predictor: bool = False
 
     def __post_init__(self) -> None:
+        if self.osram_relation_dual_readout and (
+            not self.osram_relation_block or self.emotion_loss_mode != 'sample-mean'
+            or self.readout_type != 'shared' or self.local_context_residual
+            or self.node_interaction_residual or self.osram_emotion_ablation != 'full'
+            or self.osram_ablation != 'full'
+        ):
+            raise ValueError('dual readout requires unablated shared relation Flat and sample-mean task loss')
         if self.osram_relation_mode not in ('pairwise', 'control'):
             raise ValueError('unsupported osram_relation_mode')
         for name in ('osram_relation_dim', 'osram_relation_out_dim'):
@@ -1499,6 +1507,26 @@ def _pattern_group_losses(
     return tuple(group_ids), tuple(group_losses)
 
 
+def _relation_dual_readout_loss(model, config, view, full_loss):
+    """Supervise two shared readouts of ONE trajectory; base includes Memory.
+
+    No mask generation or model forward occurs here. The caller computes the
+    original full task loss once, and logs the returned losses after detaching.
+    """
+    if not config.osram_relation_dual_readout:
+        return full_loss, None
+    if config.emotion_loss_mode != 'sample-mean':
+        raise ValueError('dual readout requires stateless sample-mean task loss')
+    base_logits = model.last_relation_base_logits
+    if base_logits is None:
+        raise RuntimeError('dual readout task loss requires training base logits')
+    base_loss, _ = _emotion_loss(
+        config.dataset, base_logits, view['labels'], view['umask'], view['availability'],
+        config.emotion_loss_mode, config.mosi_task_mode, config.task_regression_loss,
+        config.task_smooth_l1_beta)
+    return .5 * (base_loss + full_loss), base_loss
+
+
 def _emotion_loss(
     dataset: str,
     logits: torch.Tensor,
@@ -1973,6 +2001,8 @@ def train_epoch(
     local_evidence_regularizers = []
     losses: list[float] = []
     cls_losses: list[float] = []
+    relation_base_losses: list[float] = []
+    relation_full_losses: list[float] = []
     jepa_losses: list[float] = []
     text_core_losses: list[float] = []
     text_core_self_losses: list[float] = []
@@ -2163,6 +2193,10 @@ def train_epoch(
                 if train_emotion
                 else (zero, {})
             )
+            if config.osram_relation_dual_readout:
+                relation_full_losses.append(float(cls.detach()))
+                cls, base_loss = _relation_dual_readout_loss(model, config, view, cls)
+                relation_base_losses.append(float(base_loss.detach()))
             text_core_loss = zero
             text_core_self = zero
             text_core_pred = zero
@@ -2435,6 +2469,14 @@ def train_epoch(
         }} if config.paired_history_views else {}),
         "loss": float(np.mean(losses)),
         "classification_loss": float(np.mean(cls_losses)),
+        **({'relation_dual_readout': {
+            'base_task_loss': float(np.mean(relation_base_losses)),
+            'full_task_loss': float(np.mean(relation_full_losses)),
+            'combined_task_loss': float(np.mean(cls_losses)),
+            'batches': len(relation_base_losses),
+            'base_weight': .5, 'full_weight': .5,
+            'base_includes_memory': True,
+        }} if config.osram_relation_dual_readout else {}),
         **_memory_shift_metrics(memory_shift_totals),
         **_relation_metrics(relation_totals),
         **_post_grn_metrics(post_grn_totals),
@@ -2952,6 +2994,7 @@ def run_experiment(
         osram_shift_filter_width=config_value.osram_shift_filter_width,
         osram_shift_filter_depth=config_value.osram_shift_filter_depth,
         osram_relation_block=config_value.osram_relation_block,
+        osram_relation_dual_readout=config_value.osram_relation_dual_readout,
         osram_relation_mode=config_value.osram_relation_mode,
         osram_relation_dim=config_value.osram_relation_dim,
         osram_relation_out_dim=config_value.osram_relation_out_dim,
@@ -3460,6 +3503,7 @@ def run_experiment(
         "osram_shift_filter_width": config_value.osram_shift_filter_width,
         "osram_shift_filter_depth": config_value.osram_shift_filter_depth,
         "osram_relation_block": config_value.osram_relation_block,
+        "osram_relation_dual_readout": config_value.osram_relation_dual_readout,
         "osram_relation_mode": config_value.osram_relation_mode,
         "osram_relation_dim": config_value.osram_relation_dim,
         "osram_relation_out_dim": config_value.osram_relation_out_dim,
@@ -3756,6 +3800,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--osram-shift-filter-width", type=int, default=128)
     parser.add_argument("--osram-shift-filter-depth", type=int, default=1)
     parser.add_argument('--osram-relation-block', action='store_true')
+    parser.add_argument('--osram-relation-dual-readout', action='store_true')
     parser.add_argument('--osram-relation-mode', choices=('pairwise','control'), default='pairwise')
     parser.add_argument('--osram-relation-dim', type=int, default=128)
     parser.add_argument('--osram-relation-out-dim', type=int, default=64)
@@ -3921,6 +3966,7 @@ def main(argv=None) -> None:
         osram_shift_filter_width=args.osram_shift_filter_width,
         osram_shift_filter_depth=args.osram_shift_filter_depth,
         osram_relation_block=args.osram_relation_block,
+        osram_relation_dual_readout=args.osram_relation_dual_readout,
         osram_relation_mode=args.osram_relation_mode,
         osram_relation_dim=args.osram_relation_dim,
         osram_relation_out_dim=args.osram_relation_out_dim,
