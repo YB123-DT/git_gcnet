@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-03",
+  "status": "Source-verified design artifact only; three accepted complete core adaptations and three explicit rejections. No implementation, training or performance claim.",
+  "skill_used": "Research Literature Trace",
+  "accepted_ids": ["perceiver_io", "dgcnn_dynamic_edgeconv", "graph_multiset_transformer"],
+  "shared_mapping": {
+    "scope": "Every computation is within one utterance and uses only the already-produced Local, Base and active Gap reads. Internal attention queries are allowed; new queries to OSRAM persistent Memory, extra scans/writes, labels, completion targets and new losses are forbidden.",
+    "raw_shapes": "Local256. Slice the actual forward 512 coordinates of each Base/Gap context, then split its genuine eight value heads into 8x64. Never use the backward zero half or interpret arbitrary feature coordinates as image patches, temporal positions or xyz coordinates.",
+    "tokens": "For a valid utterance with history, create Local plus eight Base tokens plus eight tokens per currently missing modality, in canonical A,T,V role order: N=9,17,25. No tokens represent observed-modality Gap. The current availability bitmask determines active Gap roles, not a predicted reliability score.",
+    "projection": "x_Local=Linear256to128(Local)+role_Local. For h=0..7 use a separate learned P_h:64to128 shared across Base and every Gap of that head: x_Base,h=P_h(Base_h)+role_Base+head_h; x_Gap,m,h=P_h(Gap_m,h)+role_m+head_h. Five learned role vectors and eight head vectors are size128. Head IDs preserve actual source identity but imply no spatial/chronological adjacency.",
+    "mask_and_history": "valid=umask.bool(); history=valid & (cumsum(valid,time)-valid>0). Hard where inactive Gap and padding to zero before projection or arithmetic, then compact active tokens per utterance. Padded and valid-no-history rows bypass the entire new branch and return exact zero residual. Thus the first valid row, even after leading padding, keeps original Flat exactly. All-observed rows with history use Local+Base only. No normalization or graph construction mixes utterances.",
+    "integration": "Each accepted block returns one feature128. A shared-design but independently learned zero-initialized Linear128to1600 produces the additive residual at original Flat pre-emotion_norm. Preserve the original adapter, local skip, normalization and classifier as trainable; compute the existing task loss once. No auxiliary head/loss. Preserve existing emotion ablations before these inputs are exposed.",
+    "initialization": "Construct a selected branch inside isolated initialization RNG; disabled path constructs nothing. No stochastic forward sampling, Dropout or BatchNorm in any proposed adaptation. Zero output projection gives the original Flat function initially. Learned inner parameters receive useful task gradients after the output projection moves; this is not frozen-backbone training.",
+    "interpretation": "The exact mappings below are proposed task adaptations, not claims in the source papers or reproductions of source benchmarks. Source-specific core operations are retained; new token embedding, small widths/depths and task output are disclosed. No gain is assumed."
+  },
+  "candidates": [
+    {
+      "id": "perceiver_io",
+      "decision": "ACCEPT: complete encode-process-decode core with current-conditioned output query",
+      "title": "Perceiver IO: A General Architecture for Structured Inputs & Outputs",
+      "authors": ["Andrew Jaegle", "Sebastian Borgeaud", "Jean-Baptiste Alayrac", "Carl Doersch", "Catalin Ionescu", "David Ding", "Skanda Koppula", "Daniel Zoran", "Andrew Brock", "Evan Shelhamer", "Olivier Hénaff", "Matthew M. Botvinick", "Andrew Zisserman", "Oriol Vinyals", "João Carreira"],
+      "url": "https://arxiv.org/abs/2107.14795",
+      "pdf": "https://arxiv.org/pdf/2107.14795",
+      "paper_sections": "Section 3, especially 3.1 encode/process/decode and 3.2 output-query construction; paper PDF opened and inspected.",
+      "code_url": "https://github.com/google-deepmind/deepmind-research/tree/master/perceiver",
+      "codepin": "9176a9f23ced8e3d6024718d757be8d67cfb6927",
+      "symbols": ["perceiver/perceiver.py:PerceiverEncoder", "perceiver/perceiver.py:CrossAttention", "perceiver/perceiver.py:SelfAttention", "perceiver/perceiver.py:BasicDecoder", "perceiver/perceiver.py:MLP"],
+      "corechain": "Learned latent queries cross-attend to the input set; repeated latent-only self-attention processes the compressed representation; an explicit output query cross-attends to the processed latents. Preserve attention projections, normalization, residual connections and feedforward sublayers in all three stages.",
+      "exact_mapping": {
+        "input": "shared_mapping produces X[N,128]. Eight learned latent vectors Z0[8,128], initialized once as model parameters, are broadcast independently to each utterance. They are never persistent state or OSRAM slots.",
+        "encode": "One independent pre-LN CrossAttention(Z0,X), four heads of size32, query residual enabled. Attention logits use sqrt(32) scaling; FFN128→128→128 with GELU (widening_factor=1). This yields Z1[8,128]. Input KV masking must exactly match token compaction.",
+        "process": "Exactly three independent pre-LN latent SelfAttention blocks, each four heads of size32 with residual attention and residual FFN128→128→128/GELU. Equivalent configuration: num_blocks=1, num_self_attends_per_block=3, num_z_channels=128, z_index_dim=8. Do not replace these blocks by one cross-attention call or pooling.",
+        "decode": "q=Linear256to128(safe_Local)+learned_query_bias128, shape[1,128], with its own projection independent of input Local projection. One four-head CrossAttention(q,Z4), query residual disabled as in BasicDecoder default, then its residual FFN128→128→128/GELU. The resulting single128 output goes to shared_mapping.integration. No new memory read occurs.",
+        "current_conditioning": "Local participates in the input set and separately determines the output query, so the processed evidence summary is requested for the current utterance rather than decoded with a task-constant seed.",
+        "parameters_and_masks": "No tied processing layers, no added Fourier/spatial encoding, no extra positional sequence, no dropout. Only active evidence enters encode; eight latent tokens remain valid within a processed utterance. Whole-row bypass precedes all attention for padding/no-history."
+      },
+      "why_meaningful": "Tests a genuine intermediate reasoning bottleneck: evidence is compressed, transformed through multiple latent interactions, and selectively decoded for Local. A single attention-pooling substitute would remove both latent processing and the Local-dependent decoding stage.",
+      "distinct_from_others": "Unlike DGCNN there is no kNN graph. Unlike GMT there is no explicit adjacency or GNN-generated key/value. Unlike SetTransformer, processing stays exclusively in a latent array instead of returning to all input tokens after each inducing exchange; decode uses Local, not a fixed bank of output seeds.",
+      "limits": [
+        "N is only9–25: the source's large-input scaling advantage is not an experimental justification here.",
+        "Depth, latent count and channel width are reduced, but all three architectural stages remain.",
+        "Input-derived output queries are supported by the paper; using this exact Local query is our adaptation, not a published OSRAM method.",
+        "Source is JAX/Haiku. An eventual PyTorch implementation must test operator equivalence without importing a new runtime or copying source without notices."
+      ],
+      "license": {"identifier": "Apache-2.0", "verified": true, "url": "https://github.com/google-deepmind/deepmind-research/blob/9176a9f23ced8e3d6024718d757be8d67cfb6927/LICENSE"},
+      "inspected_sources": ["https://github.com/google-deepmind/deepmind-research/blob/9176a9f23ced8e3d6024718d757be8d67cfb6927/perceiver/perceiver.py", "https://arxiv.org/pdf/2107.14795"]
+    },
+    {
+      "id": "dgcnn_dynamic_edgeconv",
+      "decision": "ACCEPT: four-stage feature-space dynamic EdgeConv backbone, not a one-layer edge operator",
+      "title": "Dynamic Graph CNN for Learning on Point Clouds",
+      "authors": ["Yue Wang", "Yongbin Sun", "Ziwei Liu", "Sanjay E. Sarma", "Michael M. Bronstein", "Justin M. Solomon"],
+      "url": "https://arxiv.org/abs/1801.07829",
+      "pdf": "https://arxiv.org/pdf/1801.07829",
+      "paper_sections": "Section 3 EdgeConv/dynamic graph update and classification architecture; paper PDF opened and inspected.",
+      "code_url": "https://github.com/WangYueFt/dgcnn",
+      "codepin": "f765b469a67730658ba554e97dc11723a7bab628",
+      "symbols": ["pytorch/model.py:knn", "pytorch/model.py:get_graph_feature", "pytorch/model.py:DGCNN.__init__", "pytorch/model.py:DGCNN.forward"],
+      "corechain": "Recompute a feature-space neighbor graph before each EdgeConv stage; learn center-relative edge features; max-aggregate neighbors; concatenate all stage outputs; project and retain both global max and global mean pooling. The repeated topology updates and multiscale aggregation are essential.",
+      "exact_mapping": {
+        "input": "X0[N,128] from shared_mapping. No xyz, radius graph, farthest-point sampling, spatial transform network or token ordering is introduced.",
+        "graph": "At each of exactly four stages, for each active node i choose the four smallest squared Euclidean distances in that stage's current feature space among all N active nodes, including i itself to match author knn behavior. k=min(4,N). Resolve exact distance ties by canonical role/head ID, not batch padding index. The graph is directed i→selected j and is recomputed independently at every stage.",
+        "edgeconv": "Widths are c0=128,c1=64,c2=64,c3=128,c4=256. At stage r: e_ij=concat(x_j-x_i,x_i) in R^(2*c_(r-1)); z_ij=LeakyReLU0.2(LayerNorm(Linear(2*c_(r-1),c_r,bias=False)(e_ij))); x_i^r=max_j z_ij. Four stages have independent parameters. Neighbor selection is discrete; selected feature values retain gradients.",
+        "multiscale": "Concatenate x_i^1,x_i^2,x_i^3,x_i^4 into512, apply Linear512to128(bias=False)→LayerNorm128→LeakyReLU0.2. Compute both active-node maximum128 and mean128; concatenate into256; Linear256to128→LeakyReLU0.2 returns feature128 for shared_mapping.integration.",
+        "current_conditioning": "Local is a full graph node at every stage, can be selected as a neighbor, and always contributes to global max/mean readout. Graph distances include learned role/head-aware features, so this is evidence similarity, not a claim of physical distance.",
+        "masks_and_no_history": "Compact before distances, top-k, edge construction and pooling; padding or inactive Gap cannot become neighbors or affect maxima/means. Entire padding/no-history utterances bypass as in shared_mapping."
+      },
+      "why_meaningful": "Tests whether evidence relationships should evolve after each stage of interaction. Base/Gap affinity can change as relative disagreements are encoded; multiscale readout preserves early comparisons together with later mixed evidence.",
+      "distinct_from_others": "Only accepted method here uses hard, recomputed feature-space neighborhoods and center-difference edge messages followed by neighbor maxima. GMT uses fixed semantic adjacency and graph-aware soft pooling; Perceiver uses learned latent compression without graph edges.",
+      "limits": [
+        "Source BatchNorm is deliberately replaced by per-edge/per-token LayerNorm to avoid cross-utterance statistics and invalid-padding contamination. This is a disclosed normalization adaptation, not exact original DGCNN numerical behavior.",
+        "The source's xyz first stage is replaced with genuine learned evidence features. Later-layer feature-space recomputation is retained, but useful proximity between heterogeneous roles is a modeling hypothesis.",
+        "k=4, embedding width128 and the final task readout are new small-set choices; original point-cloud classifier/dropout is not retained.",
+        "A fixed graph or a single EdgeConv would fail the intended design. No differentiability claim is made for top-k indices at neighbor changes."
+      ],
+      "license": {"identifier": "MIT", "verified": true, "url": "https://github.com/WangYueFt/dgcnn/blob/f765b469a67730658ba554e97dc11723a7bab628/LICENSE"},
+      "inspected_sources": ["https://github.com/WangYueFt/dgcnn/blob/f765b469a67730658ba554e97dc11723a7bab628/pytorch/model.py", "https://arxiv.org/pdf/1801.07829"]
+    },
+    {
+      "id": "graph_multiset_transformer",
+      "decision": "ACCEPT: GNN encoder plus complete graph-aware pooling/interseed/final-pooling chain; implement independently from paper, do not vendor unlicensed source",
+      "title": "Accurate Learning of Graph Representations with Graph Multiset Pooling",
+      "authors": ["Jinheon Baek", "Minki Kang", "Sung Ju Hwang"],
+      "url": "https://arxiv.org/abs/2102.11533",
+      "pdf": "https://arxiv.org/pdf/2102.11533",
+      "paper_sections": "Section3.2, equations6–10 and Figure2; paper PDF opened and inspected. Adjacency after pooling is explicitly chosen as identity, which equation10 permits.",
+      "code_url": "https://github.com/JinheonBaek/GMT",
+      "codepin": "a178b590b158b21423ac0dbc3fcf1b41a94fc52a",
+      "symbols": ["models/nets.py:GraphRepresentation.get_convs", "models/nets.py:GraphMultisetTransformer.forward", "models/nets.py:GraphMultisetTransformer.get_pools", "models/layers.py:MAB.get_fc_kv", "models/layers.py:MAB.forward", "models/layers.py:PMA", "models/layers.py:SAB"],
+      "corechain": "Message-pass on the input graph; use graph convolutions, not pointwise linear maps, to produce keys and values for learned-seed pooling; apply self-attention among compressed nodes; pool those nodes to one graph representation. Preserve GNN-derived K/V and all three pooling stages.",
+      "exact_mapping": {
+        "graph": "Use the active tokens from shared_mapping. Undirected edges connect Local to every memory token and connect any two distinct memory tokens with the same actual head ID across Base/active-Gap roles. No edges connect different heads except through Local. Store a loop-free adjacency A; each GCN uses A+I with exactly one self-loop per node. This is a proposed role/head graph, not measured geometry.",
+        "encoder": "Ahat=D^(-1/2)(A+I)D^(-1/2), counting each undirected edge in both directions and self loops once. H1=ReLU(Ahat X W1+b1), H2=ReLU(Ahat H1 W2+b2), each128 channels. Concatenate H=[H1,H2] into N×256, retaining the author's jumping-knowledge concat. No BatchNorm or dropout.",
+        "graph_pool": "GMPool_G uses four learned seeds S[4,256]. Q=S Wq+bq; K=Ahat H Wk+bk and V=Ahat H Wv+bv from separate one-layer GCNs, each256 channels. Four heads of64, scores divided by sqrt(256), softmax over active input nodes. Concatenate per-head(Q_head+attention*V_head), apply LN256, then residual ReLU(Linear256to256) and LN256, matching pinned MAB behavior. Output U[4,256]. cluster=False.",
+        "interseed": "Exactly one source-style SAB projects Q,K,V from256to128 on U, four heads of32, score scaling sqrt(128), projected-query residual, LN128, residual ReLU(Linear128to128), LN128. Output V[4,128]. This stage models interactions among the four graph summaries; it is not removed because the final task is scalar regression.",
+        "final_pool": "GMPool_I uses one learned128 seed and ordinary linear K/V on V (identity post-pooling graph); four heads of32, scaling sqrt(128), the same MAB residual/LN sequence. Apply the author's final Linear128to128 to the resulting1×128 vector, then shared_mapping.integration. Exact stage string: GMPool_G-SelfAtt-GMPool_I.",
+        "current_conditioning": "Local is the unique hub in the input graph, so each Base/Gap key and value receives Local-dependent information before pooled attention. This is separate from using Local as a decoder query and separate from dynamic-neighbor similarity.",
+        "mask": "Build compact graph and degrees only from active nodes. A block-diagonal batch is allowed, but no cross-utterance graph edge/statistic. Graph_pool excludes any padded KV; four compressed seeds and final seed are fully valid only for processed utterances. No-history/padding bypass is shared_mapping."
+      },
+      "why_meaningful": "Tests whether graph-structured evidence should inform not just token embeddings but the actual keys and values used to form multiple pooled summaries, followed by explicit summary interaction and a final learned reduction.",
+      "distinct_from_others": "Not a SetTransformer alias: both encoder and first pooling K/V use the defined adjacency. Not DGCNN: adjacency is fixed by role/head identities, messages are normalized graph convolutions, and output uses graph-aware seed pooling rather than max/mean. Not AllSet: no node↔hyperedge incidence rounds or per-hyperedge multiset aggregation.",
+      "limits": [
+        "The proposed Local-star/same-head topology is an inductive bias; useful edges are not established by the paper and may oversmooth this tiny graph.",
+        "Do not transfer graph-isomorphism/injectivity theorems to this finite-width, continuous-feature adaptation or claim graph reconstruction ability.",
+        "GCN rather than GIN is fixed to avoid source GIN BatchNorm; GCN is explicitly supported by the official model.",
+        "Paper equation7 uses a conventional MAB presentation while pinned author MAB uses projected-query residual and sqrt(total width) scaling. The proposed numeric contract above explicitly follows the author implementation; verify it on tiny graphs.",
+        "No root LICENSE, LICENSE.md, LICENSE.txt, COPYING or equivalent license notice was verified at the immutable source revision. Use the paper and source only as references for an independent implementation; do not copy/vend repository code or assume a permissive license."
+      ],
+      "license": {"identifier": "UNVERIFIED / no license file found", "verified": false, "url": "https://github.com/JinheonBaek/GMT/tree/a178b590b158b21423ac0dbc3fcf1b41a94fc52a", "implementation_route": "Independent equation-based implementation; no source vendoring."},
+      "inspected_sources": ["https://github.com/JinheonBaek/GMT/blob/a178b590b158b21423ac0dbc3fcf1b41a94fc52a/models/nets.py", "https://github.com/JinheonBaek/GMT/blob/a178b590b158b21423ac0dbc3fcf1b41a94fc52a/models/layers.py", "https://arxiv.org/pdf/2102.11533"]
+    }
+  ],
+  "rejected": [
+    {
+      "id": "set_transformer_full",
+      "decision": "REJECT from the diversity-constrained20: valid complete mapping, but not an additional counted method beside Perceiver/GMT/AllSet; not a conditional reserve",
+      "title": "Set Transformer: A Framework for Attention-based Permutation-Invariant Neural Networks",
+      "authors": ["Juho Lee", "Yoonho Lee", "Jungtaek Kim", "Adam R. Kosiorek", "Seungjin Choi", "Yee Whye Teh"],
+      "url": "https://proceedings.mlr.press/v97/lee19d.html",
+      "pdf": "https://proceedings.mlr.press/v97/lee19d/lee19d.pdf",
+      "code_url": "https://github.com/juho-lee/set_transformer",
+      "codepin": "73432c640ac78140496d6738416c54d32c686d65",
+      "symbols": ["modules.py:MAB", "modules.py:ISAB", "modules.py:PMA", "modules.py:SAB", "models.py:SetTransformer"],
+      "corechain": "Two induced set-attention blocks, pooling with multiple learned seeds, then two self-attention blocks among those seeds. A bare SAB or single PMA is not the complete design considered.",
+      "exact_mapping": "X[N,128] from shared_mapping; two independent ISABs, each with four inducing vectors and four heads. Each ISAB computes H=MAB(I,X) then X'=MAB(X,H), retaining all N tokens. PMA with four learned seeds yields4×128; two SABs model interseed interaction; per-seed Linear128to128; flatten the fixed learned-seed axis4×128, Linear512to128, then common residual output. All MABs use ln=True, projected-query residual, sqrt(128) score scaling and source single Linear/ReLU residual feedforward, no dropout. Local is an input token, not a separate query. Masks follow shared_mapping at every input-key use; no-history/padding bypass.",
+      "why_meaningful": "This would be a legitimate complete set encoder/decoder, with induced exchanges and correlated pooled outputs; it is not rejected as technically impossible.",
+      "distinct_from_others": "Unlike Perceiver it returns from induced latents to all N tokens twice and uses several learned output seeds rather than a Local-dependent output query. Nevertheless, PMA/SAB processing substantially overlaps the accepted GMT and the other lane's AllSet family, making this a lower-diversity additional count.",
+      "limits": ["Explicitly excluded from accepted_ids to avoid filling the list with near-family attentional mechanisms.", "No source result or transfer-performance claim is made. The exact mapping records why this is a considered rejection, not an unexamined reserve."],
+      "license": {"identifier": "MIT", "verified": true, "url": "https://github.com/juho-lee/set_transformer/blob/73432c640ac78140496d6738416c54d32c686d65/LICENSE"}
+    },
+    {
+      "id": "attentive_neural_process",
+      "decision": "REJECT: full defining context-pair/probabilistic model has no faithful label-free task mapping; isolated attention would duplicate accepted mechanisms",
+      "title": "Attentive Neural Processes",
+      "authors": ["Hyunjik Kim", "Andriy Mnih", "Jonathan Schwarz", "Marta Garnelo", "Ali Eslami", "Dan Rosenbaum", "Oriol Vinyals", "Yee Whye Teh"],
+      "url": "https://arxiv.org/abs/1901.05761",
+      "pdf": "https://arxiv.org/pdf/1901.05761",
+      "code_url": "https://github.com/google-deepmind/neural-processes",
+      "codepin": "aca7e38ea64b718fbd7f311ccae5d51d73447d15",
+      "symbols": ["attentive_neural_process.ipynb:DeterministicEncoder", "attentive_neural_process.ipynb:LatentEncoder", "attentive_neural_process.ipynb:LatentModel", "attentive_neural_process.ipynb:Attention"],
+      "corechain": "Encode observed context input/output pairs, provide target-specific attentive representations, infer a latent function representation and decode a predictive distribution. The official training path additionally uses target outputs for posterior inference.",
+      "exact_mapping": "No accepted mapping. Role/head IDs could be invented as context x and Base/Gap features as context y, but that introduces artificial function-coordinate semantics. Using gold emotion labels as context/target values violates the task; retaining latent posterior training changes the objective. Dropping the probabilistic path and reducing the remainder to Local-query cross-attention is not a sufficiently distinctive complete ANP block for this screen.",
+      "why_meaningful": "The source is meaningful for conditional stochastic-function modeling; that is not the supplied evidence-fusion contract.",
+      "distinct_from_others": "Its distinctive stochastic context-pair semantics are exactly the part that would be lost by the tempting attention-only transplant.",
+      "limits": ["This is a scope rejection, not a claim that no ANP-inspired discriminative feature extractor could ever be built."],
+      "license": {"identifier": "Apache-2.0", "verified": true, "url": "https://github.com/google-deepmind/neural-processes/blob/aca7e38ea64b718fbd7f311ccae5d51d73447d15/LICENSE"}
+    },
+    {
+      "id": "pointmlp",
+      "decision": "REJECT: complete hierarchy depends on coordinate-defined sampling/grouping absent from real evidence heads",
+      "title": "Rethinking Network Design and Local Geometry in Point Cloud: A Simple Residual MLP Framework",
+      "authors": ["Xu Ma", "Can Qin", "Haoxuan You", "Haoxi Ran", "Yun Fu"],
+      "url": "https://arxiv.org/abs/2202.07123",
+      "pdf": "https://arxiv.org/pdf/2202.07123",
+      "code_url": "https://github.com/ma-xu/pointMLP-pytorch",
+      "codepin": "1ab7f04e88d2aeb8fd16921a2b2fc4fba950b6df",
+      "symbols": ["classification_ModelNet40/models/pointmlp.py:LocalGrouper.forward", "classification_ModelNet40/models/pointmlp.py:PreExtraction", "classification_ModelNet40/models/pointmlp.py:PosExtraction", "classification_ModelNet40/models/pointmlp.py:Model"],
+      "corechain": "Hierarchical center sampling and local grouping, geometric affine normalization, residual pre-aggregation MLP, neighbor pooling and post-aggregation residual MLP; repeat at reduced resolutions.",
+      "exact_mapping": "No accepted mapping. LocalGrouper.forward samples centers with furthest_point_sample(xyz) and finds neighborhoods with knn_point(...,xyz,new_xyz), including when use_xyz=False hides coordinates from feature concatenation. OSRAM heads supply semantic role/head identity, not an xyz cloud. Inventing a coordinate embedding to drive farthest-point hierarchy is a new geometry assumption; dropping hierarchy leaves residual MLP/affine pooling rather than the complete source core.",
+      "why_meaningful": "The full paper block is meaningful, but its geometric hierarchy is not naturally grounded in this tiny heterogeneous evidence set.",
+      "distinct_from_others": "Unlike accepted DGCNN, this source contract retains xyz-driven hierarchy rather than repeatedly recomputing the whole graph in learned feature space.",
+      "limits": ["Do not turn the use_xyz=False option into a claim of coordinate-free grouping.", "PointNeXt/PointNet++ should face the same explicit geometry review rather than automatically inheriting acceptance; they are not counted here."],
+      "license": {"identifier": "Apache-2.0", "verified": true, "url": "https://github.com/ma-xu/pointMLP-pytorch/blob/1ab7f04e88d2aeb8fd16921a2b2fc4fba950b6df/LICENSE"}
+    }
+  ],
+  "verification_requirements": [
+    "Before training, verify each accepted tiny unmasked core against pinned source/equation behavior: Perceiver encode/process/decode stage count and decoder query residual; DGCNN neighbor regeneration and multiscale concat; GMT GCN-derived K/V and three-stage pooling with exact attention scale.",
+    "Test inactive-NaN invariance, prefix-history and arbitrary-padding bypass, all-observed zero-Gap behavior, no cross-utterance influence, finite forward/backward, and all intended branch parameters updating after the zero-output warmup.",
+    "Count exactly one unchanged OSRAM scan and unchanged query/write functions; verify default-off strict checkpoint/state/RNG compatibility and initial zero-residual train/eval output equivalence.",
+    "Permutation checks must permute tokens together with their role/head metadata and graph adjacency. DGCNN equal-distance tie behavior needs a separate canonical-ID test.",
+    "No implementation or numerical test is claimed by this literature artifact. Official PDFs, immutable code revisions, named symbols and stated license files were inspected through read-only requests."
+  ]
+}

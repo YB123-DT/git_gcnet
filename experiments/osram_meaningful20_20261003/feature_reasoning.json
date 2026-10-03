@@ -1,0 +1,77 @@
+{
+  "status": "SOURCE_AND_DESIGN_SCREEN_NOT_PERFORMANCE_VALIDATION",
+  "owner": "root",
+  "common_wrapper": "Original Flat intact. Each new branch consumes only readout-ablation-applied Local/Base/Gap and availability. Use current forward half only; safe where before/after projections; skip branch on padding and before any earlier valid utterance. Branch output -> zero-init Linear(output_width,osram.output_dim) -> add to original Flat pre-norm anchor -> original LN/task head. Isolate initialization RNG, default off, task loss only.",
+  "cards": [
+    {
+      "id": "tabnet",
+      "title": "TabNet: Attentive Interpretable Tabular Learning",
+      "authors": [
+        "Sercan Ö. Arık",
+        "Tomas Pfister"
+      ],
+      "url": "https://arxiv.org/abs/1908.07442",
+      "pdf": "https://arxiv.org/pdf/1908.07442",
+      "venue": "AAAI 2021",
+      "domain": "Tabular classification/regression",
+      "code_url": "https://github.com/google-research/google-research/blob/e49bbfe381c9c0e564b937f1c4e163a2273c65cc/tabnet/tabnet_model.py",
+      "code_commit": "e49bbfe381c9c0e564b937f1c4e163a2273c65cc",
+      "code_license": "Apache-2.0",
+      "source_evidence": "Paper model section/Fig4; Table6 explicitly includes no sparsity regularization. Actual encoder lines102-201 contains four GLU transforms (first two shared), decision/attention split, sparsemax mask, prior-use product and summed decision outputs.",
+      "corechain": "Sequential sparse feature selection -> shared+step-specific feature processing -> split decision and next-step attention -> update feature-use prior -> accumulate decision features across steps.",
+      "exact_mapping": {
+        "input": "Project Local256->64 and each safely-masked forward memory512->128 (shared memory projection). Concatenate [L64,B128,GA128,GT128,GV128,availability3], total579. Apply per-slot LN before bias-free projection, then re-mask absent slots. Preserve fixed slot meanings, not a spatial/temporal sequence.",
+        "dimensions": "decision_dim64,attention_dim64; feature transformer width128; two shared GLU layers and two step-specific GLU layers per transformer; one warmup transformer followed by three sparse-selection/decision steps (four source-style passes total).",
+        "iteration": "Initial full-feature pass supplies attention state but no accumulated decision. At each of3 decision steps: mask=sparsemax(prior*attention_logits) over eligible coordinates only; transform(mask*input); add ReLU(decision64); update prior*=1.5-mask. Keep invalid coordinate eligibility false independently of the prior values.",
+        "masking": "Masked sparsemax excludes all128 coordinates of inactive Gap slots. Zero priors alone are NOT a sufficient exclusion. availability coordinates and Local/Base remain eligible on history-valid rows. Biased outputs cannot reactivate invalid raw features because original safe input is re-multiplied each step.",
+        "normalization": "Replace source BN/GhostBN with per-utterance LayerNorm at corresponding transform positions to prohibit across-utterance/future mixing; this is explicitly TabNet-inspired, not benchmark reproduction.",
+        "output": "sum of three64-dimensional decision vectors -> common zero-init residual output projection; no independent task exits.",
+        "loss": "Original emotion task loss only; lambda_sparse=0 (source-paper ablation), no masked-feature pretraining/decoder."
+      },
+      "why_meaningful": "Tests whether staged selection with a feature-use budget can extract complementary Local/history combinations rather than globally scaling Memory once.",
+      "distinct_from_others": "Unlike NODE's fixed-depth split conjunctions, each step conditions new feature selection on the previous transformed sample and past feature-use budget.",
+      "limitations": [
+        "Mask coefficients are not causal attributions.",
+        "LN and learned-latent input replace source GhostBN/raw columns, so original TabNet accuracy claims do not transfer.",
+        "End-to-end learned features can make feature selection unstable; the experiment may fail."
+      ],
+      "decision": "accept_for_fixed_single_seed_test"
+    },
+    {
+      "id": "node",
+      "title": "Neural Oblivious Decision Ensembles for Deep Learning on Tabular Data",
+      "authors": [
+        "Sergei Popov",
+        "Stanislav Morozov",
+        "Artem Babenko"
+      ],
+      "url": "https://arxiv.org/abs/1909.06312",
+      "pdf": "https://arxiv.org/pdf/1909.06312",
+      "venue": "ICLR 2020",
+      "domain": "Tabular representation learning",
+      "code_url": "https://github.com/Qwicen/node/blob/3bae6a8a63f0205683270b6d566d9cfa659403e4/lib/odst.py",
+      "code_commit": "3bae6a8a63f0205683270b6d566d9cfa659403e4",
+      "code_license": "MIT",
+      "additional_code": "https://github.com/Qwicen/node/blob/3bae6a8a63f0205683270b6d566d9cfa659403e4/lib/arch.py",
+      "source_evidence": "Paper sections3.1-3.3; ODST.forward lines69-97 computes sparse feature selectors, split responses, path-products and leaf mixtures. DenseBlock.forward lines17-32 concatenates all earlier tree features. lib/nn_utils.py supplies entmax15 and entmoid15; source defaults sparsemax but paper favored alpha1.5.",
+      "corechain": "Sparse feature choice -> learned threshold/temperature decisions at each tree depth -> products over complete split paths -> learned leaf response vectors -> densely connected tree layers.",
+      "exact_mapping": {
+        "input": "Same579-dimensional fixed-slot vector as TabNet: Local64 + four safe projected history128 + availability3. No input image/token sequence. Per-slot LN, bias-free projections and post-projection masking.",
+        "dimensions": "3 dense-connected layers,32 trees/layer, depth4, leaf response width2; layer input widths579/643/707; all96 tree outputs retained as192-dimensional representation.",
+        "operation": "Feature selection entmax1.5 and two-class entmoid1.5;16 leaves per tree; each deeper layer sees original input and all earlier tree outputs. Do not replace path-product with a generic MLP.",
+        "masking": "Inactive raw Gap coordinates stay exact zero before every tree layer. Selection logits for those raw coordinates are excluded with per-sample masked entmax; previous tree features are allowed because they summarize safe evidence. This sample-specific eligibility extends source shared selectors; their learnable scores remain shared.",
+        "initialization": "Construct finite provisional thresholds=0 and log_temperatures=0 with initialized=False, allowing fresh zero-bridge evaluation without mutation or NaN placeholders. Source-style data-aware threshold/temperature initialization replaces them from detached valid history-bearing rows of the FIRST NORMAL TRAINING batch with such rows, under forked RNG, using the same per-sample masked selectors as forward. No additional OSRAM scan, label use or optimizer step. Floors ensure finite log temperatures. Save initialized flag and parameters; prohibit automatic initialization from validation/test. Small first-batch sample size is a recorded risk, not silently enlarged training protocol.",
+        "output": "concatenate192 -> common zero-init residual output projection; existing task head unchanged.",
+        "normalization": "No external quantile preprocessing, QHAdam, checkpoint averaging or source optimizer changes. Original cfg84 optimizer/protocol retained; only branch per-slot LN used."
+      },
+      "why_meaningful": "Tests an alternative interaction inductive bias: task-relevant conjunctions of Local and history feature thresholds, with deeper learned combinations, instead of one-shot feature weighting.",
+      "distinct_from_others": "Not a single scalar gate: complete path probabilities select vector leaf responses, and later ensembles operate on earlier ensemble representations. Distinct from graph message passing, competitive grouping and matrix factorization.",
+      "limitations": [
+        "Learned latent coordinates differ from static source tabular columns; no interpretable sentiment-rule claim.",
+        "Per-sample inactive-coordinate exclusion is a deliberate adaptation of shared selectors.",
+        "Small-batch data-aware initialization and near-saturated tree paths require numerical correctness tests; no guaranteed benefit."
+      ],
+      "decision": "accept_for_fixed_single_seed_test"
+    }
+  ]
+}

@@ -1,0 +1,377 @@
+{
+  "schema_version": 1,
+  "reviewed_at_utc": "2026-10-03",
+  "skill_used": "Research Literature Trace",
+  "group": "Grouping and assignment",
+  "accepted_count": 4,
+  "rejected_count": 1,
+  "common_contract": {
+    "scope": "Adapt a complete grouping core, not the source image backbone, decoder, or source task loss. Acceptance means the architecture and mapping are specified; it is not measured performance or training authorization.",
+    "input": "For one valid utterance: L in R^256, forward Base B in R^(8x64), and fixed typed Gap G in R^(3x8x64), types A/T/V. Use only already-computed reads. Ordinary supported cases contain 1 Local + 8 Base + 0/8/16 active Gap tokens.",
+    "fixed_storage": "33 typed positions: Local, B1..B8, GA1..GA8, GT1..GT8, GV1..GV8. Inactive positions are excluded; storage padding is not an extra observation. No splitting Local into invented tokens.",
+    "adapter": [
+      "Let valid and history be existing causal validity/history indicators; let gap_active[m] be the existing missing-modality read mask. These are deterministic guards, not sampled masks.",
+      "Compute safe_L=where(valid,L,0); l=where(valid,GELU(Linear256to64(LayerNorm256(safe_L))),0). Local token x_0=l+e_Local, then re-mask.",
+      "For each real read r_(type,h), safe_r=where(active_(type,h),r,0); x_(type,h)=where(active_(type,h),GELU(P_type(LayerNorm64(safe_r))+C_type(l)+e_type+e_head[h]),0). P_type and C_type are 64-to-64 affine maps; four types are Base/GA/GT/GV; eight head embeddings share their indexing across types.",
+      "Base active=valid AND history; Gap active=valid AND history AND gap_active[m]. Local active=valid. Local conditioning enters all memory-token votes through C_type(l), and Local itself participates once.",
+      "Use torch.where before reading any inactive value and after every biased token operation. NaN in an inactive read cannot affect values or gradients. All subsequent computations are per utterance; no batch statistics or temporal convolution.",
+      "Token identity follows its source/head metadata under permutations. No adjacency, linguistic order, object identity, pose, or missing-latent semantics are assigned to the tokens."
+    ],
+    "boundary": [
+      "The outer readout branch is evaluated only when valid AND history. Otherwise its 128-dimensional correction feature is exactly zero, including the first valid utterance.",
+      "With no active Gap but history present, execute the unchanged grouping core on Local plus eight Base tokens. There is no synthetic Gap token.",
+      "For an all-inactive direct unit-test input, return exact zeros before normalization, routing, or Sinkhorn. Invalid/padded outputs are zeroed again after the output projection.",
+      "Active all-zero numeric inputs must remain finite; they need not produce zero learned features because identity embeddings are allowed. This differs from all-inactive and no-history, which must be exact zero."
+    ],
+    "integration": "Each core returns z in R^128. The common integration may use f_new=f_Flat+where(valid AND history,W_out z+b_out,0), where the output affine layer has bias enabled, both W_out and b_out are zero-initialized, and it maps 128 to the existing Flat feature dimension (do not hard-code an incompatible width). The outer guard zeros the complete affine correction, including a learned bias, on invalid/no-history rows. Preserve the original classifier/loss, all existing masks and checkpoint-selection protocol; train active backbone and readout jointly. No auxiliary objective, reconstruction, completion, class-specific routing target, gold label input, extra OSRAM query/write/scan/cache, or extra paired view.",
+    "numerics": "Routing and transport statistics use float32 even under mixed precision. All unrolled steps retain gradients. Trainable matrices use the experiment seed and Xavier initialization unless a card states otherwise. No dropout is introduced.",
+    "verification_required_before_training": [
+      "Check exact shapes and mask/NaN isolation.",
+      "Check no-history/all-inactive exact-zero correction and no-Gap Base-only behavior after parameters update.",
+      "Check batch independence and absence of memory hooks/calls.",
+      "Check repeated evaluation, strict checkpoint reload, finite backward and parameter updates.",
+      "For Slot Attention, check branch training draws leave global CPU/CUDA RNG states unchanged, private RNG state advances only on executed training rows, and strict reload/full resume reproduces the next private-noise sequence; evaluation leaves both private and global RNG states unchanged.",
+      "Numerically compare each core with the pinned source equations on finite unmasked toy inputs, accounting for documented adaptation differences."
+    ]
+  },
+  "accepted": [
+    {
+      "id": "capsule_dynamic_routing",
+      "status": "accepted_core_adaptation",
+      "title": "Dynamic Routing Between Capsules",
+      "authors": [
+        "Sara Sabour",
+        "Nicholas Frosst",
+        "Geoffrey E. Hinton"
+      ],
+      "year": 2017,
+      "venue": "NeurIPS",
+      "url": "https://arxiv.org/abs/1710.09829",
+      "pdf": "https://arxiv.org/pdf/1710.09829",
+      "codeURL": "https://github.com/Sarasra/models/tree/984fbc754943c849c55a57923f4223099a1ff88c/research/capsules",
+      "code_revision": "984fbc754943c849c55a57923f4223099a1ff88c",
+      "license": "Apache-2.0",
+      "source_provenance": "First-author repository README identifies this as the code used for Dynamic Routing Between Capsules; README and actual routing file inspected.",
+      "paper_evidence": "Section 2, equations 1-3, Procedure 1.",
+      "code_evidence": [
+        {
+          "url": "https://github.com/Sarasra/models/blob/984fbc754943c849c55a57923f4223099a1ff88c/research/capsules/models/layers/layers.py#L32",
+          "lines": "32-47",
+          "finding": "Vector-length squash."
+        },
+        {
+          "url": "https://github.com/Sarasra/models/blob/984fbc754943c849c55a57923f4223099a1ff88c/research/capsules/models/layers/layers.py#L75",
+          "lines": "75-199",
+          "finding": "Parent-specific votes, zero logit initialization, parent competition, squash and cumulative dot-product agreement."
+        }
+      ],
+      "retained_core": [
+        "Input-parent transformation matrices",
+        "Multiple competing vector capsules",
+        "Weighted vote aggregation",
+        "Vector squash",
+        "Accumulated agreement over repeated routing"
+      ],
+      "fixed_hyperparameters": {
+        "input_width": 64,
+        "parent_capsules": 4,
+        "capsule_width": 32,
+        "routing_iterations": 3,
+        "squash_epsilon": 1e-8,
+        "leaky_routing": false,
+        "routing_bias": false,
+        "output_width": 128
+      },
+      "exact_mapping": [
+        "Use all active common-contract tokens. For each of 33 typed positions i and each parent j in 1..4, compute a 32-vector vote uhat_ij=W_ij x_i with W_ij in R^(32x64), bias-free. Exclude inactive i from every sum and agreement update.",
+        "Reset b_ij=0 on every utterance. In each of three rounds: c_ij=softmax over the four parents; s_j=sum_active_i c_ij uhat_ij; v_j=q/(1+q) * s_j/sqrt(max(q,1e-8)), q=sum_d s_jd^2.",
+        "After rounds 1 and 2, b_ij += dot(uhat_ij,v_j); the equivalent unused last-round logit update may be omitted. Do not detach votes or intermediate routing logits.",
+        "Concatenate the four final 32-vectors in learned-parent order to produce z in R^128. All-inactive/no-history guards follow the common contract."
+      ],
+      "local_conditioning": "Local appears as one lower capsule and conditions all Base/Gap tokens in the shared input adapter; parent logits are still initialized to zero, preserving routing-by-agreement.",
+      "input_output_mask": "Inactive votes and their logit updates are zero/excluded. Parent states are temporary within the utterance; output is hard-zero outside valid-history rows.",
+      "original_to_adapted_changes": [
+        "Replace visual lower capsules with typed read-head vectors.",
+        "Use the paper's bias-free sum rather than the optional bias in released code; use zero-safe squash.",
+        "Output capsule vectors, not class probabilities; omit image convolutions, margin loss and reconstruction decoder."
+      ],
+      "hypothesis": "Parent-specific transforms may combine mutually consistent Local/Base/Gap votes while allowing incompatible evidence to support different latent groups.",
+      "distinct_reason": "Agreement is accumulated into per-input routing logits and followed by vector squash; there is no GRU state, covariance posterior, or balanced transport constraint.",
+      "limitations": [
+        "Agreement can amplify correlated or redundant read heads.",
+        "Four groups and three rounds are fixed preregistered choices, not evidence of optimality.",
+        "Capsules are latent evidence groups; no object/pose or missing-modality reconstruction claim."
+      ],
+      "unresolved_design_choices": [],
+      "performance_claim": "None; source-backed structural hypothesis only."
+    },
+    {
+      "id": "slot_attention",
+      "status": "accepted_core_adaptation",
+      "title": "Object-Centric Learning with Slot Attention",
+      "authors": [
+        "Francesco Locatello",
+        "Dirk Weissenborn",
+        "Thomas Unterthiner",
+        "Aravindh Mahendran",
+        "Georg Heigold",
+        "Jakob Uszkoreit",
+        "Alexey Dosovitskiy",
+        "Thomas Kipf"
+      ],
+      "year": 2020,
+      "venue": "NeurIPS",
+      "url": "https://arxiv.org/abs/2006.15055",
+      "pdf": "https://arxiv.org/pdf/2006.15055",
+      "codeURL": "https://github.com/google-research/google-research/tree/e49bbfe381c9c0e564b937f1c4e163a2273c65cc/slot_attention",
+      "code_revision": "e49bbfe381c9c0e564b937f1c4e163a2273c65cc",
+      "license": "Apache-2.0",
+      "source_provenance": "Paper-linked Google reference implementation; README and actual SlotAttention class inspected.",
+      "paper_evidence": "Section 2.1, Algorithm 1 and equations 1-2.",
+      "code_evidence": [
+        {
+          "url": "https://github.com/google-research/google-research/blob/e49bbfe381c9c0e564b937f1c4e163a2273c65cc/slot_attention/model.py#L43",
+          "lines": "43-103",
+          "finding": "Shared Gaussian parameters, bias-free Q/K/V, competition over slots, input-axis weighted mean, GRU and residual MLP."
+        }
+      ],
+      "retained_core": [
+        "Distinct initial slot draws from shared Gaussian parameters",
+        "Competition across output slots",
+        "Per-slot normalized aggregation across inputs",
+        "Shared GRU refinement",
+        "Residual MLP and LayerNorm",
+        "Repeated refinement"
+      ],
+      "fixed_hyperparameters": {
+        "input_width": 64,
+        "slots": 4,
+        "slot_width": 64,
+        "refinement_iterations": 3,
+        "mlp_hidden_width": 128,
+        "attention_epsilon": 1e-8,
+        "training_noise_generator_device": "cpu",
+        "training_noise_seed_offset": 104729,
+        "training_noise_seed_modulus": "2^63",
+        "training_noise_rng_state_buffer": "training_noise_rng_state",
+        "evaluation_noise_seed": 1729,
+        "output_width": 128
+      },
+      "exact_mapping": [
+        "Use common-contract tokens, then per-token LayerNorm64 and bias-free K,V projections 64-to-64. Re-mask after normalization.",
+        "Initialize four slots s_j=mu+exp(log_sigma)*epsilon_j using shared learned 64-vector mu and log_sigma. Set log_sigma=0 at initialization, mu Xavier; slots do not have separate learned means.",
+        "Training: use a dedicated branch-owned torch.Generator(device='cpu'), initialized with seed (experiment_seed+104729) modulo 2^63. Its state is held in a persistent uint8 checkpoint buffer named training_noise_rng_state. Before each executed training call, restore this private CPU generator from training_noise_rng_state.detach().cpu(); draw independent standard-normal float32 epsilon[N_active_history,4,64] on CPU using only that generator, in the existing batch-row order; then save its updated state back to the persistent buffer and transfer epsilon to the slot device/dtype. No call to global manual_seed, randn without this generator, or CUDA random generation is allowed. Thus the branch noise consumes neither baseline global CPU/CUDA RNG nor dropout/mask streams. If no row has valid history, skip the draw and leave private state unchanged.",
+        "Strict checkpoint loading and full training resume restore training_noise_rng_state before the next branch draw; do not reseed it from experiment_seed after loading. The state buffer follows module checkpoint/device handling, while generator.set_state receives a CPU copy. A complete resume additionally restores the original optimizer/progress/global RNG states under the unchanged experiment protocol. Evaluation uses one fixed epsilon_eval[4,64] sampled once with a separate isolated CPU generator seed 1729, saved as a persistent checkpoint buffer and broadcast to all rows; evaluation neither draws noise nor changes the private training RNG state. Reset slot state for every utterance.",
+        "For exactly three rounds, compute logits_ij=dot(K_i,Q(LN(s_j)))/sqrt(64); A_ij=softmax_j(logits_ij). Form W_ij=mask_i*(A_ij+1e-8)/sum_active_k(A_kj+1e-8); update_j=sum_i W_ij V_i.",
+        "Set s_j=GRU64(update_j,old_s_j); then s_j += Linear128to64(ReLU(Linear64to128(LN(s_j)))). Share all refinement weights over slots and rounds.",
+        "Apply shared phi=Linear64to64+GELU to final slots; concatenate mean_j(phi(s_j)) and max_j(phi(s_j)) into z in R^128. This symmetric readout does not attach class meaning to slot indices."
+      ],
+      "local_conditioning": "Local is a real input token and conditions each memory token through the shared adapter. No extra query is made against OSRAM; Q refers only to temporary slot-to-token attention.",
+      "input_output_mask": "Inactive input rows are excluded before the epsilon renormalization, not merely zeroed as values. All-inactive rows bypass the core. Final z follows valid-history hard-zero guard.",
+      "original_to_adapted_changes": [
+        "Read-head token features replace image features.",
+        "Fixed common-random-number evaluation replaces the reference implementation's random evaluation draws; training retains Gaussian resampling but uses an isolated, experiment-seeded, checkpointed CPU generator to preserve the baseline dropout/mask RNG streams. This RNG isolation is an engineering adaptation, not a claim about the original implementation.",
+        "Symmetric mean/max readout replaces object decoder or set-prediction head; only original task loss is used."
+      ],
+      "hypothesis": "Competition followed by a learned recurrent update may allocate different temporary slots to complementary evidence groups, rather than only reinforcing instantaneous agreement.",
+      "distinct_reason": "The essential chain is competition -> normalized evidence summary -> GRU state update -> residual refinement, not just a different softmax axis.",
+      "limitations": [
+        "Task-only supervision may produce redundant or source-specialized slots; no object-discovery claim.",
+        "Fixed evaluation noise is a disclosed adaptation and must be held constant across checkpoints/seeds, not chosen using test results.",
+        "Stochastic training needs the persistent private RNG-state buffer as well as the original training state for exact resume; changing active-row batching changes private draw assignment and is not claimed trajectory-equivalent."
+      ],
+      "unresolved_design_choices": [],
+      "performance_claim": "None; source-backed structural hypothesis only."
+    },
+    {
+      "id": "otke",
+      "status": "accepted_core_adaptation",
+      "title": "A Trainable Optimal Transport Embedding for Feature Aggregation and its Relationship to Attention",
+      "authors": [
+        "Grégoire Mialon",
+        "Dexiong Chen",
+        "Alexandre d'Aspremont",
+        "Julien Mairal"
+      ],
+      "year": 2021,
+      "venue": "ICLR",
+      "url": "https://arxiv.org/abs/2006.12065",
+      "pdf": "https://arxiv.org/pdf/2006.12065",
+      "codeURL": "https://github.com/claying/OTK",
+      "code_revision": "2a4d3be10d305e76d55251d8f01c7f2ea7d9bf8c",
+      "license": "No repository license located in inspected root/README; do not copy source. This card specifies an independent mathematical adaptation.",
+      "source_provenance": "Paper explicitly links claying/OTK; README, OTKernel and both Sinkhorn implementations inspected.",
+      "paper_evidence": "Section 3.2 Definition 3.1: nonlinear feature embedding, transport alignment to learned reference, and multi-bin embedding; paper also evaluates a neural-network module variant.",
+      "code_evidence": [
+        {
+          "url": "https://github.com/claying/OTK/blob/2a4d3be10d305e76d55251d8f01c7f2ea7d9bf8c/otk/layers.py#L10",
+          "lines": "10-32,77-109",
+          "finding": "Learned supports, Sinkhorn attention and support-wise feature aggregation."
+        },
+        {
+          "url": "https://github.com/claying/OTK/blob/2a4d3be10d305e76d55251d8f01c7f2ea7d9bf8c/otk/sinkhorn.py#L36",
+          "lines": "36-99",
+          "finding": "Log-domain alternating marginal scaling and dot-product support similarities."
+        },
+        {
+          "url": "https://github.com/claying/OTK/blob/2a4d3be10d305e76d55251d8f01c7f2ea7d9bf8c/README.md",
+          "lines": "Using OTKernel as a module in NNs",
+          "finding": "Released example explicitly precedes OTKernel with Linear and ReLU."
+        }
+      ],
+      "retained_core": [
+        "Nonlinear feature map",
+        "Learned reference support set",
+        "Entropically regularized transport with both marginals constrained",
+        "Multiple support-specific pooled embeddings"
+      ],
+      "fixed_hyperparameters": {
+        "input_width": 64,
+        "feature_width": 64,
+        "references": 1,
+        "supports": 4,
+        "entropy_epsilon": 0.5,
+        "sinkhorn_iterations": 30,
+        "norm_epsilon": 1e-8,
+        "output_width": 128,
+        "position_encoding": false
+      },
+      "exact_mapping": [
+        "On active tokens compute h_i=normalize(ReLU(Linear64to64(x_i)),eps=1e-8); re-mask. Learn four support vectors z_j in R^64, Xavier initialized, and normalize each with the same epsilon. These are persistent parameters, not cached sample state.",
+        "Construct C_ij=-dot(h_i,z_j). Use uniform source mass a_i=1/n for n active tokens and target mass b_j=1/4. Solve the entropy-regularized OT approximation with exactly 30 differentiable log-domain Sinkhorn rounds.",
+        "For packed active rows, logK=-C/0.5; initialize log_u=0, log_v=0. Each round: log_u_i=log(1/n)-logsumexp_j(logK_ij+log_v_j); log_v_j=log(1/4)-logsumexp_i(logK_ij+log_u_i). Then T=exp(logK+log_u+log_v). Unpack inactive rows as exact zero.",
+        "Use the paper's unit-mass normalization: Phi_j=sqrt(4)*sum_i T_ij h_i. Flatten four 64-vectors and apply Linear256to128 to obtain z. Do not collapse supports to an ordinary mean before the learned output projection.",
+        "The OT entropy term defines the internal transport plan; it is NOT added to the training loss. All references, nonlinear map and output projection train only through the original task loss."
+      ],
+      "local_conditioning": "Both the Local token and Local-conditioned memory tokens enter the transport problem. References remain global learned parameters as in the source; no label-conditioned or per-dialogue reference cache.",
+      "input_output_mask": "Operate on packed active tokens so zero-mass inactive rows never enter logarithms. The empty set returns zero before Sinkhorn. No-Gap uses exactly nine tokens; no-history correction remains zero.",
+      "original_to_adapted_changes": [
+        "Use the source-supported neural nonlinear feature map rather than a Gaussian Nyström approximation; do not claim the original Gaussian kernel guarantee.",
+        "No positional encoding or sequence convolution because heads have no spatial order.",
+        "Use paper sqrt(p)*T aggregation; official OTKernel returns p*T-style per-support means, a known fixed scale difference.",
+        "Random supervised parameter initialization replaces unsupervised K-means pretraining; no new objective or dataset pass."
+      ],
+      "hypothesis": "Global mass constraints can discourage all read evidence from collapsing into a single support and retain several complementary summaries despite varying numbers of missing modalities.",
+      "distinct_reason": "Assignments are coupled through both source and target mass constraints and a learned reference geometry. Thirty Sinkhorn updates solve this constrained allocation; they are not independent attention or recurrent slot updates.",
+      "limitations": [
+        "Uniform target capacity may force weak evidence into a support; this is the intended bias being tested.",
+        "Finite Sinkhorn iterations approximate the source marginals; marginal residuals must be logged in unit checks, not turned into an extra loss.",
+        "No claim of a discovered object, calibrated uncertainty, or recovered missing latent."
+      ],
+      "unresolved_design_choices": [],
+      "performance_claim": "None; source-backed structural hypothesis only."
+    },
+    {
+      "id": "capsule_variational_bayes",
+      "status": "accepted_core_adaptation",
+      "title": "Capsule Routing via Variational Bayes",
+      "authors": [
+        "Fabio De Sousa Ribeiro",
+        "Georgios Leontidis",
+        "Stefanos Kollias"
+      ],
+      "year": 2020,
+      "venue": "AAAI",
+      "url": "https://doi.org/10.1609/aaai.v34i04.5785",
+      "pdf": "https://arxiv.org/pdf/1905.11455",
+      "codeURL": "https://github.com/fabio-deep/Variational-Capsule-Routing",
+      "code_revision": "78fb69dc10c71210fad8f456f1f2ce97766c4bb3",
+      "license": "Apache-2.0",
+      "replaces": "matrix_capsules_em_routing",
+      "source_provenance": "Paper footnote links the first author's official implementation; README, matrix-vote layer and complete VB-routing source inspected.",
+      "paper_evidence": "Section 2.2 and Algorithm 1: transformed matrix votes, conjugate posterior updates, responsibility refinement and post-routing activation. Capsule-VAE extension in Section 2.3 is not used.",
+      "code_evidence": [
+        {
+          "url": "https://github.com/fabio-deep/Variational-Capsule-Routing/blob/78fb69dc10c71210fad8f456f1f2ce97766c4bb3/src/layers.py#L62",
+          "lines": "62-151",
+          "finding": "Per-child/per-parent trainable matrix transformations produce vectorized matrix votes."
+        },
+        {
+          "url": "https://github.com/fabio-deep/Variational-Capsule-Routing/blob/78fb69dc10c71210fad8f456f1f2ce97766c4bb3/src/vb_routing.py#L79",
+          "lines": "79-232",
+          "finding": "Uniform initialization, sufficient-statistic/conjugate updates, expected-log responsibility calculation and entropy-based final activation."
+        }
+      ],
+      "retained_core": [
+        "4x4 input matrices and parent-specific matrix multiplication votes",
+        "Activation-weighted sufficient statistics",
+        "Dirichlet and Gaussian-Wishart posterior parameters",
+        "Expected log mixing/precision and Mahalanobis responsibilities",
+        "Repeated posterior refinement",
+        "Posterior mean and entropy-derived activation outputs"
+      ],
+      "fixed_hyperparameters": {
+        "input_width": 64,
+        "parent_capsules": 4,
+        "matrix_rows": 4,
+        "matrix_columns": 4,
+        "vote_dimension": 16,
+        "covariance": "full",
+        "routing_iterations": 3,
+        "alpha0": 1,
+        "kappa0": 1,
+        "prior_mean": "zero 16-vector",
+        "prior_inverse_scale": "I_16",
+        "nu0": 17,
+        "activation_floor": 0.000001,
+        "mass_epsilon": 1e-8,
+        "cholesky_jitter": 0.000001,
+        "output_width": 128
+      },
+      "exact_mapping": [
+        "For each common token x_i, create M_i=reshape(Linear64to16(x_i),4,4) and a_i=clamp(sigmoid(Linear64to1(x_i)),1e-6,1-1e-6). Use per-type projection maps. Inactive inputs have M_i=a_i=0 after where, regardless of biases.",
+        "For each typed input position i and parent j in 1..4, learn W_ij in R^(4x4); set v_ij=vec(M_i W_ij). Use one fully connected grouping region; no spatial unfolding, coordinate addition or sequential neighborhoods.",
+        "Initialize r_ij=1/4 for active i. Each of three rounds computes w_ij=a_i r_ij, N_j=sum_i w_ij, mean_j=sum_i w_ij v_ij/max(N_j,1e-8), and scatter_j=sum_i w_ij(v_ij-mean_j)(v_ij-mean_j)^T.",
+        "Posterior parameters: alpha_j=1+N_j, kappa_j=1+N_j, nu_j=17+N_j, m_j=N_j mean_j/kappa_j, invPsi_j=I+scatter_j+(N_j/kappa_j)mean_j mean_j^T. Use Cholesky with 1e-6 I numerical jitter and solves, not an unstable explicit inverse.",
+        "Compute Elogpi_j=digamma(alpha_j)-digamma(sum_k alpha_k), Elogdet_j=16 log(2)-logdet(invPsi_j)+sum_(d=0..15)digamma((nu_j-d)/2). For rounds 1 and 2, score_ij=Elogpi_j+0.5 Elogdet_j-0.5*(16/kappa_j+nu_j*(v_ij-m_j)^T solve(invPsi_j,v_ij-m_j)); r_ij=softmax_j(score_ij). Round 3 finalizes posterior statistics.",
+        "Choose the released-code entropy-activation variant explicitly: H_j=8*log(2*pi*e)-0.5*Elogdet_j; A_j=sigmoid(beta_a_j-exp(Elogpi_j)*H_j-beta_u_j), with learned beta_a=beta_u=0 initially. Omit source BatchNorm on means/activation so rows cannot affect one another.",
+        "Concatenate the four A_j*m_j vectors (64 scalars) and four A_j scalars, then Linear68to128 gives z. For N_j<=1e-8 force A_j and its weighted mean output to zero; whole-row no-history/all-inactive guards apply.",
+        "Unroll the closed-form posterior calculations with gradients; do not add an ELBO, KL, reconstruction, spread/margin loss, posterior sampling, VAE path, or labels to the readout inputs."
+      ],
+      "local_conditioning": "Local-conditioned common tokens produce all lower matrices and activations. The Local vector participates once; no geometric interpretation is attached to its matrix reshape.",
+      "input_output_mask": "Inactive rows contribute zero mass, no scatter and no assignments. Temporary posterior statistics reset every utterance. No batch normalization, persistent posterior cache or sample mixing.",
+      "original_to_adapted_changes": [
+        "Use one nonspatial fully connected group and typed readout-derived matrices.",
+        "Preserve full-covariance conjugate updates from Algorithm 1; omit image backbone, coordinates and source classification head.",
+        "Select the official code's entropy activation rather than claiming it equals paper equation 14; the code omits the paper's outer mass factor and uses exp(Elogpi)*entropy.",
+        "Omit post-routing batch normalization for utterance isolation; numerical floors and output projection are declared adaptations."
+      ],
+      "hypothesis": "Posterior shrinkage and covariance-aware agreement may prevent small, contradictory head groups from acquiring overconfident assignments when few Gap heads are active.",
+      "distinct_reason": "Unlike dynamic routing, agreement uses learned-matrix votes and uncertainty-aware Gaussian statistics with fixed conjugate priors; unlike Slot Attention there is no GRU; unlike OTKE there are no forced equal target masses.",
+      "limitations": [
+        "This is a deterministic differentiable Bayesian-routing computation, not a claim of calibrated Bayesian uncertainty for emotion prediction.",
+        "16-dimensional matrices are learned arrangements of features, not poses.",
+        "Cholesky/statistical updates cost more than the other three grouping cores; small current-read sets keep the design bounded.",
+        "The selected entropy activation and normalization choices differ from the published equation, so label it adapted VB routing, not exact reproduction."
+      ],
+      "unresolved_design_choices": [],
+      "performance_claim": "None; source-backed structural hypothesis only."
+    }
+  ],
+  "rejected": [
+    {
+      "id": "matrix_capsules_em_routing",
+      "status": "rejected_official_code_requirement",
+      "title": "Matrix capsules with EM routing",
+      "authors": [
+        "Geoffrey Hinton",
+        "Sara Sabour",
+        "Nicholas Frosst"
+      ],
+      "year": 2018,
+      "venue": "ICLR",
+      "url": "https://research.google/pubs/matrix-capsules-with-em-routing/",
+      "pdf": "https://www.cs.toronto.edu/~hinton/absps/EMcapsules.pdf",
+      "codeURL": null,
+      "code_revision": null,
+      "license": null,
+      "paper_evidence": "Primary PDF Sections 2-3 and Procedure 1 inspected: matrix transforms, activation-weighted Gaussian M/E updates and cost-based activation.",
+      "code_evidence": [],
+      "reason": "No original-author official implementation verified. The IBM implementation is official for Ashley Gritzman's reproduction/pitfalls paper, not for the original Hinton/Sabour/Frosst paper; do not relabel it.",
+      "supporting_source": "https://arxiv.org/pdf/1907.00652",
+      "supporting_evidence": "Gritzman's primary paper, Abstract and Introduction, explicitly documents the absence of the original source release and identifies IBM/matrix-capsules-with-em-routing as his implementation.",
+      "replacement": "capsule_variational_bayes",
+      "architectural_note": "EM routing itself could structurally fit the same read-head interface; rejection here is provenance under this lane's mandatory official-code requirement, not a claim that the mathematics cannot transfer."
+    }
+  ]
+}

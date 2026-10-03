@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "status": "Four complete proposed runnable adaptations; source reviewed, not implemented or performance validated",
+  "date": "2026-10-03",
+  "shared_mapping": {
+    "nodes": "For each valid utterance with available history: Local l; Base b_h for h=0..7; Gap g_m,h only for missing modality m in fixed A,T,V order and h=0..7. 9/17/25 active nodes. Split actual 512-dimensional memory output into its genuine eight 64-dimensional value heads; never reshape arbitrary features into image patches.",
+    "projection": "l=Linear256to128(Local)+type_Local; b_h=P_h(Base_h)+type_Base+head_h; g_m,h=P_h(Gap_m,h)+type_m+head_h. Eight P_h:64to128 maps are shared between Base and Gap of the same actual head. Head identities do not imply spatial/temporal proximity.",
+    "hyperedges": "Exactly H_h={l,b_h} union {g_m,h: m missing}, h=0..7; T_Base={l,b_0,...,b_7}; T_m={l,g_m,0,...,g_m,7} for each missing m. Total 9/10/11 edges. No duplicate global edge, singleton edge, learned topology, temporal neighbors or labels. Local belongs to every edge and conditions all group communication.",
+    "mask": "Remove inactive nodes and incident memberships before projection, normalization or attention; compact graph per utterance or block-diagonal batch. Padded rows return zero branch. No-history rows bypass graph and return original Flat exactly. All-observed with history still has Local and Base graph. Exclude NaN inactive raw slots with where before any arithmetic.",
+    "common_readout": "Unless overridden by Hyper-SAGNN, concatenate final Local128, mean of eight Base128, and active Gap mean128 (zero if empty); Linear384to128 then zero-initialized Linear128to1600 additive correction to original Flat pre-normalization. Retain original downstream normalization/head and compute original task loss once.",
+    "protocol": "No dropout, BatchNorm, new losses, labels-as-input, memory scan/query/write, persistent node/edge cache, feature completion or RNG sampling in forward. Construct branch under isolated initialization RNG; default-off must instantiate nothing and preserve legacy RNG/output. Same fixed configuration across screening datasets/seeds; validate source equivalence on tiny unmasked graphs before training.",
+    "interpretation": "Graph memberships are a proposed evidence organization, not an observed physical hypergraph. These are complete transplanted core blocks with new task embedding/readout, not reproductions of source datasets or objectives."
+  },
+  "candidates": [
+    {
+      "id": "allset_transformer",
+      "title": "You are AllSet: A Multiset Learning Framework for Hypergraph Neural Networks",
+      "authors": [
+        "Eli Chien",
+        "Chao Pan",
+        "Jianhao Peng",
+        "Olgica Milenkovic"
+      ],
+      "url": "https://arxiv.org/abs/2106.13264",
+      "pdf": "https://arxiv.org/pdf/2106.13264",
+      "code_url": "https://github.com/jianhao2016/AllSet",
+      "codepin": "6281a2f1a91f6f26040777bb0b2578fc035dc57a",
+      "symbols": [
+        "src/layers.py:PMA",
+        "src/layers.py:HalfNLHconv",
+        "src/models.py:SetGNN"
+      ],
+      "corechain": "Node-to-hyperedge learned-seed multihead pooling, then hyperedge-to-node learned-seed pooling. Each PMA retains key/value transforms, target-group softmax, seed residual, LayerNorm and residual feedforward LayerNorm. Repeat complete V→E→V rounds; not ordinary flat token self-attention.",
+      "exact_mapping": {
+        "graph": "shared_mapping exactly",
+        "layers": 2,
+        "dimension": 128,
+        "heads": 4,
+        "head_dimension": 32,
+        "parameters": "Independent V→E and E→V PMAs in each round, one learned seed per attention head. FFN128→128→128 with ReLU; source PMA uses LeakyReLU(0.2) seed-key scores before grouped softmax. ReLU after each half-round, matching SetGNN backbone. GPR=False, LearnMask=False, dropout=0, no batch normalization.",
+        "readout": "shared_mapping.common_readout"
+      },
+      "why_meaningful": "Tests whether content-selective aggregation within actual shared-head groups and evidence-type groups is better than uniformly mixing all already-read evidence. Two full bipartite rounds let a head-specific discrepancy change another group's readout through Local.",
+      "distinct_from_others": "Learned seed chooses a multiset summary in BOTH incidence directions; no destination-feature-conditioned ED message, static/dynamic discrepancy, or transported stalk geometry.",
+      "limitations": [
+        "Only 9–25 nodes: graph-scale efficiency claims do not transfer.",
+        "Original graph node-classification embedding/head/objective replaced by provided evidence projection and original task readout.",
+        "Do not count AllDeepSets, PMA-only, or generic Set Transformer as additional distinct entries."
+      ],
+      "decision": "ACCEPT as one complete fixed screening design",
+      "license": "MIT",
+      "inspected_sources": [
+        "https://github.com/jianhao2016/AllSet/blob/6281a2f1a91f6f26040777bb0b2578fc035dc57a/src/layers.py",
+        "https://github.com/jianhao2016/AllSet/blob/6281a2f1a91f6f26040777bb0b2578fc035dc57a/src/models.py"
+      ]
+    },
+    {
+      "id": "ed_hnn",
+      "title": "Equivariant Hypergraph Diffusion Neural Operators",
+      "authors": [
+        "Peihao Wang",
+        "Shenghao Yang",
+        "Yunyu Liu",
+        "Zhangyang Wang",
+        "Pan Li"
+      ],
+      "url": "https://arxiv.org/abs/2207.06680",
+      "pdf": "https://arxiv.org/pdf/2207.06680",
+      "code_url": "https://github.com/Graph-COM/ED-HNN",
+      "codepin": "fea3b8f5f11c2eb7265dd4d880e7b5796eddf958",
+      "symbols": [
+        "models/edgnn.py:EquivSetConv",
+        "models/edgnn.py:EquivSetGNN"
+      ],
+      "corechain": "m_e=sum_{u in e} phi(x_u); r_ve=rho(concat(x_v,m_e)); r_v=sum_{e containing v} r_ve; x_next=ReLU(psi((1-alpha)r_v+alpha*x0)). The recipient-conditioned incidence message and restart are retained.",
+      "exact_mapping": {
+        "graph": "shared_mapping exactly",
+        "layers": 3,
+        "dimension": 128,
+        "parameters": "x0=ReLU(Linear128to128(projected_nodes)); one EquivSetConv shared for three iterations as author EquivSetGNN. phi128→128→128, rho256→128→128, psi128→128→128; ReLU hidden activations, sum in both directions, alpha=0.1, dropout=0, no normalization across nodes/batch.",
+        "readout": "shared_mapping.common_readout"
+      },
+      "why_meaningful": "A Base head and a Gap head can receive different messages from the same evidence group. Source restart preserves the originally read evidence against repeated mixing. Tests conditional group disagreement without making extra memory requests.",
+      "distinct_from_others": "Full sum–recipient-conditioned-return–restart iteration; not an AllSet shared edge broadcast or attention normalization.",
+      "limitations": [
+        "Sum magnitudes depend on actual missing-modality edge sizes; this is intentional and must not silently become mean aggregation.",
+        "Retains a learned diffusion operator, not a numerical solver for an added energy loss.",
+        "Original input/classifier/task replaced; no claim of reproducing original hypergraph benchmarks."
+      ],
+      "decision": "ACCEPT as one complete fixed screening design",
+      "license": "MIT",
+      "inspected_sources": [
+        "https://github.com/Graph-COM/ED-HNN/blob/fea3b8f5f11c2eb7265dd4d880e7b5796eddf958/models/edgnn.py"
+      ]
+    },
+    {
+      "id": "hyper_sagnn",
+      "title": "Hyper-SAGNN: a self-attention based graph neural network for hypergraphs",
+      "authors": [
+        "Ruochi Zhang",
+        "Yuesong Zou",
+        "Jian Ma"
+      ],
+      "url": "https://arxiv.org/abs/1911.02613",
+      "pdf": "https://arxiv.org/pdf/1911.02613",
+      "code_url": "https://github.com/ma-compbio/Hyper-SAGNN",
+      "codepin": "69f2fbe21c455aca084497fb2d26a8207a95decd",
+      "symbols": [
+        "Code/Modules.py:Classifier",
+        "Code/Modules.py:EncoderLayer",
+        "Code/Modules.py:MultiHeadAttention",
+        "Code/Modules.py:ScaledDotProductAttention"
+      ],
+      "corechain": "For EACH hyperedge separately, compute context-independent static node embeddings and dynamic multihead attention embeddings excluding self. Retain separate static/dynamic position-wise networks and LayerNorm, then q_ve=(dynamic_ve-static_v)^2. This vector discrepancy, rather than attention alone, is the transferred core.",
+      "exact_mapping": {
+        "graph": "shared_mapping exactly; incidence occurrences of the same node share input but have different dynamic context",
+        "layers": 1,
+        "dimension": 128,
+        "heads": 4,
+        "head_dimension": 32,
+        "parameters": "One source EncoderLayer; both static and dynamic position-wise networks128→128→128; source residual/LN settings retained (dynamic residual, static no residual); separate output LayerNorm for each branch. diag_mask=True, dropout=0. Every edge has at least two nodes, so leave-self-out softmax always has an allowed key.",
+        "readout": "q_e=mean_{v in e}q_ve. q_H=mean eight same-head q_e; q_T=mean 1–3 evidence-type q_e. Concatenate original projected Local128,q_H128,q_T128; Linear384to128 then common zero-initialized Linear128to1600 Flat correction. Replace source scalar sigmoid hyperedge classifier/average probability with this task readout, not the static/dynamic discrepancy block."
+      },
+      "why_meaningful": "Directly measures whether an evidence component agrees with other components in its actual group while retaining its standalone representation. This is a disagreement-sensitive fusion mechanism, not merely attention under a famous model name.",
+      "distinct_from_others": "Only candidate with separate static and leave-self-out contextual representations and elementwise squared discrepancy. It evaluates each predefined hyperedge rather than diffusing node states over graph rounds.",
+      "limitations": [
+        "We are not predicting whether these constructed hyperedges exist; no negative-edge sampling or hyperedge labels.",
+        "A scalar probability from the original classifier is not a calibrated evidence reliability score; that output head is explicitly removed.",
+        "At zero Gap, discrepancy still compares Local with Base; no invented missing modality."
+      ],
+      "decision": "ACCEPT as one complete core with explicitly replaced output task",
+      "license": "MIT",
+      "inspected_sources": [
+        "https://github.com/ma-compbio/Hyper-SAGNN/blob/69f2fbe21c455aca084497fb2d26a8207a95decd/Code/Modules.py"
+      ]
+    },
+    {
+      "id": "sheaf_hypergnn_diag",
+      "title": "Sheaf Hypergraph Networks",
+      "authors": [
+        "Iulia Duta",
+        "Giulia Cassarà",
+        "Fabrizio Silvestri",
+        "Pietro Lió"
+      ],
+      "url": "https://arxiv.org/abs/2309.17116",
+      "pdf": "https://arxiv.org/pdf/2309.17116",
+      "code_url": "https://github.com/IuliaDuta/sheaf_HNN",
+      "codepin": "45a5ebc16ec4b8e865431f9035eefc7719e7e7dc",
+      "symbols": [
+        "sheaf_builder.py:SheafBuilderDiag",
+        "sheaf_builder.py:predict_blocks_var2",
+        "layers.py:HyperDiffusionDiagSheafConv",
+        "layers.py:normalisation_matrices",
+        "models.py:SheafHyperGNN"
+      ],
+      "corechain": "Predict a diagonal restriction map per node–hyperedge incidence from node and current edge features; construct lifted sheaf incidence; normalize, transport node fibers into each edge, aggregate and transport back; apply learned stalk/feature transforms and nonlinearity. Recompute maps at the next layer.",
+      "exact_mapping": {
+        "graph": "shared_mapping exactly",
+        "layers": 2,
+        "dimension": 128,
+        "stalk_dimension": 4,
+        "channels_per_stalk": 32,
+        "parameters": "Reshape learned node128 into mathematical fiber4×32, NOT spatial or memory-head coordinates. For each layer a_v=mean over four stalk rows; a_e=mean active a_v in edge; f_ve=tanh(Linear64to4([a_v,a_e])); F_ve=diag(f_ve). dynamic_sheaf=True, MLP_var2, special_head=False, dropout=0, left_proj=True, sym_block_norm, independent layer weights.",
+        "operator": "Pin author diagonal-convolution behavior including source order: H has incidence blocks F_ve (nd×Ed); D_(v,j)=sum_e f_ve,j^2, clamped at 1e-6 before inverse square root; B_(e,j)=|e|. Let R=D^-1/2. Source first computes X_pre=R Z, then Q=R H B^-1 H^T and output=(I+Q-2*blockdiag_node(Q)) X_pre+b. Equivalently A=R H B^-1 H^T R and P=R+A-2*blockdiag_node(A), output=PZ+b. The leading term is R, NOT I, because source pre-normalizes the input. Z=(I_n kron W_left4x4)X W_right32x32. ELU only after first layer, no extra residual. Dense construction follows this author-code convention; do not add source persistent shape caches.",
+        "readout": "Flatten final4×32 to128 per node; shared_mapping.common_readout"
+      },
+      "why_meaningful": "Incidence-specific feature transport permits the same Base head to express different coordinates in head-compatibility and evidence-type groups. Tests agreement in learned group spaces without forcing all Base/Gap node vectors to be identical.",
+      "distinct_from_others": "Structured per-incidence linear maps plus a normalized lifted diffusion operator, not scalar node attention. Diagonal stalk maps remain learned feature-dependent transport; do not count orthogonal/general variants as more papers.",
+      "limitations": [
+        "The paper's displayed diagonal block definition, its expanded Eq.1, and author implementation do not transparently coincide for edges larger than two. This design explicitly pins the author-code P operator; do not assert the paper energy-decrease theorem for this adaptation.",
+        "The original code caches hyperedge attributes/shape-dependent identity masks; recompute them per utterance and layer because graph sizes vary.",
+        "Diagonal maps may approach zero; epsilon stabilization is an explicit adaptation.",
+        "File headers state MIT, but repository API did not establish a root license; prefer independent equation-based implementation and resolve license before vendoring source."
+      ],
+      "decision": "ACCEPT runnable author-code-defined diagonal SheafHyperGNN variant; not the nonlinear HyperGCN variant",
+      "license": "MIT stated in layers.py/models.py headers; repository-wide license unverified",
+      "inspected_sources": [
+        "https://github.com/IuliaDuta/sheaf_HNN/blob/45a5ebc16ec4b8e865431f9035eefc7719e7e7dc/sheaf_builder.py",
+        "https://github.com/IuliaDuta/sheaf_HNN/blob/45a5ebc16ec4b8e865431f9035eefc7719e7e7dc/layers.py",
+        "https://github.com/IuliaDuta/sheaf_HNN/blob/45a5ebc16ec4b8e865431f9035eefc7719e7e7dc/models.py"
+      ]
+    }
+  ],
+  "verification_requirements": [
+    "Compare each tiny-graph unmasked core against its pinned source equations/code, including both PMA directions, shared ED iterations, Hyper-SAGNN self exclusion and sheaf block-diagonal signs.",
+    "Assert inactive NaN invariance, no cross-utterance influence, permutation invariance within hyperedges, zero/no-history exact bypass, finite forward/backward and all relevant parameters updating after zero-output warmup.",
+    "Confirm actual 8×64 value-head semantics from current OSRAM source before wiring; learned head identities are not chronological coordinates.",
+    "No result or successful test is claimed by this research artifact."
+  ]
+}

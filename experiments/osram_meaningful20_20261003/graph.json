@@ -1,0 +1,283 @@
+{
+  "status": "FOUR_ACCEPTED_COMPLETE_CANDIDATE_DESIGNS_NO_IMPLEMENTATION_OR_RESULTS",
+  "created": "2026-10-03",
+  "owner": "graph",
+  "scope": "Only graph.json owned; previous screened-paper artifact is not overwritten. Candidate acceptance means a resolved meaningful runnable design, not measured improvement or source-task reproduction.",
+  "skill": "Research Literature Trace",
+  "screening_result": "RRN, EGT, original residual gated graph convolution and PNA all pass as distinct complete processing blocks on genuine read-head evidence. No replacement paper or quota padding needed.",
+  "constraints": [
+    "No model code, training, inference or Git operations in this task",
+    "No MSA/MERC source paper",
+    "Only existing causal Local/Base/Gap readout",
+    "No extra OSRAM memory/query/write/cache",
+    "No auxiliary loss or feature prediction",
+    "No label-derived topology or fabricated geometry"
+  ],
+  "candidates": [
+    {
+      "id": "rrn_evidence",
+      "title": "Recurrent Relational Networks",
+      "authors": [
+        "Rasmus Berg Palm",
+        "Ulrich Paquet",
+        "Ole Winther"
+      ],
+      "url": "https://arxiv.org/abs/1711.08028",
+      "pdf": "https://arxiv.org/pdf/1711.08028",
+      "code_url": "https://github.com/rasmusbergpalm/recurrent-relational-networks",
+      "codepin": "d3a5a27f6e73e51aac1edb9556ac47be3350d748",
+      "symbols": [
+        {
+          "path": "message_passing.py",
+          "lines": "4-31",
+          "symbol": "message_passing",
+          "url": "https://github.com/rasmusbergpalm/recurrent-relational-networks/blob/d3a5a27f6e73e51aac1edb9556ac47be3350d748/message_passing.py#L4-L31"
+        },
+        {
+          "path": "tasks/babi/rrn.py",
+          "lines": "119-142",
+          "symbol": "BaBiRecurrentRelationalNet recurrent steps",
+          "url": "https://github.com/rasmusbergpalm/recurrent-relational-networks/blob/d3a5a27f6e73e51aac1edb9556ac47be3350d748/tasks/babi/rrn.py#L119-L142"
+        }
+      ],
+      "paper_evidence": "Section2 equations1-4: pairwise messages, target sum, recurrent update with original node input; section Variations permits arbitrary/fully connected graphs and graph-level outputs.",
+      "corechain": [
+        "Construct typed head graph",
+        "Initialize message state h_i^0=x_i; LSTM hidden/cell state zeros",
+        "Repeat shared pair-message MLP -> sum incoming messages -> post-MLP with original x_i -> LSTM node state, five rounds",
+        "Typed final-state pooling and common bridge"
+      ],
+      "exact_mapping": {
+        "input": "Per valid utterance with preceding valid history: L in R^256; B and G_A/G_T/G_V are already-read forward vectors in R^512, reshaped only by their genuine 8x64 producer layout.",
+        "provenance": "gcnet_missing_m3/osram.py:20 MODALITIES=(audio,text,visual); _scan:1407-1411 flattens base_read [B,H,V]; :1438-1450 analogous Gap reads; :1560 appends zero backward half. Same-index Base/Gap heads share the Memory value space (parent verified).",
+        "node_order": "Fixed padded order: Local index0; Base heads0..7 indices1..8; Gap-A indices9..16; Gap-T indices17..24; Gap-V indices25..32. Only Base plus the missing modalities' Gap blocks are active. With >=1 observed modality: 9,17,25 active nodes. No-history utterances do not enter the module.",
+        "embedding": "d=128. x_Local=LayerNorm(P_L L+t_Local), P_L:256->128. x_(s,h)=LayerNorm(P_h read_(s,h)+t_s+p_h), P_h:64->128 shared across Base/Gap for each fixed h; t_s has five source types and p_h eight true-head IDs. Each P_h is independent across head indices. These are new-task input embeddings, not extra memory reads.",
+        "sparse_edges": "For distinct active nodes i,j include BOTH directed edges iff (i or j is Local) OR (both are memory heads and source_type(i)=source_type(j)) OR (both are memory heads and head_id(i)=head_id(j)). No self-edge. Duplicates collapsed. No edge depends on labels, values, predicted confidence, time distance or a fabricated geometry.",
+        "edge_features": "r_(j->i) in R^14: concatenate onehot(source_type(j),5), onehot(source_type(i),5), indicator(i=j), indicator(either endpoint Local), indicator(source_type(i)=source_type(j)), indicator(both memory and same head_id). The four Boolean fields are independent, not exclusive. For RRN use learned 14->16 edge projection; for EGT use 14->32; PNA learns 14->32; original GatedGCN uses only adjacency and typed node features.",
+        "graph_degrees": "With g=1+number_missing in {1,2,3} active memory types, Local indegree=8g; every memory node indegree=7+(g-1)+1=7+g. Thus memory degrees 8/9/10 and Local degrees 8/16/24. Every active node has neighbors.",
+        "pooling": "After the final complete core block, concatenate [h_Local, mean_h h_(Base,h), mean_h h_(GapA,h), mean_h h_(GapT,h), mean_h h_(GapV,h)] in R^640. Each absent Gap contributes exactly a zero128 vector, not a learned missing token. z=LayerNorm(Linear640->128(concat)). This typed pooling is a new-task readout shared across candidates, not an attributed paper component.",
+        "bridge": "Return z128 to the existing readout integration; use one common Linear128->D_flat zero-initialized residual bridge added at original Flat pre-norm, where D_flat is the existing anchor width. Retain original Flat, classifier, objective, checkpoint protocol and causal scan. D_flat is inferred from the unchanged anchor, not a new choice.",
+        "masking": "Use availability only to activate missing-modality Gap blocks; Base and Local require valid current utterance and preceding valid history. torch.where sanitize inactive raw inputs BEFORE projections/normalization; exclude both endpoints of inactive edges; zero inactive states after every biased operation. Process active subgraphs separately or masked padded batches with safe all-masked handling. Skip no-history/padding rows entirely and return exact zero residual for them. No cross-utterance node, edge, recurrent or normalization state.",
+        "controls": "All newly added dropout/edge-dropout/attention-maskout=0. No extra sampling, losses, targets, feature prediction, OSRAM query/write or history cache. All stated depths and widths are fixed design choices before experiments; no performance claim.",
+        "parameters": "T=5 shared iterations, hidden/message/LSTM width128; edge embedding16. f is MLP272->128->128->128->128 with ReLU after first three maps and linear last map. Post-MLP256->128->128->128->128 uses same activation pattern; concatenate [summed message128, original x_i128]. One shared LSTMCell128->128.",
+        "update": "m_(j->i)^t=f([h_j^(t-1),h_i^(t-1),E r_(j->i)]); m_i^t=sum_j m_(j->i)^t; u_i^t=post([m_i^t,x_i]); (h_i^t,c_i^t)=LSTMCell(u_i^t,(s_i^(t-1),c_i^(t-1))) with s_i^0=c_i^0=0 and s_i^t=h_i^t. The first message round uses x_i, as in author code; later messages use LSTM outputs.",
+        "pooling_stage": "Pool after t=5 only; no intermediate predictions or stepwise losses."
+      },
+      "why_meaningful": "A complete shared-parameter reasoning loop lets source-specific head evidence repeatedly revise node representations while original evidence remains available. This changes information processing, not only the weight of an already-pooled vector.",
+      "distinct_from_others": "Only this candidate has within-readout LSTM state and shared iterative message/update parameters. It sums unrestricted learned pair messages; it is neither dense edge-state attention, feed-forward sigmoid graph convolution nor multi-statistic aggregation.",
+      "limitations": [
+        "Original per-step supervision is deliberately omitted to keep the existing objective; do not claim the source convergence encouragement.",
+        "Graph diameter is <=2 through Local; five rounds are nonlinear refinement, not access to new temporal evidence.",
+        "No license found in author repo or inspected source: no code copying; future implementation must be independent from paper formulas.",
+        "The source bAbI word/question encoders, graph task head and losses are excluded; this is an architecture transfer, not paper reproduction."
+      ],
+      "decision": "accept",
+      "code_license": "No license detected; source inspected as reference only. Independent implementation required.",
+      "source_verified": true,
+      "runnable_design_resolved": true
+    },
+    {
+      "id": "egt_evidence",
+      "title": "Global Self-Attention as a Replacement for Graph Convolution",
+      "authors": [
+        "Md Shamim Hussain",
+        "Mohammed J. Zaki",
+        "Dharmashankar Subramanian"
+      ],
+      "url": "https://doi.org/10.1145/3534678.3539296",
+      "pdf": "https://arxiv.org/pdf/2108.03348",
+      "code_url": "https://github.com/shamim-hussain/egt_pytorch",
+      "codepin": "9e66956a5fdc6f6e8a865863d029468380bb63e5",
+      "symbols": [
+        {
+          "path": "lib/models/egt_layers.py",
+          "lines": "25-80",
+          "symbol": "EGT_Layer._egt",
+          "url": "https://github.com/shamim-hussain/egt_pytorch/blob/9e66956a5fdc6f6e8a865863d029468380bb63e5/lib/models/egt_layers.py#L25-L80"
+        },
+        {
+          "path": "lib/models/egt_layers.py",
+          "lines": "141-238",
+          "symbol": "EGT_Layer projections and forward",
+          "url": "https://github.com/shamim-hussain/egt_pytorch/blob/9e66956a5fdc6f6e8a865863d029468380bb63e5/lib/models/egt_layers.py#L141-L238"
+        }
+      ],
+      "paper_evidence": "Sections3.2-3.3 equations3-9: residual node AND edge channels, edge bias/gates, global attention, node/edge FFNs and dynamic centrality scaling. Section3.4 positional encoding is input representation, not required to invent a spatial grid.",
+      "corechain": [
+        "Initialize nodes plus all-pair structural edge embeddings",
+        "Per layer, pre-normalized node Q/K/V and edge bias/gates produce global attention",
+        "Update nodes using gated attention and dynamic centrality",
+        "Update persistent edge states from pre-softmax pair scores",
+        "Separate residual node/edge FFNs in the first two complete joint layers; third node-ended layer updates nodes only",
+        "Typed node pooling and common bridge"
+      ],
+      "exact_mapping": {
+        "input": "Per valid utterance with preceding valid history: L in R^256; B and G_A/G_T/G_V are already-read forward vectors in R^512, reshaped only by their genuine 8x64 producer layout.",
+        "provenance": "gcnet_missing_m3/osram.py:20 MODALITIES=(audio,text,visual); _scan:1407-1411 flattens base_read [B,H,V]; :1438-1450 analogous Gap reads; :1560 appends zero backward half. Same-index Base/Gap heads share the Memory value space (parent verified).",
+        "node_order": "Fixed padded order: Local index0; Base heads0..7 indices1..8; Gap-A indices9..16; Gap-T indices17..24; Gap-V indices25..32. Only Base plus the missing modalities' Gap blocks are active. With >=1 observed modality: 9,17,25 active nodes. No-history utterances do not enter the module.",
+        "embedding": "d=128. x_Local=LayerNorm(P_L L+t_Local), P_L:256->128. x_(s,h)=LayerNorm(P_h read_(s,h)+t_s+p_h), P_h:64->128 shared across Base/Gap for each fixed h; t_s has five source types and p_h eight true-head IDs. Each P_h is independent across head indices. These are new-task input embeddings, not extra memory reads.",
+        "sparse_edges": "For distinct active nodes i,j include BOTH directed edges iff (i or j is Local) OR (both are memory heads and source_type(i)=source_type(j)) OR (both are memory heads and head_id(i)=head_id(j)). No self-edge. Duplicates collapsed. No edge depends on labels, values, predicted confidence, time distance or a fabricated geometry.",
+        "edge_features": "r_(j->i) in R^14: concatenate onehot(source_type(j),5), onehot(source_type(i),5), indicator(i=j), indicator(either endpoint Local), indicator(source_type(i)=source_type(j)), indicator(both memory and same head_id). The four Boolean fields are independent, not exclusive. For RRN use learned 14->16 edge projection; for EGT use 14->32; PNA learns 14->32; original GatedGCN uses only adjacency and typed node features.",
+        "graph_degrees": "With g=1+number_missing in {1,2,3} active memory types, Local indegree=8g; every memory node indegree=7+(g-1)+1=7+g. Thus memory degrees 8/9/10 and Local degrees 8/16/24. Every active node has neighbors.",
+        "pooling": "After the final complete core block, concatenate [h_Local, mean_h h_(Base,h), mean_h h_(GapA,h), mean_h h_(GapT,h), mean_h h_(GapV,h)] in R^640. Each absent Gap contributes exactly a zero128 vector, not a learned missing token. z=LayerNorm(Linear640->128(concat)). This typed pooling is a new-task readout shared across candidates, not an attributed paper component.",
+        "bridge": "Return z128 to the existing readout integration; use one common Linear128->D_flat zero-initialized residual bridge added at original Flat pre-norm, where D_flat is the existing anchor width. Retain original Flat, classifier, objective, checkpoint protocol and causal scan. D_flat is inferred from the unchanged anchor, not a new choice.",
+        "masking": "Use availability only to activate missing-modality Gap blocks; Base and Local require valid current utterance and preceding valid history. torch.where sanitize inactive raw inputs BEFORE projections/normalization; exclude both endpoints of inactive edges; zero inactive states after every biased operation. Process active subgraphs separately or masked padded batches with safe all-masked handling. Skip no-history/padding rows entirely and return exact zero residual for them. No cross-utterance node, edge, recurrent or normalization state.",
+        "controls": "All newly added dropout/edge-dropout/attention-maskout=0. No extra sampling, losses, targets, feature prediction, OSRAM query/write or history cache. All stated depths and widths are fixed design choices before experiments; no performance claim.",
+        "edges_override": "Maintain e_ij for EVERY ordered pair of active nodes, including self and pairs absent from the sparse graph. Initialize e_ij=Linear14->32(r_(j->i)); sparse relation predicates are input features, NOT an attention adjacency mask. Only padding/inactive endpoints are masked.",
+        "parameters": "Three independently parameterized EGT layers; d_h=128, d_e=32, H=8 heads, d_k=d_v=16. Both node_update and edge_update true in layers1-2; layer3 is node-ended with edge_update=false, because a final edge update has no consumer under node pooling. This author-supported correction was approved before any training (lib/models/egt.py lines94-101 at the pinned commit). scale_dot=true; scale_degree=true; ELU FFNs with expansion2 (128->256->128 and32->64->32); logit clip[-5,5]; all dropout=0; no virtual nodes; no SVD/distance-prediction branch.",
+        "update": "Let hn=LN(h), en=LN(e). Per head a: H_ij^a=clip(q_i^a dot k_j^a/sqrt(16),-5,5)+E_a(en_ij); g_ij^a=sigmoid(G_a(en_ij)); A_ij^a=softmax_j(H_ij^a)*g_ij^a; c_i^a=log(1+sum_valid_j g_ij^a). h'=h+O_h(concat_a[c_i^a sum_j A_ij^a v_j^a]); e'=e+O_e(concat_a H_ij^a). Then h_next=h'+FFN_h(LN(h')); e_next=e'+FFN_e(LN(e')). Final node LN before common pooling.",
+        "masking_detail": "Mask inactive keys in the attention softmax and exclude inactive pairs from gate sums. Overwrite invalid node/pair outputs after each residual/FFN; never store -inf in learned edge state. Softmax must always have active keys for active queries. Current Local is a real node, so dynamic centrality applies to it; do not treat it as a virtual node."
+      },
+      "why_meaningful": "Relations persist and change over layers rather than disappearing after each attention sum. The block can revise Base/Gap same-head and cross-head interactions jointly with the node evidence using explicit pair states.",
+      "distinct_from_others": "Only candidate with dense persistent edge embeddings co-evolving with nodes and unrestricted global attention. Edge gating is one component of a two-stream architecture, not the modification by itself.",
+      "limitations": [
+        "Typed relation inputs replace molecule/task-specific encodings; no SVD positional encoding or source auxiliary structural objective is used.",
+        "Quadratic pair-state storage remains, though <=25 active nodes makes the proposed design bounded.",
+        "Pair states are learned evidence relations, not calibrated reliability or discovered physical structure.",
+        "Keep edge updates and edge FFNs in the first two layers; use the author-supported node-only final layer to avoid dead trainable edge parameters. Edge-bias-only attention in every layer would be an ablation, not this candidate."
+      ],
+      "decision": "accept",
+      "code_license": "MIT",
+      "source_verified": true,
+      "runnable_design_resolved": true
+    },
+    {
+      "id": "residual_gated_graph_evidence",
+      "title": "Residual Gated Graph ConvNets",
+      "authors": [
+        "Xavier Bresson",
+        "Thomas Laurent"
+      ],
+      "url": "https://arxiv.org/abs/1711.07553",
+      "pdf": "https://arxiv.org/pdf/1711.07553",
+      "code_url": "https://github.com/xbresson/spatial_graph_convnets",
+      "codepin": "f1da7d7f91a2ce0f324c43d787de05d0cc47e4cf",
+      "symbols": [
+        {
+          "path": "01_residual_gated_graph_convnets_subgraph_matching.ipynb",
+          "lines": "raw notebook JSON119-212; code cell index3 lines5-98",
+          "symbol": "OurConvNetcell",
+          "url": "https://github.com/xbresson/spatial_graph_convnets/blob/f1da7d7f91a2ce0f324c43d787de05d0cc47e4cf/01_residual_gated_graph_convnets_subgraph_matching.ipynb"
+        },
+        {
+          "path": "01_residual_gated_graph_convnets_subgraph_matching.ipynb",
+          "lines": "code cell index3 lines129-139 and188-192",
+          "symbol": "Graph_OurConvNet stacked two-convolution cells",
+          "url": "https://github.com/xbresson/spatial_graph_convnets/blob/f1da7d7f91a2ce0f324c43d787de05d0cc47e4cf/01_residual_gated_graph_convnets_subgraph_matching.ipynb"
+        }
+      ],
+      "paper_evidence": "Section3 equations9,11,12: endpoint-dependent vector gates, self transform plus summed transformed neighbors, and residual graph convolutions. Author notebook preserves this in two-convolution residual cells.",
+      "corechain": [
+        "Typed sparse head graph",
+        "Endpoint-conditioned vector routing of transformed neighbor features",
+        "Self-plus-neighbor graph convolution, normalization, ReLU",
+        "Second graph convolution plus learned residual projection",
+        "Stack three complete two-convolution cells",
+        "Typed pooling and common bridge"
+      ],
+      "exact_mapping": {
+        "input": "Per valid utterance with preceding valid history: L in R^256; B and G_A/G_T/G_V are already-read forward vectors in R^512, reshaped only by their genuine 8x64 producer layout.",
+        "provenance": "gcnet_missing_m3/osram.py:20 MODALITIES=(audio,text,visual); _scan:1407-1411 flattens base_read [B,H,V]; :1438-1450 analogous Gap reads; :1560 appends zero backward half. Same-index Base/Gap heads share the Memory value space (parent verified).",
+        "node_order": "Fixed padded order: Local index0; Base heads0..7 indices1..8; Gap-A indices9..16; Gap-T indices17..24; Gap-V indices25..32. Only Base plus the missing modalities' Gap blocks are active. With >=1 observed modality: 9,17,25 active nodes. No-history utterances do not enter the module.",
+        "embedding": "d=128. x_Local=LayerNorm(P_L L+t_Local), P_L:256->128. x_(s,h)=LayerNorm(P_h read_(s,h)+t_s+p_h), P_h:64->128 shared across Base/Gap for each fixed h; t_s has five source types and p_h eight true-head IDs. Each P_h is independent across head indices. These are new-task input embeddings, not extra memory reads.",
+        "sparse_edges": "For distinct active nodes i,j include BOTH directed edges iff (i or j is Local) OR (both are memory heads and source_type(i)=source_type(j)) OR (both are memory heads and head_id(i)=head_id(j)). No self-edge. Duplicates collapsed. No edge depends on labels, values, predicted confidence, time distance or a fabricated geometry.",
+        "edge_features": "r_(j->i) in R^14: concatenate onehot(source_type(j),5), onehot(source_type(i),5), indicator(i=j), indicator(either endpoint Local), indicator(source_type(i)=source_type(j)), indicator(both memory and same head_id). The four Boolean fields are independent, not exclusive. For RRN use learned 14->16 edge projection; for EGT use 14->32; PNA learns 14->32; original GatedGCN uses only adjacency and typed node features.",
+        "graph_degrees": "With g=1+number_missing in {1,2,3} active memory types, Local indegree=8g; every memory node indegree=7+(g-1)+1=7+g. Thus memory degrees 8/9/10 and Local degrees 8/16/24. Every active node has neighbors.",
+        "pooling": "After the final complete core block, concatenate [h_Local, mean_h h_(Base,h), mean_h h_(GapA,h), mean_h h_(GapT,h), mean_h h_(GapV,h)] in R^640. Each absent Gap contributes exactly a zero128 vector, not a learned missing token. z=LayerNorm(Linear640->128(concat)). This typed pooling is a new-task readout shared across candidates, not an attributed paper component.",
+        "bridge": "Return z128 to the existing readout integration; use one common Linear128->D_flat zero-initialized residual bridge added at original Flat pre-norm, where D_flat is the existing anchor width. Retain original Flat, classifier, objective, checkpoint protocol and causal scan. D_flat is inferred from the unchanged anchor, not a new choice.",
+        "masking": "Use availability only to activate missing-modality Gap blocks; Base and Local require valid current utterance and preceding valid history. torch.where sanitize inactive raw inputs BEFORE projections/normalization; exclude both endpoints of inactive edges; zero inactive states after every biased operation. Process active subgraphs separately or masked padded batches with safe all-masked handling. Skip no-history/padding rows entirely and return exact zero residual for them. No cross-utterance node, edge, recurrent or normalization state.",
+        "controls": "All newly added dropout/edge-dropout/attention-maskout=0. No extra sampling, losses, targets, feature prediction, OSRAM query/write or history cache. All stated depths and widths are fixed design choices before experiments; no performance claim.",
+        "parameters": "Three independently parameterized OurConvNetcell-style residual cells, each with two graph convolutions, for six propagation operations total; all node widths128. For every convolution U_i,U_j,V_i,V_j:128->128, learned vector biases b_u,b_v. Each cell has residual projection R:128->128 without bias.",
+        "update": "For each of the two convolutions: eta_(j->i)=sigmoid(V_i h_i+V_j h_j+b_v), q_i=U_i h_i+sum_(j in neighbors(i)) eta_(j->i) elementwise U_j h_j+b_u. First convolution outputs ReLU(LN(q_i)); second outputs ReLU(LN(q_i)+R h_i_cell_input). Recompute gates from current endpoint features at every convolution.",
+        "normalization": "Replace author's BatchNorm with per-node LayerNorm128 in each convolution, explicitly to keep utterances independent and avoid running batch statistics/future-utterance coupling. This is a normalization adaptation, not a change to graph routing/convolution/residual core.",
+        "edge_handling": "Use only common sparse adjacency; no learned persistent edge state, no softmax, and no gate-sum denominator. Do not silently substitute the later benchmarking-gnns normalized edge-state variant under the 2017 attribution."
+      },
+      "why_meaningful": "Six complete neighbor-mixing operations learn which feature channels to transmit over semantically defined edges while preserving node identity through block residuals. Evidence is transformed and exchanged, not simply rescaled at final fusion.",
+      "distinct_from_others": "Feed-forward local graph convolution with endpoint-recomputed vector gates and independent depth parameters. No iterative LSTM state, no persistent pair representation, no softmax attention and no multi-statistic aggregation.",
+      "limitations": [
+        "This is the original residual gated convolution, not every later model called GatedGCN.",
+        "The unnormalized neighbor sum can change magnitude with degree; per-node LayerNorm and residual paths are fixed adaptations, not a robustness guarantee.",
+        "Using LayerNorm rather than author's BatchNorm must be reported.",
+        "The six layers do not imply six steps of causal history; all operate on one already-read evidence graph."
+      ],
+      "decision": "accept",
+      "code_license": "MIT",
+      "source_verified": true,
+      "runnable_design_resolved": true
+    },
+    {
+      "id": "pna_evidence",
+      "title": "Principal Neighbourhood Aggregation for Graph Nets",
+      "authors": [
+        "Gabriele Corso",
+        "Luca Cavalleri",
+        "Dominique Beaini",
+        "Pietro Liò",
+        "Petar Veličković"
+      ],
+      "url": "https://arxiv.org/abs/2004.05718",
+      "pdf": "https://arxiv.org/pdf/2004.05718",
+      "code_url": "https://github.com/lukecavabarrett/pna",
+      "codepin": "6867d9aadcbff620542683a9168908c5c1ca6d8f",
+      "symbols": [
+        {
+          "path": "models/pytorch_geometric/pna.py",
+          "lines": "56-159",
+          "symbol": "PNAConv: towers, endpoint/edge message, posttransform, aggregate/scaler product",
+          "url": "https://github.com/lukecavabarrett/pna/blob/6867d9aadcbff620542683a9168908c5c1ca6d8f/models/pytorch_geometric/pna.py#L56-L159"
+        },
+        {
+          "path": "models/pytorch_geometric/aggregators.py",
+          "lines": "13-32",
+          "symbol": "mean/min/max/std",
+          "url": "https://github.com/lukecavabarrett/pna/blob/6867d9aadcbff620542683a9168908c5c1ca6d8f/models/pytorch_geometric/aggregators.py#L13-L32"
+        },
+        {
+          "path": "models/pytorch_geometric/scalers.py",
+          "lines": "8-19",
+          "symbol": "identity/amplification/attenuation",
+          "url": "https://github.com/lukecavabarrett/pna/blob/6867d9aadcbff620542683a9168908c5c1ca6d8f/models/pytorch_geometric/scalers.py#L8-L19"
+        }
+      ],
+      "paper_evidence": "Section2 equations5-8: logarithmic degree scalers, mean/std/max/min statistics, their Cartesian product, endpoint/edge message M and update U. Towers are explicitly part of the implementation.",
+      "corechain": [
+        "Typed sparse head graph",
+        "Four tower-wise endpoint+edge message transforms",
+        "Neighbor mean/std/max/min in every tower",
+        "Each statistic multiplied by identity/amplification/attenuation scalers",
+        "Concatenate twelve statistic channels plus self; tower post-MLPs and cross-tower mixing",
+        "Repeat four complete layers; typed pooling and common bridge"
+      ],
+      "exact_mapping": {
+        "input": "Per valid utterance with preceding valid history: L in R^256; B and G_A/G_T/G_V are already-read forward vectors in R^512, reshaped only by their genuine 8x64 producer layout.",
+        "provenance": "gcnet_missing_m3/osram.py:20 MODALITIES=(audio,text,visual); _scan:1407-1411 flattens base_read [B,H,V]; :1438-1450 analogous Gap reads; :1560 appends zero backward half. Same-index Base/Gap heads share the Memory value space (parent verified).",
+        "node_order": "Fixed padded order: Local index0; Base heads0..7 indices1..8; Gap-A indices9..16; Gap-T indices17..24; Gap-V indices25..32. Only Base plus the missing modalities' Gap blocks are active. With >=1 observed modality: 9,17,25 active nodes. No-history utterances do not enter the module.",
+        "embedding": "d=128. x_Local=LayerNorm(P_L L+t_Local), P_L:256->128. x_(s,h)=LayerNorm(P_h read_(s,h)+t_s+p_h), P_h:64->128 shared across Base/Gap for each fixed h; t_s has five source types and p_h eight true-head IDs. Each P_h is independent across head indices. These are new-task input embeddings, not extra memory reads.",
+        "sparse_edges": "For distinct active nodes i,j include BOTH directed edges iff (i or j is Local) OR (both are memory heads and source_type(i)=source_type(j)) OR (both are memory heads and head_id(i)=head_id(j)). No self-edge. Duplicates collapsed. No edge depends on labels, values, predicted confidence, time distance or a fabricated geometry.",
+        "edge_features": "r_(j->i) in R^14: concatenate onehot(source_type(j),5), onehot(source_type(i),5), indicator(i=j), indicator(either endpoint Local), indicator(source_type(i)=source_type(j)), indicator(both memory and same head_id). The four Boolean fields are independent, not exclusive. For RRN use learned 14->16 edge projection; for EGT use 14->32; PNA learns 14->32; original GatedGCN uses only adjacency and typed node features.",
+        "graph_degrees": "With g=1+number_missing in {1,2,3} active memory types, Local indegree=8g; every memory node indegree=7+(g-1)+1=7+g. Thus memory degrees 8/9/10 and Local degrees 8/16/24. Every active node has neighbors.",
+        "pooling": "After the final complete core block, concatenate [h_Local, mean_h h_(Base,h), mean_h h_(GapA,h), mean_h h_(GapT,h), mean_h h_(GapV,h)] in R^640. Each absent Gap contributes exactly a zero128 vector, not a learned missing token. z=LayerNorm(Linear640->128(concat)). This typed pooling is a new-task readout shared across candidates, not an attributed paper component.",
+        "bridge": "Return z128 to the existing readout integration; use one common Linear128->D_flat zero-initialized residual bridge added at original Flat pre-norm, where D_flat is the existing anchor width. Retain original Flat, classifier, objective, checkpoint protocol and causal scan. D_flat is inferred from the unchanged anchor, not a new choice.",
+        "masking": "Use availability only to activate missing-modality Gap blocks; Base and Local require valid current utterance and preceding valid history. torch.where sanitize inactive raw inputs BEFORE projections/normalization; exclude both endpoints of inactive edges; zero inactive states after every biased operation. Process active subgraphs separately or masked padded batches with safe all-masked handling. Skip no-history/padding rows entirely and return exact zero residual for them. No cross-utterance node, edge, recurrent or normalization state.",
+        "controls": "All newly added dropout/edge-dropout/attention-maskout=0. No extra sampling, losses, targets, feature prediction, OSRAM query/write or history cache. All stated depths and widths are fixed design choices before experiments; no performance claim.",
+        "parameters": "Four independently parameterized PNA layers, d128, four towers, divide_input=true so tower width32. Shared-in-layer edge encoder14->32; each tower message MLP96->32->32 with intermediate ReLU; post-MLP416->32->32 with intermediate ReLU. Concatenate four outputs then Linear128->128 mixing; output ReLU(LayerNorm128(mixed)). No GRU or attention.",
+        "update": "For tower a and edge j->i, m_ji^a=M_a([h_i^a,h_j^a,E r_ji]). Aggregate population mean mu, population std sqrt(max(mean(m^2)-mu^2,0)+1e-5), elementwise min and max over j. For degree d_i multiply the concatenated four statistics by each of 1,log(1+d_i)/delta,delta/log(1+d_i). Concatenate these twelve32-dimensional vectors with self32, then U_a and cross-tower mixing.",
+        "degree_reference": "FIXED before training: enumerate the seven nonempty observed-modality masks, each once, build the common active graph, and average log(1+degree) over all135 nodes across these seven graphs. delta=[9log9 +3(16log10+log17)+3(24log11+log25)]/135=2.3785469096888603. Store as a constant buffer. This replaces the source's empirical training-degree average with an explicit label-free protocol prior; it is not estimated from test data or tuned per missing rate.",
+        "masking_detail": "Reduce statistics strictly on incoming neighbor axis. Exclude inactive edges from sums/counts and +/-infinity min/max sentinels; reset outputs for absent nodes. Active nodes have degree>=8 by construction. For a generic zero-degree padded row, return zero aggregate and safe scale1 before masking, never divide by log1=0.",
+        "pooling_stage": "Use common typed pooling after layer4. No source multi-task graph targets, set2set controller, GRU architecture wrapper, or source task head is imported; the complete PNA message-processing block is retained."
+      },
+      "why_meaningful": "Mean-only fusion loses disagreement and extremal evidence. PNA transports neighborhood distribution statistics and degree information through several relation-aware message-passing layers, preserving its defining twelve-channel aggregation rather than attaching a statistic to final pooling.",
+      "distinct_from_others": "Only candidate without learned attention or edge gates: information selection is via multiple fixed statistics and degree scalers followed by learned message/update networks. Its mechanism is complementary to recurrent refinement and learned relation weighting.",
+      "limitations": [
+        "Chosen graph degrees vary modestly (8..24); retain but do not overclaim benefits of scalers.",
+        "Min/max can emphasize outliers and std is not calibrated uncertainty.",
+        "The fixed seven-mask degree reference and per-node normalization are explicit new-task adaptations.",
+        "Author PyG source is the semantic reference; a pure-PyTorch independent implementation can avoid new dependencies. Do not blindly port dense-reference tensor reduction axes."
+      ],
+      "decision": "accept",
+      "code_license": "MIT",
+      "source_verified": true,
+      "runnable_design_resolved": true
+    }
+  ]
+}
