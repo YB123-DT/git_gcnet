@@ -1,4 +1,4 @@
-"""One authorized cfg84 seed66 Gap-increment-filter run; no protocol search."""
+"""Authorized cfg84 seeds 66/67/68 Gap-increment-filter runs; no protocol search."""
 import argparse
 from datetime import datetime, timezone
 import os
@@ -14,8 +14,10 @@ from experiments.osram_paired_history_rho025_20261002.sweep import (
 )
 
 
-def filter_config(base):
-    relation_config(base)  # Validate original Flat only; discard Relation configuration.
+def filter_config(base, seed=66):
+    if seed not in (66, 67, 68):
+        raise ValueError('Only seeds 66, 67, 68 are authorized')
+    relation_config(base, seed=seed)  # Validate Flat; discard Relation configuration.
     if base.get('osram_gap_increment_filter', False) or base.get('osram_relation_dual_readout', False):
         raise ValueError('Reference must not already enable a filter or dual readout')
     return dict(base, osram_gap_increment_filter=True)
@@ -41,14 +43,15 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--commit', required=True)
     parser.add_argument('--gpu', choices=('5',), default='5')
+    parser.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     args = parser.parse_args()
     import torch
     from gcnet_missing_m3.train_gcnet import TrainConfig, run_experiment
     if os.environ.get('CUDA_VISIBLE_DEVICES') != args.gpu or gpu_check(args.gpu) < 5000:
         raise RuntimeError('Wrong GPU visibility/identity or insufficient free memory')
-    common.configuration_dict(66, REFERENCE)  # Validate original cfg84, never use query-adapter return.
-    reference = REFERENCE / 'seed_66'
-    config = filter_config(read(reference / 'config.json'))
+    common.configuration_dict(args.seed, REFERENCE)  # Validate only; discard query-adapter return.
+    reference = REFERENCE / f'seed_{args.seed}'
+    config = filter_config(read(reference / 'config.json'), seed=args.seed)
     args.output.mkdir(parents=True, exist_ok=False)
     record = dict(status='training', label='INTERNAL DIAGNOSTIC ONLY', from_scratch=True,
         code_commit=args.commit, baseline=str(reference), config=config,
