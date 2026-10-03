@@ -38,6 +38,8 @@ def parameter_counts(config):
     for name in ('flat', 'pairwise', 'control'):
         cfg = dict(config, osram_relation_block=name != 'flat',
                    osram_relation_mode='pairwise' if name == 'flat' else name)
+        if name == 'flat':
+            cfg['osram_relation_dual_readout'] = False
         with torch.random.fork_rng(devices=[]):
             model = _build_model(TrainConfig(**cfg), (512, 1024, 1024))
         result[name] = dict(total=sum(p.numel() for p in model.parameters()),
@@ -57,6 +59,8 @@ def train(args):
     common.configuration_dict(66, REFERENCE)  # Validate only: returned query variant is NOT used.
     reference = REFERENCE / 'seed_66'
     config = relation_config(read(reference / 'config.json'))
+    if args.dual_readout:
+        config['osram_relation_dual_readout'] = True
     args.output.mkdir(parents=True, exist_ok=False)
     record = dict(status='training', label='INTERNAL DIAGNOSTIC ONLY',
                   started_at=datetime.now(timezone.utc).isoformat(), from_scratch=True,
@@ -91,4 +95,6 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--gpu', choices=('5', '6'), default='5')
     parser.add_argument('--commit', required=True)
+    parser.add_argument('--dual-readout', action='store_true',
+                        help='Same-trajectory 0.5 base + 0.5 full task supervision')
     train(parser.parse_args())
