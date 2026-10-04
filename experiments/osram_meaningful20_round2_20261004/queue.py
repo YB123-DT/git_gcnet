@@ -47,17 +47,26 @@ def coordinate(args):
     if not 1 <= args.max_concurrent <= 3 or args.poll_seconds < 1:
         raise ValueError('Round two permits at most three concurrent formal runs')
     args.root.mkdir(parents=True, exist_ok=True)
+    gpu_filter = None
+    if getattr(args, 'dispatch_policy', None) is not None:
+        from .dispatch import load_policy, allowed_gpu
+        policy = load_policy(args.dispatch_policy, validate_round(read(args.manifest)))
+        gpu_filter = lambda candidate, index, actual_args: allowed_gpu(policy, candidate, index, actual_args.root)
     with (args.root / 'round2-control.lock').open('a') as control:
         fcntl.flock(control, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with (args.root / 'queue.lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             bind_manifest_version(args)
         return shared.coordinate(args, round_validator=validate_round,
-            runner_module='experiments.osram_meaningful20_round2_20261004.run', phase_fn=phase)
+            runner_module='experiments.osram_meaningful20_round2_20261004.run', phase_fn=phase,
+            gpu_filter=gpu_filter)
 
 
 def parser():
-    return shared.parser()
+    result = shared.parser()
+    result.add_argument('--dispatch-policy', type=Path,
+                        help='Optional candidate/GPU policy; omitted preserves ordinary admission')
+    return result
 
 
 if __name__ == '__main__': coordinate(parser().parse_args())

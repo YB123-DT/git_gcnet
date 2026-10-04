@@ -151,7 +151,8 @@ def _phase(state, ids, baseline):
 
 
 def coordinate(args, *, round_validator=validate_round,
-               runner_module='experiments.osram_meaningful20_20261003.run', phase_fn=_phase):
+               runner_module='experiments.osram_meaningful20_20261003.run', phase_fn=_phase,
+               gpu_filter=None):
     manifest = read(args.manifest)
     ids = round_validator(manifest)
     cards = {card['id']: card for card in manifest['cards']}
@@ -217,6 +218,8 @@ def coordinate(args, *, round_validator=validate_round,
                 for index, gpu in resources.items():
                     if index == '4': continue
                     validate_gpu(index, gpu['uuid'], mapping)
+                    if gpu_filter is not None and not gpu_filter(candidate, index, args):
+                        state['waiting_reason'] = 'candidate dispatch policy'; continue
                     measured = state.get('throughput', {}).get(gpu['uuid'], {})
                     gpu_jobs = sum(job['gpu_uuid'] == gpu['uuid'] for job in active)
                     if gpu_jobs >= measured.get('concurrency_cap', args.max_concurrent):
@@ -224,7 +227,9 @@ def coordinate(args, *, round_validator=validate_round,
                     ok, reason = admission(gpu, profile, disk_free_gib=disk)
                     if ok: available.append((gpu['uuid'] not in active_uuids, gpu['utilization'], -gpu['free_mib'], index))
                     else: state['waiting_reason'] = reason
-                if not available: break
+                if not available:
+                    if gpu_filter is not None: continue
+                    break
                 gpu_index = min(available)[-1]; gpu_uuid = mapping[gpu_index]
                 output = Path(previous['output']) if previous else args.root / 'runs' / candidate / f'seed_{seed}'
                 output.parent.mkdir(parents=True, exist_ok=True)

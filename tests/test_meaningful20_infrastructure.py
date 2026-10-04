@@ -296,6 +296,42 @@ class InfrastructureTests(unittest.TestCase):
             self.assertEqual(len(record['files']), 4)
             self.assertEqual(len(record['split_files']), 1)
 
+    def test_dispatch_filter_skips_busy_bundle_without_blocking_normal_candidates(self):
+        from inspect import signature
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        q, m = self.module('queue'), self.module('manifest')
+        self.assertIn('gpu_filter', signature(q.coordinate).parameters)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest, audit, data = (root / name for name in ('ROUND.json', 'AUDIT.json', 'DATA.json'))
+            m.write(manifest, dict(round_id='round01', status='source_accepted', cards=self.cards()))
+            m.write(audit, {'runs': [{'seed': seed, 'mean8': .8} for seed in (66, 67, 68)]})
+            m.write(data, {})
+            for candidate in ('candidate_00', 'candidate_01'):
+                m.write(root / 'ready' / candidate / 'READY.json', {'snapshot_root': str(root)})
+            profile = dict(peak_mib=1000, artifact_gib=1)
+            gpus = {index: dict(uuid='GPU-' + index, free_mib=20000, utilization=0, temperature=50)
+                    for index in ('0', '3', '4')}
+            for window_open, expected, expected_gpu in ((False, 'candidate_01', '0'), (True, 'candidate_00', '3')):
+                args = SimpleNamespace(root=root / str(window_open), manifest=manifest, baseline_audit=audit,
+                    data_manifest=data, reference_root=root, readiness_root=root / 'ready', python='python',
+                    max_concurrent=3, once=True, poll_seconds=1)
+                def allowed(candidate, index, actual_args):
+                    self.assertIs(actual_args, args)
+                    return window_open and index == '3' if candidate == 'candidate_00' else index == '0'
+                with patch.object(q, 'query_gpus', return_value=gpus), \
+                     patch.object(q, 'verify_snapshot', return_value={'source_sha256': {'model.py': 'hash'}}), \
+                     patch.object(q, 'validate_readiness', return_value=profile), \
+                     patch.object(q.os, 'getloadavg', return_value=(0, 0, 0)), \
+                     patch.object(q.shutil, 'disk_usage', return_value=SimpleNamespace(free=100 * 1024 ** 3)), \
+                     patch.object(q.subprocess, 'Popen', return_value=SimpleNamespace(pid=os.getpid())) as popen:
+                    q.coordinate(args, gpu_filter=allowed)
+                    command = popen.call_args.args[0]
+                    self.assertEqual(command[command.index('--candidate') + 1], expected)
+                    self.assertEqual(command[command.index('--gpu') + 1], expected_gpu)
+                    self.assertEqual(popen.call_count, 1)
+
     def test_snapshot_includes_only_explicit_required_json_fixtures(self):
         m = self.module('manifest')
         self.assertTrue(hasattr(m, 'REQUIRED_SNAPSHOT_JSON'))
