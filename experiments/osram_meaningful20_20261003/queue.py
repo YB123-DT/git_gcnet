@@ -152,7 +152,7 @@ def _phase(state, ids, baseline):
 
 def coordinate(args, *, round_validator=validate_round,
                runner_module='experiments.osram_meaningful20_20261003.run', phase_fn=_phase,
-               gpu_filter=None):
+               gpu_filter=None, dispatch=None):
     manifest = read(args.manifest)
     ids = round_validator(manifest)
     cards = {card['id']: card for card in manifest['cards']}
@@ -186,6 +186,11 @@ def coordinate(args, *, round_validator=validate_round,
                         [(name, seed) for name in state['promotions'] for seed in (67, 68)])
             active = [job for job in state['jobs'].values() if job['status'] == 'running']
             update_throughput(state, active)
+            plan = None
+            if dispatch is not None:
+                state['dispatch_limits'] = dispatch.limits
+                state['dispatch_waiting'] = {}
+                plan = dispatch.plan(args, state, cards, active)
             state['waiting_reason'] = 'awaiting implementation/CPU+CUDA readiness'
             for candidate, seed in expected:
                 key = f'{candidate}:{seed}'
@@ -194,8 +199,21 @@ def coordinate(args, *, round_validator=validate_round,
                 if previous and not (resumable or resource_rejected_before_start(previous)): continue
                 if len(active) >= args.max_concurrent:
                     state['waiting_reason'] = 'concurrency cap'; break
-                if any(_epoch_count(job) < 1 for job in active):
-                    state['waiting_reason'] = 'first complete epoch before increasing concurrency'; break
+                group = dispatch.group(candidate) if dispatch is not None else None
+                bundle = group == 'bundle'
+                if dispatch is not None:
+                    group_active = [job for job in active if dispatch.group(job['candidate']) == group]
+                    if len(group_active) >= dispatch.limits[group]:
+                        state['dispatch_waiting'][group] = f'{group} concurrency cap {dispatch.limits[group]}'; continue
+                    if bundle and not plan['ready']:
+                        state['waiting_reason'] = plan['reason']; continue
+                else:
+                    group_active = active
+                if not bundle and any(_epoch_count(job) < 1 for job in group_active):
+                    state['waiting_reason'] = 'first complete epoch before increasing concurrency'
+                    if dispatch is not None:
+                        state['dispatch_waiting'][group] = state['waiting_reason']; continue
+                    break
                 ready_path = args.readiness_root / candidate / 'READY.json'
                 if not ready_path.exists(): continue
                 ready = read(ready_path)
@@ -219,14 +237,21 @@ def coordinate(args, *, round_validator=validate_round,
                     if index == '4': continue
                     validate_gpu(index, gpu['uuid'], mapping)
                     if gpu_filter is not None and not gpu_filter(candidate, index, args):
+                        if dispatch is not None and dispatch.target_gpu(candidate, index):
+                            state['dispatch_waiting'][group] = 'GPU dispatch/foreign-process window unavailable'
                         state['waiting_reason'] = 'candidate dispatch policy'; continue
                     measured = state.get('throughput', {}).get(gpu['uuid'], {})
                     gpu_jobs = sum(job['gpu_uuid'] == gpu['uuid'] for job in active)
-                    if gpu_jobs >= measured.get('concurrency_cap', args.max_concurrent):
+                    if not bundle and gpu_jobs >= measured.get('concurrency_cap', args.max_concurrent):
                         state['waiting_reason'] = 'measured throughput concurrency cap'; continue
-                    ok, reason = admission(gpu, profile, disk_free_gib=disk)
+                    if dispatch is None:
+                        ok, reason = admission(gpu, profile, disk_free_gib=disk)
+                    else:
+                        ok, reason = dispatch.admit(candidate, index, args, state, active, profile, plan, gpu, disk)
                     if ok: available.append((gpu['uuid'] not in active_uuids, gpu['utilization'], -gpu['free_mib'], index))
-                    else: state['waiting_reason'] = reason
+                    else:
+                        state['waiting_reason'] = reason
+                        if dispatch is not None: state['dispatch_waiting'][group] = reason
                 if not available:
                     if gpu_filter is not None: continue
                     break

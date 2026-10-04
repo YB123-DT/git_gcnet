@@ -35,8 +35,11 @@
     "7"
   ],
   "selection": "Existing manifest order, not performance selection",
-  "bundle_meaning": "Twelve queued jobs, NOT twelve simultaneous processes",
-  "formal_concurrency_limit": 3,
+  "bundle_meaning": "Twelve simultaneously live real GPU3 experiments; aggregate admission required, no silent serial fallback",
+  "bundle_concurrency_limit": 12,
+  "other_concurrency_limit": 3,
+  "formal_concurrency_limit": 15,
+  "memory_budget": "Each measured torch peak * 1.2 + 512 MiB CUDA/non-PyTorch reserve; plus 2048 MiB shared headroom; reserve pending process allocation",
   "poll_seconds": 2,
   "known_limitation": "No exclusive reservation. Another launcher may race after the last admission check; no guarantee that it cannot launch."
 }

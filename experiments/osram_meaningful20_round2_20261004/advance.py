@@ -112,7 +112,7 @@ def advance(args):
                 cpu=dict(command=args.cpu_command, returncode=0, log=str(cpu), sha256=pinned['cpu']),
                 cuda=dict(command=command, returncode=0, log=profile['log'], sha256=profile['log_sha256'],
                           gpu_index=index, gpu_uuid=mapping[index]), profile=profile['profile']))
-            print(f'{name}: shared smoke passed; ready for the existing three-run queue', flush=True)
+            print(f'{name}: shared smoke passed; ready for policy-controlled training admission', flush=True)
             if args.once: return
         write(status_path, dict(status='accepted_subset_checks_finished',round=2,group=args.group,
             accepted_count=len(cards),target_count=20,updated_at=now()))
