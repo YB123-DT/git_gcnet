@@ -1,0 +1,14 @@
+{
+  "candidate": "spdnet_bimap_reeig_logeig",
+  "gpu": "0",
+  "gpu_uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+  "session": "osram_r2_spdnet_gpu0",
+  "command": "cd /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4 && CUDA_VISIBLE_DEVICES=GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45 OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 PYTHONPATH=/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4 /data2/yb/reproduction_workspace/envs/s0/bin/python -u -m experiments.osram_meaningful20_round2_20261004.cuda_check --candidate spdnet_bimap_reeig_logeig --reference /data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full/seed_66 --dataset /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json --output /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/checks/spdnet_bimap_reeig_logeig --gpu-index 0 --gpu-uuid GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45 >> /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/preflight_spdnet_bimap_reeig_logeig.log 2>&1 && cd /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4 && OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 /data2/yb/reproduction_workspace/envs/s0/bin/python -u /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_7d495f7/occupied_lane.py --root /data2/yb/remote_experiments/osram_meaningful20_round2_20261004 --snapshot /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4 --manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_round2_20261004/ROUND2.json --reference-root /data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full --baseline-audit /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_20261003/BASELINE_AUDIT.json --data-manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json --cpu-log /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/cpu_template.log --cpu-command 'CUDA_VISIBLE_DEVICES='\"'\"''\"'\"' /home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest tests.test_meaningful_input tests.test_meaningful_block_integration tests.test_meaningful_blocks -v' --candidate spdnet_bimap_reeig_logeig --gpu 0 --gpu-uuid GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45 >> /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/occupied_lane_spdnet_bimap_reeig_logeig.log 2>&1",
+  "source_commit": "98268f4d179fc274c3b4487cf698faec2e293a8f",
+  "control_commit": "7d495f7eeac24bc881abe35a3261f7bae784f08b",
+  "status": "cuda_check_then_formal_training",
+  "seed": 66,
+  "epochs": 100,
+  "observed_cuda_check_pid": 49017,
+  "note": "Actual CUDA check process observed on physical GPU0. Shell && chains formal occupied-lane launch only on success; original seed66 protocol unchanged."
+}
