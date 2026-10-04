@@ -2,6 +2,10 @@
 
 INTERNAL DIAGNOSTIC ONLY. All 40 user-specified configurations are implemented; none was trained in this delivery.
 
+Subsequent update: the user resumed training and all forty configurations now belong to
+the persistent biggpu refill queue. See LAUNCH.md and LAUNCH_STATUS.json for the observed
+startup state. The code-only account below is historical, not a current pause.
+
 37 R variants supplement the original Flat pre-normalization anchor with a zero-initialized residual.
 M11/M13 modify only Adapter inputs, retaining the original Local skip. M30 replaces only
 `emotion_adapter[0]` with DyT, preserves final `emotion_norm`, and does not claim LN equivalence.

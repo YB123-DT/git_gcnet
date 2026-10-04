@@ -2,6 +2,9 @@
 
 INTERNAL DIAGNOSTIC ONLY。用户指定40项已实现，尚未训练；完整中文记录见[RESULT.md](RESULT.md)。
 
+后续状态：启动授权已恢复，40项接入biggpu持久补位队列。
+见`LAUNCH.md`和`LAUNCH_STATUS.json`；以下是代码交付时的历史记录。
+
 37项R保留原Flat并加零初始化残差，M11/M13仅调制Adapter输入，M30仅替换Adapter第一层LN。
 不改Memory、Query、任务头、loss或mask；Local Skip保留，inactive Gap和padding安全屏蔽。
 M30不是LN等价初始化。39项R/I通过整模初始化/RNG检查。
