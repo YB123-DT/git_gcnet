@@ -1,0 +1,91 @@
+{
+  "root": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004",
+  "source": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4",
+  "control_commit": "7d495f7eeac24bc881abe35a3261f7bae784f08b",
+  "source_commit": "98268f4d179fc274c3b4487cf698faec2e293a8f",
+  "control": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_7d495f7",
+  "user_override": "One real experiment per occupied GPU; utilization veto waived only",
+  "jobs": [
+    {
+      "candidate": "mcan_encoder_decoder",
+      "gpu": "5",
+      "gpu_uuid": "GPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62",
+      "session": "osram_r2_busy_gpu5",
+      "command": "cd /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4 && OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 /data2/yb/reproduction_workspace/envs/s0/bin/python -u /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_7d495f7/occupied_lane.py --root /data2/yb/remote_experiments/osram_meaningful20_round2_20261004 --snapshot /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4 --manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_round2_20261004/ROUND2.json --reference-root /data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full --baseline-audit /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_20261003/BASELINE_AUDIT.json --data-manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json --cpu-log /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/cpu_template.log --cpu-command 'CUDA_VISIBLE_DEVICES='\"'\"''\"'\"' /home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest tests.test_meaningful_input tests.test_meaningful_block_integration tests.test_meaningful_blocks -v' --candidate mcan_encoder_decoder --gpu 5 --gpu-uuid GPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62 >> /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/occupied_lane_mcan_encoder_decoder.log 2>&1"
+    },
+    {
+      "candidate": "dense_coattention",
+      "gpu": "0",
+      "gpu_uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+      "session": "osram_r2_busy_gpu0",
+      "command": "cd /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4 && OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 /data2/yb/reproduction_workspace/envs/s0/bin/python -u /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_7d495f7/occupied_lane.py --root /data2/yb/remote_experiments/osram_meaningful20_round2_20261004 --snapshot /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4 --manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_round2_20261004/ROUND2.json --reference-root /data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full --baseline-audit /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_20261003/BASELINE_AUDIT.json --data-manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json --cpu-log /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/cpu_template.log --cpu-command 'CUDA_VISIBLE_DEVICES='\"'\"''\"'\"' /home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest tests.test_meaningful_input tests.test_meaningful_block_integration tests.test_meaningful_blocks -v' --candidate dense_coattention --gpu 0 --gpu-uuid GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45 >> /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/occupied_lane_dense_coattention.log 2>&1"
+    },
+    {
+      "candidate": "mac_control_read_write",
+      "gpu": "1",
+      "gpu_uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+      "session": "osram_r2_busy_gpu1",
+      "command": "cd /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4 && OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 /data2/yb/reproduction_workspace/envs/s0/bin/python -u /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_7d495f7/occupied_lane.py --root /data2/yb/remote_experiments/osram_meaningful20_round2_20261004 --snapshot /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4 --manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_round2_20261004/ROUND2.json --reference-root /data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full --baseline-audit /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_20261003/BASELINE_AUDIT.json --data-manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json --cpu-log /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/cpu_template.log --cpu-command 'CUDA_VISIBLE_DEVICES='\"'\"''\"'\"' /home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest tests.test_meaningful_input tests.test_meaningful_block_integration tests.test_meaningful_blocks -v' --candidate mac_control_read_write --gpu 1 --gpu-uuid GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049 >> /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/occupied_lane_mac_control_read_write.log 2>&1"
+    }
+  ],
+  "observation": {
+    "observed_at": "2026-10-04T09:21:02.839802+00:00",
+    "runs": [
+      {
+        "candidate": "mcan_encoder_decoder",
+        "gpu": "5",
+        "pid": 1402095,
+        "status": "running",
+        "epochs_completed": 0,
+        "provenance_status": "training",
+        "configured_epochs": 100,
+        "log": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/occupied_lanes/mcan_encoder_decoder/train.log",
+        "controller_record": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/occupied_lanes/mcan_encoder_decoder/CONTROLLER.json",
+        "profile": {
+          "artifact_gib": 10.581936918199062,
+          "batch_size": 32,
+          "peak_mib": 2764,
+          "train_and_eval": true
+        }
+      },
+      {
+        "candidate": "dense_coattention",
+        "gpu": "0",
+        "pid": 1402111,
+        "status": "running",
+        "epochs_completed": 1,
+        "provenance_status": "training",
+        "configured_epochs": 100,
+        "log": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/occupied_lanes/dense_coattention/train.log",
+        "controller_record": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/occupied_lanes/dense_coattention/CONTROLLER.json",
+        "profile": {
+          "artifact_gib": 9.381356619298458,
+          "batch_size": 32,
+          "peak_mib": 2050,
+          "train_and_eval": true
+        }
+      },
+      {
+        "candidate": "mac_control_read_write",
+        "gpu": "1",
+        "pid": 1402122,
+        "status": "running",
+        "epochs_completed": 1,
+        "provenance_status": "training",
+        "configured_epochs": 100,
+        "log": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/occupied_lanes/mac_control_read_write/train.log",
+        "controller_record": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/occupied_lanes/mac_control_read_write/CONTROLLER.json",
+        "profile": {
+          "artifact_gib": 9.224372886121273,
+          "batch_size": 32,
+          "peak_mib": 1592,
+          "train_and_eval": true
+        }
+      }
+    ],
+    "control_sha256": "45f0a50c5108dbfc4db16d8306777b02cba84bfbf6dd03b77d32bad61a0c0aa9",
+    "processes": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45, 2601306, 24802 MiB\nGPU-43d98f5a-edab-1498-e9db-eeeb2d909d45, 1402111, 2066 MiB\nGPU-56b14af1-00dc-4542-e2d8-5bba1dd39049, 2111780, 24802 MiB\nGPU-56b14af1-00dc-4542-e2d8-5bba1dd39049, 1402122, 1774 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 1727465, 24802 MiB\nGPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a, 35986, 24802 MiB\nGPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62, 895692, 9804 MiB\nGPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62, 989554, 9792 MiB\nGPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62, 1402095, 2322 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 1532519, 1212 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 1532518, 8492 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 1480612, 17468 MiB\nGPU-c38d9fe1-0b58-158f-a289-32d21e96df2e, 1532519, 9682 MiB\nGPU-c38d9fe1-0b58-158f-a289-32d21e96df2e, 1800294, 17468 MiB\n",
+    "sessions": "mm_mixer_revision_followon\nosram_r2_busy_gpu0\nosram_r2_busy_gpu1\nosram_r2_busy_gpu5\nosram_round2_gpu3_p12\nosram_round2_other_p12\nosram_round2_queue_periodic\n"
+  },
+  "coordinator_mode": "Existing GPU3/other watchers restored; queue runs --once every 15 seconds so occupied-lane completion can acquire its short write lock."
+}
