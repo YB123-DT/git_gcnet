@@ -1,0 +1,61 @@
+{
+  "source_commit": "98268f4d179fc274c3b4487cf698faec2e293a8f",
+  "control_commit": "f2d5fa36e2512f1b7f4f8737b74a175d666823d1",
+  "root": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004",
+  "source": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4",
+  "control": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_f2d5fa3",
+  "runs": [
+    {
+      "session": "osram_round2_gpu3",
+      "command": "cd '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' && OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 PYTHONPATH='/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '/data2/yb/reproduction_workspace/envs/s0/bin/python' '-u' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_f2d5fa3/control_advance.py' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '--root' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004' '--manifest' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_round2_20261004/ROUND2.json' '--reference' '/data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full/seed_66' '--snapshot' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '--dataset' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json' '--cpu-log' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/cpu_template.log' '--cpu-command' 'CUDA_VISIBLE_DEVICES='\\'''\\'' /home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest tests.test_meaningful_input tests.test_meaningful_block_integration tests.test_meaningful_blocks -v' '--dispatch-policy' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_f2d5fa3/dispatch_policy.json' '--group' 'bundle' '--poll-seconds' '2' >> '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/advance_bundle.log' 2>&1"
+    },
+    {
+      "session": "osram_round2_other",
+      "command": "cd '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' && OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 PYTHONPATH='/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '/data2/yb/reproduction_workspace/envs/s0/bin/python' '-u' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_f2d5fa3/control_advance.py' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '--root' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004' '--manifest' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_round2_20261004/ROUND2.json' '--reference' '/data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full/seed_66' '--snapshot' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '--dataset' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json' '--cpu-log' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/cpu_template.log' '--cpu-command' 'CUDA_VISIBLE_DEVICES='\\'''\\'' /home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest tests.test_meaningful_input tests.test_meaningful_block_integration tests.test_meaningful_blocks -v' '--dispatch-policy' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_f2d5fa3/dispatch_policy.json' '--group' 'other' '--poll-seconds' '2' >> '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/advance_other.log' 2>&1"
+    },
+    {
+      "session": "osram_round2_queue",
+      "command": "cd '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' && OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 PYTHONPATH='/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '/data2/yb/reproduction_workspace/envs/s0/bin/python' '-u' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_f2d5fa3/control_queue.py' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '--root' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004' '--manifest' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_round2_20261004/ROUND2.json' '--readiness-root' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/readiness' '--reference-root' '/data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full' '--baseline-audit' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_20261003/BASELINE_AUDIT.json' '--data-manifest' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json' '--dispatch-policy' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_f2d5fa3/dispatch_policy.json' '--max-concurrent' '3' '--poll-seconds' '2' >> '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/queue_grouped.log' 2>&1"
+    }
+  ],
+  "policy": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/control_f2d5fa3/dispatch_policy.json",
+  "user_request": "GPU3窗口补位，不暂停对方队列；12项任务包和其它8项独立调度",
+  "no_occupancy_placeholders": true,
+  "no_foreign_process_control": true,
+  "training_concurrency_limit": 3,
+  "observation": {
+    "bundle": {
+      "group": "bundle",
+      "next": "differential_attention_v1",
+      "required_free_mib": 16384,
+      "round": 2,
+      "status": "waiting_resources",
+      "target_count": 20,
+      "updated_at": "2026-10-04T08:51:26.985353+00:00"
+    },
+    "other": {
+      "group": "other",
+      "next": "mcan_encoder_decoder",
+      "required_free_mib": 16384,
+      "round": 2,
+      "status": "waiting_resources",
+      "target_count": 20,
+      "updated_at": "2026-10-04T08:51:29.047893+00:00"
+    },
+    "coordinator": {
+      "boot_id": "d5dd88da-31ec-491e-945c-846c470fff67",
+      "pid": 1801489,
+      "start_ticks": "114220353"
+    },
+    "jobs": {},
+    "control_sha256": {
+      "advance.py": "41fd8926448b097c04c211d69218b698a2b69c9f211b16052805fdcfa2080871",
+      "dispatch_policy.json": "7ab2f1c7d602f459a12b2b3a435ee518f9c12253b4a9fa439d0976cc2c807863",
+      "dispatch.py": "d304f224b7c823d8f9e535354445fff634497f8d564a84460d6f1b056759beac",
+      "shared_queue.py": "58f70112c9ae818856d0a3f5fe24a9d1fcf1752709d42a9a9ecf14ee56acac2c",
+      "control_queue.py": "1379e79f9e92c0b608ae820d1e29f1d9477dcfc48df8ef4f1d2e40bb3150f35c",
+      "control_advance.py": "055d63e1d9d74bd93c5bb1dd704bfacc8e23229afe49470944a125e0ca781b6a",
+      "queue.py": "0f3f9fb6f068a0aa9797c76b047a21bb29220dbc4f7a2e38bab94cb1a74c92bc"
+    }
+  }
+}
