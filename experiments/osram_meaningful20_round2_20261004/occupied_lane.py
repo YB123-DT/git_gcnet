@@ -5,6 +5,7 @@ import fcntl
 import math
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import uuid
@@ -23,6 +24,41 @@ def busy_admission(gpu, profile, *, disk_free_gib):
     if gpu['free_mib'] < peak + max(2048,.2*peak): return False, 'GPU memory margin'
     if disk_free_gib < profile['artifact_gib'] + 16: return False, 'disk budget including immutable versions'
     return True, 'explicit busy-GPU authorization; memory/temperature/disk checks retained'
+
+
+def allocated_memory():
+    output = subprocess.check_output(['nvidia-smi','--query-compute-apps=gpu_uuid,pid,used_gpu_memory',
+                                     '--format=csv,noheader,nounits'],text=True,timeout=8)
+    allocations = {}
+    for line in output.splitlines():
+        if not line.strip(): continue
+        gpu_uuid,pid,used = (part.strip() for part in line.split(','))
+        used = float(used)
+        if not math.isfinite(used) or used < 0: raise ValueError('Invalid live process memory measurement')
+        allocations[(gpu_uuid,int(pid))] = used
+    return allocations
+
+
+def group_admission(gpu, profile, active, allocations, *, max_per_gpu, disk_free_gib):
+    """Free memory already excludes live allocations; reserve only their missing peak."""
+    if max_per_gpu not in (1,4): return False,'Only explicit per-GPU caps 1 or 4 are supported'
+    same_gpu = [job for job in active if job.get('gpu_uuid')==gpu['uuid']]
+    if len(same_gpu) >= max_per_gpu: return False,f'Per-GPU concurrency cap {max_per_gpu}'
+    admitted,reason = busy_admission(gpu,profile,disk_free_gib=disk_free_gib)
+    if not admitted: return admitted,reason
+    pending = 0.
+    for job in same_gpu:
+        peak = job.get('profile',{}).get('peak_mib')
+        if not isinstance(peak,(int,float)) or not math.isfinite(peak) or peak<=0:
+            return False,'An active job lacks a finite measured peak; cannot reserve safely'
+        used = allocations.get((gpu['uuid'],job.get('pid')),0.)
+        if not isinstance(used,(int,float)) or not math.isfinite(used) or used<0:
+            return False,'Invalid active process memory measurement'
+        pending += max(0.,1.2*peak+512-used)
+    required = pending + 1.2*profile['peak_mib'] + 512 + 2048
+    if gpu['free_mib'] < required:
+        return False,f'Pending allocation reserve: need {required:.1f} MiB free, have {gpu["free_mib"]:.1f}'
+    return True,f'Admitted {len(same_gpu)+1}/{max_per_gpu}; pending reserve {pending:.1f} MiB'
 
 
 def immutable_modules(snapshot):
@@ -74,10 +110,13 @@ def parser():
         result.add_argument('--'+key,type=Path,required=True)
     for key in ('candidate','gpu','gpu-uuid','cpu-command'):
         result.add_argument('--'+key,required=True)
+    result.add_argument('--max-per-gpu',type=int,choices=(1,4),default=1,
+                        help='Opt in to four real jobs on this GPU; default remains one')
     return result
 
 
 def launch(args):
+    if args.max_per_gpu not in (1,4): raise ValueError('Per-GPU cap must be 1 or 4')
     for key in ('root','snapshot','manifest','reference_root','baseline_audit','data_manifest','cpu_log'):
         setattr(args,key,getattr(args,key).resolve())
     m,p,q,run,round_queue,round_manifest = immutable_modules(args.snapshot)
@@ -104,19 +143,37 @@ def launch(args):
                   gpu_index=args.gpu,gpu_uuid=args.gpu_uuid),profile=evidence['profile'])
     p.validate_readiness(ready,candidate=args.candidate,design_sha256=card['design_sha256'],source_sha256=source['source_sha256'])
     args.root.mkdir(parents=True,exist_ok=True)
-    with (args.root/f'occupied_gpu{args.gpu}.lock').open('a') as lane:
+    with (args.root/f'occupied_candidate_{args.candidate}.lock').open('a') as lane:
         fcntl.flock(lane,fcntl.LOCK_EX|fcntl.LOCK_NB)
         output = args.root/'runs'/args.candidate/'seed_66'
         key = args.candidate+':66'
         run_id = uuid.uuid4().hex
         directory = args.root/'occupied_lanes'/args.candidate
         queue_path = args.root/'QUEUE.json'
-        with (args.root/'queue.lock').open('a') as lock:
+        with (args.root/f'occupied_gpu{args.gpu}.admission.lock').open('a') as gpu_lock, \
+             (args.root/'queue.lock').open('a') as lock:
+            fcntl.flock(gpu_lock,fcntl.LOCK_EX)
             fcntl.flock(lock,fcntl.LOCK_EX)
             round_queue.bind_manifest_version(args)
             state = m.read(queue_path)
             if key in state['jobs'] or output.exists() or directory.exists():
                 raise ValueError('Existing job/output/attempt: refuse duplicate occupied-lane launch')
+            active = []
+            for name,previous in state['jobs'].items():
+                if previous['status']=='complete': continue
+                current = q.reconcile_job(previous)
+                state['jobs'][name] = current
+                if current['status'] in ('running','launch_intent','inspection_pending'):
+                    active.append(current)
+            resources = p.query_gpus()
+            p.validate_gpu(args.gpu,args.gpu_uuid,{index:row['uuid'] for index,row in resources.items()})
+            if any(str(job.get('gpu_index'))==args.gpu and job.get('gpu_uuid')!=args.gpu_uuid for job in active):
+                raise ValueError('Active job GPU index/UUID differs from live mapping')
+            allocations = allocated_memory()
+            disk_free = shutil.disk_usage(args.root).free/1024**3 - q.reserved_disk_gib(active)
+            admitted,reason = group_admission(resources[args.gpu],evidence['profile'],active,allocations,
+                                               max_per_gpu=args.max_per_gpu,disk_free_gib=disk_free)
+            if not admitted: raise RuntimeError('Occupied-lane admission rejected before job creation: '+reason)
             if ready_path.exists():
                 existing = m.read(ready_path)
                 if existing != ready: raise ValueError('Existing readiness differs; preserve and inspect it')
@@ -136,6 +193,9 @@ def launch(args):
                 candidate=args.candidate,seed=66,gpu_index=args.gpu,gpu_uuid=args.gpu_uuid,output=str(output),
                 run_id=run_id,training_argv=training,command=command,invocation=sys.argv,
                 cuda_profile_sha256=m.sha(check/'profile.json'),resources_before_launch=resources[args.gpu],
+                max_per_gpu=args.max_per_gpu,launch_admission=dict(reason=reason,disk_free_after_reservations_gib=disk_free,
+                    active_run_ids=[job.get('run_id') for job in active],
+                    process_allocations_mib={f'{gpu_uuid}:{pid}':used for (gpu_uuid,pid),used in allocations.items()}),
                 input_sha256={str(path):m.sha(path) for path in (args.manifest,args.baseline_audit,args.data_manifest,args.cpu_log,ready_path)},
                 admission_override='Explicit user request: busy GPUs allowed; no utilization falsification',created_at=m.now())
             m.write(record_path,record)
@@ -143,6 +203,7 @@ def launch(args):
             job = dict(status='launch_intent',candidate=args.candidate,seed=66,output=str(output),run_id=run_id,
                 gpu_index=args.gpu,gpu_uuid=args.gpu_uuid,command=command,attempt=1,launched_at=m.now(),
                 snapshot_sha256=record['snapshot_sha256'],profile=evidence['profile'],log=str(log),
+                max_per_gpu=args.max_per_gpu,
                 external_controller=str(record_path),external_controller_sha256=m.sha(record_path))
             state['jobs'][key]=job
             m.write(queue_path,state)
