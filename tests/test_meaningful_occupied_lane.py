@@ -6,6 +6,17 @@ import tempfile
 
 
 class OccupiedLaneTests(unittest.TestCase):
+    def test_live_allocation_floor_reserves_growth_above_old_estimate(self):
+        from experiments.osram_meaningful20_round2_20261004 import occupied_lane as lane
+        gpu = dict(uuid='GPU-two', free_mib=5000, utilization=30, temperature=55)
+        profile = dict(peak_mib=1700, artifact_gib=10)
+        jobs = [dict(pid=10, gpu_uuid='GPU-two', profile=profile)]
+        allocations = {('GPU-two',10):8110}
+        self.assertTrue(lane.group_admission(gpu, profile, jobs, allocations,
+                         max_per_gpu=11, disk_free_gib=100)[0])
+        self.assertFalse(lane.group_admission(gpu, profile, jobs, allocations,
+                          max_per_gpu=11, disk_free_gib=100, live_allocation_floor=True)[0])
+
     def test_deferred_smoke_is_not_reported_as_passed(self):
         from experiments.osram_meaningful20_round2_20261004 import occupied_lane as lane
         with tempfile.TemporaryDirectory() as directory:

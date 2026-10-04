@@ -39,7 +39,7 @@ def allocated_memory():
     return allocations
 
 
-def group_admission(gpu, profile, active, allocations, *, max_per_gpu, disk_free_gib, global_reserve_mib=2048):
+def group_admission(gpu, profile, active, allocations, *, max_per_gpu, disk_free_gib, global_reserve_mib=2048, live_allocation_floor=False):
     """Free memory already excludes live allocations; reserve only their missing peak."""
     if max_per_gpu not in (1,2,4,11,12): return False,'Only explicit per-GPU caps 1, 2, 4, 11 or 12 are supported'
     if global_reserve_mib != 2048 and not (max_per_gpu == 12 and global_reserve_mib == 1792):
@@ -56,6 +56,8 @@ def group_admission(gpu, profile, active, allocations, *, max_per_gpu, disk_free
         used = allocations.get((gpu['uuid'],job.get('pid')),0.)
         if not isinstance(used,(int,float)) or not math.isfinite(used) or used<0:
             return False,'Invalid active process memory measurement'
+        if live_allocation_floor:
+            peak = max(peak, used)
         pending += max(0.,1.2*peak+512-used)
     required = pending + 1.2*profile['peak_mib'] + 512 + global_reserve_mib
     if gpu['free_mib'] < required:
@@ -137,6 +139,8 @@ def parser():
     result.add_argument('--defer-cuda-smoke-by-user', action='store_true')
     result.add_argument('--estimated-peak-mib', type=float, default=1700.)
     result.add_argument('--global-reserve-mib', type=int, choices=(1792,2048), default=2048)
+    result.add_argument('--live-allocation-floor', action='store_true',
+                        help='Reserve observed allocation plus growth margin when old estimates understate usage')
     return result
 
 
@@ -207,7 +211,8 @@ def launch(args):
             allocations = allocated_memory()
             disk_free = shutil.disk_usage(args.root).free/1024**3 - q.reserved_disk_gib(active)
             admitted,reason = group_admission(resources[args.gpu],evidence['profile'],active,allocations,
-                max_per_gpu=args.max_per_gpu,disk_free_gib=disk_free,global_reserve_mib=args.global_reserve_mib)
+                max_per_gpu=args.max_per_gpu,disk_free_gib=disk_free,global_reserve_mib=args.global_reserve_mib,
+                live_allocation_floor=args.live_allocation_floor)
             if not admitted: raise RuntimeError('Occupied-lane admission rejected before job creation: '+reason)
             if ready_path.exists():
                 existing = m.read(ready_path)
@@ -232,6 +237,7 @@ def launch(args):
                 resources_before_launch=resources[args.gpu],
                 max_per_gpu=args.max_per_gpu,launch_admission=dict(reason=reason,disk_free_after_reservations_gib=disk_free,
                     global_reserve_mib=args.global_reserve_mib,
+                    live_allocation_floor=args.live_allocation_floor,
                     active_run_ids=[job.get('run_id') for job in active],
                     process_allocations_mib={f'{gpu_uuid}:{pid}':used for (gpu_uuid,pid),used in allocations.items()}),
                 input_sha256={str(path):m.sha(path) for path in (args.manifest,args.baseline_audit,args.data_manifest,args.cpu_log,ready_path)},

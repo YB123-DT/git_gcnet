@@ -7,7 +7,7 @@
       "status": "implemented_not_trained"
     }
   ],
-  "max_distinct_trained_methods": 69,
+  "max_distinct_trained_methods": 70,
   "purpose": "Cross-round semantic deduplication ledger; different names do not establish different methods",
   "rejection_rules": [
     "Same core algorithm under another paper, method name, implementation language or wrapper",
@@ -1222,6 +1222,36 @@
           },
           "title": "Dynamic Inference with Neural Interpreters",
           "url": "https://arxiv.org/abs/2110.06399"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Yangyan Li",
+            "Rui Bu",
+            "Mingchao Sun",
+            "Wei Wu",
+            "Xinhan Di",
+            "Baoquan Chen"
+          ],
+          "code_url": "https://github.com/yangyanli/PointCNN/blob/master/pointcnn.py",
+          "design_file": "docs/osram_new40_retrieval_cards.json",
+          "design_sha256": "8d670425b527ad8f560810ffc6fc4ed751cda3d7d41f3713f63aee245c78ae46",
+          "id": "pointcnn_x_transformed_evidence",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "dgcnn_dynamic_edgeconv",
+              "conditional_rational_quadratic_spline_coupling"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/yangyanli/PointCNN/blob/master/pointcnn.py",
+            "substantive_difference": "Dense neighborhood canonicalization followed by separable contraction, not EdgeConv max pooling or invertible coupling. Learned chart is an explicit adaptation, not source 3D geometry."
+          },
+          "source": {
+            "code": "https://github.com/yangyanli/PointCNN/blob/master/pointcnn.py",
+            "paper": "https://papers.neurips.cc/paper/7362-pointcnn-convolution-on-x-transformed-points.pdf"
+          },
+          "title": "PointCNN: Convolution On X-Transformed Points",
+          "url": "https://papers.neurips.cc/paper/7362-pointcnn-convolution-on-x-transformed-points.pdf"
         }
       ],
       "source_directory": "osram_new40_20261004",
@@ -1548,7 +1578,7 @@
   },
   "trained_count": 20,
   "training_budget_override": {
-    "max_distinct_trained_methods": 69,
-    "user_request": "2026-10-04: GPU2 and GPU6 each eleven concurrent experiments. Existing58 reservations plus11 additional distinct implemented candidates on GPU6; bounded override, not infinite search."
+    "max_distinct_trained_methods": 70,
+    "user_request": "2026-10-04: GPU2 and GPU6 each eleven concurrent experiments. Existing58 reservations plus11 onGPU6 and one subsequent distinct GPU2 refill; bounded total70 override, not infinite search."
   }
 }
