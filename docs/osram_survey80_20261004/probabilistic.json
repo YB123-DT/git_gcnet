@@ -1,0 +1,240 @@
+{
+  "lane": "probabilistic_and_robust_estimation",
+  "date": "2026-10-04",
+  "scope": "Research only; no implementation or training authorization. Compared experiments/osram_method_registry.json, all 40 identifiers in gcnet_missing_m3/meaningful_new40_registry.py, and sibling survey files. Follow-up for the requested suitable40 screen: 11 source-audited records, 4 admissible architectural candidates, 3 conditional candidates, 4 rejected records. The requested 6–8 suitable methods were not reached; conditional and rejected records do not fill the shortfall.",
+  "common_osram_contract": "Only current-utterance Local256, Base512, Gap[3,512] and existing availability. Project role features to a common space inside an auxiliary evidence computation; exclude unavailable roles before any statistics. Write the resulting representation through the existing permitted OSRAM read/write interface. Preserve OSRAM query, backbone, Flat dimensions, classification head and task loss. No inter-utterance state, new cache, missing-modality reconstruction, auxiliary loss, teacher, dual view or labels during inference. Any proposed projection/feature adaptation below is an inference about transfer, not a result reported by the source paper.",
+  "verification_limits": "Method sections and identified author-code functions were actually read. No code was executed. Source pins were resolved from GitHub HEAD on this date after reading master files; no license audit or complete repository audit was performed. Admissible means compatible architectural proposal, not demonstrated improvement or complete implementation validation. Paper snippets are paraphrased; evidence locators identify exactly what was read.",
+  "candidates": [
+    {
+      "id": "survey80_robust_gnc_tls_consensus",
+      "title": "Graduated Non-Convexity for Robust Spatial Perception: From Non-Minimal Solvers to Global Outlier Rejection",
+      "authors": ["Heng Yang", "Pasquale Antonante", "Vasileios Tzoumas", "Luca Carlone"],
+      "url": "https://arxiv.org/abs/1909.08605",
+      "code_url": "https://github.com/MIT-SPARK/TEASER-plusplus/blob/52a9c52ee7d4c838c5e8a75458c33178be5bfb70/teaser/src/registration.cc",
+      "source_evidence": {
+        "paper_read": "https://arxiv.org/html/1909.08605v4 ; Sections III-A, III-B and IV-A/B; Black–Rangarajan dual objective (3), surrogate TLS (6), alternating variable/weight updates (9–10), Proposition 4.",
+        "code_read": "teaser/src/registration.cc:770–872, GNCTLSRotationSolver::solveForRotation: weighted SVD, residuals, data-dependent mu initialization, three-case weight update, increasing mu and stopping rule. This is an author-group GNC-TLS implementation for rotation inside TEASER++, not evidence that their full registration pipeline transfers.",
+        "equation": "Given squared residual s_i, a=mu*c²/(mu+1), b=(mu+1)*c²/mu: w_i=1 if s_i<=a, 0 if s_i>=b, otherwise sqrt(c²*mu*(mu+1)/s_i)-mu. Alternate exact weighted subproblem solve with this update; increase mu toward TLS.",
+        "not_read": "Full TEASER++ pipeline and complete supplementary proofs."
+      },
+      "mechanism": "保留渐进非凸化外循环、Black–Rangarajan辅助权重内循环、精确加权子问题三个环节。目标是有截断惩罚的共同证据中心，不是一次距离gate。GM与TLS视为同一GNC家族，仅计一项。",
+      "osram_mapping": "当前utterance有效角色投影为z_i，以r_i(u)=||z_i-u||构造TLS中心估计。加权子问题有闭式u=sum(w_i*z_i)/sum(w_i)，代替源代码仅适用于旋转的SVD。展开完整固定预算的mu/weight/center迭代，最终中心投影回既有evidence支路。0个有效角色返回零增量；1个返回该角色投影；初始化、阈值边界和零分母需显式处理。无标签或额外训练loss。",
+      "nearest_prior": ["learned_robust_pca_evidence_decomposition", "equilibrium_aggregation", "contractive_deep_equilibrium_evidence"],
+      "substantive_difference": "RPCA求低秩矩阵与稀疏污染分解；EA求学习到的集合能量；DEQ求学习映射不动点。本项求截断残差共识，其辅助outlier过程与convex-to-nonconvex continuation是核心，不产生低秩因子，也不使用一般学习能量替代源算法。与本lane的几何中值不同：TLS存在零影响离群区和显式非凸同伦，几何中值保持凸的非平方距离目标。",
+      "expected_benefit_hypothesis": "部分可用角色仍不可靠时，渐进形成一致证据中心可能避免一个极端Gap支配残差。尚未在OSRAM验证。",
+      "risks": ["最多五个异质角色不满足大量同分布传感器假设；互补信息可能被判成离群。", "高维尺度决定阈值；不得用测试集选择。", "短展开并无全局最优保证；截断权重有零梯度区。", "不得将这一迁移称为TEASER++完整复现或有其旋转认证保证。"],
+      "status": "admissible",
+      "verification_level": "paper_method_and_author_code_read; architectural_transfer_only; not_implemented"
+    },
+    {
+      "id": "survey80_rfa_smoothed_weiszfeld",
+      "title": "Robust Aggregation for Federated Learning",
+      "authors": ["Krishna Pillutla", "Sham M. Kakade", "Zaid Harchaoui"],
+      "url": "https://arxiv.org/abs/1912.13445",
+      "code_url": "https://github.com/krishnap25/RFA/blob/40945d27a5246b2c82fd37bd453db4f5bc049952/models/model.py",
+      "source_evidence": {
+        "paper_read": "https://krishnap25.github.io/papers/2019_rfa.pdf ; geometric median formulation and Algorithm 3, Smoothed Weiszfeld's Algorithm (PDF page 7).",
+        "code_read": "models/model.py:190–205 weighted_average_oracle; 264–308 geometric_median_update, l2dist, geometric_median_objective. Read normalized prior weights, mean initialization, inverse-distance recomputation, weighted center updates and objective-based termination.",
+        "equation": "beta_i^(t)=alpha_i/max(nu,||u^(t)-z_i||); u^(t+1)=sum_i beta_i^(t) z_i / sum_i beta_i^(t). Recompute distances and weights after every center update.",
+        "not_read": "Entire federated optimization proof and communication system."
+      },
+      "mechanism": "将完整平滑Weiszfeld迭代作为可微证据中心计算；保留共同中心依赖的全向量距离、分母平滑、迭代重加权、目标或预算终止。不把中值换名成新attention，不计坐标中值或不同平滑常数为新方法。",
+      "osram_mapping": "只对当前有效Local/Base/Gap角色投影执行迭代，初始alpha为有效角色等权；不使用联邦客户端或跨样本统计。输出共同中心经固定接口投影为evidence增量；对每轮展开反传原task loss。缺失角色从初始化、距离和分母全部排除。",
+      "nearest_prior": ["equilibrium_aggregation", "learned_robust_pca_evidence_decomposition", "netvlad_residual_encoding"],
+      "substantive_difference": "EA的学习能量/Nesterov不等于指定的几何中值目标及逆距离majorization链；RPCA没有求向量几何中值；NetVLAD聚合相对学习原型的残差。本项更新唯一共同中心，所有有效角色的影响通过该中心反复耦合。",
+      "expected_benefit_hypothesis": "降低少数极端证据对当前utterance残差的影响。仅提出机制假说，不移用联邦优化论文的性能结果。",
+      "risks": ["若异质角色并非共同信号的噪声观测，中心可能抹掉互补语义。", "一两个有效角色时鲁棒性很弱；两点几何中值可能不唯一。", "只允许一次加权平均的删减版本不合格；nu需稳定且不能随意扩大到退化成平均。", "联邦隐私与Byzantine保证不适用于OSRAM特征。", "最新screen强调不能用简单加权mean凑复杂方法；尽管迭代求解器完整，其forward仍为鲁棒中心，保守降为conditional且不计入suitable40。"],
+      "status": "conditional",
+      "verification_level": "paper_algorithm_and_author_code_read; latest_screen_requires_more_than_weighted_mean; do_not_count_as_suitable"
+    },
+    {
+      "id": "survey80_bayesian_context_aggregation",
+      "title": "Bayesian Context Aggregation for Neural Processes",
+      "authors": ["Michael Volpp", "Fabian Flürenbrock", "Lukas Großberger", "Christian Daniel", "Gerhard Neumann"],
+      "url": "https://openreview.net/forum?id=ufZN2-aehFa",
+      "code_url": "https://github.com/boschresearch/bayesian-context-aggregation/blob/20cfb5230e7be2f980365a992dab138ddd027070/bayesian_aggregation/bayesian_aggregation/aggregator.py",
+      "source_evidence": {
+        "paper_read": "Main PDF endpoint hit browser challenge; read the actual manuscript body at https://openreview.net/references/pdf?id=RzvxHkxbxE instead: Sections 4.1–4.2, equations (7–9), appendix 7.1 equations (12–15). This accessible copy is the anonymous submission, not verification of every final-version change.",
+        "code_read": "aggregator.py BayesianAggregator.reset, sequential_step and step; learned observation uncertainties arrive from encoders, prior is retained, posterior covariance is inverse summed precision, empty sets preserve the prior. Also read MeanAggregator to confirm the degenerate mean case.",
+        "equation": "V=(V0^-1+sum_i Vi^-1)^-1; m=m0+V*sum_i Vi^-1(ri-m0), elementwise for diagonal Gaussian variables.",
+        "not_read": "Final-version PDF, full encoder/decoder training implementation and calibration experiments."
+      },
+      "mechanism": "有效context映射为潜在观测及正方差，再把先验与全部观测做高斯条件化，同时传递均值与协方差。不是对raw embedding直接赋予概率意义；方差必须来自明确的潜变量观测模型。",
+      "osram_mapping": "观测对明确为(roleID, 已有featurevector)，NP context的y指观测特征而非gold emotion label。先验每utterance重置，编码器产生latent Gaussian factors，保留后验mean与log-variance并联合非线性读出至现有evidence接口；不要求重建任何role。若仅保留均值则退化风险高，直接拒绝。该定义改善了输入语义，但不证明独立性或概率校准，仍不直接接纳。",
+      "nearest_prior": ["capsule_variational_bayes", "repr_dst_corrected_evidence_combination", "rat_spn_evidence_circuit", "local_evidence_gate"],
+      "substantive_difference": "没有capsule assignment或高斯混合EM；没有DST集合ignorance/conflict归一化；没有SPN区域乘和电路。它是一个共享潜在函数描述子的精度后验累积。但仅取后验均值的简化版与加权gate差异不足，不能计新方法。",
+      "expected_benefit_hypothesis": "若潜在观测模型能在不变task loss下成立，保留后验精度可表达证据数量与可靠度。未验证且不能声称校准。",
+      "risks": ["原文context含监督(x,y)对，现有角色并非该统计设定。", "Base/Gap高度相关，独立高斯观测会重复计算证据。", "只用现有分类loss不能自动证明方差有概率校准含义；禁止为此补ELBO/NLL/calibration loss。", "当前需要明确不退化gate的均值/协方差读出设计，未满足前不实施。"],
+      "status": "conditional",
+      "verification_level": "submission_method_and_author_aggregator_code_read; final_version_and_transfer_semantics_pending"
+    },
+    {
+      "id": "survey80_recurrent_kalman_network",
+      "title": "Recurrent Kalman Networks: Factorized Inference in High-Dimensional Deep Feature Spaces",
+      "authors": ["Philipp Becker", "Harit Pandya", "Gregor Gebhardt", "Cheng Zhao", "C. James Taylor", "Gerhard Neumann"],
+      "url": "https://proceedings.mlr.press/v97/becker19a.html",
+      "code_url": "https://github.com/LCAS/RKN/blob/81902ad12f728fc75d7a1bbda824520e7d70eb5d/rkn/rkn/RKNTransitionCell.py",
+      "source_evidence": {
+        "paper_read": "https://proceedings.mlr.press/v97/becker19a/becker19a.pdf ; Sections 2.1–2.4, state partition, mixture of banded transitions, upper/lower/side covariance representation and prediction equation (1).",
+        "code_read": "rkn/rkn/RKNTransitionCell.py TransitionNet, RKNTransitionCell.build, call, _predict, _masked_update, _update and get_initial_state. Includes update equations (2–7) and covariance propagation referenced to supplement (10–12).",
+        "equation": "A=sum_k alpha_k(state)A_k; m-=A m+; P-=A P+ A^T+Q projected to upper/lower/side diagonal blocks; k_u=P_u/(P_u+R), k_l=P_s/(P_u+R); update both observed and memory means and all three covariance blocks.",
+        "not_read": "Supplementary derivation PDF and complete training code."
+      },
+      "mechanism": "双部分潜在状态加三个协方差向量；状态依赖banded转移先传播均值与协方差，再按观测可靠度更新两部分。必须保留预测与校正两阶段，删去转移后会接近本lane BA，不得另计。",
+      "osram_mapping": "作为当前utterance内部的五role有序融合cell，固定角色顺序，状态每次从源initial prior重置；不声称角色是物理时间。角色特征编码成观测与正噪声，完整保留state-dependent banded prediction和upper/lower/side covariance correction。缺失角色完全跳过predict与update，防止其内容或位置引入额外状态变化。最终mean与三块covariance联合投影回原evidence接口，交给原OSRAM query读取；不修改其memory读写、不改Flat/head/task loss。临时cell状态不跨utterance持久化。",
+      "nearest_prior": ["rrn_evidence", "conditional_new_02_ltc_conductance", "conditional_new_06_rim", "capsule_variational_bayes"],
+      "substantive_difference": "RRN/LTC/RIM没有同时传播这个三块协方差并使用交叉块增益修正不可直接观测的memory；VB capsule没有状态依赖转移预测与观测校正。不是给GRU门换成Kalman名称。",
+      "expected_benefit_hypothesis": "若角色顺序能被解释为逐步融合，显式传播内部精度可能稳定冲突角色的写入。OSRAM收益无证据。",
+      "risks": ["这是有序融合架构迁移，role顺序不具有物理动态解释；收益需验证。", "缺失角色应完全skip而非仅源代码的masked observation correction；保留其数据输入会违反availability要求。", "task loss可能学习有效融合权重，但不能声称学到校准covariance。", "不能额外引入状态监督、重构loss、跨utterance状态或完整轨迹数据。", "需验证三块covariance数值有效性、缺失内容不变性、每utterance reset和所有保留参数梯度；目前尚未实现。"],
+      "status": "admissible",
+      "verification_level": "paper_method_and_author_transition_code_read; complete_ephemeral_role_cell_specified; architecture_only_not_calibration"
+    },
+    {
+      "id": "survey80_particle_filter_rnn",
+      "title": "Particle Filter Recurrent Neural Networks",
+      "authors": ["Xiao Ma", "Peter Karkus", "David Hsu", "Wee Sun Lee"],
+      "url": "https://arxiv.org/abs/1905.12885",
+      "code_url": "https://github.com/Yusufma03/pfrnns/blob/0a76d52a857f06d4128bbc7601c616d714b25734/pfrnns.py",
+      "source_evidence": {
+        "paper_read": "https://arxiv.org/html/1905.12885v2 ; Particle Filter Extension to RNNs, equations (1–3), Model Learning equations (4–5), PF-LSTM construction (9–12).",
+        "code_read": "pfrnns.py PFRNNBaseCell.resampling and reparameterize; PFLSTMCell.forward and PFGRUCell.forward. Read stochastic transition, learned observation log weight, logsumexp normalization, multinomial ancestor sampling and importance correction.",
+        "equation": "h_i'=f(h_i,x,xi_i); w_i' proportional to w_i*f_obs(x,h_i'); ancestor proposal q_i=alpha*w_i'+(1-alpha)/K; resampled weights w_a'/q_a then normalize. Paper L_pred uses head(sum_i w_i h_i); L_ELBO is separate, and source experiments combine both.",
+        "not_read": "Complete trainer and stochastic-gradient supplementary proof."
+      },
+      "mechanism": "多粒子潜在信念经随机动态、观测权重及soft-resampling祖先重采样演化，importance修正保留原权重信息。不同粒子不是teacher或两份输入视图；也不能以多个普通GRU平均代替。",
+      "osram_mapping": "每utterance从固定先验创建粒子，按预定role顺序仅消费当前有效token；保留随机transition、observation log-weight、logsumexp、soft-resampling和importance correction全链。最终加权粒子均值经原evidence接口交给原query，所有内部状态在调用后丢弃。使用论文Eq.(4)明确列出的L_pred路径接现有head/task loss，不带Eq.(5)附加L_ELBO。不存在新teacher/两份输入视图/历史缓存；粒子是同一输入的一组临时latent states。",
+      "nearest_prior": ["capsule_variational_bayes", "slot_attention", "conditional_new_06_rim", "rrn_evidence"],
+      "substantive_difference": "capsule和slot执行assignment/refinement而非随机状态转移加祖先importance-resampling；RIM选择激活模块但不维护粒子概率。完整机制与BA/RKN单高斯后验不同。",
+      "expected_benefit_hypothesis": "内部多个假设可能保留冲突证据的多峰解释，最终再形成读出。无OSRAM验证。",
+      "risks": ["固定role顺序是架构选择，不解释为真实时间或严格贝叶斯传感器模型。", "随机预测和采样增大复验方差；训练/推理均须可追溯随机协议，不能推理时删掉噪声宣称同一算法。", "源最佳实验采用L_pred+L_ELBO；仅L_pred是正文定义过的合法选项，但不能沿用源最佳性能。", "重要性修正不等于完全无偏的离散祖先梯度，不能夸称精确可微滤波或校准概率。", "需验证每utterance reset、mask全跳过、importance correction与粒子权重归一化、随机种子复现和反向梯度；尚未实现。"],
+      "status": "admissible",
+      "verification_level": "paper_eq4_prediction_only_option_and_author_cell_code_read; complete_ephemeral_role_cell_specified; not_implemented"
+    },
+    {
+      "id": "survey80_dsac_screened_out",
+      "title": "DSAC - Differentiable RANSAC for Camera Localization",
+      "authors": ["Eric Brachmann", "Alexander Krull", "Sebastian Nowozin", "Jamie Shotton", "Frank Michel", "Stefan Gumhold", "Carsten Rother"],
+      "url": "https://arxiv.org/abs/1611.05705",
+      "code_url": "https://github.com/vislearn/DSACLine/blob/60f29a75bcb423e7a96cb3320522c7cfa42544fd/dsac.py",
+      "source_evidence": {
+        "paper_read": "https://arxiv.org/pdf/1611.05705 ; Sections 2.1, 2.2.1, 2.2.2; equations (5–8) distinguish SoftAM averaging from DSAC stochastic choice and expected-loss gradient.",
+        "code_read": "Author educational DSACLine dsac.py: __sample_hyp, __soft_inlier_count, __refine_hyp and __call__; minimal pairs, soft inliers, weighted Deming refinement and hypothesis task losses. This example uses later soft-inlier scoring, not the 2017 learned score CNN.",
+        "equation": "J sampled from softmax(scores); optimize E_J L(R(h_J)); gradient contains L*grad(log P_J) as well as grad L. This is not L applied to a soft average of hypotheses.",
+        "not_read": "Full original C++/Torch camera-localization implementation."
+      },
+      "mechanism": "最小子集生假设、consensus打分、随机硬选择、全inlier refinement、期望任务loss学习的完整RANSAC链。",
+      "osram_mapping": "可以概念性从role子集产生共享语义假设，但现有单次Flat/head/task-loss接口无法保留DSAC的每假设expected-loss梯度。只做soft hypothesis average已被原文区分为SoftAM，不能冒称DSAC。",
+      "nearest_prior": ["optimization_dpp_subset_readout", "sparsemap_role_partition", "n3_recursive_neighbor_volumes"],
+      "substantive_difference": "DSAC按几何/模型consensus选择并refine假设，非DPP行列式排斥、SparseMAP多面体解或N3递归邻居选择；差异存在，但本协议无法完整接入其学习机制。",
+      "expected_benefit_hypothesis": "假设共识可能抑制离群证据，但当前不提出合规实现或性能承诺。",
+      "risks": ["保留expected-loss需要改变当前固定训练协议。", "OSRAM缺少源任务可解释的最小几何模型与参数标签；不能引入新监督。", "推理中绝不可调用例程labels参数获得选择依据。"],
+      "status": "rejected",
+      "verification_level": "paper_method_and_author_example_code_read; rejected_for_fixed_loss_protocol"
+    },
+    {
+      "id": "survey80_ddn_robust_vector_pool_screened_out",
+      "title": "Exploiting Problem Structure in Deep Declarative Networks: Two Case Studies",
+      "authors": ["Stephen Gould", "Dylan Campbell", "Itzik Ben-Shabat", "Chamin Hewa Koneputugodage", "Zhiwei Xu"],
+      "url": "https://arxiv.org/abs/2202.12404",
+      "code_url": "https://github.com/anucvml/ddn/blob/c5172790059a236e8d41d9b6b8b36942613410b6/ddn/pytorch/robust_vec_pool.py",
+      "source_evidence": {
+        "paper_read": "https://arxiv.org/pdf/2202.12404 ; Robust Vector Pooling case study, equations (4–10), optimization objective, Hessian structure and efficient implicit vector-Jacobian product.",
+        "code_read": "ddn/pytorch/robust_vec_pool.py:125–238 RobustVectorPool2dFcn._optimize/forward/backward: L-BFGS, mean/median starts, optional restarts, Hessian Cholesky and pseudoinverse fallback.",
+        "equation": "y=argmin_u sum_i phi(||u-x_i||;alpha); Dy/Dx_j=-H^-1 B_j; H=sum_i[kappa1_i I+kappa2_i(y-x_i)(y-x_i)^T].",
+        "not_read": "Optimal transport case study, unrelated DDN nodes and complete test suite."
+      },
+      "mechanism": "以鲁棒中心优化作为forward，以最优性条件/Hessian求隐式梯度，避免保存所有求解器迭代。",
+      "osram_mapping": "有效role投影可直接成为pool输入、输出接既有evidence接口；数学上可接现有task loss。但若只是换Huber/Welsch惩罚或把RFA/GNC的反传改为implicit，不构成新增完整语义机制。",
+      "nearest_prior": ["equilibrium_aggregation", "contractive_deep_equilibrium_evidence", "survey80_rfa_smoothed_weiszfeld", "survey80_robust_gnc_tls_consensus"],
+      "substantive_difference": "其主要贡献在结构化隐式梯度效率；当前迁移forward仍是已经提议的鲁棒共同中心。仅变求解器、惩罚形状或反向实现不够支持另占OSRAM方法名额。",
+      "expected_benefit_hypothesis": "可作为已选鲁棒聚合的实现参考，不能作为独立性能候选计数。",
+      "risks": ["高维Hessian昂贵且可能奇异。", "未收敛forward配隐式gradient会产生不一致。", "不得以DDN大框架名称掩盖与现有能量/中心机制重复。"],
+      "status": "rejected",
+      "verification_level": "paper_case_study_and_author_code_read; rejected_for_semantic_overlap"
+    },
+    {
+      "id": "survey40_adf_gaussian_moment_propagation",
+      "title": "Lightweight Probabilistic Deep Networks",
+      "authors": ["Jochen Gast", "Stefan Roth"],
+      "url": "https://arxiv.org/abs/1805.11327",
+      "code_url": "https://github.com/ezjong/lightprobnets/blob/a61725e5a4cf6cda4e978aae4a41eb60736cea8f/contrib/adf.py",
+      "source_evidence": {
+        "paper_read": "https://arxiv.org/pdf/1805.11327 ; Sec.3.2 Eq.(3–10): white-Gaussian input perturbation, factorized Gaussian activation approximation, one-pass ADF moment matching, affine and ReLU moments. Sec.5.2 explicitly evaluates SM mean + XE: ordinary cross entropy applied to the mean output, separately from Dirichlet/conditional-likelihood variants.",
+        "code_read": "contrib/adf.py ReLU.forward, Linear.forward, MaxPool2d._max_pool_internal and Sequential; models/lenet_adf.py LeNetADF.__init__/forward: inputs_mean=input, inputs_variance=zeros_like(input)+noise_variance, affine/ReLU/pooling moment chain. Both files read beyond README.",
+        "equation": "Affine: m'=Wm+b, v'=(W elementwise-squared)v. ReLU: a=m/sqrt(v), m'=m*Phi(a)+sqrt(v)*phi(a); v'=(m²+v)*Phi(a)+m*sqrt(v)*phi(a)-m'². Approximate each transformed activation again by its Gaussian moments before the next layer.",
+        "not_read": "Full trainer and all convolution/deconvolution/pooling edge cases. PDF text extraction drops the square in Eq.(10b); the source implementation explicitly uses features_mean**2+features_variance and is the formula used here."
+      },
+      "mechanism": "完整双矩传播链：固定小Gaussian输入扰动模型、仿射均值/方差传播、非线性解析矩匹配、逐层Gaussian近似，再输出最终均值。variance会改变后续ReLU均值，不能用普通MLP加一个variance head代替。只选ADF路径，不把ProbOut或Dirichlet输出作为另一条目。",
+      "osram_mapping": "把当前五role按现有顺序投影并concat到适配器输入，availability同时屏蔽对应均值与输入方差；不将缺失role的零当作有噪声观测。有效输入使用明确固定小噪声方差（架构扰动假设，不是校准置信度）；在支路中执行至少两段affine→ADF-ReLU，使方差参与后续均值演化。最终均值投影回现有evidence接口，原query、memory、Flat、head、task CE全部保留。遵循原文SM mean + XE思路，不引入NLL、KL、teacher、sampling或额外loss。",
+      "nearest_prior": ["capsule_variational_bayes", "repr_sos_signed_probability_circuit", "rat_spn_evidence_circuit", "repr_neural_kernel_composition", "survey80_bayesian_context_aggregation", "survey80_recurrent_kalman_network"],
+      "substantive_difference": "BA对独立因子作高斯条件化，RKN做动态预测/校正，VB capsule作assignment posterior；ADF则对确定性非线性变换的输出分布逐层做一二矩匹配。既不包含SPN/SOS电路，也不只换一个激活函数：中间variance由同一权重的平方传播并反过来影响后续mean。",
+      "expected_benefit_hypothesis": "解析整合明确的小输入扰动可能使role特征融合对噪声更平滑，无需MC多次推理。没有OSRAM性能或概率校准证据。",
+      "risks": ["固定Gaussian输入噪声是显式建模假设，不能将其描述为已有特征真实测量误差。", "逐层丢弃协方差使结果为ADF近似；不是对完整深网的精确期望。", "必须保留正variance数值下界；全mask返回零增量，不能让bias造成伪证据。", "需检查ReLU极端m/sqrt(v)、方差非负、mask不变性与与source公式一致性；尚未实现。"],
+      "status": "admissible",
+      "verification_level": "paper_method_and_explicit_plain_cross_entropy_variant_and_author_code_read; architecture_transfer_only_not_implemented"
+    },
+    {
+      "id": "survey40_tyler_scatter_pending_small_sample_code",
+      "title": "Regularized Tyler's Scatter Estimator: Existence, Uniqueness, and Algorithms",
+      "authors": ["Ying Sun", "Prabhu Babu", "Daniel P. Palomar"],
+      "url": "https://arxiv.org/abs/1407.3079",
+      "code_url": "https://github.com/dppalomar/fitHeavyTail/blob/f0d576e60d494ff380145b5f8e30538321ce40c8/R/fit_TylerCauchy.R",
+      "source_evidence": {
+        "paper_read": "https://arxiv.org/pdf/1407.3079 ; Sec.IV Wiesel update Eq.(29), KL-penalized objective Eq.(32), Algorithm 2 and update Eq.(34).",
+        "code_read": "R/fit_TylerCauchy.R fit_Tyler entire routine: nrow<=ncol hard error, center initialization, iterative inverse-Mahalanobis weights, weighted scatter, trace normalization and final scale/tail recovery. Also read coauthor lecture estimateTylerShrinkage at https://palomar.home.ece.ust.hk/MAFS6010R_lectures/Rsession_estimators_heavy_tails.html.",
+        "equation": "Paper KL variant: S_next=(d/[n(1+alpha)]) sum_i x_i x_i^T/(x_i^T S^-1 x_i) + alpha*T/(1+alpha). This version has a target prior T and differs from ordinary empirical covariance or one-shot shrinkage.",
+        "code_evidence_gap": "Author package links this paper but the inspected fit_Tyler function is unregularized and rejects n<=d. Coauthor lecture adds target shrinkage AND trace normalization, so it does not exactly implement the stated KL Algorithm 2. The regularized five-sample implementation has NOT been verified."
+      },
+      "mechanism": "迭代估计矩阵scatter：当前逆scatter决定每个观测的Mahalanobis影响，重新估计scatter并与正定target耦合。输出矩阵方向结构而非一个加权mean；潜在矩阵含交叉通道关系。",
+      "osram_mapping": "可能对五role的低维latent projections按有效样本构造regularized scatter，并将矩阵条目或其作用后的role特征读入原evidence接口。无跨utterance统计、无新的训练loss。然而有效样本可能只有1，不能照搬作者当前n>d实现；该条保持pending，不通过复制虚拟样本或补全role来规避限制。",
+      "nearest_prior": ["spdnet_bimap_reeig_logeig", "learned_robust_pca_evidence_decomposition", "repr_grassmann_projection_pooling", "survey80_rfa_smoothed_weiszfeld"],
+      "substantive_difference": "SPDNet学习对已有SPD矩阵的BiMap/谱截断/LogEig；RPCA分离低秩与稀疏项；Grassmann编码子空间。此处联合求解受outlier radial影响抑制的scatter固定点，不是谱归一化或Robust Center。",
+      "expected_benefit_hypothesis": "保留角色特征间方向耦合，同时降低极端向量模长对scatter的影响；目前仅机制假说。",
+      "risks": ["作者可执行代码和所需regularized算法不一致，不能声明已完整核对。", "5个异质角色不是同分布统计样本，概率一致性理论不能搬用。", "高维小样本时正则项可能压倒证据；一般位置和存在性条件需逐mask分析。", "不得把估计目标中的KL正则错误接成新的训练loss。"],
+      "status": "conditional",
+      "verification_level": "paper_algorithm_and_author_related_code_read; exact_regularized_small_sample_code_unverified; do_not_count_as_suitable"
+    },
+    {
+      "id": "survey40_netfv_screened_out",
+      "title": "Learnable pooling with Context Gating for video classification",
+      "authors": ["Antoine Miech", "Ivan Laptev", "Josef Sivic"],
+      "url": "https://arxiv.org/abs/1706.06905",
+      "code_url": "https://github.com/antoine77340/LOUPE/blob/f0adf5220f9a9da2de99ba4c6f1466a0dace7b9c/loupe.py",
+      "source_evidence": {
+        "paper_read": "https://www.di.ens.fr/~josef/publications/Miech17a.pdf ; Sec.4 explicitly defines NetFV by modifying NetVLAD to learn second-order within-cluster feature statistics; Sec.5 context-gating formula.",
+        "code_read": "loupe.py NetFV.__init__/forward in full: learned assignment logits, positive covariance parameters, first and second residual statistics, L2-normalization, concatenation, projection and optional context gate.",
+        "equation": "fv1=sum_i a_ik(x_i-mu_k)/sigma_k; fv2=sum_i a_ik((x_i-mu_k)^2/sigma_k^2-1), independently normalized then concatenated and projected.",
+        "not_read": "Full YouTube8M training pipeline; not needed for this duplication rejection."
+      },
+      "mechanism": "对已有NetVLAD式prototype residual encoder增加方差归一的二阶统计分支，进行联合读出。",
+      "osram_mapping": "计算图可用于当前有效role集合且无需额外loss，但本轮保守语义去重不将簇内二阶扩展另计一个完整新方法。不得声称代码的自由soft assignments自动构成校准GMM后验。",
+      "nearest_prior": ["netvlad_residual_encoding", "capsule_variational_bayes"],
+      "substantive_difference": "二阶残差确有信息差异，但源作者明确把它构造成NetVLAD的统计扩展；此任务要求避免近似方法凑数，因此不足以占新名额。",
+      "expected_benefit_hypothesis": "可能表达簇内离散程度，但只作为已有NetVLAD家族的后续改动参考。",
+      "risks": ["与已登记NetVLAD直接同核。", "不计Context Gating作为独立复杂机制。", "作者库默认固定长度，mask还需实际适配。"],
+      "status": "rejected",
+      "verification_level": "paper_method_and_author_full_NetFV_forward_read; rejected_for_conservative_cross_history_overlap"
+    },
+    {
+      "id": "survey40_recurrent_meanshift_screened_out",
+      "title": "Recurrent Pixel Embedding for Instance Grouping",
+      "authors": ["Shu Kong", "Charless Fowlkes"],
+      "url": "https://arxiv.org/abs/1712.08273",
+      "code_url": "https://github.com/aimerykong/Recurrent-Pixel-Embedding-for-Instance-Grouping/blob/748ade6b969c7861c2a9009cd0f0ffb27004677c/demo1_tutorial_instance_segmentation/fun4MeanShift/addOneLoop_forMeanShiftGrouping.m",
+      "source_evidence": {
+        "paper_read": "https://arxiv.org/pdf/1712.08273 ; Sec.4 Recurrent Mean-Shift Grouping/4.1, source pairwise embedding objective in Sec.3 Eq.(2), supplementary Sec.2 grouping gradient chain.",
+        "code_read": "addOneLoop_forMeanShiftGrouping.m complete layer construction; meanshift_G_is_Gaussian.m exp((similarity-1)/delta²); meanshift_Y_is_XP.m forward/backward matrix product. The helper appends a gold-instance cosine-loss-facing branch after the grouping block, which cannot be imported here.",
+        "equation": "For unit-normalized token columns X, G_ij=exp((x_i^T x_j-1)/delta²), P=G*diag(1/(1^T G)), X_next=column_normalize(XP); repeat with recomputed affinities.",
+        "not_read": "Complete segmentation trainer and every MatConvNet helper."
+      },
+      "mechanism": "核密度mode-seeking的递归token移动，在数学上表现为共享Q=K=V的归一化相似度聚合反复应用。",
+      "osram_mapping": "当前role集合可执行无标签grouping子图；但仅保留这一子图而去掉原metric-loss后，与已有nonlocal/self-attention的绑定投影、单位球归一和迭代深度差别太小。",
+      "nearest_prior": ["nonlocal_dot", "slot_attention", "tome_merge_reconstruct", "contractive_deep_equilibrium_evidence"],
+      "substantive_difference": "源完整像素embedding+grouping系统有任务专属metric训练；允许迁移的纯grouping部分缺少足够新的核心算子。增加迭代次数或换带宽不能另计新方法。",
+      "expected_benefit_hypothesis": "重复mode-seeking可能消除噪声，但不是满足本轮去重门槛的新候选。",
+      "risks": ["没有原pairwise margin objective时，源instance separation保证和结果不适用。", "五role可能被过平滑成同一方向。", "不能使用gt_ins或源附加loss。"],
+      "status": "rejected",
+      "verification_level": "paper_method_and_author_grouping_code_read; rejected_for_repeated_nonlocal_core_and_loss_mismatch"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-04",
+  "status": "cpu_verified_not_trained",
+  "label": "INTERNAL DIAGNOSTIC ONLY",
+  "priority_configuration_count": 40,
+  "additional_v3_implementation_count": 22,
+  "distinct_new_method_count": null,
+  "requested_candidate_target": 120,
+  "target_complete": false,
+  "suite": {
+    "tests_passed": 70,
+    "subtests_passed": 127,
+    "duration_seconds": 59.62,
+    "python": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python",
+    "pytest_source_reused": "/home/yangbin/miniconda3/envs/msa_extract/lib/python3.10/site-packages",
+    "new_dependencies_installed": false,
+    "environment_note": "Initial msa_extract test run lacked torch_geometric for two full-model tests. Reran the complete suite using the project environment plus the already installed pure-Python pytest path; no tests skipped to hide that failure.",
+    "command": "OMP_NUM_THREADS=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /home/yangbin/miniconda3/envs/multimodalerc310/bin/python -c 'import sys; sys.path.append(\"/home/yangbin/miniconda3/envs/msa_extract/lib/python3.10/site-packages\"); import pytest; raise SystemExit(pytest.main(sys.argv[1:]))' -q tests/test_priority40_integration.py tests/test_priority40_bilinear.py tests/test_priority40_conditioning.py tests/test_priority40_crosses.py tests/test_priority40_mixers.py tests/test_priority40_pooling_geometry.py tests/test_priority40_relations.py tests/test_priority40_configs.py tests/test_meaningful_v3.py tests/test_meaningful_v3_dynamics.py tests/test_meaningful_v3_geometry.py tests/test_meaningful_v3_logic.py tests/test_meaningful_v3_probabilistic.py tests/test_meaningful_v3_representation.py tests/test_meaningful_v3_routing.py tests/test_meaningful_v3_structured.py tests/test_meaningful_v3_prepare.py tests/test_meaningful_block_integration.py tests/test_meaningful_new40.py"
+  },
+  "coverage": [
+    "all 40 user IDs construct through the existing configuration flag",
+    "zero-start complete-model output and RNG for R/I, plus existing methods",
+    "DyT changes first Adapter LN only; original final emotion_norm remains",
+    "inactive Gap NaN isolation and strict output masking",
+    "padding and first-valid-utterance history-branch behavior",
+    "finite gradients and three shared optimizer updates",
+    "operator-specific formula checks, source-role separation and row independence",
+    "all 22 additional v3 implementations satisfy the shared input-adapter contract",
+    "configuration generation changes only osram_meaningful_block and refuses overwrite"
+  ],
+  "not_tested": [
+    "new GPU smoke",
+    "new formal training",
+    "long-run GPU memory and numerical stability",
+    "new W-F1 or multi-seed performance"
+  ],
+  "existing_training": "preserved",
+  "pending_new_launches": "paused per latest user instruction"
+}

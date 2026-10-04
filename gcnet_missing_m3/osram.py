@@ -1117,10 +1117,19 @@ class OSRAMBackbone(nn.Module):
             from .meaningful_blocks import MeaningfulReadoutResidual
             from .meaningful_input import MeaningfulInputAdapter
             with torch.random.fork_rng(devices=[]):
-                factory = MeaningfulInputAdapter if self.meaningful_input_mode else MeaningfulReadoutResidual
-                self.meaningful_block = factory(
-                    self.latent_dim,self.context_dim,self.output_dim,self.osram_meaningful_block,
-                    self.num_heads,self.value_dim)
+                if self.osram_meaningful_block == 'm30_dyt':
+                    from .priority40_common import DynamicTanh, NormalizationOnlyReadout
+                    original_norm = self.emotion_adapter[0]
+                    self.emotion_adapter[0] = DynamicTanh(original_norm.normalized_shape[0])
+                    with torch.no_grad():
+                        self.emotion_adapter[0].weight.copy_(original_norm.weight)
+                        self.emotion_adapter[0].bias.copy_(original_norm.bias)
+                    self.meaningful_block = NormalizationOnlyReadout()
+                else:
+                    factory = MeaningfulInputAdapter if self.meaningful_input_mode else MeaningfulReadoutResidual
+                    self.meaningful_block = factory(
+                        self.latent_dim,self.context_dim,self.output_dim,self.osram_meaningful_block,
+                        self.num_heads,self.value_dim)
         if self.osram_readout_candidate != 'none':
             from .readout_candidates import ExternalReadoutResidual
             with torch.random.fork_rng(devices=[]):

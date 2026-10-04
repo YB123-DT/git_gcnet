@@ -1,0 +1,531 @@
+{
+  "scope": "representation/function/channel-mixing/frequency/operator screening; non-MSA/MERC",
+  "date": "2026-10-04",
+  "dedup_inputs": [
+    "AGENTS.md",
+    "experiments/osram_method_registry.json",
+    "gcnet_missing_m3/meaningful_new40_registry.py"
+  ],
+  "counting_note": "18 screened papers: 4 design-admissible, 4 conditional, 10 rejected. Admissible means the specified complete representation core fits the current inputs/loss/head constraints, NOT implementation/performance verification. Conditional items are not accepted training slots. Target6–8 was not filled by relaxing mechanism or evidence requirements.",
+  "shared_constraints": "Only same-utterance precomputed Local256/Base512/Gap3x512 and availability. Preserve OSRAM reads/writes/query, Flat and original task loss. No extra losses, labels in forward, teacher, JEPA, completion, cross-utterance cache or dual views. All proposed adaptations are hypotheses, not experiments.",
+  "papers": [
+    {
+      "id": "repr80_neural_power_units",
+      "title": "Neural Power Units",
+      "authors": [
+        "Niklas Heim",
+        "Tomáš Pevný",
+        "Václav Šmídl"
+      ],
+      "url": "https://arxiv.org/abs/2006.01681",
+      "code_url": "https://github.com/nmheim/NeuralPowerUnits/blob/e1b9a4523a63962ff9c4d767bfeddd96c0304844/src/npu.jl",
+      "source_evidence": "原文 Sec.3.1–3.2, Eq.(11),(14)–(15) 与 Fig.2 已读；作者 src/npu.jl 的 GatedNPUX、mult(Re,Im,g,x) lines30–55 已读。注意 README 中 NPU 对应代码 GatedNPUX，不能误用未门控 NPUX。",
+      "mechanism": "绝对值幅度与负数相位分开；相关性参数把忽略维度变成乘法单位元1；复权重作用于 log幅度和π符号相位；exp幅度与cos相位重组为实输出。完整链包含负值处理、可学幂指数、相关性门及实部回读。",
+      "osram_mapping": "把本utterance已算Local/Base/available Gap投影为紧凑有符号向量，缺失角色仅以availability标识并将其算术输入设为单位元；NPU输出接原Flat前特征路径。原query、读写、task loss均保留；不采用论文L1辅助项，也不宣称复现其稀疏方程发现。",
+      "nearest_prior": [
+        "repr_mfn_gabor_filter_chain",
+        "repr_differentiable_logic_circuit"
+      ],
+      "substantive_difference": "MFN乘的是输入滤波响应；NPU学习带符号输入的任意幂与除法，显式传播复对数相位。逻辑电路的布尔真值组合不含此实数算术链。NPU/RealNPU不拆成两个候选。",
+      "expected_benefit_hypothesis": "若Base/Gap关系含相对幅度或比例，算术偏置可能用较少样本表达；仅是移植假设。",
+      "risks": "嵌入坐标不一定具有算术语义；零附近梯度及指数溢出；不采用L1故不主张稀疏性或可恢复真实方程。这里只确认设计可迁移，未做运行、性能或稳定性验证。",
+      "status": "admissible",
+      "verification_level": "primary_method_and_author_code_read; OSRAM adaptation unimplemented",
+      "admission_basis": "仅准入完整NPU表示模块，不准入论文稀疏方程发现训练法。源码forward不依赖L1、标签或额外优化；原task loss可向Wr/Wi/g反传。以前conditional中的稀疏性疑虑转为明确不主张的性质，并非已证明性能或数值稳定。",
+      "must_preserve": [
+        "gated magnitude r=g*(abs(x)+eps)+(1-g)",
+        "signed phase k=pi*g*1[x<0]",
+        "both Wr and Wi",
+        "exp(Wr log r-Wi k)*cos(Wi log r+Wr k)",
+        "missing payload masked before any learned projection; absent arithmetic factors exactly 1",
+        "existing query/read/write/Flat/head/task loss unchanged"
+      ]
+    },
+    {
+      "id": "repr80_mps_feature_contraction",
+      "title": "Supervised Learning with Tensor Networks",
+      "authors": [
+        "E. Miles Stoudenmire",
+        "David J. Schwab"
+      ],
+      "url": "https://papers.nips.cc/paper/6211-supervised-learning-with-tensor-networks.pdf",
+      "code_url": "https://github.com/emstoudenmire/TNML/blob/137001c7c6560fdd314cba8cde71baafbad18e2a/fixedL.cc",
+      "source_evidence": "论文Sec.2 Eq.(2)–(3)局部特征提升、MPS分解及Sec.6 Eq.(10)特征子空间解释已读；作者fixedL.cc TState::A、TrainStates::init/shiftE、quadcost已读，包含逐站点收缩与训练缓存。",
+      "mechanism": "每个输入变量映成二维局部特征；不显式生成指数大外积，而以MPS核心沿bond维逐站点收缩，输出一组高阶交互特征；核心矩阵依赖当前站点特征，矩阵乘法一般不可交换。",
+      "osram_mapping": "给Local、Base、3个Gap各建语义固定的站点；每站点先作无标签紧凑投影并生成局部非线性特征phi_r。计算M_r=sum_s phi_r,s A_r,s，z=l^T M_Local M_Base M_Gap1 M_Gap2 M_Gap3 R，R带输出特征索引。缺失Gap在其投影之前清零并令对应M_r为恒等，availability另接入特征投影；z投回原Flat输入尺寸。仅原task loss反传，不移植原分类器、DMRG/SVD训练或磁盘缓存，OSRAM query读写与Flat/head均保留。",
+      "nearest_prior": [
+        "repr_sos_signed_probability_circuit",
+        "rat_spn_evidence_circuit",
+        "repr_neural_kernel_composition"
+      ],
+      "substantive_difference": "MPS是有bond状态的有序矩阵链收缩，不是独立因子的低秩Hadamard乘积；亦不要求SPN的非负概率/分解归一性。若实现退化为rank1或简单乘积，必须撤销。",
+      "expected_benefit_hypothesis": "有序角色链可能表达三种Gap与Base联合依赖；尚无OSRAM证据。",
+      "risks": "只移植表示函数，不移植DMRG/SVD自适应训练；角色顺序偏置、bond状态梯度和规模待实测。历史SOS电路用平方振幅概率构造，本设计不平方归一且保留非交换bond状态；若实现被化成独立秩1乘积则撤销准入。MPS/TT/不同bond rank合并为一个方法。",
+      "status": "admissible",
+      "verification_level": "primary_method_and_author_code_read; full-paper optimizer deliberately not transplanted",
+      "admission_basis": "表示函数与论文DMRG优化器可分离：局部特征提升和完整非交换bond收缩可直接反传原task loss，使用特征输出索引而非新类别头。保留原文表示核心，不声称复现其DMRG训练算法。",
+      "must_preserve": [
+        "site-specific nonlinear local feature lift",
+        "full noncommuting bond matrices rather than rank-one/scalar/Hadamard factors",
+        "fixed named-role ordering",
+        "explicit identity transition for absent sites",
+        "a feature output index, not a replacement class prediction head"
+      ]
+    },
+    {
+      "id": "repr80_afno",
+      "title": "Adaptive Fourier Neural Operators: Efficient Token Mixers for Transformers",
+      "authors": [
+        "John Guibas",
+        "Morteza Mardani",
+        "Zongyi Li",
+        "Andrew Tao",
+        "Anima Anandkumar",
+        "Bryan Catanzaro"
+      ],
+      "url": "https://arxiv.org/abs/2111.13587",
+      "code_url": "https://github.com/NVlabs/AFNO-transformer/blob/master/afno/afno2d.py",
+      "source_evidence": "原文Sec.4 Eq.(5)及Fig.3完整伪代码已读；作者AFNO2D.forward lines28–79验证FFT、两层复block MLP、softshrink、逆FFT、residual。原项目旧地址失效后改查NVlabs作者代码。",
+      "mechanism": "频域块对角复数两层非线性混合，跨频率共享参数，逐实虚部软阈值收缩后逆变换并加残差；不能简化成FFT乘可学向量。",
+      "osram_mapping": "只能考虑当前utterance固定角色序列的1D适配，显式availability并在FFT前清除缺失输入；输出回到原Flat，原读写query不改。不能将512通道伪装成时间或图像网格。",
+      "nearest_prior": [
+        "next_bernstein_spectral_readout",
+        "next_diffusion_scattering_readout",
+        "repr_lista_cpss_sparse_pursuit"
+      ],
+      "substantive_difference": "Bernstein是在图拉普拉斯上多项式滤波，scattering是固定扩散带通+模；AFNO在复频域做共享非线性和自适应收缩。CPSS反复计算原输入重建残差，AFNO没有稀疏编码残差迭代。",
+      "expected_benefit_hypothesis": "若固定角色顺序有可解释的联合频率结构，收缩可抑制角色间噪声；该前提目前未建立。",
+      "risks": "只有5个异质角色，循环平移及频率邻接很可能无意义；缺失造成频谱变化。未建立合理轴语义前不得升级admissible；效率优势在此小输入上不成立。",
+      "status": "conditional",
+      "verification_level": "primary_method_and_author_code_read; geometry transfer assumption unresolved"
+    },
+    {
+      "id": "repr80_deep_complex_network",
+      "title": "Deep Complex Networks",
+      "authors": [
+        "Chiheb Trabelsi",
+        "Olexa Bilaniuk",
+        "Ying Zhang",
+        "Dmitriy Serdyuk",
+        "Sandeep Subramanian",
+        "João Felipe Santos",
+        "Soroush Mehri",
+        "Negar Rostamzadeh",
+        "Yoshua Bengio",
+        "Christopher J. Pal"
+      ],
+      "url": "https://arxiv.org/abs/1705.09792",
+      "code_url": "https://github.com/ChihebTrabelsi/deep_complex_networks/blob/master/complexnn/bn.py",
+      "source_evidence": "论文Sec.3.2 Eq.(1)–(2)、Sec.3.4–3.7已读；作者complexnn/bn.py complex_standardization和ComplexBN的2x2协方差逆平方根与可学复仿射已读。",
+      "mechanism": "实虚通道共享A/B构成[[A,-B],[B,A]]跨通道变换，复激活、联合实虚白化和对应初始化组成复残差网络，不是把普通实网络改成complex dtype。",
+      "osram_mapping": "可将同utterance的Base与同尺度Gap分别投影为实/虚部分，保持缺失mask，输出实虚特征至既有Flat；不得引入别的utterance或teacher。必须逐样本统计，作者跨batch BN不能原封照用。",
+      "nearest_prior": [
+        "spdnet_bimap_reeig_logeig",
+        "repr_mfn_gabor_filter_chain",
+        "next_sandwich_lipschitz_readout"
+      ],
+      "substantive_difference": "SPDNet表示完整协方差流形，复网络保留有符号实虚向量与A/B绑定；MFN的Gabor响应不等于复数卷积残差网络。不过只移植2x2白化将是已拒归一化包装。",
+      "expected_benefit_hypothesis": "Base/Gap成对表示若有相位式关系，复权重绑定可能提供共享结构。",
+      "risks": "Base/Gap不是物理复数；逐样本替换BN改变原机制细节，且仅保留1x1复线性易退化为参数约束MLP。需要完整架构与归一化适配证明后才可接受。",
+      "status": "conditional",
+      "verification_level": "primary_method_and_partial_author_code_read; conv/initialization source not fully audited"
+    },
+    {
+      "id": "repr80_fno_rejected",
+      "title": "Fourier Neural Operator for Parametric Partial Differential Equations",
+      "authors": [
+        "Zongyi Li",
+        "Nikola Kovachki",
+        "Kamyar Azizzadenesheli",
+        "Burigede Liu",
+        "Kaushik Bhattacharya",
+        "Andrew Stuart",
+        "Anima Anandkumar"
+      ],
+      "url": "https://arxiv.org/abs/2010.08895",
+      "code_url": "https://github.com/neuraloperator/neuraloperator/blob/master/neuralop/layers/spectral_convolution.py",
+      "source_evidence": "原文Fourier integral operator与架构部分已打开；维护者SpectralConv.forward源码已打开。未将第三方fno-wave-equation镜像当作者原仓库。",
+      "mechanism": "空间FFT、保留模态上的可学通道矩阵乘、逆FFT，与逐点路径及非线性迭代组合。",
+      "osram_mapping": "固定5角色没有原论文函数域；把512嵌入维当网格仅是额外约定。故不提出可启动适配。",
+      "nearest_prior": [
+        "next_bernstein_spectral_readout",
+        "next_diffusion_scattering_readout"
+      ],
+      "substantive_difference": "傅里叶域与图谱域不同，但域替换本身不足以构成此任务所需完整机制创新。",
+      "expected_benefit_hypothesis": "PDE中的分辨率迁移优点在固定维嵌入上没有直接依据。",
+      "risks": "拒绝：虚构网格/频率语义，迁移只剩谱算子包装。",
+      "status": "rejected",
+      "verification_level": "primary_paper_and_maintainer_code_opened; rejected_on_scope"
+    },
+    {
+      "id": "repr80_ffc_rejected",
+      "title": "Fast Fourier Convolution",
+      "authors": [
+        "Lu Chi",
+        "Borui Jiang",
+        "Yadong Mu"
+      ],
+      "url": "https://papers.nips.cc/paper/2020/file/2fd5d41ec6cfab47e32164d5624269b1-Paper.pdf",
+      "code_url": "https://github.com/pkumivision/FFC/blob/main/model_zoo/ffc.py",
+      "source_evidence": "论文local/semi-global/global分支架构已读；作者FourierUnit.forward、SpectralTransform.forward lines35–108、FFC已读。",
+      "mechanism": "局部卷积分支与全局Fourier分支双向交换；半全局LFU分块堆叠频域处理后重铺；三尺度汇合。",
+      "osram_mapping": "原始图像块和LFU空间铺贴在Local/Base/Gap向量上没有可保留语义。不能通过reshape造图像。",
+      "nearest_prior": [
+        "repr_mfn_gabor_filter_chain",
+        "next_diffusion_scattering_readout"
+      ],
+      "substantive_difference": "原机制不同于Gabor滤波，但删除半全局patch与局部空间后不能继续声称移植完整FFC。",
+      "expected_benefit_hypothesis": "没有足够根据把图像跨尺度优势推到五角色向量。",
+      "risks": "拒绝：丢掉关键分支就退化为FFT包装；保留又需不受支持的空间结构。",
+      "status": "rejected",
+      "verification_level": "primary_method_and_author_code_read"
+    },
+    {
+      "id": "repr80_butterfly_rejected",
+      "title": "Learning Fast Algorithms for Linear Transforms Using Butterfly Factorizations",
+      "authors": [
+        "Tri Dao",
+        "Albert Gu",
+        "Matthew Eichhorn",
+        "Atri Rudra",
+        "Christopher Ré"
+      ],
+      "url": "https://proceedings.mlr.press/v97/dao19a.html",
+      "code_url": "https://github.com/HazyResearch/butterfly/blob/master/butterfly/butterfly.py",
+      "source_evidence": "PMLR原论文递归稀疏矩阵分解及BP参数化部分已读；作者Butterfly类和forward源码已打开。",
+      "mechanism": "递归2x2块稀疏因子与置换组合，学习快速线性变换。",
+      "osram_mapping": "可替换Flat前投影，但只有矩阵参数化发生改变，没有新证据组合机制。",
+      "nearest_prior": [
+        "next_sandwich_lipschitz_readout",
+        "repr_bcos_alignment_network"
+      ],
+      "substantive_difference": "不同于正交/Lipschitz或Bcos，但在本任务仍只是线性层结构替换。",
+      "expected_benefit_hypothesis": "可能减少参数和运算；用户目标没有要求压缩。",
+      "risks": "拒绝：用户明确排除算子包装，不能以复杂论文推导掩盖投影替换。",
+      "status": "rejected",
+      "verification_level": "primary_method_and_author_code_opened"
+    },
+    {
+      "id": "repr80_siren_rejected",
+      "title": "Implicit Neural Representations with Periodic Activation Functions",
+      "authors": [
+        "Vincent Sitzmann",
+        "Julien N. P. Martel",
+        "Alexander W. Bergman",
+        "David B. Lindell",
+        "Gordon Wetzstein"
+      ],
+      "url": "https://arxiv.org/abs/2006.09661",
+      "code_url": "https://github.com/vsitzmann/siren/blob/master/modules.py",
+      "source_evidence": "论文Sec.3.1 periodic activations及初始化论证已读；作者modules.py中的Sine、FCBlock、sine_init已打开。",
+      "mechanism": "每层正弦激活与匹配初始化，表示连续坐标函数及其导数。",
+      "osram_mapping": "现有向量输入没有坐标重建任务；不增加导数、重建loss时，仅得到正弦MLP。",
+      "nearest_prior": [
+        "repr_mfn_gabor_filter_chain",
+        "repr_kan_function_composition"
+      ],
+      "substantive_difference": "SIREN与MFN递归乘性过滤数学不同，但本任务中激活更换不足独立新方法。",
+      "expected_benefit_hypothesis": "原论文高频坐标拟合收益不能直接推导情感嵌入收益。",
+      "risks": "拒绝：退化为MLP非线性替换；不能增加坐标监督来挽救。",
+      "status": "rejected",
+      "verification_level": "primary_method_and_author_code_opened"
+    },
+    {
+      "id": "repr80_wire_rejected",
+      "title": "WIRE: Wavelet Implicit Neural Representations",
+      "authors": [
+        "Vishwanath Saragadam",
+        "Daniel LeJeune",
+        "Jasper Tan",
+        "Guha Balakrishnan",
+        "Ashok Veeraraghavan",
+        "Richard G. Baraniuk"
+      ],
+      "url": "https://arxiv.org/abs/2301.05187",
+      "code_url": "https://github.com/vishwa91/wire/blob/main/modules/wire.py",
+      "source_evidence": "CVF PDF读取失败后改读arXiv全文Sec.3；作者modules/wire.py复Gabor层已打开。",
+      "mechanism": "在隐式坐标网络中用复正弦乘高斯包络形成Gabor激活，组合空间/频率集中性。",
+      "osram_mapping": "不增加图像/信号重建时只能把同utterance向量送入Gabor激活网络。",
+      "nearest_prior": [
+        "repr_mfn_gabor_filter_chain"
+      ],
+      "substantive_difference": "WIRE串联复激活而历史MFN是滤波器乘性链，但共享Gabor核心，且本迁移没有额外完整机制来证明足够区别。",
+      "expected_benefit_hypothesis": "原图像噪声偏置不构成现有向量优势证据。",
+      "risks": "拒绝：历史Gabor族保守去重及激活包装双重问题。",
+      "status": "rejected",
+      "verification_level": "primary_paper_and_author_code_opened"
+    },
+    {
+      "id": "repr80_gfnet_rejected",
+      "title": "Global Filter Networks for Image Classification",
+      "authors": [
+        "Yongming Rao",
+        "Wenliang Zhao",
+        "Zheng Zhu",
+        "Jiwen Lu",
+        "Jie Zhou"
+      ],
+      "url": "https://arxiv.org/abs/2107.00645",
+      "code_url": "https://github.com/raoyongming/GFNet/blob/master/gfnet.py",
+      "source_evidence": "论文Sec.3.2已读；作者gfnet.py GlobalFilter.forward的rfft2、complex_weight乘法、irfft2已打开。",
+      "mechanism": "二维FFT后按频率/通道学习逐元素滤波，再逆变换；穿插常规FFN。",
+      "osram_mapping": "缺乏2D坐标；强制嵌入reshape后只增加全局线性滤波。",
+      "nearest_prior": [
+        "next_bernstein_spectral_readout",
+        "next_diffusion_scattering_readout"
+      ],
+      "substantive_difference": "滤波基不同，但没有足以超出算子替换的机制。",
+      "expected_benefit_hypothesis": "未建立对现有OSRAM向量的收益假设。",
+      "risks": "拒绝：简单频域Hadamard/算子包装；不因发表论文而计新方法。",
+      "status": "rejected",
+      "verification_level": "primary_method_and_author_code_opened"
+    },
+    {
+      "id": "repr80_fnet_rejected",
+      "title": "FNet: Mixing Tokens with Fourier Transforms",
+      "authors": [
+        "James Lee-Thorp",
+        "Joshua Ainslie",
+        "Ilya Eckstein",
+        "Santiago Ontañón"
+      ],
+      "url": "https://aclanthology.org/2022.naacl-main.319/",
+      "code_url": "https://github.com/google-research/google-research/blob/master/f_net/layers.py",
+      "source_evidence": "NAACL全文已读模型FFT混合描述；作者f_net/layers.py FourierTransform类已打开。",
+      "mechanism": "无参数傅里叶混合取实部，配残差归一化与FFN替代attention。",
+      "osram_mapping": "直接对当前五角色做FFT技术上可行，但只构成固定混合算子。",
+      "nearest_prior": [
+        "perceiver_io",
+        "next_bernstein_spectral_readout"
+      ],
+      "substantive_difference": "与attention/图滤波不同不等于满足完整新机制门槛。",
+      "expected_benefit_hypothesis": "长序列速度优势不适用于五角色；无独立性能依据。",
+      "risks": "拒绝：固定算子包装，缺乏与原证据语义相符的归纳假设。",
+      "status": "rejected",
+      "verification_level": "primary_paper_and_author_code_opened"
+    },
+    {
+      "id": "repr80_wno_rejected",
+      "title": "Wavelet neural operator: a neural operator for parametric partial differential equations",
+      "authors": [
+        "Tapas Tripura",
+        "Souvik Chakraborty"
+      ],
+      "url": "https://arxiv.org/abs/2205.02191",
+      "code_url": "https://github.com/csccm-iitd/WNO/blob/main/Version%202.0.0/wavelet_convolution.py",
+      "source_evidence": "原文kernel-integral layer Eq.(2)–(5)及wavelet描述已读；作者Version2 wavelet_convolution.py WaveConv1d/2d已打开。代码新版不能不加区别声称原版精确复现。",
+      "mechanism": "将积分核放到小波系数空间学习，再逆变换，与逐点线性路径和非线性迭代结合。",
+      "osram_mapping": "当前输入不具备空间分辨率或尺度坐标；不引入虚构通道邻接。",
+      "nearest_prior": [
+        "next_diffusion_scattering_readout",
+        "next_bernstein_spectral_readout"
+      ],
+      "substantive_difference": "可学小波核不同于固定scattering，但换基不足以解决适配缺口。",
+      "expected_benefit_hypothesis": "空间局部化优点需实际域坐标才能成立。",
+      "risks": "拒绝：向量重排没有物理或语义域；最终仍为谱算子包装。",
+      "status": "rejected",
+      "verification_level": "primary_method_and_author_code_opened"
+    },
+    {
+      "id": "repr80_deeponet_rejected",
+      "title": "Learning nonlinear operators via DeepONet based on the universal approximation theorem of operators",
+      "authors": [
+        "Lu Lu",
+        "Pengzhan Jin",
+        "Guofei Pang",
+        "Zhongqiang Zhang",
+        "George Em Karniadakis"
+      ],
+      "url": "https://www.nature.com/articles/s42256-021-00302-5",
+      "code_url": "https://github.com/lululxvi/deepxde/blob/master/deepxde/nn/pytorch/deeponet.py",
+      "source_evidence": "正式文章元数据/代码指向与arXiv1910.03193方法Eq.(1)、Fig.1已读；作者维护DeepXDE deeponet.py中的branch/trunk及merge_branch_trunk已打开。preprint作者列表/标题与正式版不同，采用正式版元数据。",
+      "mechanism": "branch编码输入函数采样，trunk编码输出坐标，内积给函数在该坐标的预测。",
+      "osram_mapping": "Base/Gap作为branch、角色ID作为trunk将退化为条件内积；没有输入函数与输出坐标域。",
+      "nearest_prior": [
+        "conditional_new_01_full_dynamic_hypernetwork",
+        "repr_neural_kernel_composition"
+      ],
+      "substantive_difference": "branch/trunk解释不同，但现约束下不足以超过简单双线性投影。",
+      "expected_benefit_hypothesis": "函数到函数泛化理论不适用于任意嵌入角色内积。",
+      "risks": "拒绝：简单低秩乘积/算子包装；不能伪造连续输出域。",
+      "status": "rejected",
+      "verification_level": "primary_preprint_method_and_author_maintained_code_read"
+    },
+    {
+      "id": "repr80_fourier_features_rejected",
+      "title": "Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains",
+      "authors": [
+        "Matthew Tancik",
+        "Pratul P. Srinivasan",
+        "Ben Mildenhall",
+        "Sara Fridovich-Keil",
+        "Nithin Raghavan",
+        "Utkarsh Singhal",
+        "Ravi Ramamoorthi",
+        "Jonathan T. Barron",
+        "Ren Ng"
+      ],
+      "url": "https://arxiv.org/abs/2006.10739",
+      "code_url": "https://github.com/tancik/fourier-feature-networks/blob/master/Demo.ipynb",
+      "source_evidence": "原文全文及Fourier feature mapping方法已打开；作者Demo.ipynb input_mapping实际读取，计算2πx B转置再concat sin/cos。",
+      "mechanism": "输入随机或设定频率投影后用正余弦提升，改变后续MLP的核/频谱偏置。",
+      "osram_mapping": "可在Local/Base/Gap前应用，但无额外证据处理机制。",
+      "nearest_prior": [
+        "repr_neural_kernel_composition",
+        "repr_mfn_gabor_filter_chain"
+      ],
+      "substantive_difference": "固定Fourier映射不同于学习核组合，但只是输入映射，不够独立完整候选。",
+      "expected_benefit_hypothesis": "低维坐标的高频拟合动机不自动适用于高维预计算特征。",
+      "risks": "拒绝：特征包装；不能通过调频率、增宽或改名凑方法。",
+      "status": "rejected",
+      "verification_level": "primary_paper_opened_and_author_notebook_function_read"
+    },
+    {
+      "id": "repr80_grande_nonoblivious_leaf_ensemble",
+      "title": "GRANDE: Gradient-Based Decision Tree Ensembles",
+      "authors": [
+        "Sascha Marton",
+        "Stefan Lüdtke",
+        "Christian Bartelt",
+        "Heiner Stuckenschmidt"
+      ],
+      "url": "https://arxiv.org/html/2309.17130v2",
+      "code_url": "https://github.com/s-marton/GRANDE/blob/07f7278b30ab9ebbbdc544e5f9a91f1b5df7fecb/GRANDE/GRANDE.py",
+      "source_evidence": "原文Sec.2 Eq.(1)–(4)、Sec.3.2 Eq.(6)、Sec.3.3 Eq.(7)及Fig.2已逐项核对。作者当前PyTorch GRANDE_Module.__init__/forward已读：独立internal_node_num=2^depth-1节点参数、ST onehot、ST softsign、p路径乘积、estimator_weights_leaf与softmax、叶向量聚合。当前源码已是更新版，未冒称原2023版本。",
+      "mechanism": "每个普通二叉树内部节点独立学习特征选择和阈值；前向选onehot特征并硬分支，反向使用softmax及softsign替代梯度；完整根叶路径确定叶向量，同时选出每树该叶的集成权重，跨树softmax后加权融合。",
+      "osram_mapping": "仅串联当前Local256/Base512/masked Gap3x512/availability，供树读取。叶值维度定义为中间特征D，不输出类别；融合结果投回既有Flat输入尺寸，保持原head与task loss。禁用新代码missing_values批内频率补路由、data_subset_fraction、bootstrap、per-estimator loss及target/categorical编码；缺失在输入前mask且availability可被树分裂。每个样本独立前向。",
+      "nearest_prior": [
+        "node",
+        "tabnet",
+        "conditional_new_07_neural_production"
+      ],
+      "substantive_difference": "旧NODE同深度共享特征/阈值且软路由；GRANDE每内部节点独立、前向精确硬轴对齐路由，并由实际叶决定跨树权重。三者必须一起保留，单换激活或树数不算新方法。与NPS实体规则绑定也不同。",
+      "expected_benefit_hypothesis": "availability与Gap可靠度可能对应不平滑条件分区；不同叶可让不同树在不同缺失条件下专门负责。",
+      "risks": "ST梯度有偏、硬边界可能抖动；高维嵌入单轴划分未必合适。当前源代码存在会跨batch统计的可选missing_values分支，严禁移植。只准入表示机制，未运行。",
+      "status": "admissible",
+      "verification_level": "primary_method_and_author_forward_read_and_commit_resolved; not implemented",
+      "must_preserve": [
+        "non-oblivious node-specific feature/threshold arrays",
+        "ST hard feature selection",
+        "ST round over scaled softsign split",
+        "complete hard root-to-leaf path products",
+        "leaf-conditioned cross-estimator softmax",
+        "feature-valued leaves feeding original Flat/head/task loss"
+      ]
+    },
+    {
+      "id": "repr80_mera_density_coarsegraining",
+      "title": "Decohering Tensor Network Quantum Machine Learning Models",
+      "authors": [
+        "Haoran Liao",
+        "Ian Convy",
+        "Zhibo Yang",
+        "K. Birgitta Whaley"
+      ],
+      "url": "https://arxiv.org/abs/2209.01195",
+      "code_url": "https://github.com/HaoranLiao/dephased_ttn_mera/blob/299f340b5b95f57cf3447df8edfc8af7b95ed6e4/mera/network_8inputs.py",
+      "source_evidence": "原文Sec.II.A的MERA、Fig.2、Sec.III dephasing及AppendixB已读。作者mera/network_8inputs.py完整前向、mera/network.py Ent_Layer/Iso_Layer与uni_ttn/tf2/network.py Layer.get_unitary_tensors已读：Hermitian参数化经特征分解产生U，执行U rho U*与部分迹。",
+      "mechanism": "输入编码密度矩阵；相邻子树边界先做保持全态的双站点unitary纠缠变换，再按另一配对做unitary及部分迹粗粒化，重复至根；选择原论文p=0的无退相干路径。MERA不等于只有树池化。",
+      "osram_mapping": "以当前Local、Base、3Gap的可学标量摘要及3availability构成8个命名站点，每个编码为归一二分量实态，缺失Gap固定为预定中性态且payload先mask。运行完整8站点MERA，根密度矩阵的实虚独立元素作为特征投回既有Flat。原分类概率输出/CE训练器不接入；仅现有head及task loss。所有计算可用已有PyTorch张量/矩阵指数表达，无量子硬件或新依赖要求。",
+      "nearest_prior": [
+        "repr80_mps_feature_contraction",
+        "spdnet_bimap_reeig_logeig",
+        "repr_sos_signed_probability_circuit",
+        "diffpool_hierarchical_evidence_graph"
+      ],
+      "substantive_difference": "MPS单链振幅收缩没有U-rho-U*及部分迹；SPDNet是样本协方差BiMap/ReEig/LogEig；SOS电路平方标量振幅；DiffPool学习节点归属。MERA跨子树纠缠后部分迹改变保留子系统，必须保留相关密度项，不能拆成独立低秩乘积。",
+      "expected_benefit_hypothesis": "先把跨角色相关量转入保留子系统再压缩，可能比先各角色独立池化更少丢失联合证据。",
+      "risks": "量子形式不意味着量子优势；强压缩可能损失信息；密度张量内存与unitary反传成本需测量，必须限制8站点/小bond。不宣称论文退相干实验在OSRAM成立。",
+      "status": "admissible",
+      "verification_level": "primary_method_and_full_author_MERA_forward_and_unitary_parameterization_read; unimplemented",
+      "must_preserve": [
+        "normalized density input",
+        "Hermitian-to-unitary parameterization",
+        "boundary entanglers before each non-root coarse-graining layer",
+        "U rho U-dagger including off-diagonal correlations",
+        "partial trace at coarse-graining",
+        "root state used only as features for unchanged task head"
+      ]
+    },
+    {
+      "id": "repr80_deep_signature_evidence_path",
+      "title": "Deep Signature Transforms",
+      "authors": [
+        "Patric Bonnier",
+        "Patrick Kidger",
+        "Imanol Perez Arribas",
+        "Cristopher Salvi",
+        "Terry Lyons"
+      ],
+      "url": "https://papers.neurips.cc/paper/8574-deep-signature-transforms.pdf",
+      "code_url": "https://github.com/patrick-kidger/Deep-Signature-Transforms/blob/76d79bc88a0fba2a7b670ce6f12d1ee8c21aedfe/packages/siglayer/modules.py",
+      "source_evidence": "原文Sec.3.1 Eq.(1)–(3)、Sec.3.2特别警告非stream reshape、Sec.3.3 Eq.(4)–(8)、Sec.3.4及AppendixA签名定义已读。作者Augment.forward、backend.py Signature/path_sig_fn及src/hurst_parameter.py deep_recurrent已读；ViewSignature作者明确警告随意reshape，不能作为本方案依据。",
+      "mechanism": "先学习保留路径结构的增广，再对逐前缀/滑窗计算分级迭代积分签名，重新形成签名流，可重复增广与签名；二阶以上项包含有序跨维积分而非普通矩统计。",
+      "osram_mapping": "候选设计为以Local/Base为锚的累计Gap修正路径，角色固定命名顺序且显式位置/availability；缺失Gap产生零增量，保留原锚特征避免签名平移不敏感。完整learned augmentation→prefix signature→stream augmentation→signature特征送原Flat/head；只原task loss。不能使用其他utterance或把512通道随意reshape为时间。",
+      "nearest_prior": [
+        "repr80_mps_feature_contraction",
+        "next_diffusion_scattering_readout",
+        "conditional_03_neural_ode_finite_flow"
+      ],
+      "substantive_difference": "MPS是学习的有序矩阵乘；signature通过Chen代数组合固定迭代积分张量，学习作用于路径增广。Scattering是小波模级联，ODE积分学习向量场，均不等同路径签名。",
+      "expected_benefit_hypothesis": "若Gap确可解释为累积证据修正，二/三阶积分项能表达修正的顺序交互。",
+      "risks": "关键未决：Gap角色是否构成有意义的修正路径；原文Sec.3.2明确不支持任意向量reshape的理论解释。因此保持conditional，不为凑数升级。签名维度指数增长，输入应先压到小通道；原iisignature依赖不自动安装。",
+      "status": "conditional",
+      "verification_level": "primary_method_and_author_augmentation_signature_autograd_code_read; path semantics unresolved",
+      "must_preserve": [
+        "learned stream-preserving augmentation",
+        "explicitly defined same-utterance path",
+        "signature order at least2",
+        "prefix/window lift enabling the second signature layer",
+        "no arbitrary channel-as-time reshape",
+        "original task loss/head"
+      ]
+    },
+    {
+      "id": "repr80_neural_autoregressive_sigmoid_flow",
+      "title": "Neural Autoregressive Flows",
+      "authors": [
+        "Chin-Wei Huang",
+        "David Krueger",
+        "Alexandre Lacoste",
+        "Aaron Courville"
+      ],
+      "url": "https://proceedings.mlr.press/v80/huang18d.html",
+      "code_url": "https://github.com/CW-Huang/torchkit/blob/7a873f0bb6e0a683cf4b6b5835ceabf2c861e882/torchkit/flows.py",
+      "source_evidence": "原文Sec.3 Eq.(7)、Sec.3.1 Eq.(8) DSF、正斜率/归一权重约束及Fig.4已读。论文作者NAF仓库指向作者torchkit；flows.py IAF_DSF.forward lines262–276、SigmoidFlow.forward lines291–318及iaf_modules.py cMADE masks/forward已读。",
+      "mechanism": "严格自回归conditioner为每一坐标产生正斜率、偏置和softmax混合权重；混合多个sigmoid CDF后经logit还原实数域，多层组合得到单调非仿射条件变换。",
+      "osram_mapping": "将同utterance masked Local/Base/Gap按固定角色顺序组成紧凑特征向量，availability作为外部condition；沿严格autoregressive mask产生每坐标DSF参数，变换后作为特征接原Flat。不得用NLL/logdet/KL或生成采样替代现有task loss；forward不需要标签。缺失payload先清零，不以生成结果声称补全。",
+      "nearest_prior": [
+        "conditional_rational_quadratic_spline_coupling",
+        "conditional_new_01_full_dynamic_hypernetwork",
+        "repr_kan_function_composition"
+      ],
+      "substantive_difference": "DSF是全坐标自回归条件sigmoid混合CDF-logit变换；旧spline仅交替坐标半区条件分段有理插值，旧hypernetwork生成无单调约束全矩阵，KAN静态一元函数相加。差别不是增层/改宽，但同为条件可逆映射，需最终跨lane机制审查。",
+      "expected_benefit_hypothesis": "可在不折叠坐标次序的条件下适配不同角色的非线性动态范围，保留信息供原head利用。",
+      "risks": "不做密度loss则无密度估计/独立成分保证；极端sigmoid饱和、logit稳定性和自回归顺序敏感。与旧spline+hypernetwork组合边界较近，保守保持conditional，不能直接算新增合格。",
+      "status": "conditional",
+      "verification_level": "primary_equations_and_author_DSF_and_cMADE_code_read; semantic_dedup_requires_leader_decision"
+    }
+  ],
+  "admission_revision_note": "Follow-up narrowed scope to 40 suitable transfers. NPU and MPS promoted only after separating their complete differentiable representation from optional/source-specific training objectives, specifying mask-safe forward and unchanged original head/task loss. GRANDE and full MERA added. AFNO and Deep Complex stay conditional; signature and NAF kept conditional for unresolved path semantics or cross-history overlap.",
+  "shortlist_ids": [
+    "repr80_grande_nonoblivious_leaf_ensemble",
+    "repr80_mps_feature_contraction",
+    "repr80_neural_power_units",
+    "repr80_mera_density_coarsegraining"
+  ],
+  "additional_screening_notes": [
+    {
+      "title": "DOFEN: Deep Oblivious Forest ENsemble",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/file/4ec160e5bf92ce97ad307500e0db9151-Paper-Conference.pdf",
+      "code_url": "https://github.com/Sinopac-Digital-Technology-Division/DOFEN/blob/main/model.py",
+      "status": "rejected",
+      "evidence": "Sec.3.2.3 Fig.3b and Algorithm1 line9 sum individual forest prediction losses; model.py calc_loss/rodt_forest_bagging inspected. Keeping only one merged feature head deletes the paper's defining second-level training ensemble; preserving it violates unchanged taskloss/head."
+    },
+    {
+      "title": "TabM",
+      "status": "not_counted",
+      "reason": "Parent scope explicitly excludes individual-head loss; no additional TabM source audit claimed in this lane."
+    }
+  ]
+}

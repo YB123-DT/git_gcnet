@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from .meaningful_blocks_common import safe_mask
 from .meaningful_input import INPUT_METHODS
+from .priority40_registry import PRIORITY_RESIDUAL_METHODS, PRIORITY_NORM_METHODS
 
 FAMILIES = {
     'graph': ('rrn_evidence','egt_evidence','residual_gated_graph_evidence','pna_evidence'),
@@ -14,10 +15,13 @@ FAMILIES = {
     'feature_reasoning': ('tabnet','node'),
 }
 ROUND1_METHODS = tuple(name for names in FAMILIES.values() for name in names)
-MEANINGFUL_METHODS = ROUND1_METHODS + INPUT_METHODS
+MEANINGFUL_METHODS = ROUND1_METHODS + INPUT_METHODS + PRIORITY_RESIDUAL_METHODS + PRIORITY_NORM_METHODS
 
 
 def build_core(method, latent_dim, num_heads, value_dim):
+    if method in PRIORITY_RESIDUAL_METHODS:
+        from .priority40_common import PriorityFeatureCore
+        return PriorityFeatureCore(method, latent_dim, num_heads, value_dim)
     for family, names in FAMILIES.items():
         if method in names:
             module = importlib.import_module('.meaningful_blocks_'+family, __package__)

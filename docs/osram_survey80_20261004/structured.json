@@ -1,0 +1,507 @@
+[
+  {
+    "id": "survey80_struct_satnet",
+    "title": "SATNet: Bridging deep learning and logical reasoning using a differentiable satisfiability solver",
+    "authors": [
+      "Po-Wei Wang",
+      "Priya L. Donti",
+      "Bryan Wilder",
+      "J. Zico Kolter"
+    ],
+    "url": "https://proceedings.mlr.press/v97/wang19e/wang19e.pdf",
+    "code_url": "https://github.com/locuslab/SATNet/blob/50897688eae47bf765c1d9ed9a7c6f5419d62a9a/satnet/models.py",
+    "source_evidence": "Read original PDF section 3.1–3.3, equations 2–8 and Algorithms 1–2. Read author satnet/models.py MixingFunc.forward/backward and SATNet.forward, plus src/satnet_cpu.cpp mix_init/mix_kernel/mix_forward/mix_backward. Repository master resolved to 50897688eae47bf765c1d9ed9a7c6f5419d62a9a. Important implementation detail: current wrapper fixes k=32, unlike the paper's rank prescription; this must be recorded if used.",
+    "mechanism": "Learn clause-factor matrix S; embed input probabilities as unit vectors relative to a truth direction; solve low-rank MAXSAT SDP by unit-sphere coordinate updates; decode latent output probabilities and differentiate the constrained stationary system.",
+    "osram_mapping": "Project only already available Local256, Base512 and up to three active Gap512 vectors into probabilistic input propositions. Missing roles are removed from the input-variable index set and corresponding clause rows, never designated variables to reconstruct. Introduce separate latent reasoning-output propositions, solve the original SDP, decode them to an update of existing role vectors before Flat. Preserve causal memory read/write query and task loss. Clause learning uses downstream gradients only, with no proposition labels or auxiliary supervision.",
+    "nearest_prior": [
+      "neural_logic_machine_evidence",
+      "repr_differentiable_logic_circuit",
+      "sparsemap_role_partition"
+    ],
+    "substantive_difference": "Global learned clause satisfaction with unit-sphere SDP optimization is not arity expansion/quantifier reduction, local gate truth tables, or Euclidean marginal-polytope projection. All SDP, probability encoding and implicit differentiation stages are required; a sigmoid proposition MLP alone would not qualify.",
+    "expected_benefit_hypothesis": "Might represent mutually incompatible combinations of current evidence through jointly learned constraints; no OSRAM improvement is established.",
+    "risks": [
+      "Latent propositions may lack useful task semantics",
+      "SDP coordinate convergence and backward conditioning",
+      "Author native extensions are old; no dependency installation authorized",
+      "Must test all active-role masks without silently treating missing roles as unknown propositions"
+    ],
+    "status": "admissible",
+    "verification_level": "original_method_and_author_forward_backward_code_read; conceptual_admissibility_only; no_implementation_or_experiment"
+  },
+  {
+    "id": "survey80_struct_optnet",
+    "title": "OptNet: Differentiable Optimization as a Layer in Neural Networks",
+    "authors": [
+      "Brandon Amos",
+      "J. Zico Kolter"
+    ],
+    "url": "https://proceedings.mlr.press/v70/amos17a/amos17a.pdf",
+    "code_url": "https://github.com/locuslab/optnet/blob/af53140bfcace770f09d078bcd316f000fd0b854/cls/models.py",
+    "source_evidence": "Read PDF section 3, equations 2–6: positive-semidefinite QP, equality/inequality constraints and differentiated KKT complementarity. Read author cls/models.py OptNet, OptNetEq and LenetOptNet forward methods: Q=LL^T+epsilon I, learned G, h=Gz0+s0, QPFunction invocation. Pin af53140bfcace770f09d078bcd316f000fd0b854. qpth interior-point implementation itself was not inspected in this pass.",
+    "mechanism": "Input-conditioned strongly convex quadratic minimization over a learned feasible polyhedron, with gradients through primal/dual KKT equations including active inequality constraints.",
+    "osram_mapping": "Encode active current role vectors into the QP linear term and feasible anchor z0; parameterize positive slack explicitly, h=Gz0+softplus(s). Solve for a coupled latent feature vector with full Q and nontrivial learned G, decode to existing roles, then existing Flat. Inactive Gap contributes no data. Keep causal memory query and sole task loss unchanged. No reconstruction of missing roles.",
+    "nearest_prior": [
+      "equilibrium_aggregation",
+      "contractive_deep_equilibrium_evidence",
+      "sparsemap_role_partition",
+      "repr_convex_potential_gradient_flow"
+    ],
+    "substantive_difference": "Learned cross-coordinate inequality feasibility and complementary slackness distinguish this from unconstrained energy aggregation, generic fixed points and gradient flow. SparseMAP optimizes on a fixed discrete-structure marginal polytope; this proposal learns a feasible feature-space polyhedron and quadratic coupling. Identity-Q simplex projection is expressly insufficient.",
+    "expected_benefit_hypothesis": "A learned feasible region might suppress mutually inconsistent joint feature combinations; this remains an untested transfer hypothesis.",
+    "risks": [
+      "Constraints may remain inactive, reducing the layer to an affine solve",
+      "Near-degenerate active sets can destabilize derivatives",
+      "Strictly positive slack is necessary; do not copy unconstrained s0 blindly",
+      "Full solver dependency and license audit still needed before implementation"
+    ],
+    "status": "admissible",
+    "verification_level": "original_method_and_author_layer_code_read; solver_internals_not_read; conceptual_admissibility_only"
+  },
+  {
+    "id": "survey80_struct_qre_game",
+    "title": "What Game Are We Playing? End-to-end Learning in Normal and Extensive Form Games",
+    "authors": [
+      "Chun Kai Ling",
+      "Fei Fang",
+      "J. Zico Kolter"
+    ],
+    "url": "https://www.ijcai.org/proceedings/2018/0055.pdf",
+    "code_url": "https://github.com/lingchunkai/payoff_learning/blob/74b53d0e5ecf94513999cb8c2a351644086d39aa/src/core/solve.py",
+    "source_evidence": "Read PDF section 2.3 equations 5–9: entropy-regularized min-max, Newton KKT system and payoff derivative. Read author src/core/solve.py GRELogit.Solve and VerifySolution, and complete src/core/paynet.py ZSGSolver.forward/backward; backward solves saved KKT matrix and constructs two outer products. Pin 74b53d0e5ecf94513999cb8c2a351644086d39aa.",
+    "mechanism": "Compute both players' coupled quantal-response mixed strategies for a learned zero-sum payoff matrix, by solving a strictly convex-concave entropy-regularized saddle problem and differentiating its KKT system.",
+    "osram_mapping": "Concrete role-consensus game on active I subset of {Local256, Base512, Gap1_512, Gap2_512, Gap3_512}. Role-specific input adapters form proposal descriptors a_i and challenge descriptors b_j from the same existing vectors. Payoff P_ij=||a_i-b_j||^2; solve min_u max_v u^T P v + sum_i u_i log u_i - sum_j v_j log v_j on two active-role simplices. u selects a proposal mixture minimizing challenge-weighted discrepancy, while v emphasizes discordant existing evidence. Decode both sum_i u_i a_i and sum_j v_j b_j, plus their discrepancy, into existing role updates before Flat. This inner saddle objective is a layer definition, not an additional training loss. No corrupted view, target label, missing-role reconstruction, or new memory; preserve the existing memory query and task loss.",
+    "nearest_prior": [
+      "otke",
+      "equilibrium_aggregation",
+      "contractive_deep_equilibrium_evidence",
+      "survey80_struct_optnet"
+    ],
+    "substantive_difference": "Both strategies must solve the coupled saddle system, not two independent attention softmaxes. OTKE minimizes transport cost with fixed marginals; here both opposed marginals are optimized. OptNet has one convex minimization, not an adversarial two-distribution equilibrium. Different proposal/challenge adapters make P generally nonsymmetric; do not replace this with a symmetric skew game or a single robust mean.",
+    "expected_benefit_hypothesis": "Might discourage compositions fragile to competing interpretations of the same evidence; no claim of robustness or performance gain is warranted.",
+    "risks": [
+      "Learned proposal/challenge embeddings may collapse or yield near-uniform strategies",
+      "Numerical KKT conditioning; softmax best-response iteration alone is not sufficient evidence of convergence",
+      "The minimax discrepancy is an explicit inductive bias, not proof that latent roles are actual adversaries",
+      "Original NumPy/autograd implementation requires an independent modern implementation; no dependency installation authorized"
+    ],
+    "status": "admissible",
+    "verification_level": "original_method_and_author_solver_forward_backward_read; explicit_task_only_role_consensus_saddle_mapping; no_experiments"
+  },
+  {
+    "id": "survey80_struct_nebp",
+    "title": "Neural Enhanced Belief Propagation on Factor Graphs",
+    "authors": [
+      "Víctor Garcia Satorras",
+      "Max Welling"
+    ],
+    "url": "https://proceedings.mlr.press/v130/garcia-satorras21a/garcia-satorras21a.pdf",
+    "code_url": null,
+    "source_evidence": "Read PDF section 4.1 Table 2, section 4.2 equation 6 and section 4.3 equation 7. Explicit BP messages are passed into a factor-GNN, then refined multiplicatively and additively before marginal extraction. Searched author GitHub repositories; vgsatorras/hybrid-inference is an earlier Kalman/graphical-model work, not verified NEBP code. The guessed NeuralEnhancedBP URL failed. No author implementation is claimed verified.",
+    "mechanism": "Alternate analytic variable/factor sum-product belief propagation with a learned factor-GNN that observes directed BP messages and supplies positive message refinements; read out beliefs from products of incoming messages.",
+    "osram_mapping": "Represent discrete latent states of the active Local/Base/Gap roles with learned unary and pairwise/ternary factors. Run genuine sum-product updates with recipient exclusion plus factor-GNN correction, then decode marginals into role updates. No state labels, absent-role inference, extra regularizer, or changed memory query. Original paper uses supervised beliefs and a correction regularizer; whether task-only training preserves a useful hybrid is unresolved.",
+    "nearest_prior": [
+      "crfrnn_latent_evidence_states",
+      "rrn_evidence",
+      "allset_transformer"
+    ],
+    "substantive_difference": "CRF-RNN uses mean-field factorized expectations; NEBP preserves directed cavity messages and analytic sum-product factor elimination before neural correction. Plain factor-node message passing would collapse into existing hypergraph/RRN families and is not accepted.",
+    "expected_benefit_hypothesis": "Joint factor beliefs might expose contradictions missed by independent mean-field role beliefs; hypothesis only.",
+    "risks": [
+      "Author code not located: pending",
+      "Original extra correction penalty conflicts with fixed-loss protocol and must not be silently retained",
+      "Graphs with at most five roles may be too small to justify approximate inference",
+      "Loopy BP stability"
+    ],
+    "status": "conditional",
+    "verification_level": "original_method_sections_read; author_code_pending; task_only_adaptation_pending"
+  },
+  {
+    "id": "survey80_struct_smoothed_dp",
+    "title": "Differentiable Dynamic Programming for Structured Prediction and Attention",
+    "authors": [
+      "Arthur Mensch",
+      "Mathieu Blondel"
+    ],
+    "url": "https://proceedings.mlr.press/v80/mensch18a/mensch18a.pdf",
+    "code_url": "https://github.com/arthurmensch/didyprog/blob/180eb9e0904f153dc6176fe76b95d7c4d3e8c1bf/didyprog/reference/viterbi.py",
+    "source_evidence": "Read PDF sections 2.2–2.3, recursion equation 6, Proposition 2, and section 3.1 distinction between local regularized DP and globally regularized inference. Read complete author reference/viterbi.py viterbi_grad and viterbi_hessian_prod (Algorithms 3/4). Pin 180eb9e0904f153dc6176fe76b95d7c4d3e8c1bf.",
+    "mechanism": "Replace each max in a DAG dynamic program with a strongly-convex-regularized maximum; compute the relaxed path via reverse recursion and differentiate it with a Hessian-vector recursion.",
+    "osram_mapping": "Potentially use a finite-state evidence-composition grammar whose transitions consume active roles once and carry a nontrivial composition state; DP transition marginals drive existing-role updates before Flat. Preserve input roles, memory query and task loss. Pending a meaningful state/constraint definition: the at most five roles must not be falsely treated as a temporal sequence or expanded into arbitrary feature-order tokens.",
+    "nearest_prior": [
+      "sparsemap_role_partition",
+      "crfrnn_latent_evidence_states",
+      "conditional_new_07_neural_production"
+    ],
+    "substantive_difference": "Locally regularized Bellman recursion is not SparseMAP's global Euclidean projection; the paper explicitly distinguishes DP regularization from global LP regularization. However replacing a global solver or adding a cardinality-only gate is not by itself sufficient OSRAM novelty.",
+    "expected_benefit_hypothesis": "A valid finite-state composition constraint might make role combinations coherent; currently no grounded constraint justifies an expected gain.",
+    "risks": [
+      "Natural order/state space absent",
+      "Could degenerate into primitive selection on at most five roles",
+      "May overlap the existing CRF or rule-binding mechanism after adaptation"
+    ],
+    "status": "conditional",
+    "verification_level": "original_method_and_author_DP_derivative_code_read; pending_nontrivial_OSRAM_structure"
+  },
+  {
+    "id": "survey80_struct_spigot_rejected",
+    "title": "Backpropagating through Structured Argmax using a SPIGOT",
+    "authors": [
+      "Hao Peng",
+      "Sam Thomson",
+      "Noah A. Smith"
+    ],
+    "url": "https://aclanthology.org/P18-1173.pdf",
+    "code_url": "https://github.com/Noahs-ARK/SPIGOT",
+    "source_evidence": "Opened original PDF and read section 2.1–2.2 projection-based surrogate-gradient setup. Opened author repository; only README and directory listing were inspected, not C++ implementation. No full source verification claimed.",
+    "mechanism": "Hard structured argmax forward with a projected intermediate-gradient proxy in backward.",
+    "osram_mapping": "Would only provide a differentiation rule for another discrete evidence-selection problem; no independently justified new forward structure was found.",
+    "nearest_prior": [
+      "sparsemap_role_partition",
+      "matrix_tree_nonprojective_evidence"
+    ],
+    "substantive_difference": "Different backward estimator is not a new evidence-composition core. Swapping it into an old tree/partition module does not earn another method slot.",
+    "expected_benefit_hypothesis": "No standalone OSRAM benefit hypothesis accepted.",
+    "risks": [
+      "Quota padding by gradient-estimator substitution",
+      "Original experiments include intermediate supervision incompatible with current scope"
+    ],
+    "status": "rejected",
+    "verification_level": "original_method_setup_read; author_README_only; rejected_before_full_code_audit"
+  },
+  {
+    "id": "survey80_struct_blackbox_rejected",
+    "title": "Differentiation of Blackbox Combinatorial Solvers",
+    "authors": [
+      "Marin Vlastelica",
+      "Anselm Paulus",
+      "Vít Musil",
+      "Georg Martius",
+      "Michal Rolínek"
+    ],
+    "url": "https://arxiv.org/pdf/1912.02175",
+    "code_url": "https://github.com/martius-lab/blackbox-differentiation-combinatorial-solvers",
+    "source_evidence": "Read original PDF Algorithm 1: solve at original costs, perturb costs by incoming loss gradient, resolve and difference solutions. Author repository was opened to README/directory level only; implementation source not read.",
+    "mechanism": "Construct a piecewise-linear surrogate derivative of an arbitrary discrete optimizer by a loss-informed second solver call.",
+    "osram_mapping": "No new feasible set or evidence semantics supplied; would wrap an existing tree, matching or subset optimizer before unchanged Flat.",
+    "nearest_prior": [
+      "graph_matching_base_gap_pairs",
+      "matrix_tree_nonprojective_evidence",
+      "optimization_dpp_subset_readout"
+    ],
+    "substantive_difference": "Not an independently novel forward method after mapping. Changing differentiation of old matching/tree inference is excluded.",
+    "expected_benefit_hypothesis": "None accepted as a standalone candidate.",
+    "risks": [
+      "Biased surrogate",
+      "Extra solver call",
+      "Mechanistic duplicate when feasible set is unchanged"
+    ],
+    "status": "rejected",
+    "verification_level": "original_algorithm_read; author_README_only; rejected_before_full_code_audit"
+  },
+  {
+    "id": "survey80_struct_perturbed_rejected",
+    "title": "Learning with Differentiable Perturbed Optimizers",
+    "authors": [
+      "Quentin Berthet",
+      "Mathieu Blondel",
+      "Olivier Teboul",
+      "Marco Cuturi",
+      "Jean-Philippe Vert",
+      "Francis Bach"
+    ],
+    "url": "https://arxiv.org/pdf/2002.08676",
+    "code_url": "https://github.com/google-research/google-research/blob/master/perturbations/perturbations.py",
+    "source_evidence": "Read original PDF perturbed-max/expected-argmax construction and practical implementation discussion. Read first 6500 characters of official perturbations/perturbations.py, including sample_noise_with_gradients, perturbed wrapper and forward averaging; trailing gradient code not fully read. GitHub rendered page failed; raw source retrieved successfully.",
+    "mechanism": "Average optimizer outputs over input perturbations and obtain gradients through score-function/integration-by-parts identities.",
+    "osram_mapping": "Would smooth an existing selection/matching solver. It does not define a new joint evidence structure, and its Fenchel-Young loss must not replace task loss.",
+    "nearest_prior": [
+      "n3_recursive_neighbor_volumes",
+      "graph_matching_base_gap_pairs",
+      "sparsemap_role_partition"
+    ],
+    "substantive_difference": "A generic stochastic smoothing wrapper is not counted as a separate evidence module.",
+    "expected_benefit_hypothesis": "No standalone benefit established or claimed.",
+    "risks": [
+      "Sampling variance/cost",
+      "Temptation to introduce forbidden new loss",
+      "Duplicate forward feasible set"
+    ],
+    "status": "rejected",
+    "verification_level": "original_method_construction_read; author_forward_source_partially_read; not_full_code_verified"
+  },
+  {
+    "id": "survey80_struct_cvxpylayers_rejected",
+    "title": "Differentiable Convex Optimization Layers",
+    "authors": [
+      "Akshay Agrawal",
+      "Brandon Amos",
+      "Shane Barratt",
+      "Stephen Boyd",
+      "Steven Diamond",
+      "J. Zico Kolter"
+    ],
+    "url": "https://papers.neurips.cc/paper/9152-differentiable-convex-optimization-layers.pdf",
+    "code_url": "https://github.com/cvxpy/cvxpylayers",
+    "source_evidence": "Opened original paper and inspected affine-solver-affine/DPP discussion. Attempted current torch/cvxpylayer.py path returned 404; no current implementation verified. Author locuslab announcement establishes project provenance, not source-code correctness.",
+    "mechanism": "Canonicalize parameterized disciplined convex programs into an affine map, cone-program solve, and affine solution recovery; differentiate this composition.",
+    "osram_mapping": "Could implement a future convex evidence module, but no distinct objective beyond the OptNet proposal was established.",
+    "nearest_prior": [
+      "survey80_struct_optnet",
+      "equilibrium_aggregation"
+    ],
+    "substantive_difference": "Broader solver infrastructure does not make the same feature-space QP another method.",
+    "expected_benefit_hypothesis": "Implementation flexibility only, not an independent prediction-benefit hypothesis.",
+    "risks": [
+      "Solver/toolkit counted as architecture",
+      "Current code path unresolved",
+      "Dependency expansion"
+    ],
+    "status": "rejected",
+    "verification_level": "original_method_partial_read; author_source_path_failed; rejected_as_infrastructure_duplicate"
+  },
+  {
+    "id": "survey80_struct_vin_rejected",
+    "title": "Value Iteration Networks",
+    "authors": [
+      "Aviv Tamar",
+      "Yi Wu",
+      "Garrett Thomas",
+      "Sergey Levine",
+      "Pieter Abbeel"
+    ],
+    "url": "https://arxiv.org/pdf/1602.02867",
+    "code_url": "https://github.com/avivt/VIN",
+    "source_evidence": "Opened original PDF and read value-iteration equation 1 and planning-module motivation. Author repository README and API tree inspected; implementation body not read. This is a transfer rejection, not a claim to have audited VIN implementation.",
+    "mechanism": "An explicit latent planning module repeatedly backs up action values through a learned transition model and maximizes over actions, then supplies planning features to a policy.",
+    "osram_mapping": "No state/action/reward interpretation grounded in the at most five already computed evidence roles was found. Reshaping 512 channels into a fake grid is rejected; adding a trajectory planner or observations would expand scope.",
+    "nearest_prior": [
+      "rrn_evidence",
+      "conditional_new_07_neural_production",
+      "survey80_struct_smoothed_dp"
+    ],
+    "substantive_difference": "Bellman planning differs in its original setting, but an arbitrary recurrent role mixer would lose that distinction.",
+    "expected_benefit_hypothesis": "No defensible OSRAM planning benefit identified.",
+    "risks": [
+      "Artificial latent topology",
+      "Borrowing planning terminology while dropping the mechanism",
+      "At most five roles"
+    ],
+    "status": "rejected",
+    "verification_level": "original_core_equation_read; author_repository_listing_only; OSRAM_mapping_rejected"
+  },
+  {
+    "id": "survey80_struct_nri_rejected",
+    "title": "Neural Relational Inference for Interacting Systems",
+    "authors": [
+      "Thomas Kipf",
+      "Ethan Fetaya",
+      "Kuan-Chieh Wang",
+      "Max Welling",
+      "Richard Zemel"
+    ],
+    "url": "https://proceedings.mlr.press/v80/kipf18a/kipf18a.pdf",
+    "code_url": "https://github.com/ethanfetaya/NRI/blob/master/modules.py",
+    "source_evidence": "Opened original PDF and author modules.py GitHub page. Confirmed the original variational latent interaction graph plus dynamics-reconstruction premise, but did not complete method-equation or implementation-body review. Kept as limited screening evidence, not fully verified.",
+    "mechanism": "Infer discrete interaction types with a variational graph encoder and use a type-conditioned dynamical decoder to explain observed trajectories.",
+    "osram_mapping": "Current fusion sees no raw trajectory and may not add dynamics reconstruction/KL objectives. Removing that defining learning formulation leaves a generic learned edge-type message-passing layer.",
+    "nearest_prior": [
+      "rrn_evidence",
+      "egt_evidence",
+      "dgcnn_dynamic_edgeconv"
+    ],
+    "substantive_difference": "Original variational dynamical graph identification is different, but cannot be preserved by the scoped adaptation presently identified.",
+    "expected_benefit_hypothesis": "None accepted under fixed inputs and task-only loss.",
+    "risks": [
+      "Extra supervision/objectives",
+      "Requires trajectory observations",
+      "Generic message passing after mechanism removal"
+    ],
+    "status": "rejected",
+    "verification_level": "paper_and_code_pages_opened; incomplete_method_and_code_read; early_scope_rejection"
+  },
+  {
+    "id": "survey80_struct_notears_rejected",
+    "title": "DAGs with NO TEARS: Continuous Optimization for Structure Learning",
+    "authors": [
+      "Xun Zheng",
+      "Bryon Aragam",
+      "Pradeep K. Ravikumar",
+      "Eric P. Xing"
+    ],
+    "url": "https://proceedings.neurips.cc/paper_files/paper/2018/file/e347c51419ffb23ca3fd5050202f9c3d-Paper.pdf",
+    "code_url": "https://github.com/xunzheng/notears/blob/master/notears/linear.py",
+    "source_evidence": "Read original PDF section 3 acyclicity formulation. Read complete author notears/linear.py: _h computes trace(expm(W*W))-d; _func adds augmented-Lagrangian acyclicity and sparsity terms to reconstruction score; outer loop updates rho and alpha.",
+    "mechanism": "Learn a directed acyclic structural-equation graph by continuous equality-constrained optimization with an exact matrix-exponential acyclicity characterization.",
+    "osram_mapping": "A direct transfer would add structural reconstruction, sparsity and DAG constraint objectives over evidence dimensions or a dataset-wide graph-learning procedure, outside the fixed task-loss/current-role fusion scope.",
+    "nearest_prior": [
+      "matrix_tree_nonprojective_evidence",
+      "egt_evidence"
+    ],
+    "substantive_difference": "DAG discovery is genuinely distinct from a tree marginal layer in its original task, but replacing its score with an arbitrary role gate does not retain NOTEARS.",
+    "expected_benefit_hypothesis": "No claim that a causal DAG is identifiable from these at most five latent roles or would improve classification.",
+    "risks": [
+      "Additional objective",
+      "Unsupported causal interpretation",
+      "Original estimator is not a differentiable neural fusion layer"
+    ],
+    "status": "rejected",
+    "verification_level": "original_acyclicity_section_and_complete_author_linear_solver_read; protocol_rejected"
+  },
+  {
+    "id": "survey80_struct_nbfnet",
+    "title": "Neural Bellman-Ford Networks: A General Graph Neural Network Framework for Link Prediction",
+    "authors": [
+      "Zhaocheng Zhu",
+      "Zuobai Zhang",
+      "Louis-Pascal Xhonneux",
+      "Jian Tang"
+    ],
+    "url": "https://proceedings.neurips.cc/paper/2021/file/f6a673f09493afcd8b129a0bcf1cd5bc-Paper.pdf",
+    "code_url": "https://github.com/DeepGraphLearning/NBFNet/blob/eb49ff2770d1629edb04e96c9a6d7fee809097f2/nbfnet/model.py",
+    "source_evidence": "Read original section 3.2 Algorithm 1 and equations 5–6, plus design-space discussion. Read author model.py bellmanford/forward and complete layer.py GeneralizedRelationalConv message, aggregate, fused message_and_aggregate and combine. Code explicitly reinjects graph.boundary at every step, conditions relation transforms on graph.query, and returns source-conditioned destination representations. Author pin eb49ff2770d1629edb04e96c9a6d7fee809097f2. Also inspected historical meaningful_new40_structure.py NestedGNN.forward lines 323–348: root/distance embeddings, induced-adjacency GIN-style aggregation and pooled rooted states, with no persistent source boundary or relation-query-conditioned path extension.",
+    "mechanism": "Source/query-conditioned generalized Bellman-Ford recurrence with a source-only initial indicator, query-conditioned relational path extension, aggregation over competing walks and boundary reinjection at every step.",
+    "osram_mapping": "Build a per-example graph on Local256, Base512 and only the active subset of Gap1/2/3_512. Role adapters supply content descriptors; directed role-pair identities define relation types, while bounded pairwise edge weights depend on current endpoint descriptors. For every source role s, seed h_s^0 with its content query and all other h_v^0=0. Each step injects that same boundary into the relation-conditioned generalized Bellman-Ford update. Preserve source-to-destination states rather than collapsing roots early: a target role receives separate direct and multi-step path-informed descriptors from all active sources, decoded into its existing Flat input. An example is Local->Base->Gap2 versus Local->Gap1->Gap2. This is within-example evidence composition, not historical or causal discovery. Memory read/write query and sole task loss remain unchanged; no link prediction labels/negative samples.",
+    "nearest_prior": [
+      "nested_gnn_rooted_evidence",
+      "pna_evidence",
+      "ppgn_pair_composition",
+      "egt_evidence"
+    ],
+    "substantive_difference": "Historical NestedGNN initializes all nodes with content plus a root marker, runs an untyped induced-graph recurrence, and pools each root subgraph. NBFNet instead preserves source-indexed destination states, a source-only boundary reinjected each step, and query-conditioned relation-specific path extension. Historical PPGN multiplies two nonlinear full pair-state tensors; here a source-destination state extends through typed edges under the retained boundary condition. PNA may be reused only as the aggregation subcomponent, never counted as the novelty.",
+    "expected_benefit_hypothesis": "Could distinguish direct Local-to-Gap evidence from Base-mediated support paths; small-role-graph utility is untested.",
+    "risks": [
+      "Few roles mean only short composition routes; longer walks are not automatically useful",
+      "Repeated walks may reinforce noise",
+      "Node permutations must carry Local/Base/Gap identities and masks consistently",
+      "Neural operators relax semiring assumptions; do not claim exact shortest-path guarantees or causal inference"
+    ],
+    "status": "admissible",
+    "verification_level": "original_method_and_author_model_layer_code_read_at_pin; historical_NestedGNN_code_compared; explicit_active_role_path_mapping; no_experiments"
+  },
+  {
+    "id": "survey80_struct_gtn_metapath",
+    "title": "Graph Transformer Networks",
+    "authors": [
+      "Seongjun Yun",
+      "Minbyul Jeong",
+      "Raehyun Kim",
+      "Jaewoo Kang",
+      "Hyunwoo J. Kim"
+    ],
+    "url": "https://arxiv.org/pdf/1911.06455",
+    "code_url": "https://github.com/seongjunyun/Graph_Transformer_Networks/blob/master/prev_GTN/model.py",
+    "source_evidence": "Read original section 3.2 Meta-Path Generation: soft convex selection of typed adjacency matrices followed by matrix-product relation composition. Read complete author prev_GTN/model.py GTConv.forward, GTLayer.forward, GTN.normalization/gcn_conv/forward. First GT layer computes bmm(a,b), later layers bmm(previous,a); learned channels feed graph convolution. Current model_gtn.py also opened; no FastGTN variant counted separately. Master not pinned.",
+    "mechanism": "Learn mixtures of edge-type adjacency matrices, compose them multiplicatively into meta-path graphs, normalize those learned graphs and convolve original node features over each graph channel.",
+    "osram_mapping": "Use active role vectors as node contents and directed role-pair incidence matrices plus identity as candidate relation types; learn complete meta-path graphs, propagate contents with the source normalization and concatenate graph-channel outputs before existing Flat. Remove inactive Gap rows/columns. Memory query and task loss stay unchanged. Conditional because with only one node per role, meta-path basis matrices can collapse to a fixed dense linear role-mixing matrix.",
+    "nearest_prior": [
+      "ppgn_pair_composition",
+      "egt_evidence",
+      "diffpool_hierarchical_evidence_graph"
+    ],
+    "substantive_difference": "PPGN carries feature-valued pair states and multiplies independent nonlinear transforms; GTN composes convex mixtures of typed adjacency operators before node convolution, while EGT updates edges by attention and DiffPool contracts nodes. These are not identical algorithms. Nevertheless, the scoped tiny-graph specialization may erase the distinction and must be checked rather than automatically accepted.",
+    "expected_benefit_hypothesis": "Typed direct versus mediated evidence routes might supply an appropriate relation prior; no gain established.",
+    "risks": [
+      "Could algebraically reduce to learned fixed linear mixing on this tiny role graph",
+      "Inventing content-based edge types changes the original input contract and needs explicit design justification",
+      "Meta-path multiplication alone is not enough to distinguish from historical PPGN"
+    ],
+    "status": "conditional",
+    "verification_level": "original_metapath_method_and_complete_author_original_GTN_code_read; pending_non_degeneracy_check"
+  },
+  {
+    "id": "survey80_struct_neural_lp",
+    "title": "Differentiable Learning of Logical Rules for Knowledge Base Reasoning",
+    "authors": [
+      "Fan Yang",
+      "Zhilin Yang",
+      "William W. Cohen"
+    ],
+    "url": "https://arxiv.org/pdf/1702.08367",
+    "code_url": "https://github.com/fanyangxyz/Neural-LP/blob/239af3bc907c3d785a3fc033a05df23ea786c42f/src/model.py",
+    "source_evidence": "Read original equations 6–11 and Algorithm 1: operation attention, attention over prior partial-inference vectors, END-step rule-length selection and rule extraction. Read complete author src/model.py Learner._build_graph, including one-hot seed, operator/transposed-operator application, growing within-proof tensor and final memory read. Pin 239af3bc907c3d785a3fc033a05df23ea786c42f.",
+    "mechanism": "A recurrent controller chooses relation operators and earlier partial proof distributions, composing weighted variable-length first-order relation chains; final attention selects rule lengths. Intermediate states are distributions over entities, not unconstrained feature vectors.",
+    "osram_mapping": "Entities are exactly active Local/Base/Gap1/2/3 roles. A shared current-pair encoder constructs a small bank of nonnegative directed latent relation matrices M_k from existing descriptors, each masked to active endpoints; include their transposes as in author code. For source role s, u0=e_s. Feed a source-content-plus-learned-query embedding into the controller, compute u_t=sum_k a_tk M_k(sum_tau b_ttau u_tau), and retain final END attention over all inference depths. Use destination distributions for source-specific descriptor composition before existing Flat. The u_0..u_T tensors exist only within one forward call and are discarded; no historical cache or causal-memory replacement. No relation, rule, or endpoint labels and no extra loss.",
+    "nearest_prior": [
+      "conditional_new_07_neural_production",
+      "neural_logic_machine_evidence",
+      "mac_control_read_write",
+      "survey80_struct_nbfnet",
+      "survey80_struct_gtn_metapath"
+    ],
+    "substantive_difference": "NPS binds and executes one rule/entity update; NLM transforms an arity lattice. MAC stores dense feature summaries, not source-to-destination distributions produced by typed relation operators. NBFNet recurrently extends path features with fixed source-boundary reinjection; NeuralLP instead attends to every earlier proof distribution and explicitly mixes rule lengths. GTN's global fixed adjacency mixtures lack this content-conditioned recurrent operator/history selection. Replacing the proof-distribution recurrence with ordinary attention invalidates the transfer.",
+    "expected_benefit_hypothesis": "Might select when one-hop versus mediated relations among the current evidence roles are useful; untested.",
+    "risks": [
+      "Learned relation matrices are latent and must not be presented as verified semantic facts",
+      "Few active roles may make long chains redundant",
+      "Temporary proof-state storage is allowed only within the forward computation",
+      "Original Python2/TensorFlow1 code is reference-only"
+    ],
+    "status": "admissible",
+    "verification_level": "original_equations_and_complete_author_model_read_at_pin; explicit_no_history_no_extra_loss_mapping; no_experiments"
+  },
+  {
+    "id": "survey80_struct_neural_theorem_prover",
+    "title": "End-to-End Differentiable Proving",
+    "authors": [
+      "Tim Rocktäschel",
+      "Sebastian Riedel"
+    ],
+    "url": "https://arxiv.org/pdf/1705.11040",
+    "code_url": "https://github.com/uclnlp/ntp/blob/23687f5ccbb089ed78b4bcef5d055091408ee8d2/ntp/prover.py",
+    "source_evidence": "Read original sections 3.1–3.4: differentiable unification, OR/AND recursion, symbolic substitutions and proof aggregation. Read author ntp/prover.py unify/batch_unify, substitute, or_, and_, aggregate_proofs and prove; read complete nunify.py representation_match. Actual default code uses exp(-Euclidean distance) with distance clipping, and combines proof steps by minimum. experiments/learn.py max-aggregation configuration and optional neural-link-predictor paths inspected; no joint predictor/loss is included in transfer. Pin 23687f5ccbb089ed78b4bcef5d055091408ee8d2.",
+    "mechanism": "Backward-chain a finite rule program with explicit variable substitution; compare predicate/constant embeddings using the source soft-unification kernel; combine a proof's matches by minimum and alternate proofs by maximum.",
+    "osram_mapping": "Role identifiers are constants for current active Local/Base/Gap1/2/3 only. Encode each ordered observed-role pair as a fact predicate embedding, conditioned on its two existing descriptors; facts have these role constants as arguments. Learn predicate embeddings in generic two-body Horn templates p(X,Y):-q(X,Z),r(Z,Y), allowing exact shared-variable binding. For learned query predicates and each active source/target, search bounded proof trees using source AND/OR/unification, then decode the collection of proof scores and role values into updated Flat inputs. Content-conditioned symbol embeddings replace static lookup embeddings at the boundary; the prover is unchanged. No external knowledge base, truth labels, missing-role facts, ComplEx companion, extra loss or persistent proof cache; memory query stays untouched.",
+    "nearest_prior": [
+      "neural_logic_machine_evidence",
+      "conditional_new_07_neural_production",
+      "repr_differentiable_logic_circuit",
+      "survey80_struct_neural_lp",
+      "survey80_struct_satnet"
+    ],
+    "substantive_difference": "Explicit substitution consistency and soft symbol unification across branching backward proofs differ from NLM arity operations, NPS execution routing and SATNet global clause optimization. NeuralLP sums linear-chain operator walks with controller attention; NTP searches rule/body proof trees with shared variable bindings and max-min matching. A bare kernel similarity or max pooling over pairs would not preserve NTP.",
+    "expected_benefit_hypothesis": "Could represent 'one common intermediary supports two relations' with consistent role binding, instead of combining unrelated pairwise matches; no performance claim.",
+    "risks": [
+      "Max/min gradients are sparse and ties need deterministic handling",
+      "Unsupervised latent predicate meanings are not automatically interpretable",
+      "Content-conditioned symbol embedding is an explicit front-end adaptation, not a reproduction of original KB benchmarks",
+      "Proof templates/depth must remain fixed without label-dependent rule construction"
+    ],
+    "status": "admissible",
+    "verification_level": "original_core_method_and_author_prover_unifier_read_at_pin; explicit_current_role_fact_and_variable_binding_mapping; no_experiments"
+  },
+  {
+    "id": "survey80_struct_deepproblog",
+    "title": "DeepProbLog: Neural Probabilistic Logic Programming",
+    "authors": [
+      "Robin Manhaeve",
+      "Sebastijan Dumančić",
+      "Angelika Kimmig",
+      "Thomas Demeester",
+      "Luc De Raedt"
+    ],
+    "url": "https://proceedings.neurips.cc/paper/2018/file/dc5d637ed5e62c36ecb73b654b05ba2a-Paper.pdf",
+    "code_url": "https://github.com/ML-KULeuven/deepproblog/blob/f64181f66a3a789a96a47d7c2d3fae4d56178990/src/deepproblog/arithmetic_circuit.py",
+    "source_evidence": "Read original sections 3–5, possible-world probability, neural annotated disjunctions, four-stage grounding/logic rewriting/SDD/evaluation pipeline, and gradient-semiring equations. Read complete author arithmetic_circuit.py, engines/exact_engine.py and semiring/graph_semiring.py: LogicDAG to SDD, neural predicate evaluation, exact plus/times/negation, differentiable neural weights. Pin f64181f66a3a789a96a47d7c2d3fae4d56178990. Underlying PySDD compiler internals not inspected.",
+    "mechanism": "Predict probabilities of shared neural facts, ground logical queries, compile their Boolean dependencies into deterministic decomposable decision diagrams, and exactly sum possible-world weights with gradients to neural fact probabilities. Overlapping proofs do not become independent events.",
+    "osram_mapping": "Use current active roles only. Define a small fixed role-support skeleton connecting Local/Base and each active Gap; neural pair encoders produce Bernoulli probabilities for those edges. Query bounded reachability and direct-versus-mediated support between roles, with the SAME edge random variable shared whenever a proof reuses an edge. Compile the finite query formula to an SDD/decision diagram, evaluate exact probabilities per example, and decode query-marginal-weighted role descriptors into existing Flat inputs. For two proofs a&b and a&c, the union is p_a*p_b+p_a*p_c-p_a*p_b*p_c, not independent-proof noisy-OR. No assertion that these are physical causal edges. No missing-role variables, auxiliary truth labels or probabilistic training loss. Static program topology is not historical data, but neural values/results must be re-evaluated each forward with no persistent sample cache; preserve memory query.",
+    "nearest_prior": [
+      "rat_spn_evidence_circuit",
+      "repr_sos_signed_probability_circuit",
+      "repr_differentiable_logic_circuit",
+      "survey80_struct_satnet",
+      "survey80_struct_neural_theorem_prover"
+    ],
+    "substantive_difference": "RAT-SPN marginalizes learned Gaussian scope partitions; DeepProbLog starts from explicit shared logical facts and compiles overlapping derivations so an event is counted once. Differentiable gate networks do not enforce possible-world semantics when inputs are reused. SATNet optimizes satisfaction of clauses, while this computes exact event probabilities; NTP uses best-proof fuzzy scores rather than shared-event marginalization. A product/sum MLP without logical grounding and deterministic disjointization would not qualify.",
+    "expected_benefit_hypothesis": "May avoid overcounting several mediated paths that reuse the same evidence event, yielding a better calibrated fusion feature; hypothesis only.",
+    "risks": [
+      "Latent independent-edge probabilities are an explicit modeling assumption",
+      "Fixed support skeleton may omit useful interactions",
+      "Knowledge compilation may grow exponentially; bound edge count and query depth without inventing more tokens",
+      "No new dependencies are installed; any implementation requires separate dependency-policy compliance",
+      "Compiler internals not audited; no end-to-end code run"
+    ],
+    "status": "admissible",
+    "verification_level": "original_probabilistic_logic_inference_and_author_neural_fact_SDD_semiring_code_read_at_pin; explicit_shared_event_role_mapping; no_experiments"
+  }
+]

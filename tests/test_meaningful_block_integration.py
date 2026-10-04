@@ -48,6 +48,9 @@ class IntegrationTests(unittest.TestCase):
         with torch.no_grad():
             model.osram.emotion_adapter[-1].weight.normal_(std=.005)
         for name in MEANINGFUL_METHODS:
+            if name == 'm30_dyt':
+                # Deliberate LN replacement, tested separately; not a zero bridge.
+                continue
             enabled=_build_model(config(name),(3,4,5))
             for key,value in state.items():
                 self.assertTrue(torch.equal(value,enabled.state_dict()[key]),(name,key))
