@@ -1,0 +1,41 @@
+{
+  "admission_log_tail": [
+    "    else: launch(parser().parse_args())",
+    "  File \"/data2/yb/remote_experiments/osram_new40_gpu0123_20261004/attempt2/control/occupied_lane_refill11.py\", line 216, in launch",
+    "    if not admitted: raise RuntimeError('Occupied-lane admission rejected before job creation: '+reason)",
+    "RuntimeError: Occupied-lane admission rejected before job creation: GPU memory margin"
+  ],
+  "allocations": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45, 2480857, 2236 MiB\nGPU-43d98f5a-edab-1498-e9db-eeeb2d909d45, 2482697, 1964 MiB\nGPU-56b14af1-00dc-4542-e2d8-5bba1dd39049, 613510, 1886 MiB\nGPU-56b14af1-00dc-4542-e2d8-5bba1dd39049, 620974, 1910 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 2432535, 1850 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 2438332, 1920 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 2454847, 8110 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 2474078, 2268 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 2484691, 2728 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 2500308, 1942 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 2517246, 1912 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 2531098, 2750 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 2547425, 1986 MiB\nGPU-a8bb25f8-e771-1975-ef10-fdc0679488a4, 2987641, 3266 MiB\nGPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a, 2406645, 1874 MiB\nGPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a, 2410999, 1960 MiB\nGPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62, 2287144, 17488 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3404385, 2652 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3413412, 2280 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3416860, 1896 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3426418, 2092 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3431814, 1908 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3434617, 1842 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3441346, 1860 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3450320, 1858 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3463351, 1876 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3478424, 2294 MiB\nGPU-e4cafb17-818e-216a-b94a-7440063a9153, 3499621, 1840 MiB\nGPU-c38d9fe1-0b58-158f-a289-32d21e96df2e, 282187, 17468 MiB\n",
+  "at": "2026-10-04T16:28:00.506758+00:00",
+  "cwn_log_tail": [
+    "epoch=025 train_wf1=0.5197 test_oracle_weighted_f1=0.4231 cls=2.3099 jepa=0.0000",
+    "epoch=026 train_wf1=0.3760 test_oracle_weighted_f1=0.2809 cls=2.4330 jepa=0.0000",
+    "epoch=027 train_wf1=0.4737 test_oracle_weighted_f1=0.2507 cls=2.3387 jepa=0.0000",
+    "epoch=028 train_wf1=0.3922 test_oracle_weighted_f1=0.2507 cls=2.4236 jepa=0.0000",
+    "epoch=029 train_wf1=0.5253 test_oracle_weighted_f1=0.5092 cls=2.2142 jepa=0.0000"
+  ],
+  "gpus": "0, 4210 MiB, 28285 MiB, 14 %\n1, 3804 MiB, 28691 MiB, 0 %\n2, 28746 MiB, 3749 MiB, 13 %\n3, 3848 MiB, 28647 MiB, 0 %\n4, 0 MiB, 32495 MiB, 0 %\n5, 17498 MiB, 14997 MiB, 99 %\n6, 22404 MiB, 10091 MiB, 88 %\n7, 17478 MiB, 15017 MiB, 100 %\n",
+  "interpretation": "Increasing cached high-water memory with variable group/cell sizes is plausible; nvidia-smi cannot distinguish allocated from reserved CUDA memory, so no definitive proof against a leak. Epoch progress disproves a stopped training claim at observation time.",
+  "no_mutation_to_models": true,
+  "read_only_code_findings": [
+    {
+      "file": "gcnet_missing_m3/meaningful_new40_structure.py:261",
+      "finding": "Cellular forward uses per-call states and cell-complex tensors; no cross-forward tensor list/cache assignment found."
+    },
+    {
+      "file": "gcnet_missing_m3/meaningful_input_new40.py:30",
+      "finding": "Active availability groups change packed token count and batch size; cell and coface operations can have different activation-memory peaks."
+    },
+    {
+      "file": "gcnet_missing_m3/meaningful_input.py:78",
+      "finding": "Diagnostics run under no_grad and store Python scalars, not attached graphs."
+    },
+    {
+      "file": "gcnet_missing_m3/train_gcnet.py:1782",
+      "finding": "Saved predictions detach to CPU NumPy; training loss logs detach to scalars; backward does not retain_graph."
+    }
+  ],
+  "status": "GPU2_ten_running_PointCNN_capacity_wait_GPU6_eleven_running",
+  "wait_log": "2026-10-04T16:27:29Z capacity waiting; no PointCNN training process created\n",
+  "wait_session_alive": true
+}
