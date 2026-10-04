@@ -7,7 +7,7 @@
       "status": "implemented_not_trained"
     }
   ],
-  "max_distinct_trained_methods": 60,
+  "max_distinct_trained_methods": 69,
   "purpose": "Cross-round semantic deduplication ledger; different names do not establish different methods",
   "rejection_rules": [
     "Same core algorithm under another paper, method name, implementation language or wrapper",
@@ -1226,7 +1226,329 @@
       ],
       "source_directory": "osram_new40_20261004",
       "status": "reserved_not_trained"
+    },
+    "4": {
+      "methods": [
+        {
+          "accepted": true,
+          "authors": [
+            "Ryan L. Murphy",
+            "Balasubramaniam Srinivasan",
+            "Vinayak Rao",
+            "Bruno Ribeiro"
+          ],
+          "code_url": "https://github.com/PurdueMINDS/JanossyPooling/blob/58e398d492be96c231a3f8c6684b519302c5c3d6/arithmetic_tasks/models.py#L65",
+          "design_file": "docs/osram_new40_structure_cards.json",
+          "design_sha256": "cab000655356662a02eed76d84ebd15b6d8a76fb157b39e2b9fa290104ed34f8",
+          "id": "janossy_full_role_symmetrization",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "rrn_evidence",
+              "mac_control_read_write",
+              "fspool_fsunpool_evidence"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/PurdueMINDS/JanossyPooling/blob/58e398d492be96c231a3f8c6684b519302c5c3d6/arithmetic_tasks/models.py#L65",
+            "substantive_difference": "Exact group averaging of noncommutative recurrent whole-set compositions is not RRN's graph message recurrence, MAC's learned control/read/write, or FSPool's per-feature sorting. Retain all orders and nonlinear recurrent composition; a single chosen order or sum-pool plus MLP would not be this candidate."
+          },
+          "source": {
+            "code": "https://github.com/PurdueMINDS/JanossyPooling/blob/58e398d492be96c231a3f8c6684b519302c5c3d6/arithmetic_tasks/models.py#L65",
+            "paper": "https://arxiv.org/abs/1811.01900"
+          },
+          "title": "Janossy Pooling: Learning Deep Permutation-Invariant Functions for Variable-Size Inputs",
+          "url": "https://arxiv.org/abs/1811.01900"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Ramin Hasani",
+            "Mathias Lechner",
+            "Alexander Amini",
+            "Daniela Rus",
+            "Radu Grosu"
+          ],
+          "code_url": "https://github.com/raminmh/liquid_time_constant_networks/blob/master/experiments_with_ltcs/ltc_model.py",
+          "design_file": "docs/osram_new40_conditional_cards.json",
+          "design_sha256": "6d7dacbf57d10ddc881b51a9484cffadde546482a18a506c9dcbda3c400b80da",
+          "id": "conditional_new_02_ltc_conductance",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "contractive_deep_equilibrium_evidence",
+              "rrn_evidence",
+              "withdrawn_aff"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/raminmh/liquid_time_constant_networks/blob/master/experiments_with_ltcs/ltc_model.py",
+            "substantive_difference": "\u4fdd\u7559\u7535\u5bb9\u3001\u6f0f\u7535\u3001\u72b6\u6001/\u8f93\u5165\u7535\u5bfc\u3001\u53cd\u8f6c\u7535\u4f4d\u548c\u534a\u9690\u5f0f\u5206\u6bcd\u7684\u5b8c\u6574\u5fae\u7535\u8def\uff1b\u4e0d\u662f\u5355sigmoid gate\u6216GRU\u66ff\u6362\u3002"
+          },
+          "source": {
+            "code": "https://github.com/raminmh/liquid_time_constant_networks/blob/master/experiments_with_ltcs/ltc_model.py",
+            "paper": "https://arxiv.org/abs/2006.04439"
+          },
+          "title": "Liquid Time-constant Networks",
+          "url": "https://arxiv.org/abs/2006.04439"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Sam Greydanus",
+            "Misko Dzamba",
+            "Jason Yosinski"
+          ],
+          "code_url": "https://github.com/greydanus/hamiltonian-nn/blob/master/hnn.py",
+          "design_file": "docs/osram_new40_conditional_cards.json",
+          "design_sha256": "649d9aecd3c9c6cce248de253afb1fed3c33eb8a9cf8f80ad695813c04b5c488",
+          "id": "conditional_new_03_hamiltonian_flow",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "equilibrium_aggregation",
+              "contractive_deep_equilibrium_evidence"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/greydanus/hamiltonian-nn/blob/master/hnn.py",
+            "substantive_difference": "EA\u6cbf\u52bf\u80fd\u4e0b\u964d\u6c42\u6c47\u603b\uff0cHamiltonian\u6cbf\u8f9b\u65cb\u8f6c\u68af\u5ea6\u6d41\u52a8\uff0c\u8fde\u7eed\u7cbe\u786e\u7cfb\u7edf\u4e0d\u6cbfH\u4e0b\u964d\uff1bDEQ\u6c42\u5e73\u8861\u70b9\uff0c\u8fd9\u91cc\u53ea\u53d6\u521d\u503c\u8f68\u8ff9\u6709\u9650\u7ec8\u70b9\u3002"
+          },
+          "source": {
+            "code": "https://github.com/greydanus/hamiltonian-nn/blob/master/hnn.py",
+            "paper": "https://arxiv.org/abs/1906.01563"
+          },
+          "title": "Hamiltonian Neural Networks",
+          "url": "https://arxiv.org/abs/1906.01563"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Miles Cranmer",
+            "Sam Greydanus",
+            "Stephan Hoyer",
+            "Peter Battaglia",
+            "David Spergel",
+            "Shirley Ho"
+          ],
+          "code_url": "https://github.com/MilesCranmer/lagrangian_nns/blob/master/lnn/core.py",
+          "design_file": "docs/osram_new40_conditional_cards.json",
+          "design_sha256": "cf83074527491cbe9965270e745c598caee487b9aec260ae74f25fda6445a082",
+          "id": "conditional_new_04_lagrangian_flow",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "equilibrium_aggregation",
+              "spdnet_bimap_reeig_logeig"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/MilesCranmer/lagrangian_nns/blob/master/lnn/core.py",
+            "substantive_difference": "\u4e0d\u662f\u52bf\u80fd\u6700\u5c0f\u5316\u6216SPD\u534f\u65b9\u5dee\u8bfb\u51fa\uff1b\u5fc5\u987b\u5305\u542b\u901f\u5ea6Hessian\u3001\u6df7\u5408\u5bfc\u6570\u548c\u7ebf\u6027\u7cfb\u7edf\u89e3\u7684Euler-Lagrange\u94fe\u3002"
+          },
+          "source": {
+            "code": "https://github.com/MilesCranmer/lagrangian_nns/blob/master/lnn/core.py",
+            "paper": "https://arxiv.org/abs/2003.04630"
+          },
+          "title": "Lagrangian Neural Networks",
+          "url": "https://arxiv.org/abs/2003.04630"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Max Revay",
+            "Ruigang Wang",
+            "Ian R. Manchester"
+          ],
+          "code_url": "https://github.com/acfr/RobustNeuralNetworks.jl/blob/main/src/ParameterTypes/utils.jl",
+          "design_file": "docs/osram_new40_conditional_cards.json",
+          "design_sha256": "0afee710ba5e91ac9d4d9b4d6c4205f7ca74759319d1db69258e0fa3781a6d67",
+          "id": "conditional_new_05_contracting_ren",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "contractive_deep_equilibrium_evidence",
+              "rrn_evidence"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/acfr/RobustNeuralNetworks.jl/blob/main/src/ParameterTypes/utils.jl",
+            "substantive_difference": "\u65e7DEQ\u5bf9\u540c\u4e00\u72b6\u6001\u6c42\u65e0\u9650\u6df1\u56fa\u5b9a\u70b9\u4e14\u7528\u9690\u5f0f\u68af\u5ea6\uff1b\u8fd9\u91cc\u662f\u6709\u663e\u5f0f\u52a8\u6001state\u7684\u6709\u9650recurrent\u7cfb\u7edf\uff0c\u6bcf\u6b65\u5185\u90e8\u975e\u7ebf\u6027\u4e3a\u4e0b\u4e09\u89d2\u53ef\u524d\u4ee3\u8ba1\u7b97\uff0c\u6574\u4f53\u8026\u5408H\u53c2\u6570\u5316\u63a7\u5236\u589e\u91cf\u884c\u4e3a\u3002\u53ea\u7528\u8c31\u5f52\u4e00\u5316RNN\u4e0d\u80fd\u53ebREN\u3002"
+          },
+          "source": {
+            "code": "https://github.com/acfr/RobustNeuralNetworks.jl/blob/main/src/ParameterTypes/utils.jl",
+            "paper": "https://arxiv.org/abs/2104.05942"
+          },
+          "title": "Recurrent Equilibrium Networks: Flexible Dynamic Models with Guaranteed Stability and Robustness",
+          "url": "https://arxiv.org/abs/2104.05942"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Pengzhan Jin",
+            "Zhen Zhang",
+            "Aiqing Zhu",
+            "Yifa Tang",
+            "George Em Karniadakis"
+          ],
+          "code_url": "https://github.com/jpzxshi/sympnets/blob/master/learner/nn/sympnet.py",
+          "design_file": "docs/osram_new40_conditional_cards.json",
+          "design_sha256": "e44e8530af1bbd7e76992eb8d07f1660296c22d4d2b3e222b475644a5b6d7f72",
+          "id": "conditional_new_09_sympnet",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "conditional_rational_quadratic_spline_coupling",
+              "spdnet_bimap_reeig_logeig"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/jpzxshi/sympnets/blob/master/learner/nn/sympnet.py",
+            "substantive_difference": "\u4e0eSpline\u90fd\u53ef\u9006\u4f46\u4e0d\u662f\u4e00\u5143monotone spline\uff1a\u5b8c\u6574\u4ea4\u53c9\u5750\u6807shear\u6765\u81ea\u6807\u91cf\u52bf\u7684\u68af\u5ea6\uff0cJacobian\u6ee1\u8db3J\u1d40\u03a9J=\u03a9\uff0c\u4e0d\u662f\u4efb\u610fcoupling\u6216\u66f4\u6df1MLP\u3002SPDNet\u662f\u534f\u65b9\u5dee\u6d41\u5f62\u53d8\u6362\u3002"
+          },
+          "source": {
+            "code": "https://github.com/jpzxshi/sympnets/blob/master/learner/nn/sympnet.py",
+            "paper": "https://arxiv.org/abs/2001.03750"
+          },
+          "title": "SympNets: Intrinsic structure-preserving symplectic networks for identifying Hamiltonian systems",
+          "url": "https://arxiv.org/abs/2001.03750"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "T. Konstantin Rusch",
+            "Siddhartha Mishra"
+          ],
+          "code_url": "https://github.com/tk-rusch/coRNN/blob/master/sMNIST/network.py",
+          "design_file": "docs/osram_new40_conditional_cards.json",
+          "design_sha256": "acc5152a6d9583cb54fbc70182d8fc35fa1668396fd5e474100060b9207c2854",
+          "id": "conditional_new_10_cornn",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "rrn_evidence",
+              "contractive_deep_equilibrium_evidence"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/tk-rusch/coRNN/blob/master/sMNIST/network.py",
+            "substantive_difference": "\u4e0d\u540c\u4e8eRRN\u7684LSTM\u6d88\u606f\uff0ccoRNN\u662f\u5177\u6709\u4f4d\u7f6e/\u901f\u5ea6\u4e24\u6001\u3001\u6062\u590d\u529b\u548c\u963b\u5c3c\u7684\u4e8c\u9636\u7cfb\u7edf\u53ca\u534a\u9690\u5f0f\u66f4\u65b0\uff1b\u4e0d\u80fd\u7b80\u5316\u6210\u5355\u6b21tanh\u6b8b\u5dee\u540e\u53eb\u632f\u5b50\u3002"
+          },
+          "source": {
+            "code": "https://github.com/tk-rusch/coRNN/blob/master/sMNIST/network.py",
+            "paper": "https://arxiv.org/abs/2010.00951"
+          },
+          "title": "Coupled Oscillatory Recurrent Neural Network (coRNN): An accurate and (gradient) stable architecture for learning long time dependencies",
+          "url": "https://arxiv.org/abs/2010.00951"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Lorenzo Loconte",
+            "Stefan Mengel",
+            "Antonio Vergari"
+          ],
+          "code_url": "https://github.com/april-tools/sos-npcs/blob/8b3c8592ab1db852166c9d1cdf202c1cccc7e6d4/src/models.py",
+          "design_file": "docs/osram_new40_representation_cards.json",
+          "design_sha256": "98f0488c4aef755c6848f77e7de53ec25199fcf17d542a44564233a28bf7791a",
+          "id": "repr_sos_signed_probability_circuit",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "rat_spn_evidence_circuit",
+              "withdrawn Tensor-Train compression"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/april-tools/sos-npcs/blob/8b3c8592ab1db852166c9d1cdf202c1cccc7e6d4/src/models.py",
+            "substantive_difference": "RAT-SPN uses nonnegative normalized mixtures without destructive cross terms. SOS combines signed amplitudes and contracts their squares, so marginalization requires cross-basis integrals. It is neither a new random SPN partition nor a compressed affine tensor-train layer."
+          },
+          "source": {
+            "code": "https://github.com/april-tools/sos-npcs/blob/8b3c8592ab1db852166c9d1cdf202c1cccc7e6d4/src/models.py",
+            "paper": "https://arxiv.org/abs/2408.11778"
+          },
+          "title": "Sum of Squares Circuits",
+          "url": "https://arxiv.org/abs/2408.11778"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Zhiwu Huang",
+            "Jiqing Wu",
+            "Luc Van Gool"
+          ],
+          "code_url": "https://github.com/zhiwu-huang/GrNet/tree/6ca1834ddb92cd244344e9af31f73237152a9dd0/grnet",
+          "design_file": "docs/osram_new40_representation_cards.json",
+          "design_sha256": "e6a3c56e1dca415e36d22369c6bd382c16c30406ed518da073a6fc37a3561960",
+          "id": "repr_grassmann_projection_pooling",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "spdnet_bimap_reeig_logeig",
+              "hamburger_nmf_full"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/zhiwu-huang/GrNet/tree/6ca1834ddb92cd244344e9af31f73237152a9dd0/grnet",
+            "substantive_difference": "SPDNet learns spectral functions of covariance magnitude; GrNet identifies a q-dimensional subspace modulo basis rotation and performs projector averaging followed by rank-q eigenspace selection. It discards basis choice, not the head labels used to construct each matrix."
+          },
+          "source": {
+            "code": "https://github.com/zhiwu-huang/GrNet/tree/6ca1834ddb92cd244344e9af31f73237152a9dd0/grnet",
+            "paper": "https://doi.org/10.1609/aaai.v32i1.11725"
+          },
+          "title": "Building Deep Networks on Grassmann Manifolds",
+          "url": "https://doi.org/10.1609/aaai.v32i1.11725"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Shengyang Sun",
+            "Guodong Zhang",
+            "Chaoqi Wang",
+            "Wenyuan Zeng",
+            "Jiaman Li",
+            "Roger Grosse"
+          ],
+          "code_url": "https://github.com/ssydasheng/GPflow-Slim/tree/96ea01e5aa7b488997755a2b35bc433ca8a85b39/gpflowSlim/neural_kernel_network",
+          "design_file": "docs/osram_new40_representation_cards.json",
+          "design_sha256": "291811bf10d1ad5d687d15b7540a39331a33d7fea8e514ccad7f74cb3a5a2f17",
+          "id": "repr_neural_kernel_composition",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "rat_spn_evidence_circuit",
+              "otke",
+              "withdrawn DLRM/MLB"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/ssydasheng/GPflow-Slim/tree/96ea01e5aa7b488997755a2b35bc433ca8a85b39/gpflowSlim/neural_kernel_network",
+            "substantive_difference": "RAT-SPN requires decomposable variable scopes and density leaves; NKN composes valid pairwise kernels with repeated overlapping input arguments and Schur products. OTKE uses a kernel inside balanced transport, whereas NKN learns the kernel algebra itself. Simple pair-dot readout lacks the entire composition network."
+          },
+          "source": {
+            "code": "https://github.com/ssydasheng/GPflow-Slim/tree/96ea01e5aa7b488997755a2b35bc433ca8a85b39/gpflowSlim/neural_kernel_network",
+            "paper": "https://proceedings.mlr.press/v80/sun18e.html"
+          },
+          "title": "Differentiable Compositional Kernel Learning for Gaussian Processes",
+          "url": "https://proceedings.mlr.press/v80/sun18e.html"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Chin-Wei Huang",
+            "Ricky T. Q. Chen",
+            "Christos Tsirigotis",
+            "Aaron Courville"
+          ],
+          "code_url": "https://github.com/CW-Huang/CP-Flow/blob/d01303cb4ebeb5a0bbfca638ffaf5b7a8ec22fb1/lib/flows/cpflows.py",
+          "design_file": "docs/osram_new40_representation_cards.json",
+          "design_sha256": "299588a823ab4571ec62cd26279acedbdb7864538cb8ed256a3b42dd6b14f1e7",
+          "id": "repr_convex_potential_gradient_flow",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "conditional_rational_quadratic_spline_coupling",
+              "contractive_deep_equilibrium_evidence",
+              "equilibrium_aggregation"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/CW-Huang/CP-Flow/blob/d01303cb4ebeb5a0bbfca638ffaf5b7a8ec22fb1/lib/flows/cpflows.py",
+            "substantive_difference": "Spline updates alternating coordinate halves with monotone scalar splines; DEQ solves a fixed-point state. CP-Flow directly differentiates a global convex scalar potential to produce a coupled vector map. Its defining condition is Hessian positivity, not a contractive residual or numerical convergence to equilibrium."
+          },
+          "source": {
+            "code": "https://github.com/CW-Huang/CP-Flow/blob/d01303cb4ebeb5a0bbfca638ffaf5b7a8ec22fb1/lib/flows/cpflows.py",
+            "paper": "https://arxiv.org/abs/2012.05942"
+          },
+          "title": "Convex Potential Flows: Universal Probability Distributions with Optimal Transport and Convex Optimization",
+          "url": "https://arxiv.org/abs/2012.05942"
+        }
+      ],
+      "source_directory": "osram_new40_20261004",
+      "status": "reserved_not_trained"
     }
   },
-  "trained_count": 20
+  "trained_count": 20,
+  "training_budget_override": {
+    "max_distinct_trained_methods": 69,
+    "user_request": "2026-10-04: GPU2 and GPU6 each eleven concurrent experiments. Existing58 reservations plus11 additional distinct implemented candidates on GPU6; bounded override, not infinite search."
+  }
 }

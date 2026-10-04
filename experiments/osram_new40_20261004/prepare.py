@@ -24,9 +24,11 @@ def select(catalog, candidates, registry):
         raise ValueError('Select 1..20 unique implemented candidates')
     reserved = {m['id'] for r in registry.get('rounds', {}).values()
                 for m in r.get('methods', [])}
-    limit = min(60, registry.get('max_distinct_trained_methods', 60))
+    override = registry.get('training_budget_override', {})
+    authorized = override.get('max_distinct_trained_methods', 60) if override.get('user_request') else 60
+    limit = min(authorized, registry.get('max_distinct_trained_methods', 60))
     if len(reserved | set(candidates)) > limit:
-        raise ValueError('Selection exceeds the global sixty-method training cap')
+        raise ValueError(f'Selection exceeds the explicitly authorized {limit}-method training cap')
     manifest = {
         'round_id': '3_additional40_selection', 'target_count': 20,
         'status': 'source_accepted', 'label': 'INTERNAL DIAGNOSTIC ONLY',
@@ -44,6 +46,7 @@ def main():
     parser.add_argument('--candidate', action='append', required=True)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--reservation-round', default='3')
     args = parser.parse_args()
     if not args.dry_run and args.output is None:
         parser.error('--output is required without --dry-run')
@@ -56,7 +59,9 @@ def main():
             raise FileExistsError('Never overwrite a previously selected manifest')
         registry = read(args.registry)
         manifest = select(read(args.catalog), args.candidate, registry)
-        reservation = registry['rounds'].setdefault('3', {
+        if args.reservation_round != '3':
+            manifest['round_id'] = args.reservation_round + '_explicit_gpu_selection'
+        reservation = registry['rounds'].setdefault(args.reservation_round, {
             'status': 'reserved_not_trained', 'methods': [],
             'source_directory': 'osram_new40_20261004',
         })

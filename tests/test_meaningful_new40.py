@@ -13,6 +13,9 @@ class NewFortyCatalogTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         catalog = json.loads((root / 'experiments/osram_new40_20261004/CATALOG.json').read_text())
         registry = json.loads((root / 'experiments/osram_method_registry.json').read_text())
+        registry['max_distinct_trained_methods'] = 60
+        registry.pop('training_budget_override', None)
+        registry['rounds'].pop('4', None)
         names = [c['id'] for c in catalog['cards']]
         manifest = select(catalog, names[:1], registry)
         self.assertEqual([c['id'] for c in manifest['cards']], names[:1])
@@ -23,6 +26,14 @@ class NewFortyCatalogTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             select(catalog, names[20:21], registry)
         self.assertEqual(len(select(catalog, names[:1], registry)['cards']), 1)
+        registry['max_distinct_trained_methods'] = 69
+        with self.assertRaises(ValueError):
+            select(catalog, names[20:21], registry)
+        registry['training_budget_override'] = {'max_distinct_trained_methods': 69,
+            'user_request': 'GPU2 and GPU6 each eleven experiments, 2026-10-04'}
+        self.assertEqual(len(select(catalog, names[20:29], registry)['cards']), 9)
+        with self.assertRaises(ValueError):
+            select(catalog, names[20:30], registry)
 
     def test_forty_distinct_real_factories(self):
         self.assertIsNotNone(importlib.util.find_spec(
