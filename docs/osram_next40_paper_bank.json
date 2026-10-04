@@ -1,0 +1,896 @@
+{
+  "scope": "LITERATURE SCREEN ONLY; 40 screened papers != 40 qualified nonoverlapping methods",
+  "checked_at": "2026-10-04",
+  "baseline_inventory_commit": "42d4904",
+  "requested_qualified_candidates": 40,
+  "qualified_for_training": 0,
+  "remaining_qualified_target": 40,
+  "training_cap_unchanged": 60,
+  "status_counts": {
+    "design_review": 9,
+    "held": 17,
+    "rejected": 14
+  },
+  "papers": [
+    {
+      "number": 1,
+      "id": "next_optnet_constrained_readout",
+      "title": "OptNet: Differentiable Optimization as a Layer in Neural Networks",
+      "authors": [
+        "Brandon Amos",
+        "J. Zico Kolter"
+      ],
+      "url": "https://proceedings.mlr.press/v70/amos17a.html",
+      "code_url": "https://github.com/locuslab/qpth/blob/master/qpth/qp.py",
+      "card_file": "osram_next40_optimization.json",
+      "screening_lane": "optimization",
+      "source_decision": "screen_only",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_code_symbols_verified; program_level_novelty_pending",
+      "closest_prior_ids": [
+        "equilibrium_aggregation",
+        "contractive_deep_equilibrium_evidence",
+        "otke"
+      ],
+      "substantive_difference": "EA是非约束可学习势能的有限Nesterov汇总；DEQ是非线性状态固定点；OTKE是熵正则质量分配。理论上显式不等式可行域可提供program-level区别，但experiments/osram_method_registry.json的DEQ审计明确警告KKT层可能近重复。当前尚未从任务给定事实推出有意义的耦合约束，任意幅度盒/learned矩阵不能自行算独立方法，故降级。"
+    },
+    {
+      "number": 2,
+      "id": "next_dpp_joint_subset_readout",
+      "title": "Determinantal Point Processes for Machine Learning",
+      "authors": [
+        "Alex Kulesza",
+        "Ben Taskar"
+      ],
+      "url": "https://arxiv.org/abs/1207.6083",
+      "code_url": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py",
+      "card_file": "osram_next40_optimization.json",
+      "screening_lane": "optimization",
+      "source_decision": "candidate",
+      "review_status": "design_review",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_reference_code_symbols_verified; adaptation_not_implemented",
+      "closest_prior_ids": [
+        "tome_merge_reconstruct",
+        "slot_attention",
+        "otke"
+      ],
+      "substantive_difference": "ToMe是贪婪二部相似合并，slots是竞争聚类，OTKE是质量守恒匹配；DPP直接建模整组子集的行列式概率。与本lane的facility-location同属选集，但体积排斥不等于覆盖收益的递减。已核对撤回的experiments/osram_readout20_20261003/CANDIDATES.zh.md：DLRM/pair-dot和BAN双线性attention都没有对有限子集行列式归一化；本项不能退化为它们。"
+    },
+    {
+      "number": 3,
+      "id": "screen_satnet_sdp_latent_constraints",
+      "title": "SATNet: Bridging deep learning and logical reasoning using a differentiable satisfiability solver",
+      "authors": [
+        "Po-Wei Wang",
+        "Priya Donti",
+        "Bryan Wilder",
+        "Zico Kolter"
+      ],
+      "url": "https://proceedings.mlr.press/v97/wang19e.html",
+      "code_url": "https://github.com/locuslab/SATNet/blob/master/satnet/models.py",
+      "card_file": "osram_next40_optimization.json",
+      "screening_lane": "optimization",
+      "source_decision": "screen_only",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_code_symbols_verified; semantic_transfer_pending",
+      "closest_prior_ids": [
+        "neural_logic_machine_evidence",
+        "rat_spn_evidence_circuit"
+      ],
+      "substantive_difference": "NLM升降arity和量词聚合，RAT-SPN做sum/product边缘化；SATNet优化单位球SDP的全局约束满足程度，不是NLM深宽变体。但同属软逻辑方向，语义动机不足不能靠换求解器充名额。"
+    },
+    {
+      "number": 4,
+      "id": "screen_geometric_median_readout",
+      "title": "Robust Aggregation for Federated Learning",
+      "authors": [
+        "Krishna Pillutla",
+        "Sham M. Kakade",
+        "Zaid Harchaoui"
+      ],
+      "url": "https://doi.org/10.1109/TSP.2022.3153135",
+      "code_url": "https://github.com/krishnap25/geom_median/blob/main/src/geom_median/torch/weiszfeld_array.py",
+      "card_file": "osram_next40_optimization.json",
+      "screening_lane": "optimization",
+      "source_decision": "screen_only",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_code_symbols_verified; novelty_gate_pending",
+      "closest_prior_ids": [
+        "equilibrium_aggregation",
+        "learned_robust_pca_evidence_decomposition",
+        "pna_evidence"
+      ],
+      "substantive_difference": "不是RPCA的低秩+稀疏矩阵分解，也不是逐坐标排序中位数；它优化向量距离和。但EA是更泛化的势能聚合，本项可能只是其特定稳健能量，核心去重未通过。"
+    },
+    {
+      "number": 5,
+      "id": "screen_submodular_facility_selection",
+      "title": "Differentiable Submodular Maximization",
+      "authors": [
+        "Sebastian Tschiatschek",
+        "Aytunc Sahin",
+        "Andreas Krause"
+      ],
+      "url": "https://arxiv.org/abs/1803.01785",
+      "code_url": null,
+      "card_file": "osram_next40_optimization.json",
+      "screening_lane": "optimization",
+      "source_decision": "screen_only",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_verified; code_pending; transfer_gradient_pending",
+      "closest_prior_ids": [
+        "tome_merge_reconstruct",
+        "tokenlearner_fuser_v11",
+        "tabnet"
+      ],
+      "substantive_difference": "递减的全集合覆盖收益不等于相似pair合并、learned压缩token或逐feature sparsemax；DPP则建模行列式排斥，两者目标有数学差别。"
+    },
+    {
+      "number": 6,
+      "id": "screen_submodular_graph_tv",
+      "title": "Differentiable Learning of Submodular Models",
+      "authors": [
+        "Josip Djolonga",
+        "Andreas Krause"
+      ],
+      "url": "https://papers.neurips.cc/paper_files/paper/2017/hash/192fc044e74dffea144f9ac5dc9f3395-Abstract.html",
+      "code_url": "https://github.com/josipd/torch-submod/blob/master/torch_submod/graph_cuts.py",
+      "card_file": "osram_next40_optimization.json",
+      "screening_lane": "optimization",
+      "source_decision": "screen_only",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_grid_code_verified; non_grid_transfer_pending",
+      "closest_prior_ids": [
+        "sheaf_hypergnn_diag",
+        "ed_hnn",
+        "crate_mssa_ista_full"
+      ],
+      "substantive_difference": "图TV在边差上产生非平滑融合/保留断点，不是Laplacian平滑、sheaf线性传输或dictionary坐标稀疏化。与OptNet均属于凸层，但此处独立依据必须是图割/Lovasz结构，不能只换求解器。"
+    },
+    {
+      "number": 7,
+      "id": "reject_dsac_under_fixed_loss",
+      "title": "DSAC - Differentiable RANSAC for Camera Localization",
+      "authors": [
+        "Eric Brachmann",
+        "Alexander Krull",
+        "Sebastian Nowozin",
+        "Jamie Shotton",
+        "Frank Michel",
+        "Stefan Gumhold",
+        "Carsten Rother"
+      ],
+      "url": "https://arxiv.org/abs/1611.05705",
+      "code_url": "https://github.com/cvlab-dresden/DSAC/blob/master/core/train_ransac.cpp",
+      "card_file": "osram_next40_optimization.json",
+      "screening_lane": "optimization",
+      "source_decision": "reject",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_code_symbols_verified; incompatible",
+      "closest_prior_ids": [
+        "capsule_dynamic_routing",
+        "equilibrium_aggregation"
+      ],
+      "substantive_difference": "RANSAC的随机最小集/假设选择不同于capsule agreement，但仅套softmax平均后不再是DSAC核心，不能按新论文名字计数。"
+    },
+    {
+      "number": 8,
+      "id": "screen_sparsemap_not_additional_count",
+      "title": "SparseMAP: Differentiable Sparse Structured Inference",
+      "authors": [
+        "Vlad Niculae",
+        "Andre F. T. Martins",
+        "Mathieu Blondel",
+        "Claire Cardie"
+      ],
+      "url": "https://proceedings.mlr.press/v80/niculae18a.html",
+      "code_url": "https://github.com/vene/sparsemap/blob/master/python/sparsemap/layers_pt/base.py",
+      "card_file": "osram_next40_optimization.json",
+      "screening_lane": "optimization",
+      "source_decision": "screen_only",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_code_symbols_verified; independent_structure_pending",
+      "closest_prior_ids": [
+        "otke",
+        "tabnet",
+        "tome_merge_reconstruct"
+      ],
+      "substantive_difference": "结构稀疏边缘不同于逐坐标sparsemax；然而若只把OptNet的预算多面体换active-set或把OTKE熵换L2，违反不能以优化器/正则变体凑数的要求。"
+    },
+    {
+      "number": 9,
+      "id": "reject_differentiable_dp_no_order",
+      "title": "Differentiable Dynamic Programming for Structured Prediction and Attention",
+      "authors": [
+        "Arthur Mensch",
+        "Mathieu Blondel"
+      ],
+      "url": "https://proceedings.mlr.press/v80/mensch18a.html",
+      "code_url": "https://github.com/arthurmensch/didyprog/blob/master/didyprog/reference/local.py",
+      "card_file": "osram_next40_optimization.json",
+      "screening_lane": "optimization",
+      "source_decision": "reject",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_code_symbols_verified; incompatible_structure",
+      "closest_prior_ids": [
+        "fspool_fsunpool_evidence",
+        "mcan_encoder_decoder"
+      ],
+      "substantive_difference": "动态规划具有全路径约束，不是排序池化/交叉注意力；但该区别依赖合法路径结构，当前接口未提供。"
+    },
+    {
+      "number": 10,
+      "id": "reject_group_dro_changes_loss",
+      "title": "Distributionally Robust Neural Networks for Group Shifts: On the Importance of Regularization for Worst-Case Generalization",
+      "authors": [
+        "Shiori Sagawa",
+        "Pang Wei Koh",
+        "Tatsunori B. Hashimoto",
+        "Percy Liang"
+      ],
+      "url": "https://arxiv.org/abs/1911.08731",
+      "code_url": "https://github.com/kohpangwei/group_DRO/blob/master/loss.py",
+      "card_file": "osram_next40_optimization.json",
+      "screening_lane": "optimization",
+      "source_decision": "reject",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_code_symbols_verified; incompatible",
+      "closest_prior_ids": [
+        "equilibrium_aggregation",
+        "early_gate_grn"
+      ],
+      "substantive_difference": "训练分布层的最坏群组风险不同于单样本证据融合；区别来自当前明确禁止改变的训练目标，不能计入模块候选。"
+    },
+    {
+      "number": 11,
+      "id": "next_hyperbolic_gyrovector_readout",
+      "title": "Hyperbolic Neural Networks",
+      "authors": [
+        "Octavian-Eugen Ganea",
+        "Gary Bécigneul",
+        "Thomas Hofmann"
+      ],
+      "url": "https://arxiv.org/abs/1805.09112",
+      "code_url": "https://github.com/dalab/hyperbolic_nn/blob/dbeb8e8f8ed61bcc8e264fb8fbd2731fbdc23591/util.py",
+      "card_file": "osram_next40_geometry.json",
+      "screening_lane": "geometry",
+      "source_decision": "candidate_source_verified",
+      "review_status": "design_review",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_author_code_verified; no local implementation",
+      "closest_prior_ids": "SPDNet、Spline Flow",
+      "substantive_difference": "SPDNet 对协方差做 BiMap/ReEig/LogEig；本项对一阶角色向量在负曲率球上执行基点依赖 gyrovector 运算，无协方差谱层、coupling 或 attention。"
+    },
+    {
+      "number": 12,
+      "id": "next_perslay_topological_readout",
+      "title": "PersLay: A Neural Network Layer for Persistence Diagrams and New Graph Topological Signatures",
+      "authors": [
+        "Mathieu Carriere",
+        "Frederic Chazal",
+        "Yuichi Ike",
+        "Theo Lacombe",
+        "Martin Royer",
+        "Yuhei Umeda"
+      ],
+      "url": "https://proceedings.mlr.press/v108/carriere20a.html",
+      "code_url": "https://github.com/MathieuCarriere/perslay/blob/eed9cfc4dfa565264ebb238520c39882ba2a7dd6/perslay/perslay.py",
+      "card_file": "osram_next40_geometry.json",
+      "screening_lane": "geometry",
+      "source_decision": "pending",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_author_layer_code_verified; feature_to_diagram_gradient_unresolved",
+      "closest_prior_ids": "PNA、DGCNN、FSPool、SheafHyperGNN",
+      "substantive_difference": "拓扑 birth/death 配对提供跨阈值连通结构摘要；旧图节点传播、逐特征排序与 sheaf transport 没有持久同调配对。仅更换 PersLay 点嵌入而不构造 diagrams 不算该机制。"
+    },
+    {
+      "number": 13,
+      "id": "next_bernstein_spectral_readout",
+      "title": "BernNet: Learning Arbitrary Graph Spectral Filters via Bernstein Approximation",
+      "authors": [
+        "Mingguo He",
+        "Zhewei Wei",
+        "Zengfeng Huang",
+        "Hongteng Xu"
+      ],
+      "url": "https://arxiv.org/abs/2106.10994",
+      "code_url": "https://github.com/ivam-he/BernNet/blob/main/NodeClassification/Bernpro.py",
+      "card_file": "osram_next40_geometry.json",
+      "screening_lane": "geometry",
+      "source_decision": "candidate_source_verified",
+      "review_status": "design_review",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_author_code_verified; no local implementation",
+      "closest_prior_ids": "SheafHyperGNN、ED-HNN、GatedGCN",
+      "substantive_difference": "旧项学习 restriction/receiver-conditioned diffusion/边门控；本项在固定语义 Laplacian 上学习全局频率响应，允许抑制中间频带而保留差异。与下项 scattering 也不同：本项输出线性谱滤波响应，scattering 保留多阶 modulus 路径系数。"
+    },
+    {
+      "number": 14,
+      "id": "next_diffusion_scattering_readout",
+      "title": "Diffusion Scattering Transforms on Graphs",
+      "authors": [
+        "Fernando Gama",
+        "Alejandro Ribeiro",
+        "Joan Bruna"
+      ],
+      "url": "https://arxiv.org/abs/1806.08829",
+      "code_url": "https://github.com/alelab-upenn/graph-scattering-transforms/blob/72930a54e603ecf6643c560008d36d4e3fb77644/Modules/graphScattering.py",
+      "card_file": "osram_next40_geometry.json",
+      "screening_lane": "geometry",
+      "source_decision": "candidate_source_verified",
+      "review_status": "design_review",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_author_group_code_verified; no local implementation",
+      "closest_prior_ids": "SheafHyperGNN、PNA；本批最近项BernNet",
+      "substantive_difference": "不是学习更多传播层；固定wavelet-bank、多路径模值解调和各阶摘要是完整机制，区别于Sheaf传输及BernNet单次可学习谱响应。不能把不同wavelet家族另算候选。"
+    },
+    {
+      "number": 15,
+      "id": "next_hrr_binding_unbinding_readout",
+      "title": "Learning with Holographic Reduced Representations",
+      "authors": [
+        "Ashwinkumar Ganesan",
+        "Hang Gao",
+        "Sunil Gandhi",
+        "Edward Raff",
+        "Tim Oates",
+        "James Holt",
+        "Mark McLean"
+      ],
+      "url": "https://arxiv.org/abs/2109.02157",
+      "code_url": "https://github.com/NeuromorphicComputationResearchProgram/Learning-with-Holographic-Reduced-Representations/blob/HEAD/lib/mathops.py",
+      "card_file": "osram_next40_geometry.json",
+      "screening_lane": "geometry",
+      "source_decision": "pending",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_author_code_verified; nondegenerate_transfer_not_verified",
+      "closest_prior_ids": "NetVLAD、RAT-SPN、被用户排除的简单双线性",
+      "substantive_difference": "显式角色可逆绑定与superposition交叉干扰的结构不同于簇残差/概率电路；但若keys固定且只做线性解码，整链可合并为固定线性层，无资格计新候选。须先证明采用输入相关unitary keys后的完整链并非已有简单bilinear包装。"
+    },
+    {
+      "number": 16,
+      "id": "next_sandwich_lipschitz_readout",
+      "title": "Direct Parameterization of Lipschitz-Bounded Deep Networks",
+      "authors": [
+        "Ruigang Wang",
+        "Ian Manchester"
+      ],
+      "url": "https://proceedings.mlr.press/v202/wang23v.html",
+      "code_url": "https://github.com/acfr/LBDN/blob/main/layer.py",
+      "card_file": "osram_next40_geometry.json",
+      "screening_lane": "geometry",
+      "source_decision": "candidate_source_verified",
+      "review_status": "design_review",
+      "accepted_for_training": false,
+      "evidence_level": "paper_method_and_author_code_verified; no local implementation",
+      "closest_prior_ids": "收缩型DEQ、SPDNet",
+      "substantive_difference": "DEQ以收缩约束保证固定点并隐式反传，本项无固定点或内循环；SPDNet正交BiMap用于SPD几何，本项Cayley与Psi共同实现前馈函数类的敏感性约束。不是给原MLP换一个激活函数。"
+    },
+    {
+      "number": 17,
+      "id": "screen_grassmann_subspace_readout",
+      "title": "Building Deep Networks on Grassmann Manifolds",
+      "authors": [
+        "Zhiwu Huang",
+        "Jiqing Wu",
+        "Luc Van Gool"
+      ],
+      "url": "https://doi.org/10.1609/aaai.v32i1.11725",
+      "code_url": "https://github.com/zhiwu-huang/GrNet",
+      "card_file": "osram_next40_geometry.json",
+      "screening_lane": "geometry",
+      "source_decision": "screen_only",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "paper_and_author_code_verified; applicability_failed",
+      "closest_prior_ids": "SPDNet",
+      "substantive_difference": "Grassmann点是子空间而非带特征值的SPD协方差；数学机制不同，但当前接口下basis不变性的适配理由不足。"
+    },
+    {
+      "number": 18,
+      "id": "screen_neural_kernel_cme",
+      "title": "Neural-Kernel Conditional Mean Embeddings",
+      "authors": [
+        "Eiki Shimizu",
+        "Kenji Fukumizu",
+        "Dino Sejdinovic"
+      ],
+      "url": "https://proceedings.mlr.press/v235/shimizu24a.html",
+      "code_url": "https://github.com/tokorotenten/Neural-Kernel",
+      "card_file": "osram_next40_geometry.json",
+      "screening_lane": "geometry",
+      "source_decision": "screen_only",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "paper_metadata_method_and_author_model_code_verified; applicability_failed",
+      "closest_prior_ids": "OTKE、普通Flat MLP",
+      "substantive_difference": "原方法是条件分布embedding学习而非OT transport，但主创新依赖核目标；一个普通隐层不是保留该创新的适配。"
+    },
+    {
+      "number": 19,
+      "id": "repr_kan_function_composition",
+      "title": "KAN: Kolmogorov-Arnold Networks",
+      "authors": [
+        "Ziming Liu",
+        "Yixuan Wang",
+        "Sachin Vaidya",
+        "Fabian Ruehle",
+        "James Halverson",
+        "Marin Soljačić",
+        "Thomas Y. Hou",
+        "Max Tegmark"
+      ],
+      "url": "https://arxiv.org/abs/2404.19756",
+      "code_url": "https://github.com/KindXiaoming/pykan/blob/master/kan/KANLayer.py",
+      "card_file": "osram_next40_representation.json",
+      "screening_lane": "representation",
+      "source_decision": "research_candidate",
+      "review_status": "design_review",
+      "accepted_for_training": false,
+      "evidence_level": "primary_method_and_author_forward_verified; transfer_unimplemented",
+      "closest_prior_ids": "conditional_rational_quadratic_spline_coupling; tabnet",
+      "substantive_difference": "Old spline module is an alternating invertible coordinate coupling conditioned on the untouched half. KAN is a noninvertible multivariate function decomposition by edge-specific functions and nested sums, without coupling masks, density Jacobians, or adaptive feature selection."
+    },
+    {
+      "number": 20,
+      "id": "repr_deep_lattice_composition",
+      "title": "Deep Lattice Networks and Partial Monotonic Functions",
+      "authors": [
+        "Seungil You",
+        "David Ding",
+        "Kevin Canini",
+        "Jan Pfeifer",
+        "Maya R. Gupta"
+      ],
+      "url": "https://arxiv.org/abs/1709.06680",
+      "code_url": "https://github.com/tensorflow/lattice/blob/master/tensorflow_lattice/python/lattice_layer.py",
+      "card_file": "osram_next40_representation.json",
+      "screening_lane": "representation",
+      "source_decision": "research_candidate",
+      "review_status": "design_review",
+      "accepted_for_training": false,
+      "evidence_level": "primary_method_and_author_forward_verified; transfer_unimplemented",
+      "closest_prior_ids": "node; conditional_rational_quadratic_spline_coupling",
+      "substantive_difference": "NODE enumerates products of learned threshold decisions along oblivious-tree paths; DLN evaluates local multidimensional interpolation cells with vertex parameters and composes calibrated lookup tables. It is not a tree-depth change or invertible univariate spline coupling."
+    },
+    {
+      "number": 21,
+      "id": "repr_differentiable_logic_circuit",
+      "title": "Deep Differentiable Logic Gate Networks",
+      "authors": [
+        "Felix Petersen",
+        "Christian Borgelt",
+        "Hilde Kuehne",
+        "Oliver Deussen"
+      ],
+      "url": "https://arxiv.org/abs/2210.08277",
+      "code_url": "https://github.com/Felix-Petersen/difflogic/blob/main/difflogic/difflogic.py",
+      "card_file": "osram_next40_representation.json",
+      "screening_lane": "representation",
+      "source_decision": "research_candidate",
+      "review_status": "design_review",
+      "accepted_for_training": false,
+      "evidence_level": "primary_method_and_author_forward_verified; transfer_unimplemented",
+      "closest_prior_ids": "neural_logic_machine_evidence; node; rat_spn_evidence_circuit",
+      "substantive_difference": "NLM propagates predicates across arities using variable permutations and exists/forall reductions; this circuit instead learns truth-table operators in fixed sparse wiring with no quantifiers or object tuples. NODE selects tree tests; RAT-SPN has constrained sums/products for densities. None learns the full Boolean operator library at each circuit node."
+    },
+    {
+      "number": 22,
+      "id": "repr_dempster_shafer_prototypes",
+      "title": "An evidential classifier based on Dempster-Shafer theory and deep learning",
+      "authors": [
+        "Zheng Tong",
+        "Philippe Xu",
+        "Thierry Denœux"
+      ],
+      "url": "https://arxiv.org/abs/2103.13549",
+      "code_url": "https://github.com/tongzheng1992/E-CNN-classifier/blob/master/libs/ds_layer.py",
+      "card_file": "osram_next40_representation.json",
+      "screening_lane": "representation",
+      "source_decision": "pending",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "primary_paper_and_author_code_inspected_but_disagree",
+      "closest_prior_ids": "capsule_variational_bayes; rat_spn_evidence_circuit; netvlad_residual_encoding",
+      "substantive_difference": "Unlike Gaussian-Wishart routing, SPN marginal likelihoods, or prototype residual sums, the core explicitly represents set-valued ignorance and combines compatible evidence while tracking conflict. Prototype distances alone would not establish novelty."
+    },
+    {
+      "number": 23,
+      "id": "repr_hofm_screened_out",
+      "title": "Higher-Order Factorization Machines",
+      "authors": [
+        "Mathieu Blondel",
+        "Akinori Fujino",
+        "Naonori Ueda",
+        "Masakazu Ishihata"
+      ],
+      "url": "https://arxiv.org/abs/1607.07195",
+      "code_url": "https://github.com/scikit-learn-contrib/polylearn/blob/master/polylearn/kernels.py",
+      "card_file": "osram_next40_representation.json",
+      "screening_lane": "representation",
+      "source_decision": "reject",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "primary_paper_verified; exact_author_code_not_verified",
+      "closest_prior_ids": "withdrawn cin/dcnv2/mlb/mfb in experiments/osram_readout20_20261003/CANDIDATES.zh.md; ppgn_pair_composition",
+      "substantive_difference": "ANOVA excludes repeated feature indices and operates on feature coordinates rather than relation-path tensor multiplication, but this algebraic distinction is insufficient to justify another accepted method under the user's stricter meaningful-mechanism criterion."
+    },
+    {
+      "number": 24,
+      "id": "repr_tensor_train_screened_out",
+      "title": "Tensorizing Neural Networks",
+      "authors": [
+        "Alexander Novikov",
+        "Dmitry Podoprikhin",
+        "Anton Osokin",
+        "Dmitry Vetrov"
+      ],
+      "url": "https://arxiv.org/abs/1509.06569",
+      "code_url": "https://github.com/Bihaqo/TensorNet/blob/master/src/python/ttlayer.py",
+      "card_file": "osram_next40_representation.json",
+      "screening_lane": "representation",
+      "source_decision": "reject",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "primary_paper_and_author_core_verified; task_fit_failed",
+      "closest_prior_ids": "withdrawn mutan/block low-rank factorization family; hamburger_nmf_full; ordinary Flat MLP",
+      "substantive_difference": "TT factorizes weights, whereas Hamburger/RPCA decompose sample evidence. That distinction is real but does not make a compressed ordinary affine layer a substantive new readout method."
+    },
+    {
+      "number": 25,
+      "id": "repr_gdn_screened_out",
+      "title": "Density Modeling of Images using a Generalized Normalization Transformation",
+      "authors": [
+        "Johannes Ballé",
+        "Valero Laparra",
+        "Eero P. Simoncelli"
+      ],
+      "url": "https://arxiv.org/abs/1511.06281",
+      "code_url": "https://github.com/tensorflow/compression/blob/master/tensorflow_compression/python/layers/gdn.py",
+      "card_file": "osram_next40_representation.json",
+      "screening_lane": "representation",
+      "source_decision": "reject",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "primary_method_and_author_project_layer_verified; task_fit_failed",
+      "closest_prior_ids": "post-GRN; withdrawn gct/se/eca/aff; conditional_rational_quadratic_spline_coupling",
+      "substantive_difference": "Full positive cross-channel denominator differs algebraically from GRN, but that is not enough under the user's rejection of lightweight normalization/gating variants when no density-learning mechanism is retained."
+    },
+    {
+      "number": 26,
+      "id": "repr_iternorm_screened_out",
+      "title": "Iterative Normalization: Beyond Standardization towards Efficient Whitening",
+      "authors": [
+        "Lei Huang",
+        "Yi Zhou",
+        "Fan Zhu",
+        "Li Liu",
+        "Ling Shao"
+      ],
+      "url": "https://arxiv.org/abs/1904.03441",
+      "code_url": "https://github.com/huangleiBuaa/IterNorm-pytorch/blob/master/extension/normailzation/iterative_normalization.py",
+      "card_file": "osram_next40_representation.json",
+      "screening_lane": "representation",
+      "source_decision": "reject",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "primary_paper_and_author_core_verified; task_fit_failed",
+      "closest_prior_ids": "spdnet_bimap_reeig_logeig; post-GRN",
+      "substantive_difference": "Whitening remaps features via inverse square root while SPDNet encodes covariance through BiMap/ReEig/LogEig. Nonetheless this candidate would principally change normalization and repeats the covariance rationale; excluded from accepted count."
+    },
+    {
+      "number": 27,
+      "id": "repr_fsq_screened_out",
+      "title": "Finite Scalar Quantization: VQ-VAE Made Simple",
+      "authors": [
+        "Fabian Mentzer",
+        "David Minnen",
+        "Eirikur Agustsson",
+        "Michael Tschannen"
+      ],
+      "url": "https://arxiv.org/abs/2309.15505",
+      "code_url": "https://github.com/google-research/google-research/blob/master/fsq/fsq.ipynb",
+      "card_file": "osram_next40_representation.json",
+      "screening_lane": "representation",
+      "source_decision": "reject",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "primary_paper_and_author_notebook_verified; task_fit_failed",
+      "closest_prior_ids": "netvlad_residual_encoding; tokenlearner_fuser_v11",
+      "substantive_difference": "Hard product-code discretization differs from continuous prototype residual aggregation and learned-token compression, but the transferable core is too small under this task's explicit anti-padding criterion."
+    },
+    {
+      "number": 28,
+      "id": "repr_vector_neurons_screened_out",
+      "title": "Vector Neurons: A General Framework for SO(3)-Equivariant Networks",
+      "authors": [
+        "Congyue Deng",
+        "Or Litany",
+        "Yueqi Duan",
+        "Adrien Poulenard",
+        "Andrea Tagliasacchi",
+        "Leonidas Guibas"
+      ],
+      "url": "https://arxiv.org/abs/2104.12229",
+      "code_url": "https://github.com/FlyingGiraffe/vnn/blob/master/models/vn_layers.py",
+      "card_file": "osram_next40_representation.json",
+      "screening_lane": "representation",
+      "source_decision": "reject",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "primary_paper_and_author_core_verified; task_fit_failed",
+      "closest_prior_ids": "dgcnn_dynamic_edgeconv; spdnet_bimap_reeig_logeig",
+      "substantive_difference": "Rotation-equivariant vector algebra is distinct from dynamic kNN EdgeConv or SPD covariance maps, but distinct algebra is not sufficient when the input symmetry assumption is absent."
+    },
+    {
+      "number": 29,
+      "id": "conditional_01_hypernetwork_full_operator",
+      "title": "HyperNetworks",
+      "authors": [
+        "David Ha",
+        "Andrew Dai",
+        "Quoc V. Le"
+      ],
+      "url": "https://arxiv.org/abs/1609.09106",
+      "code_url": "https://github.com/hardmaru/supercell",
+      "card_file": "osram_next40_conditional.json",
+      "screening_lane": "conditional",
+      "source_decision": "pending_mechanism_review",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "pending: 论文方法及作者代码已读；完整动态矩阵版本与作者高效实现不一致，尚无可直接采用的完整迁移代码证据",
+      "closest_prior_ids": "dcformer_dynamic_head_composition；conditional_rational_quadratic_spline_coupling",
+      "substantive_difference": "改变主网络的完整通道算子，而非生成attention head组合系数或样条标量参数。与本lane DFN同属参数生成，若DFN最终也变成全连接条件矩阵，只能算一个方向。"
+    },
+    {
+      "number": 30,
+      "id": "conditional_02_dynamic_filter_network",
+      "title": "Dynamic Filter Networks",
+      "authors": [
+        "Bert De Brabandere",
+        "Xu Jia",
+        "Tinne Tuytelaars",
+        "Luc Van Gool"
+      ],
+      "url": "https://arxiv.org/abs/1605.09673",
+      "code_url": "https://github.com/dbbert/dfn/blob/master/layers/dynamic_filter_layer.py",
+      "card_file": "osram_next40_conditional.json",
+      "screening_lane": "conditional",
+      "source_decision": "reject_scope_or_merge_with_hypernetwork",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "full: 主论文§3与作者DynamicFilterLayer方法已核对；未实现或实验",
+      "closest_prior_ids": "dcformer_dynamic_head_composition；residual_gated_graph_evidence",
+      "substantive_difference": "原方法生成滤波核并应用局部支撑，不是attention或通道门；但本任务无该空间支撑，移植后独立性无法保留。"
+    },
+    {
+      "number": 31,
+      "id": "conditional_03_neural_ode_finite_flow",
+      "title": "Neural Ordinary Differential Equations",
+      "authors": [
+        "Ricky T. Q. Chen",
+        "Yulia Rubanova",
+        "Jesse Bettencourt",
+        "David Duvenaud"
+      ],
+      "url": "https://arxiv.org/abs/1806.07366",
+      "code_url": "https://github.com/rtqichen/torchdiffeq/blob/master/examples/odenet_mnist.py",
+      "card_file": "osram_next40_conditional.json",
+      "screening_lane": "conditional",
+      "source_decision": "candidate_for_design_review_not_training",
+      "review_status": "design_review",
+      "accepted_for_training": false,
+      "evidence_level": "full: 主论文§2-3及作者ODEfunc/ODEBlock与odeint_adjoint接口已核对；迁移尚未实现",
+      "closest_prior_ids": "contractive_deep_equilibrium_evidence；equilibrium_aggregation",
+      "substantive_difference": "DEQ求z=f(z)并解固定点伴随；EA最小化聚合势能；这里求指定初值的有限时间非平衡轨迹，允许旋转等非梯度场。必须保留数值误差控制或明确solver，否则可能只是更多层。"
+    },
+    {
+      "number": 32,
+      "id": "conditional_04_liquid_time_constants",
+      "title": "Liquid Time-constant Networks",
+      "authors": [
+        "Ramin Hasani",
+        "Mathias Lechner",
+        "Alexander Amini",
+        "Daniela Rus",
+        "Radu Grosu"
+      ],
+      "url": "https://arxiv.org/abs/2006.04439",
+      "code_url": "https://github.com/raminmh/liquid_time_constant_networks/blob/master/experiments_with_ltcs/ltc_model.py",
+      "card_file": "osram_next40_conditional.json",
+      "screening_lane": "conditional",
+      "source_decision": "pending_gate_boundary_and_ode_family_dedup",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "full: 主论文§1-3/Algorithm 1及作者LTCCell._ode_step已核对；适用性pending",
+      "closest_prior_ids": "contractive_deep_equilibrium_evidence；rrn_evidence",
+      "substantive_difference": "不是DEQ固定点或RRN离散LSTM消息；核心是输入耦合时间常数、反转电位及电导分母的完整动态系统。但与本lane Neural ODE属于相关动力学家族，应由主清单继续核查是否有足够独立假设。"
+    },
+    {
+      "number": 33,
+      "id": "conditional_05_nbeats_double_residual",
+      "title": "N-BEATS: Neural basis expansion analysis for interpretable time series forecasting",
+      "authors": [
+        "Boris N. Oreshkin",
+        "Dmitri Carpov",
+        "Nicolas Chapados",
+        "Yoshua Bengio"
+      ],
+      "url": "https://arxiv.org/abs/1905.10437",
+      "code_url": "https://github.com/ServiceNow/N-BEATS/blob/master/models/nbeats.py",
+      "card_file": "osram_next40_conditional.json",
+      "screening_lane": "conditional",
+      "source_decision": "pending_not_just_deeper_mlp_review",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "full: 主论文§3及作者NBeatsBlock/NBeats/GenericBasis已核对；迁移是否超出更多层仍pending",
+      "closest_prior_ids": "tabnet；learned_robust_pca_evidence_decomposition",
+      "substantive_difference": "TabNet以稀疏特征mask/prior调节后续选择，N-BEATS显式减去全向量解释项；LRPCA求低秩+稀疏分解，N-BEATS不要求低秩或阈值。只有保留双输出依赖链才可讨论为新机制，单路残差MLP不得接纳。"
+    },
+    {
+      "number": 34,
+      "id": "conditional_06_test_time_training",
+      "title": "Test-Time Training with Self-Supervision for Generalization under Distribution Shifts",
+      "authors": [
+        "Yu Sun",
+        "Xiaolong Wang",
+        "Zhuang Liu",
+        "John Miller",
+        "Alexei A. Efros",
+        "Moritz Hardt"
+      ],
+      "url": "https://proceedings.mlr.press/v119/sun20b.html",
+      "code_url": "https://github.com/yueatsprograms/ttt_cifar_release/blob/master/test_calls/test_adapt.py",
+      "card_file": "osram_next40_conditional.json",
+      "screening_lane": "conditional",
+      "source_decision": "reject_extra_objective_and_head",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "full: 原文§2、作者项目method说明及adapt_single已核对",
+      "closest_prior_ids": "equilibrium_aggregation",
+      "substantive_difference": "EA优化临时聚合状态；TTT优化模型参数且依赖新增自监督任务。确是不同机制，但不在授权范围。"
+    },
+    {
+      "number": 35,
+      "id": "conditional_07_differentiable_plasticity",
+      "title": "Differentiable plasticity: training plastic neural networks with backpropagation",
+      "authors": [
+        "Thomas Miconi",
+        "Jeff Clune",
+        "Kenneth O. Stanley"
+      ],
+      "url": "https://proceedings.mlr.press/v80/miconi18a.html",
+      "code_url": "https://github.com/uber-research/differentiable-plasticity/blob/master/simple/simplest.py",
+      "card_file": "osram_next40_conditional.json",
+      "screening_lane": "conditional",
+      "source_decision": "reject_second_memory_or_forbidden_small_block",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "full: 主论文§2、supplement代码及作者simplest.py已核对",
+      "closest_prior_ids": "mac_control_read_write；capsule_dynamic_routing",
+      "substantive_difference": "MAC更新临时向量、capsule更新路由agreement；可塑性更新突触矩阵。该区别真实，但其典型价值来自新增可写关联存储，不符当前边界。"
+    },
+    {
+      "number": 36,
+      "id": "conditional_08_predictive_coding_local_hebbian",
+      "title": "An Approximation of the Error Backpropagation Algorithm in a Predictive Coding Network with Local Hebbian Synaptic Plasticity",
+      "authors": [
+        "James C. R. Whittington",
+        "Rafal Bogacz"
+      ],
+      "url": "https://doi.org/10.1162/NECO_a_00949",
+      "code_url": "https://github.com/ModelDBRepository/218084",
+      "card_file": "osram_next40_conditional.json",
+      "screening_lane": "conditional",
+      "source_decision": "reject_training_algorithm_scope",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "full: 主论文§2模型及其指定ModelDB 218084作者Matlab源码已核对",
+      "closest_prior_ids": "equilibrium_aggregation；contractive_deep_equilibrium_evidence",
+      "substantive_difference": "EA的状态优化由task loss穿过、DEQ隐式反传；PC通过层间预测误差和局部Hebbian规则承担信用分配。若保留普通BP并仅优化临时能量，则与旧EA接近。"
+    },
+    {
+      "number": 37,
+      "id": "conditional_09_deep_feedback_control",
+      "title": "Credit Assignment in Neural Networks through Deep Feedback Control",
+      "authors": [
+        "Alexander Meulemans",
+        "Matilde Tristany Farinha",
+        "Javier García Ordóñez",
+        "Pau Vilimelis Aceituno",
+        "João Sacramento",
+        "Benjamin F. Grewe"
+      ],
+      "url": "https://arxiv.org/abs/2106.07887",
+      "code_url": "https://github.com/meulemansalex/deep_feedback_control/blob/main/networks/tpdi_networks.py",
+      "card_file": "osram_next40_conditional.json",
+      "screening_lane": "conditional",
+      "source_decision": "reject_training_algorithm_scope",
+      "review_status": "rejected",
+      "accepted_for_training": false,
+      "evidence_level": "full: 主论文§2.1-2.3与官方DFCNetwork代码符号已核对",
+      "closest_prior_ids": "contractive_deep_equilibrium_evidence；equilibrium_aggregation",
+      "substantive_difference": "DEQ的固定点是前向表示，DFC的受控动态用于训练期计算参数更新；不是把迭代次数换名。无需错误地声称DFC必然新增task loss：排除原因是改训练算法。"
+    },
+    {
+      "number": 38,
+      "id": "conditional_10_bcos_composed_operator",
+      "title": "B-cos Networks: Alignment is All We Need for Interpretability",
+      "authors": [
+        "Moritz Böhle",
+        "Mario Fritz",
+        "Bernt Schiele"
+      ],
+      "url": "https://arxiv.org/abs/2205.10268",
+      "code_url": "https://github.com/moboehle/B-cos/blob/main/modules/bcosconv2d.py",
+      "card_file": "osram_next40_conditional.json",
+      "screening_lane": "conditional",
+      "source_decision": "pending_primary_method_and_small_block_boundary",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "pending: 作者实现已完整读取，CVF摘要已核验；主论文方法全文获取失败（CVF403/arXiv PDF超工具尺寸/html404），不可标full",
+      "closest_prior_ids": "已撤回gct/simam/film；dcformer_dynamic_head_composition",
+      "substantive_difference": "B-cos将映射自身参数化为输入条件线性组成，并产生alignment压力；GCT等只调已算出的通道。但单层实现仍可视为缩放，因此独立机制门槛尚须复核，不借多层数量证明独立。"
+    },
+    {
+      "number": 39,
+      "id": "screen_janossy_exact_role_symmetrization",
+      "title": "Janossy Pooling: Learning Deep Permutation-Invariant Functions for Variable-Size Inputs",
+      "authors": [
+        "Ryan L. Murphy",
+        "Balasubramaniam Srinivasan",
+        "Vinayak Rao",
+        "Bruno Ribeiro"
+      ],
+      "url": "https://arxiv.org/abs/1811.01900",
+      "code_url": "https://github.com/PurdueMINDS/JanossyPooling/blob/master/arithmetic_tasks/models.py",
+      "card_file": "osram_next40_supplement.json",
+      "screening_lane": "supplement",
+      "source_decision": "screen_only",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "primary_method_and_code_read; independent_transfer_pending",
+      "closest_prior_ids": [
+        "rrn_evidence",
+        "fspool_fsunpool_evidence",
+        "graph_multiset_transformer"
+      ],
+      "substantive_difference": "RRN在图上迭代消息，FSPool逐坐标软排序，Janossy是对不交换组合函数作排列群平均。不过若只是把旧RNN池化增加排列平均，可能仍达不到用户对完整新方向的要求，因此不计已选。"
+    },
+    {
+      "number": 40,
+      "id": "screen_nonprojective_tree_marginal_readout",
+      "title": "Learning Structured Text Representations",
+      "authors": [
+        "Yang Liu",
+        "Mirella Lapata"
+      ],
+      "url": "https://aclanthology.org/Q18-1005/",
+      "code_url": "https://github.com/nlpyang/structured/blob/master/neural.py",
+      "card_file": "osram_next40_supplement.json",
+      "screening_lane": "supplement",
+      "source_decision": "screen_only",
+      "review_status": "held",
+      "accepted_for_training": false,
+      "evidence_level": "primary_method_and_author_code_read; structural_fit_pending",
+      "closest_prior_ids": [
+        "egt_evidence",
+        "graph_multiset_transformer",
+        "dual_attention_symbolic_relations"
+      ],
+      "substantive_difference": "全局树分布的归一化不同于独立softmax边或普通图消息；然而仍是结构化注意力大方向，且单父先验未建立，不算一个通过去重的新增方向。"
+    }
+  ]
+}

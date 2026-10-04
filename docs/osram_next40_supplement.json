@@ -1,0 +1,52 @@
+[
+  {
+    "id": "screen_janossy_exact_role_symmetrization",
+    "title": "Janossy Pooling: Learning Deep Permutation-Invariant Functions for Variable-Size Inputs",
+    "authors": [
+      "Ryan L. Murphy",
+      "Balasubramaniam Srinivasan",
+      "Vinayak Rao",
+      "Bruno Ribeiro"
+    ],
+    "url": "https://arxiv.org/abs/1811.01900",
+    "code_url": "https://github.com/PurdueMINDS/JanossyPooling/blob/master/arithmetic_tasks/models.py",
+    "mechanism": "对排列敏感编码器的所有输入排列求平均，形成置换不变集合表示；原文同时讨论k阶近似、规范排序与pi-SGD。",
+    "transfer": "当前有效角色最多4个（Local加Base及最多两个Gap）；保留role identity，最多24种排列中分别执行同一小RNN，再在进入原Flat前平均表示。不是把排列索引解释成真实时间；逐排列只重复读出，不重复OSRAM。",
+    "nearest_old": [
+      "rrn_evidence",
+      "fspool_fsunpool_evidence",
+      "graph_multiset_transformer"
+    ],
+    "novelty_difference": "RRN在图上迭代消息，FSPool逐坐标软排序，Janossy是对不交换组合函数作排列群平均。不过若只是把旧RNN池化增加排列平均，可能仍达不到用户对完整新方向的要求，因此不计已选。",
+    "evidence_level": "primary_method_and_code_read; independent_transfer_pending",
+    "decision": "screen_only",
+    "benefit_hypothesis": "尝试保留高阶角色组合而消除人为列表顺序偏置；原Flat本来有固定语义槽，未证明需要此不变性。",
+    "risk": "带角色embedding只是消除枚举顺序而非角色身份；额外24次读出成本，不能对25个head做全排列。当前没有证据说明人为顺序偏置是瓶颈。",
+    "code_evidence": "读取arithmetic_tasks/models.py的TextModels.forward和train.py的permute、train中的pi-SGD、推理重复排列；原代码是采样/排序组合近似，不是当前提议的完整24排列。未运行。",
+    "paper_evidence": "读取https://arxiv.org/pdf/1811.01900，Definition2.1及Figure1为全部排列平均，方法节明确近似与训练目标差别。"
+  },
+  {
+    "id": "screen_nonprojective_tree_marginal_readout",
+    "title": "Learning Structured Text Representations",
+    "authors": [
+      "Yang Liu",
+      "Mirella Lapata"
+    ],
+    "url": "https://aclanthology.org/Q18-1005/",
+    "code_url": "https://github.com/nlpyang/structured/blob/master/neural.py",
+    "mechanism": "结构/内容表示分离；成对与root分数构造修正Laplacian；Matrix-Tree Theorem求所有非投影有根树上的边缘概率，再以全局一致边缘聚合内容。",
+    "transfer": "可把当前已有role/head视为带身份的节点，仅在读出内部求树边缘再聚合，不需人为时间顺序；但没有证据支持这些节点应有单父、无环树结构。",
+    "nearest_old": [
+      "egt_evidence",
+      "graph_multiset_transformer",
+      "dual_attention_symbolic_relations"
+    ],
+    "novelty_difference": "全局树分布的归一化不同于独立softmax边或普通图消息；然而仍是结构化注意力大方向，且单父先验未建立，不算一个通过去重的新增方向。",
+    "evidence_level": "primary_method_and_author_code_read; structural_fit_pending",
+    "decision": "screen_only",
+    "benefit_hypothesis": "若角色关系确实适合树约束，可减少互相矛盾的局部连边；这里只是条件性假设。",
+    "risk": "原任务含文本情感/文档分类，虽不是MERC/MSA，也不满足最保守的完全远离情感领域偏好。树结构可能排除正确的多方交互；旧TensorFlow逆矩阵实现有稳定性风险。",
+    "code_evidence": "实际读取neural.py的get_structure、_getDep、_getMatrixTree：parent/child双线性分数，root替换Laplacian首行，matrix_inverse及edge marginals。未运行。",
+    "paper_evidence": "读取https://aclanthology.org/Q18-1005.pdf，§3.2、Eq.(8)-(17)说明非投影树边缘计算与内容更新；不是Kim17的有序projective inside-outside方法。"
+  }
+]
