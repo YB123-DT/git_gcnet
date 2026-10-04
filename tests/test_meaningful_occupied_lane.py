@@ -39,6 +39,10 @@ class OccupiedLaneTests(unittest.TestCase):
                         allocations, max_per_gpu=12, disk_free_gib=200, global_reserve_mib=1792)[0])
         self.assertFalse(lane.group_admission(gpu, profile, [], {}, max_per_gpu=4,
                          disk_free_gib=200, global_reserve_mib=1792)[0])
+        self.assertTrue(lane.group_admission(gpu, profile, jobs[:10], allocations,
+                        max_per_gpu=11, disk_free_gib=200)[0])
+        self.assertFalse(lane.group_admission(gpu, profile, jobs, allocations,
+                         max_per_gpu=11, disk_free_gib=200)[0])
 
     def test_two_per_gpu_admits_second_but_rejects_third(self):
         from experiments.osram_meaningful20_round2_20261004 import occupied_lane as lane
