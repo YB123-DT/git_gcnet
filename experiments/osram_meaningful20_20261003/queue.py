@@ -68,6 +68,18 @@ def _epoch_count(job):
     except (OSError, ValueError): return 0
 
 
+def resource_rejected_before_start(job):
+    """Only retry admission races that created no training output/state."""
+    if not job or job.get('status') != 'failed' or Path(job['output']).exists():
+        return False
+    marker = Path(job['output']).with_name(Path(job['output']).name + '.launch-failure.json')
+    if not marker.is_file():
+        return False
+    failure = read(marker)
+    return (failure.get('run_id') == job.get('run_id')
+            and 'Admission changed before child start:' in failure.get('error', ''))
+
+
 def reserved_disk_gib(active):
     reserved = 0.
     for job in active:
@@ -167,7 +179,7 @@ def coordinate(args):
                 key = f'{candidate}:{seed}'
                 previous = state['jobs'].get(key)
                 resumable = previous and previous['status'] == 'interrupted' and (Path(previous['output']) / 'last_training.pt').is_file()
-                if previous and not resumable: continue
+                if previous and not (resumable or resource_rejected_before_start(previous)): continue
                 if len(active) >= args.max_concurrent:
                     state['waiting_reason'] = 'concurrency cap'; break
                 if any(_epoch_count(job) < 1 for job in active):
