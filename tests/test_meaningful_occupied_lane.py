@@ -1,8 +1,28 @@
 import importlib.util
 import unittest
+import hashlib
+from pathlib import Path
+import tempfile
 
 
 class OccupiedLaneTests(unittest.TestCase):
+    def test_deferred_smoke_is_not_reported_as_passed(self):
+        from experiments.osram_meaningful20_round2_20261004 import occupied_lane as lane
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / 'cpu.log'
+            log.write_text('tests\nOK\n')
+            record = dict(status='cuda_smoke_deferred_by_user', candidate='candidate',
+                design_sha256='design', source_sha256={'file': 'hash'},
+                cpu=dict(log=str(log), returncode=0, sha256=hashlib.sha256(log.read_bytes()).hexdigest()),
+                profile=dict(peak_mib=1700., measurement_status='estimated_not_measured'))
+            args = dict(candidate='candidate', design_sha256='design', source_sha256={'file': 'hash'})
+            self.assertEqual(lane.validate_deferred(record, **args)['peak_mib'], 1700.)
+            with self.assertRaises(ValueError):
+                lane.validate_deferred(dict(record, status='ready'), **args)
+            log.write_text('failed')
+            with self.assertRaises(ValueError):
+                lane.validate_deferred(record, **args)
+
     def test_explicit_twelve_cap_keeps_memory_and_count_limits(self):
         from experiments.osram_meaningful20_round2_20261004 import occupied_lane as lane
         gpu = dict(uuid='GPU-two', free_mib=12000, utilization=90, temperature=55)
@@ -15,6 +35,10 @@ class OccupiedLaneTests(unittest.TestCase):
                          allocations, max_per_gpu=12, disk_free_gib=200)[0])
         self.assertFalse(lane.group_admission(dict(gpu, free_mib=2000), profile, jobs,
                          allocations, max_per_gpu=12, disk_free_gib=200)[0])
+        self.assertTrue(lane.group_admission(dict(gpu, free_mib=10500), profile, jobs,
+                        allocations, max_per_gpu=12, disk_free_gib=200, global_reserve_mib=1792)[0])
+        self.assertFalse(lane.group_admission(gpu, profile, [], {}, max_per_gpu=4,
+                         disk_free_gib=200, global_reserve_mib=1792)[0])
 
     def test_two_per_gpu_admits_second_but_rejects_third(self):
         from experiments.osram_meaningful20_round2_20261004 import occupied_lane as lane
