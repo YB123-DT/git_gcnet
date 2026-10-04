@@ -40,18 +40,26 @@ def main():
             while True:
                 resources = query_gpus()
                 mapping = {index: row['uuid'] for index, row in resources.items()}
+                measured = [read(path).get('profile', {}).get('peak_mib', 0)
+                            for path in (root / 'checks').glob('*/profile.json')
+                            if read(path).get('status') == 'passed']
+                # Measured comparable cores replace the original blanket 16GiB
+                # estimate. Keep >=12GiB and >=2GiB/20% above the largest peak.
+                peak = max(measured, default=0)
+                required_free = max(12288, peak + max(2048, .2 * peak)) if peak else 16384
                 eligible = []
                 for index, row in resources.items():
                     if index == '4':
                         continue
                     validate_gpu(index, row['uuid'], mapping)
-                    if row['free_mib'] >= 16384 and row['utilization'] < 90 and row['temperature'] < 85:
+                    if row['free_mib'] >= required_free and row['utilization'] < 90 and row['temperature'] < 85:
                         eligible.append((row['utilization'], -row['free_mib'], index))
                 if eligible:
                     index = min(eligible)[-1]
                     break
                 write(root / 'ADVANCE.json', {'status': 'waiting_resources', 'next': name,
-                                             'max_distinct_methods': 60, 'round': 1})
+                                             'max_distinct_methods': 60, 'round': 1,
+                                             'required_free_mib': required_free})
                 time.sleep(30)
             command = [sys.executable, '-u', '-m', 'experiments.osram_meaningful20_20261003.cuda_check',
                        '--candidate', name, '--reference', str(args.reference.resolve()),
