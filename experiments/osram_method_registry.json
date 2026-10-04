@@ -1,0 +1,44 @@
+{
+  "purpose": "Cross-round semantic deduplication ledger; different names do not establish different methods",
+  "max_distinct_trained_methods": 60,
+  "trained_count": 20,
+  "round1_source_manifest": "osram_meaningful20_20261003/ROUND1.json",
+  "round1_results_root": "osram_meaningful20_20261003/results",
+  "required_candidate_audit": ["closest_prior_ids", "substantive_difference", "same_round_overlap", "source_code_evidence"],
+  "rejection_rules": [
+    "Same core algorithm under another paper, method name, implementation language or wrapper",
+    "Only depth, width, heads, rank, dropout, learning rate or number of iterations changed",
+    "Same mechanism moved from residual branch to Flat input; placement alone is not a new method",
+    "Same mechanism duplicated within the proposed round",
+    "Primitive MLP, Hadamard product, scalar/feature gate used to fill the quota",
+    "Unverified novelty: hold as pending, never count as accepted or launch"
+  ],
+  "rounds": {
+    "1": {
+      "status": "20_trained_seed66_100epochs_no_positive_mean8_delta",
+      "methods": [
+        {"id": "rrn_evidence", "core": "Shared iterative pair-message aggregation and LSTM relational updates"},
+        {"id": "egt_evidence", "core": "Joint node and edge-state transformer updates with edge-conditioned attention"},
+        {"id": "residual_gated_graph_evidence", "core": "Residual edge-gated graph convolution with endpoint-conditioned messages"},
+        {"id": "pna_evidence", "core": "Multi-aggregator statistics times degree scalers in multi-tower graph propagation"},
+        {"id": "allset_transformer", "core": "Learned multiset node-to-hyperedge-to-node attention aggregation"},
+        {"id": "ed_hnn", "core": "Receiver-conditioned equivariant hyperedge diffusion and initial-state restart"},
+        {"id": "hyper_sagnn", "core": "Static versus contextual dynamic representations within each hyperedge"},
+        {"id": "sheaf_hypergnn_diag", "core": "Learned incidence restriction maps and normalized sheaf hypergraph diffusion"},
+        {"id": "capsule_dynamic_routing", "core": "Iterative capsule routing by accumulated vote agreement"},
+        {"id": "slot_attention", "core": "Competitive slot assignment followed by iterative GRU slot refinement"},
+        {"id": "otke", "core": "Learned support-point optimal transport pooling via balanced Sinkhorn"},
+        {"id": "capsule_variational_bayes", "core": "Full-covariance capsule posterior and iterative variational responsibilities"},
+        {"id": "perceiver_io", "core": "Input-to-latent encoding, latent interaction and query-conditioned decoding"},
+        {"id": "dgcnn_dynamic_edgeconv", "core": "Repeated feature-space kNN rebuilding, EdgeConv and multiscale pooling"},
+        {"id": "graph_multiset_transformer", "core": "Graph-generated keys and values, multiset pooling and pooled-set interaction"},
+        {"id": "hamburger_nmf_full", "core": "Projected iterative nonnegative matrix decomposition and reconstruction"},
+        {"id": "crate_mssa_ista_full", "core": "Subspace self-attention compression followed by dictionary ISTA sparsification"},
+        {"id": "equilibrium_aggregation", "core": "Learned set energy aggregation through iterative Nesterov optimization"},
+        {"id": "tabnet", "core": "Sequential sparse feature selection, prior budgets, GLU transforms and decision accumulation"},
+        {"id": "node", "core": "Dense ensembles of differentiable oblivious trees with sparse selectors and leaf-path products"}
+      ]
+    },
+    "2": {"status": "screening_not_accepted", "source_directory": "osram_meaningful20_round2_20261004", "accepted_ids": []}
+  }
+}
