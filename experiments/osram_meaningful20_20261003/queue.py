@@ -48,6 +48,16 @@ def reconcile_job(job):
             failure = candidate
     recoverable = (failure and failure.get('failure_category') == 'interrupted'
                    and (Path(job['output']) / 'last_training.pt').is_file())
+    if failure and 'Admission changed before child start:' in failure.get('error', ''):
+        # A coordinator restart can request a verification-only resume after
+        # the original 100-epoch process already finished. Failed admission
+        # never touched those outputs; retain the failure log, not its status.
+        prior_status, _ = completion_status(job['output'])
+        if prior_status == 'complete':
+            provenance = read(Path(job['output']) / 'PROVENANCE.json')
+            if provenance.get('run_id') == job.get('run_id'):
+                return dict(job, status='complete', detail='Prior complete artifacts verified; later admission-only failure',
+                            completion_basis='prior_verified_run', latest_attempt_exit_code=job.get('process_exit_code'))
     if job.get('process_exit_code') not in (None, 0):
         return dict(job, status='interrupted' if recoverable else 'failed',
                     detail=f'observed process exit {job["process_exit_code"]}',
