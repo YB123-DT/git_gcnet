@@ -1,23 +1,14 @@
 {
-  "purpose": "Cross-round semantic deduplication ledger; different names do not establish different methods",
   "code_catalogs": [
     {
-      "path": "osram_new40_20261004/CATALOG.json",
       "count": 40,
-      "status": "implemented_not_trained",
-      "note": "Not forty additional training slots. Select/reserve at most twenty after the existing forty; same hypotheses allowed, duplicate core algorithms forbidden."
+      "note": "Not forty additional training slots. Select/reserve at most twenty after the existing forty; same hypotheses allowed, duplicate core algorithms forbidden.",
+      "path": "osram_new40_20261004/CATALOG.json",
+      "status": "implemented_not_trained"
     }
   ],
   "max_distinct_trained_methods": 60,
-  "trained_count": 20,
-  "round1_source_manifest": "osram_meaningful20_20261003/ROUND1.json",
-  "round1_results_root": "osram_meaningful20_20261003/results",
-  "required_candidate_audit": [
-    "closest_prior_ids",
-    "substantive_difference",
-    "same_round_overlap",
-    "source_code_evidence"
-  ],
+  "purpose": "Cross-round semantic deduplication ledger; different names do not establish different methods",
   "rejection_rules": [
     "Same core algorithm under another paper, method name, implementation language or wrapper",
     "Only depth, width, heads, rank, dropout, learning rate or number of iterations changed",
@@ -26,95 +17,101 @@
     "Primitive MLP, Hadamard product, scalar/feature gate used to fill the quota",
     "Unverified novelty: hold as pending, never count as accepted or launch"
   ],
+  "required_candidate_audit": [
+    "closest_prior_ids",
+    "substantive_difference",
+    "same_round_overlap",
+    "source_code_evidence"
+  ],
+  "round1_results_root": "osram_meaningful20_20261003/results",
+  "round1_source_manifest": "osram_meaningful20_20261003/ROUND1.json",
   "rounds": {
     "1": {
-      "status": "20_trained_seed66_100epochs_no_positive_mean8_delta",
       "methods": [
         {
-          "id": "rrn_evidence",
-          "core": "Shared iterative pair-message aggregation and LSTM relational updates"
+          "core": "Shared iterative pair-message aggregation and LSTM relational updates",
+          "id": "rrn_evidence"
         },
         {
-          "id": "egt_evidence",
-          "core": "Joint node and edge-state transformer updates with edge-conditioned attention"
+          "core": "Joint node and edge-state transformer updates with edge-conditioned attention",
+          "id": "egt_evidence"
         },
         {
-          "id": "residual_gated_graph_evidence",
-          "core": "Residual edge-gated graph convolution with endpoint-conditioned messages"
+          "core": "Residual edge-gated graph convolution with endpoint-conditioned messages",
+          "id": "residual_gated_graph_evidence"
         },
         {
-          "id": "pna_evidence",
-          "core": "Multi-aggregator statistics times degree scalers in multi-tower graph propagation"
+          "core": "Multi-aggregator statistics times degree scalers in multi-tower graph propagation",
+          "id": "pna_evidence"
         },
         {
-          "id": "allset_transformer",
-          "core": "Learned multiset node-to-hyperedge-to-node attention aggregation"
+          "core": "Learned multiset node-to-hyperedge-to-node attention aggregation",
+          "id": "allset_transformer"
         },
         {
-          "id": "ed_hnn",
-          "core": "Receiver-conditioned equivariant hyperedge diffusion and initial-state restart"
+          "core": "Receiver-conditioned equivariant hyperedge diffusion and initial-state restart",
+          "id": "ed_hnn"
         },
         {
-          "id": "hyper_sagnn",
-          "core": "Static versus contextual dynamic representations within each hyperedge"
+          "core": "Static versus contextual dynamic representations within each hyperedge",
+          "id": "hyper_sagnn"
         },
         {
-          "id": "sheaf_hypergnn_diag",
-          "core": "Learned incidence restriction maps and normalized sheaf hypergraph diffusion"
+          "core": "Learned incidence restriction maps and normalized sheaf hypergraph diffusion",
+          "id": "sheaf_hypergnn_diag"
         },
         {
-          "id": "capsule_dynamic_routing",
-          "core": "Iterative capsule routing by accumulated vote agreement"
+          "core": "Iterative capsule routing by accumulated vote agreement",
+          "id": "capsule_dynamic_routing"
         },
         {
-          "id": "slot_attention",
-          "core": "Competitive slot assignment followed by iterative GRU slot refinement"
+          "core": "Competitive slot assignment followed by iterative GRU slot refinement",
+          "id": "slot_attention"
         },
         {
-          "id": "otke",
-          "core": "Learned support-point optimal transport pooling via balanced Sinkhorn"
+          "core": "Learned support-point optimal transport pooling via balanced Sinkhorn",
+          "id": "otke"
         },
         {
-          "id": "capsule_variational_bayes",
-          "core": "Full-covariance capsule posterior and iterative variational responsibilities"
+          "core": "Full-covariance capsule posterior and iterative variational responsibilities",
+          "id": "capsule_variational_bayes"
         },
         {
-          "id": "perceiver_io",
-          "core": "Input-to-latent encoding, latent interaction and query-conditioned decoding"
+          "core": "Input-to-latent encoding, latent interaction and query-conditioned decoding",
+          "id": "perceiver_io"
         },
         {
-          "id": "dgcnn_dynamic_edgeconv",
-          "core": "Repeated feature-space kNN rebuilding, EdgeConv and multiscale pooling"
+          "core": "Repeated feature-space kNN rebuilding, EdgeConv and multiscale pooling",
+          "id": "dgcnn_dynamic_edgeconv"
         },
         {
-          "id": "graph_multiset_transformer",
-          "core": "Graph-generated keys and values, multiset pooling and pooled-set interaction"
+          "core": "Graph-generated keys and values, multiset pooling and pooled-set interaction",
+          "id": "graph_multiset_transformer"
         },
         {
-          "id": "hamburger_nmf_full",
-          "core": "Projected iterative nonnegative matrix decomposition and reconstruction"
+          "core": "Projected iterative nonnegative matrix decomposition and reconstruction",
+          "id": "hamburger_nmf_full"
         },
         {
-          "id": "crate_mssa_ista_full",
-          "core": "Subspace self-attention compression followed by dictionary ISTA sparsification"
+          "core": "Subspace self-attention compression followed by dictionary ISTA sparsification",
+          "id": "crate_mssa_ista_full"
         },
         {
-          "id": "equilibrium_aggregation",
-          "core": "Learned set energy aggregation through iterative Nesterov optimization"
+          "core": "Learned set energy aggregation through iterative Nesterov optimization",
+          "id": "equilibrium_aggregation"
         },
         {
-          "id": "tabnet",
-          "core": "Sequential sparse feature selection, prior budgets, GLU transforms and decision accumulation"
+          "core": "Sequential sparse feature selection, prior budgets, GLU transforms and decision accumulation",
+          "id": "tabnet"
         },
         {
-          "id": "node",
-          "core": "Dense ensembles of differentiable oblivious trees with sparse selectors and leaf-path products"
+          "core": "Dense ensembles of differentiable oblivious trees with sparse selectors and leaf-path products",
+          "id": "node"
         }
-      ]
+      ],
+      "status": "20_trained_seed66_100epochs_no_positive_mean8_delta"
     },
     "2": {
-      "status": "20_designs_accepted_implemented_pending_combined_verification_and_cuda",
-      "source_directory": "osram_meaningful20_round2_20261004",
       "accepted_ids": [
         "differential_attention_v1",
         "flowformer_conservation",
@@ -139,7 +136,6 @@
       ],
       "methods": [
         {
-          "id": "differential_attention_v1",
           "core": {
             "chain": "Two independent query/key maps -> two separately normalized attention maps -> learned signed subtraction -> shared doubled-width value aggregation -> per-head RMSNorm -> fixed (1-lambda_init) scaling -> output projection.",
             "equation": "For each differential head, A=softmax(Q1 K1^T/sqrt(d))-lambda*softmax(Q2 K2^T/sqrt(d)); Y=(1-lambda_init)*RMSNorm(A V); concatenate Y and apply Wo. lambda=exp(dot(lambda_q1,lambda_k1))-exp(dot(lambda_q2,lambda_k2))+lambda_init.",
@@ -151,7 +147,7 @@
               "Output projection"
             ]
           },
-          "source_card": "attention_candidates.json",
+          "id": "differential_attention_v1",
           "novelty_audit": {
             "closest_prior_ids": [
               "autoint",
@@ -159,30 +155,30 @@
               "crate_mssa_ista_full",
               "egt_evidence"
             ],
-            "substantive_difference": "Those mechanisms never subtract two independent normalized maps using the source lambda parameterization followed by per-head RMS normalization. Neither dictionary shrinkage nor edge-state attention is being reused here.",
             "same_round_overlap": "Distinct from Flowformer resource normalization, Compositional retrieval selection, DAT relation-valued messages, and DCFormer cross-head matrix composition. No V2/alternative lambda setting counts as another candidate.",
             "source_code_evidence": {
-              "repository": "https://github.com/microsoft/unilm",
+              "license": "MIT; root LICENSE inspected at the pin, Microsoft copyright",
+              "license_url": "https://github.com/microsoft/unilm/blob/31c5b904ca1bf2afb4c234a6675c683a4e5fc7cd/LICENSE",
+              "lines": [
+                "multihead_diffattn.py:26-67",
+                "multihead_diffattn.py:78-120",
+                "rms_norm.py:4-22"
+              ],
               "pin": "31c5b904ca1bf2afb4c234a6675c683a4e5fc7cd",
-              "url": "https://github.com/microsoft/unilm/blob/31c5b904ca1bf2afb4c234a6675c683a4e5fc7cd/Diff-Transformer/multihead_diffattn.py",
+              "repository": "https://github.com/microsoft/unilm",
               "symbols": [
                 "MultiheadDiffAttn.__init__",
                 "MultiheadDiffAttn.forward",
                 "lambda_init_fn",
                 "rms_norm.py::RMSNorm"
               ],
-              "lines": [
-                "multihead_diffattn.py:26-67",
-                "multihead_diffattn.py:78-120",
-                "rms_norm.py:4-22"
-              ],
-              "license": "MIT; root LICENSE inspected at the pin, Microsoft copyright",
-              "license_url": "https://github.com/microsoft/unilm/blob/31c5b904ca1bf2afb4c234a6675c683a4e5fc7cd/LICENSE"
-            }
-          }
+              "url": "https://github.com/microsoft/unilm/blob/31c5b904ca1bf2afb4c234a6675c683a4e5fc7cd/Diff-Transformer/multihead_diffattn.py"
+            },
+            "substantive_difference": "Those mechanisms never subtract two independent normalized maps using the source lambda parameterization followed by per-head RMS normalization. Neither dictionary shrinkage nor edge-state attention is being reused here."
+          },
+          "source_card": "attention_candidates.json"
         },
         {
-          "id": "flowformer_conservation",
           "core": {
             "chain": "Positive Q/K features -> reciprocal source/sink capacities -> opposite-side conservation refinement -> competitive source redistribution -> normalized associative KV aggregation -> sink allocation -> output projection.",
             "equation": "q=sigmoid(Wq X),k=sigmoid(Wk X). i=1/dot(q+eps,sum(k)+eps), o=1/dot(k+eps,sum(q)+eps). ci=dot(q+eps,sum(k*o)+eps); co=clip(dot(k+eps,sum(q*i)+eps),-1,1). c=N*softmax(co); a=sigmoid(ci*Nq/Nk); Y=a*(q*i)@(k^T@(V*c)), followed by Wo.",
@@ -194,7 +190,7 @@
               "Actual active cardinality factors"
             ]
           },
-          "source_card": "attention_candidates.json",
+          "id": "flowformer_conservation",
           "novelty_audit": {
             "closest_prior_ids": [
               "otke",
@@ -203,27 +199,27 @@
               "se",
               "nonlocal_dot"
             ],
-            "substantive_difference": "Unlike OTKE, there are no learned target supports, iterative Sinkhorn marginals, or transport pooling. Unlike gates, weighting is constrained by both source and sink capacities and followed by normalized token-to-token aggregation.",
             "same_round_overlap": "Not differential map subtraction, retrieval-bank competition, relation-plus-symbol values, or cross-head composition. Sinkformer was excluded instead of being counted as another normalization candidate.",
             "source_code_evidence": {
-              "repository": "https://github.com/thuml/Flowformer",
+              "license": "MIT; pinned root LICENSE inspected, THUML/Tsinghua copyright",
+              "license_url": "https://github.com/thuml/Flowformer/blob/61f5d8c83907955a8bc226af03b81b59b2724c8f/LICENSE",
+              "lines": [
+                "Flow_Attention.py:7-64"
+              ],
               "pin": "61f5d8c83907955a8bc226af03b81b59b2724c8f",
-              "url": "https://github.com/thuml/Flowformer/blob/61f5d8c83907955a8bc226af03b81b59b2724c8f/Flow_Attention.py",
+              "repository": "https://github.com/thuml/Flowformer",
               "symbols": [
                 "Flow_Attention.kernel_method",
                 "Flow_Attention.dot_product",
                 "Flow_Attention.forward"
               ],
-              "lines": [
-                "Flow_Attention.py:7-64"
-              ],
-              "license": "MIT; pinned root LICENSE inspected, THUML/Tsinghua copyright",
-              "license_url": "https://github.com/thuml/Flowformer/blob/61f5d8c83907955a8bc226af03b81b59b2724c8f/LICENSE"
-            }
-          }
+              "url": "https://github.com/thuml/Flowformer/blob/61f5d8c83907955a8bc226af03b81b59b2724c8f/Flow_Attention.py"
+            },
+            "substantive_difference": "Unlike OTKE, there are no learned target supports, iterative Sinkhorn marginals, or transport pooling. Unlike gates, weighting is constrained by both source and sink capacities and followed by normalized token-to-token aggregation."
+          },
+          "source_card": "attention_candidates.json"
         },
         {
-          "id": "compositional_search_retrieval",
           "core": {
             "chain": "Independent search softmax maps -> independent value projections -> all search-by-retrieval candidate outputs -> content-conditioned attention over retrieval choices -> per-search mixture -> concatenate/project.",
             "equation": "For s in1..S,r in1..R: As=softmax(Qs Ks^T/sqrt(d)); Zsr=As Vr. bs,r=softmax_r(dot(Qvalue_s(X),Kvalue(Zsr))/sqrt(d)); Ys=sum_r bs,r*Zsr; Y=concat_s(Ys)Wo.",
@@ -234,7 +230,7 @@
               "Output mixture depends on actual candidate retrieval content"
             ]
           },
-          "source_card": "attention_candidates.json",
+          "id": "compositional_search_retrieval",
           "novelty_audit": {
             "closest_prior_ids": [
               "autoint",
@@ -242,27 +238,27 @@
               "perceiver_io",
               "crate_mssa_ista_full"
             ],
-            "substantive_difference": "None computes all S*R search/value pairings and then chooses among their content-dependent retrieval outputs. BAN's bilinear glimpses and CRATE's tied projection/ISTA do not implement that chain.",
             "same_round_overlap": "DCFormer composes the head axis of pairwise score/weight tensors before aggregation; this method leaves search maps intact and composes value-retrieval results afterward. These are different intervening tensors and conditional operations, not renamed width variants.",
             "source_code_evidence": {
-              "repository": "https://github.com/sarthmit/Compositional-Attention",
+              "implementation_policy": "Source-reference-only; independent mathematical implementation with attribution, no copying/direct translation of unlicensed code.",
+              "license": "No root/source-file license verified. Tree contains fairseq/LICENSE for a vendored subproject, which must not be assumed to license this separate contextual-retrieval file.",
+              "license_url": null,
+              "lines": [
+                "Contextual_Retrieval_Task/model.py:32-120"
+              ],
               "pin": "c2c9d8391144db4155922bb859183e844eefb568",
-              "url": "https://github.com/sarthmit/Compositional-Attention/blob/c2c9d8391144db4155922bb859183e844eefb568/Contextual_Retrieval_Task/model.py",
+              "repository": "https://github.com/sarthmit/Compositional-Attention",
               "symbols": [
                 "Compositional_dot_Transformer.__init__",
                 "Compositional_dot_Transformer.forward"
               ],
-              "lines": [
-                "Contextual_Retrieval_Task/model.py:32-120"
-              ],
-              "license": "No root/source-file license verified. Tree contains fairseq/LICENSE for a vendored subproject, which must not be assumed to license this separate contextual-retrieval file.",
-              "license_url": null,
-              "implementation_policy": "Source-reference-only; independent mathematical implementation with attribution, no copying/direct translation of unlicensed code."
-            }
-          }
+              "url": "https://github.com/sarthmit/Compositional-Attention/blob/c2c9d8391144db4155922bb859183e844eefb568/Contextual_Retrieval_Task/model.py"
+            },
+            "substantive_difference": "None computes all S*R search/value pairings and then chooses among their content-dependent retrieval outputs. BAN's bilinear glimpses and CRATE's tied projection/ISTA do not implement that chain."
+          },
+          "source_card": "attention_candidates.json"
         },
         {
-          "id": "dual_attention_symbolic_relations",
           "core": {
             "chain": "Content-based symbolic identifier assignment -> sensory attention in parallel with relation-valued attention -> separate relation selection and pair comparison -> symbol-tagged relation aggregation -> concatenate the two paths.",
             "equation": "sj=softmax((xj Wsymbol) Ftemplates^T/sqrt(ds)) Slibrary. r_ij,l=dot(xi Wq_rel,l,xj Wk_rel,l)/sqrt(dr). a_i,h=sum_j alpha_ij,h*(r_ij Wr,h+sj Ws,h), where alpha has separate attention Q/K. Concatenate sensory heads sum_j beta_ij,h*Vj with the relational heads after each branch's output projection.",
@@ -274,7 +270,7 @@
               "No persistent edge state or learned spatial labels"
             ]
           },
-          "source_card": "attention_candidates.json",
+          "id": "dual_attention_symbolic_relations",
           "novelty_audit": {
             "closest_prior_ids": [
               "osram_relation_block",
@@ -284,33 +280,33 @@
               "slot_attention",
               "perceiver_io"
             ],
-            "substantive_difference": "Historical relation code averages Local/history MLP descriptors [q,k,q*k,abs(q-k),type], with no attention selector or symbols. RRN iterates recurrent messages; EGT carries evolving edge states. This method instead routes independently computed relation vectors plus learned sender symbols in parallel with sensory messages. Symbol retrieval does not compress the token set into slots or induce a persistent latent state.",
             "same_round_overlap": "Unlike Compositional Attention, there is no search-by-value-bank selection; unlike DCFormer there is no attention-head mixing matrix. Representation lane was told not to duplicate this symbolic relational family.",
             "source_code_evidence": {
-              "repository": "https://github.com/Awni00/dual-attention",
-              "pin": "dce218cbf5ec9aa7f90687c1323050a1fba17966",
-              "url": "https://github.com/Awni00/dual-attention/blob/dce218cbf5ec9aa7f90687c1323050a1fba17966/dual_attention/dual_attention.py",
               "additional_urls": [
                 "https://github.com/Awni00/dual-attention/blob/dce218cbf5ec9aa7f90687c1323050a1fba17966/dual_attention/relational_attention.py",
                 "https://github.com/Awni00/dual-attention/blob/dce218cbf5ec9aa7f90687c1323050a1fba17966/dual_attention/symbol_retrieval.py"
               ],
-              "symbols": [
-                "DualAttention.forward",
-                "RelationalAttention.forward",
-                "SymbolicAttention.forward"
-              ],
+              "license": "MIT; pinned root LICENSE inspected, Awni copyright",
+              "license_url": "https://github.com/Awni00/dual-attention/blob/dce218cbf5ec9aa7f90687c1323050a1fba17966/LICENSE",
               "lines": [
                 "dual_attention.py:80-151",
                 "relational_attention.py:90-139,184-282",
                 "symbol_retrieval.py:9-86"
               ],
-              "license": "MIT; pinned root LICENSE inspected, Awni copyright",
-              "license_url": "https://github.com/Awni00/dual-attention/blob/dce218cbf5ec9aa7f90687c1323050a1fba17966/LICENSE"
-            }
-          }
+              "pin": "dce218cbf5ec9aa7f90687c1323050a1fba17966",
+              "repository": "https://github.com/Awni00/dual-attention",
+              "symbols": [
+                "DualAttention.forward",
+                "RelationalAttention.forward",
+                "SymbolicAttention.forward"
+              ],
+              "url": "https://github.com/Awni00/dual-attention/blob/dce218cbf5ec9aa7f90687c1323050a1fba17966/dual_attention/dual_attention.py"
+            },
+            "substantive_difference": "Historical relation code averages Local/history MLP descriptors [q,k,q*k,abs(q-k),type], with no attention selector or symbols. RRN iterates recurrent messages; EGT carries evolving edge states. This method instead routes independently computed relation vectors plus learned sender symbols in parallel with sensory messages. Symbol retrieval does not compress the token set into slots or induce a persistent latent state."
+          },
+          "source_card": "attention_candidates.json"
         },
         {
-          "id": "dcformer_dynamic_head_composition",
           "core": {
             "chain": "Q/K/V -> pairwise head-score vector -> input-conditioned five-branch Compose -> token softmax -> independently parameterized five-branch Compose -> value aggregation -> output projection.",
             "equation": "For a pair's H-vector a, Compose(a,xi,xj)=a Wb+(a Uq(xi))Vq(xi)+a* gq(xi)+(a Uk(xj))Vk(xj)+a*gk(xj). U/V are generated by a GELU MLP, U is RMS-normalized across heads, g=tanh(linear(x)); use independent pre/post sets. A=softmax_keys(Compose_pre(QK^T/sqrt(d))); O=Compose_post(A) V Wo.",
@@ -322,7 +318,7 @@
               "Separate dynamic generators for pre/post stages"
             ]
           },
-          "source_card": "attention_candidates.json",
+          "id": "dcformer_dynamic_head_composition",
           "novelty_audit": {
             "closest_prior_ids": [
               "autoint",
@@ -332,12 +328,18 @@
               "crate_mssa_ista_full",
               "egt_evidence"
             ],
-            "substantive_difference": "Prior bilinear blocks factor a feature interaction; these generated matrices transform the head axis of every pairwise score/weight tensor at two distinct stages. CRATE binds Q/K/V and sparsifies a dictionary; EGT updates edge states. Neither supplies the complete query/key-conditioned Compose chain.",
             "same_round_overlap": "Compositional Attention chooses among search-by-retrieval VALUE outputs after aggregation; DCFormer composes ATTENTION SCORE/WEIGHT heads before aggregation. Differential attention's scalar subtraction is also not a full query/key-conditioned head transform. Do not add static Talking-Heads or query-only/key-only ablations as extra quota entries.",
             "source_code_evidence": {
-              "repository": "https://github.com/Caiyun-AI/DCFormer",
+              "license": "MIT; pinned root LICENSE inspected, Caiyun-AI copyright",
+              "license_url": "https://github.com/Caiyun-AI/DCFormer/blob/df8671f23b4830cb3a254c23e5576d45141cfbd6/LICENSE",
+              "lines": [
+                "modeling_dcformer.py:291-350",
+                "modeling_dcformer.py:382-442",
+                "modeling_dcformer.py:445-486",
+                "modeling_dcformer.py:728-754"
+              ],
               "pin": "df8671f23b4830cb3a254c23e5576d45141cfbd6",
-              "url": "https://github.com/Caiyun-AI/DCFormer/blob/df8671f23b4830cb3a254c23e5576d45141cfbd6/pytorch/dcformer/modeling_dcformer.py",
+              "repository": "https://github.com/Caiyun-AI/DCFormer",
               "symbols": [
                 "DynamicWeightProjection",
                 "CrossHeadProjection",
@@ -345,62 +347,56 @@
                 "_atten_context",
                 "_cross_head_proj"
               ],
-              "lines": [
-                "modeling_dcformer.py:291-350",
-                "modeling_dcformer.py:382-442",
-                "modeling_dcformer.py:445-486",
-                "modeling_dcformer.py:728-754"
-              ],
-              "license": "MIT; pinned root LICENSE inspected, Caiyun-AI copyright",
-              "license_url": "https://github.com/Caiyun-AI/DCFormer/blob/df8671f23b4830cb3a254c23e5576d45141cfbd6/LICENSE"
-            }
-          }
+              "url": "https://github.com/Caiyun-AI/DCFormer/blob/df8671f23b4830cb3a254c23e5576d45141cfbd6/pytorch/dcformer/modeling_dcformer.py"
+            },
+            "substantive_difference": "Prior bilinear blocks factor a feature interaction; these generated matrices transform the head axis of every pairwise score/weight tensor at two distinct stages. CRATE binds Q/K/V and sparsifies a dictionary; EGT updates edge states. Neither supplies the complete query/key-conditioned Compose chain."
+          },
+          "source_card": "attention_candidates.json"
         },
         {
-          "id": "conditional_rational_quadratic_spline_coupling",
           "core": "Alternating coupling splits condition positive bin widths/heights and positive knot derivatives on unchanged coordinates. Each transformed coordinate uses a monotone rational-quadratic interpolant, with analytic inverse and identity tails. Stacking alternating splits gives an invertible nonlinear multivariate transformation, not a scalar evidence gate.",
-          "source_card": "structured_candidates.json",
+          "id": "conditional_rational_quadratic_spline_coupling",
           "novelty_audit": {
             "closest_prior_ids": [
               "tabnet",
               "node",
               "crate_mssa_ista_full"
             ],
-            "substantive_difference": "None performs an analytically invertible monotone spline coupling stack. TabNet selects coordinates, NODE routes to leaves, and CRATE compresses/sparsifies. The distinction is the constrained bijective coupling algorithm, not the insertion position or conditioner MLP.",
             "same_round_overlap": "Do not separately count RealNVP, NICE, affine coupling, Glow or other spline-flow variants in this round. DEQ uses an implicit non-bijective state solve; LRPCA decomposes low-rank plus sparse components. Other lanes require coordinator reconciliation.",
-            "source_code_evidence": "Pinned CouplingTransform splits identity/transformed features; PiecewiseRationalQuadraticCouplingTransform calls the positive-knot rational-quadratic operator and its analytic inverse."
-          }
+            "source_code_evidence": "Pinned CouplingTransform splits identity/transformed features; PiecewiseRationalQuadraticCouplingTransform calls the positive-knot rational-quadratic operator and its analytic inverse.",
+            "substantive_difference": "None performs an analytically invertible monotone spline coupling stack. TabNet selects coordinates, NODE routes to leaves, and CRATE compresses/sparsifies. The distinction is the constrained bijective coupling algorithm, not the insertion position or conditioner MLP."
+          },
+          "source_card": "structured_candidates.json"
         },
         {
-          "id": "learned_robust_pca_evidence_decomposition",
           "core": "Threshold the matrix residual to estimate signed sparse corruption, then update two low-rank factors using their inverse Gram matrices as preconditioners. Both factors use the old factor pair for a simultaneous step. A spectral initializer precedes the finite learned iteration chain. The source also offers recurrent continuation, which is not selected here.",
-          "source_card": "structured_candidates.json",
+          "id": "learned_robust_pca_evidence_decomposition",
           "novelty_audit": {
             "closest_prior_ids": [
               "hamburger_nmf_full",
               "crate_mssa_ista_full"
             ],
-            "substantive_difference": "NMF models a nonnegative product and has no separate signed sparse residual or inverse-Gram factor scaling. CRATE applies sparse coding/ISTA after subspace attention and does not jointly solve low-rank-plus-sparse evidence decomposition. LRPCA retains coupled sparse classification and preconditioned low-rank factor updates, not merely another matrix-factorization rank or iteration count.",
             "same_round_overlap": "Do not also count PCP/ADMM-RPCA, AltProj or another unrolled robust-PCA solver without proving a different substantive core. NSF is invertible coordinate transport; DEQ solves a general contractive state rather than low-rank/sparse factors. Other lanes require reconciliation.",
-            "source_code_evidence": "Pinned MatNet.forward computes thresholded residuals, V(V^T V)^-1 and U(U^T U)^-1 scaling, and simultaneous old-factor updates."
-          }
+            "source_code_evidence": "Pinned MatNet.forward computes thresholded residuals, V(V^T V)^-1 and U(U^T U)^-1 scaling, and simultaneous old-factor updates.",
+            "substantive_difference": "NMF models a nonnegative product and has no separate signed sparse residual or inverse-Gram factor scaling. CRATE applies sparse coding/ISTA after subspace attention and does not jointly solve low-rank-plus-sparse evidence decomposition. LRPCA retains coupled sparse classification and preconditioned low-rank factor updates, not merely another matrix-factorization rank or iteration count."
+          },
+          "source_card": "structured_candidates.json"
         },
         {
-          "id": "contractive_deep_equilibrium_evidence",
           "core": "A weight-tied nonlinear map is evaluated at its fixed point using a root solver without recording all forward iterations. Training solves a transpose-Jacobian linear fixed-point system for the implicit adjoint. The root-and-adjoint pair, rather than the choice of sequence backbone, is the transferred mechanism.",
-          "source_card": "structured_candidates.json",
+          "id": "contractive_deep_equilibrium_evidence",
           "novelty_audit": {
             "closest_prior_ids": [
               "equilibrium_aggregation",
               "rrn_evidence"
             ],
-            "substantive_difference": "First-round equilibrium_aggregation optimizes a learned scalar potential with ten explicitly differentiated Nesterov steps. This candidate permits a nonconservative nonlinear map, solves f(z)-z=0 to tolerance and differentiates the equilibrium through an implicit adjoint. It is not the same energy optimizer moved to Flat input. RRN uses a prescribed finite LSTM message-update trajectory, without root solving or an implicit adjoint. If implementation falls back to a fixed unrolled map or recycles the EA energy, reject it as failing this distinction.",
             "same_round_overlap": "Treat generic implicit-layer / DEQ variants as one candidate. A convex optimization layer differentiated by KKT may overlap strongly and needs a substantive program-level distinction before separate counting. LRPCA is finite explicit low-rank/sparse decomposition; NSF is analytic invertible coupling. Other lanes require coordinator reconciliation.",
-            "source_code_evidence": "Pinned _forward lines 320-322 solve under no_grad; lines 335-343 solve the transpose-Jacobian adjoint. This paired mechanism is absent from the first-round EA description."
-          }
+            "source_code_evidence": "Pinned _forward lines 320-322 solve under no_grad; lines 335-343 solve the transpose-Jacobian adjoint. This paired mechanism is absent from the first-round EA description.",
+            "substantive_difference": "First-round equilibrium_aggregation optimizes a learned scalar potential with ten explicitly differentiated Nesterov steps. This candidate permits a nonconservative nonlinear map, solves f(z)-z=0 to tolerance and differentiates the equilibrium through an implicit adjoint. It is not the same energy optimizer moved to Flat input. RRN uses a prescribed finite LSTM message-update trajectory, without root solving or an implicit adjoint. If implementation falls back to a fixed unrolled map or recycles the EA energy, reject it as failing this distinction."
+          },
+          "source_card": "structured_candidates.json"
         },
         {
-          "id": "tokenlearner_fuser_v11",
           "core": {
             "chain": "Input-dependent analysis weights -> compressed tokens -> latent Transformer -> learned cross-token mixing -> independent input-conditioned synthesis weights -> per-original-token residual reconstruction.",
             "formula": "A=softmax_over_inputs(MLP(LN(X))^T); Z=A X; Z'=Transformer(Z); U=LN(W_token LN(Z')); B=sigmoid(MLP(LN(X))); DeltaX=B U; X'=X+DeltaX. W_token acts on the compressed-token axis, not channels; A and B are not tied/transposes.",
@@ -412,7 +408,7 @@
               "The original-token residual path"
             ]
           },
-          "source_card": "representation_candidates.json",
+          "id": "tokenlearner_fuser_v11",
           "novelty_audit": {
             "closest_prior_ids": [
               "perceiver_io",
@@ -421,13 +417,13 @@
               "se",
               "cbam"
             ],
-            "substantive_difference": "The source has input-conditioned analysis masks and an independently learned sigmoid synthesis map with token-axis mixing. Perceiver's learned-latent cross-attention encoder/query decoder, Slot's competitive GRU refinement and OTKE's balanced transport solver are not reused. Accept only this entire chain: TokenLearner scoring alone would overlap simple attention/gating and is rejected.",
             "same_round_overlap": "MBT maintains separate full-resolution role streams and averages bottleneck proposals; GroupViT makes hard hierarchical assignments; ToMe uses nonparametric matching and size tracking; NetVLAD encodes residual statistics. No equivalent VQA or attention-lane chain was claimed.",
-            "source_code_evidence": "TokenLearnerModuleV11 -> Encoder1DBlock -> TokenFuser -> explicit residual in EncoderModFuser at the pinned Scenic file."
-          }
+            "source_code_evidence": "TokenLearnerModuleV11 -> Encoder1DBlock -> TokenFuser -> explicit residual in EncoderModFuser at the pinned Scenic file.",
+            "substantive_difference": "The source has input-conditioned analysis masks and an independently learned sigmoid synthesis map with token-axis mixing. Perceiver's learned-latent cross-attention encoder/query decoder, Slot's competitive GRU refinement and OTKE's balanced transport solver are not reused. Accept only this entire chain: TokenLearner scoring alone would overlap simple attention/gating and is rejected."
+          },
+          "source_card": "representation_candidates.json"
         },
         {
-          "id": "mbt_role_bottleneck",
           "core": {
             "chain": "Independent stream processing -> append shared bottleneck to each stream -> full role-specific Transformer updates -> split stream/bottleneck outputs -> mean bottleneck proposals -> repeat exchange -> return updated streams.",
             "formula": "[X_r^(l+1),Zhat_r^(l+1)]=T_r^l([X_r^l,Z^l]); Z^(l+1)=mean_{r active} Zhat_r^(l+1). All r use the same snapshot Z^l. Later rounds make the aggregate affect the original stream tokens.",
@@ -439,20 +435,20 @@
               "Updated stream outputs rather than only a pooled bottleneck"
             ]
           },
-          "source_card": "representation_candidates.json",
+          "id": "mbt_role_bottleneck",
           "novelty_audit": {
             "closest_prior_ids": [
               "perceiver_io",
               "allset_transformer",
               "graph_multiset_transformer"
             ],
-            "substantive_difference": "Perceiver and multiset pooling map one input set into latent summaries and decode/pool them. This core retains all role streams, jointly updates each stream with shared tokens using its own full Transformer, averages simultaneous proposals, and repeats before reading the streams. Merely replacing Perceiver's latent count or adding one cross-attention round would not qualify.",
             "same_round_overlap": "No VQA lane dense pairwise co-attention is used: direct cross-stream edges are forbidden and proposals are averaged. TokenLearner/Fuser compresses a single joint set and synthesizes it back; MBT never replaces each stream by the shared bottleneck.",
-            "source_code_evidence": "Pinned Scenic Encoder uses bottle.append(out_mod[:,t_mod:]) followed outside the modality loop by jnp.mean(jnp.stack(bottle),axis=-1)."
-          }
+            "source_code_evidence": "Pinned Scenic Encoder uses bottle.append(out_mod[:,t_mod:]) followed outside the modality loop by jnp.mean(jnp.stack(bottle),axis=-1).",
+            "substantive_difference": "Perceiver and multiset pooling map one input set into latent summaries and decode/pool them. This core retains all role streams, jointly updates each stream with shared tokens using its own full Transformer, averages simultaneous proposals, and repeats before reading the streams. Merely replacing Perceiver's latent count or adding one cross-attention round would not qualify."
+          },
+          "source_card": "representation_candidates.json"
         },
         {
-          "id": "netvlad_residual_encoding",
           "core": {
             "chain": "Per-descriptor L2 normalization -> learned soft code assignment -> independent code-center subtraction -> assigned first-order residual accumulation -> per-code L2 normalization -> flattened global L2 normalization.",
             "formula": "a_ik=softmax_k(w_k^T x_i+b_k); V_k=sum_{i active} a_ik(x_i-c_k); Vhat_k=V_k/max(norm(V_k),eps); Vbar=Vhat/max(norm(vec(Vhat)),eps). Assignment parameters (w,b) and residual centers c remain independently trainable.",
@@ -464,7 +460,7 @@
               "Gradient paths through both assignment and residual values"
             ]
           },
-          "source_card": "representation_candidates.json",
+          "id": "netvlad_residual_encoding",
           "novelty_audit": {
             "closest_prior_ids": [
               "otke",
@@ -472,13 +468,13 @@
               "capsule_variational_bayes",
               "graph_multiset_transformer"
             ],
-            "substantive_difference": "OTKE solves a balanced two-marginal transport problem and pools values; capsules update agreement or posterior responsibilities. NetVLAD has no such iterative solver: it encodes center-relative first moments in K independently normalized coordinate systems with separate assignment/center parameters. A plain codeword attention sum would not qualify.",
             "same_round_overlap": "Distinct from GroupViT hard hierarchy, TokenLearner synthesis, ToMe token matching, and VQA BAN/MFH bilinear joint-feature pooling. The new redistribution wrapper alone is not counted as novelty.",
-            "source_code_evidence": "layerVLADv2.forward_ computes softmax(conv(x,w,b)) and sums assignment times (x-center); addLayers separately adds vlad:intranorm and postL2."
-          }
+            "source_code_evidence": "layerVLADv2.forward_ computes softmax(conv(x,w,b)) and sums assignment times (x-center); addLayers separately adds vlad:intranorm and postL2.",
+            "substantive_difference": "OTKE solves a balanced two-marginal transport problem and pools values; capsules update agreement or posterior responsibilities. NetVLAD has no such iterative solver: it encodes center-relative first moments in K independently normalized coordinate systems with separate assignment/center parameters. A plain codeword attention sum would not qualify."
+          },
+          "source_card": "representation_candidates.json"
         },
         {
-          "id": "tome_merge_reconstruct",
           "core": {
             "chain": "Self-attention -> normalized mean-key similarity -> balanced bipartite best-destination matching -> retain top-r edges -> size-weighted merging -> FFN -> next size-corrected attention/merge stage -> reverse saved unmerge maps.",
             "formula": "For each source i in A choose j(i)=argmax_{j in B} cos(mean_heads K_i,mean_heads K_j); keep top-r source edges. Merge z_C=sum_{i in C}s_i x_i/sum_{i in C}s_i with s_C=sum_i s_i. Later attention is softmax(QK^T/sqrt(d)+log(s)^T)V. Unmerge copies each merged output to its tracked original members.",
@@ -491,7 +487,7 @@
               "Source-membership tracking and restoration to original slots"
             ]
           },
-          "source_card": "representation_candidates.json",
+          "id": "tome_merge_reconstruct",
           "novelty_audit": {
             "closest_prior_ids": [
               "dgcnn_dynamic_edgeconv",
@@ -499,15 +495,15 @@
               "otke",
               "perceiver_io"
             ],
-            "substantive_difference": "DGCNN rebuilds kNN neighborhoods and propagates edge messages without coarsening or mass tracking. Slot/Perceiver/OTKE aggregate to learned latent supports. ToMe merges actual observed tokens selected by key-space bipartite top-edge matching, retains cumulative sizes, and changes later attention with log sizes. A one-off average of similar tokens would be insufficient.",
             "same_round_overlap": "GroupViT uses learned group tokens, hard ST assignments and hierarchical group residuals; ToMe has no learned group queries or Gumbel. TokenLearner has independent learned synthesis; ToMe restoration is deterministic membership broadcasting. None of the attention-lane operators performs token coarsening/mass correction.",
-            "source_code_evidence": "merge.py lines18-97 supplies balanced matching and returned unmerge; merge_wavg propagates sizes; timm.py ToMeBlock and ToMeAttention preserve the attention/merge/FFN order and log-size correction."
-          }
+            "source_code_evidence": "merge.py lines18-97 supplies balanced matching and returned unmerge; merge_wavg propagates sizes; timm.py ToMeBlock and ToMeAttention preserve the attention/merge/FFN order and log-size correction.",
+            "substantive_difference": "DGCNN rebuilds kNN neighborhoods and propagates edge messages without coarsening or mass tracking. Slot/Perceiver/OTKE aggregate to learned latent supports. ToMe merges actual observed tokens selected by key-space bipartite top-edge matching, retains cumulative sizes, and changes later attention with log sizes. A one-off average of similar tokens would be insufficient."
+          },
+          "source_card": "representation_candidates.json"
         },
         {
-          "id": "mcan_encoder_decoder",
           "core": "Complete MCA encoder-decoder: six question-bank SA blocks encode Q; six evidence-bank SGA blocks each self-attend V, cross-attend with Q_final as keys/values, then apply a4d ReLU FFN. Each sublayer has residual/post-LayerNorm. Scaled multihead attention uses sqrt(head_width). Both banks retain their token cardinalities; there is no learned latent bottleneck. The separate VQA AttFlat/answer pipeline is outside the claimed transferred core.",
-          "source_card": "vqa_candidates.json",
+          "id": "mcan_encoder_decoder",
           "novelty_audit": {
             "closest_prior_ids": [
               "perceiver_io",
@@ -515,15 +511,15 @@
               "allset_transformer",
               "withdrawn_readout20:nonlocal"
             ],
-            "substantive_difference": "The transferred computation operates on both real input banks with cardinality-preserving encoder/decoder state; no bottleneck, graph pooling or one-pass nonlocal summary. Risk of grouping all attention methods as one family is acknowledged; acceptance rests on complete bank-state computation, not paper name.",
             "same_round_overlap": "DCN has no self-attention/FFN encoder-decoder: it synchronously updates two banks from shared affinities with two normalization axes, null slots and averaged full-value heads. MBT instead forces interaction through bottleneck tokens; coordinated with representation lane. BAN/MFH use bilinear contractions rather than this chain.",
-            "source_code_evidence": "MCA_ED.forward runs all enc_list layers before dec_list; SGA.forward performs MHAtt(x,x,x), MHAtt(y,y,x), FFN(x)."
-          }
+            "source_code_evidence": "MCA_ED.forward runs all enc_list layers before dec_list; SGA.forward performs MHAtt(x,x,x), MHAtt(y,y,x), FFN(x).",
+            "substantive_difference": "The transferred computation operates on both real input banks with cardinality-preserving encoder/decoder state; no bottleneck, graph pooling or one-pass nonlocal summary. Risk of grouping all attention methods as one family is acknowledged; acceptance rests on complete bank-state computation, not paper name."
+          },
+          "source_card": "vqa_candidates.json"
         },
         {
-          "id": "dense_coattention",
           "core": "Each dense symmetric layer appends learned nowhere-to-attend vectors to both banks, forms projected head affinities, and obtains the two directions by row/column normalization of the same affinity. Attend original full-width values and average across parallel attention maps, not concatenate projected values. Remove sentinel query rows, then update both original banks simultaneously by x+ReLU(W[x,attended_other]+b). Repeat the full layer with independent parameters. Dense refers to all-pair interactions, not DenseNet concatenation of all earlier layers.",
-          "source_card": "vqa_candidates.json",
+          "id": "dense_coattention",
           "novelty_audit": {
             "closest_prior_ids": [
               "perceiver_io",
@@ -531,43 +527,43 @@
               "allset_transformer",
               "withdrawn_readout20:nonlocal"
             ],
-            "substantive_difference": "Null-augmented bidirectional shared affinities, different softmax axes, head-averaged full-value reads, and synchronous concatenative residual fusion together define the new core. A pair of ordinary cross-attention blocks would not qualify.",
             "same_round_overlap": "MCAN preserves SA/FFN encoder then guided decoder, absent here. DCN preserves simultaneous bidirectional updates and source null/parallel-average mechanism, absent there. BAN uses globally normalized joint pair maps for bilinear reduction rather than separate conditional distributions.",
-            "source_code_evidence": "DenseCoAttn.forward returns two original-value weighted sums; NormalSubLayer consumes both before mutating either input; DCNLayer owns sequential distinct sublayers."
-          }
+            "source_code_evidence": "DenseCoAttn.forward returns two original-value weighted sums; NormalSubLayer consumes both before mutating either input; DCNLayer owns sequential distinct sublayers.",
+            "substantive_difference": "Null-augmented bidirectional shared affinities, different softmax axes, head-averaged full-value reads, and synchronous concatenative residual fusion together define the new core. A pair of ordinary cross-attention blocks would not qualify."
+          },
+          "source_card": "vqa_candidates.json"
         },
         {
-          "id": "mac_control_read_write",
           "core": "Four-step MAC with separate control and temporary reasoning-memory states. Each control is an attention mixture over conditioning tokens, using step-specific global-query projection plus prior control. The read first combines prior memory with knowledge elements, then scores those interactions using control, and averages knowledge values. The write linearly integrates retrieved information and prior memory. Preserve the mandatory control/read/write chain; optional write self-attention and gate are disabled, as explicitly allowed by the paper.",
-          "source_card": "vqa_candidates.json",
+          "id": "mac_control_read_write",
           "novelty_audit": {
             "closest_prior_ids": [
               "rrn_evidence",
               "perceiver_io",
               "slot_attention"
             ],
-            "substantive_difference": "The two-state control/data separation and two-stage memory-then-control retrieval are compulsory. Replacing them with a GRU/LSTM or a generic repeated attention pool would be an impermissible alias.",
             "same_round_overlap": "Ownership explicitly coordinated with root and representation lane. No overlap with MBT, TokenLearner/Fuser, GroupViT, NetVLAD or ToMe. Unlike BAN, attention maps change with temporary memory/control at every reasoning step.",
-            "source_code_evidence": "MACCell.control projects into inWords attention; read handles memory interactions then control interactions; write uses BOTH prior memory/info; zero_state resets the temporary computation."
-          }
+            "source_code_evidence": "MACCell.control projects into inWords attention; read handles memory interactions then control interactions; write uses BOTH prior memory/info; zero_state resets the temporary computation.",
+            "substantive_difference": "The two-state control/data separation and two-stage memory-then-control retrieval are compulsory. Replacing them with a GRU/LSTM or a generic repeated attention pool would be an impermissible alias."
+          },
+          "source_card": "vqa_candidates.json"
         },
         {
-          "id": "spdnet_bimap_reeig_logeig",
           "core": "Three learned SPD-preserving dimensional reductions with two intermediate spectral rectifications, followed by LogEig Euclidean charting. The learned congruence hierarchy plus nonlinear eigenvalue floor is indispensable; isolated log-covariance is not SPDNet.",
-          "source_card": "spectral_candidates.json",
+          "id": "spdnet_bimap_reeig_logeig",
           "novelty_audit": {
             "closest_prior_ids": [
               "sheaf_hypergnn_diag",
               "capsule_variational_bayes",
               "learned_robust_pca_evidence_decomposition"
             ],
-            "substantive_difference": "Learns a hierarchy of constrained channel-congruence SPD maps and eigenvalue nonlinearities. Sheaf transports node fibers through incidence maps, VB iterates probabilistic assignments, and LRPCA estimates low-rank plus sparse components of the data matrix. No shared core computation with those methods.",
             "same_round_overlap": "Shares covariance input with isqrt_cov_full but not its fixed matrix-power pooling mechanism. Distinctness depends on retaining all three learned BiMaps and both ReEig stages; replacing the hierarchy by LogEig alone would be rejected as another normalization variant. No duplicate among attention/VQA/representation cards.",
-            "source_code_evidence": "spdnet_init_afew.m and vl_mybfc/vl_myrec/vl_mylog implement the complete six-stage SPD hierarchy."
-          }
+            "source_code_evidence": "spdnet_init_afew.m and vl_mybfc/vl_myrec/vl_mylog implement the complete six-stage SPD hierarchy.",
+            "substantive_difference": "Learns a hierarchy of constrained channel-congruence SPD maps and eigenvalue nonlinearities. Sheaf transports node fibers through incidence maps, VB iterates probabilistic assignments, and LRPCA estimates low-rank plus sparse components of the data matrix. No shared core computation with those methods."
+          },
+          "source_card": "spectral_candidates.json"
         },
         {
-          "id": "neural_logic_machine_evidence",
           "core": [
             "Represent predicates at arities 0,1,2,3",
             "Expand lower-arity predicates by adding a variable; reduce higher-arity predicates by existential max and universal min",
@@ -575,24 +571,24 @@
             "Shared per-grounding MLP and sigmoid infer new soft predicates",
             "Repeat four full logic layers so ternary information can return to unary outputs"
           ],
-          "source_card": "replacement_candidates.json",
+          "id": "neural_logic_machine_evidence",
           "novelty_audit": {
             "closest_prior_ids": [
               "rrn_evidence",
               "ed_hnn",
               "pna_evidence"
             ],
-            "substantive_difference": "Explicit multi-arity predicate lattice, quantified reduction and variable permutation are absent from ordinary node/edge message passing or hyperedge averaging.",
             "same_round_overlap": "PPGN uses second-order matrix multiplication, not an arity lattice with existential/universal quantification; neither should be described merely as a graph MLP.",
             "source_code_evidence": [
               "difflogic/nn/neural_logic/layer.py::LogicLayer,LogicMachine",
               "difflogic/nn/neural_logic/modules/dimension.py::Expander,Reducer,Permutation",
               "difflogic/nn/neural_logic/modules/neural_logic.py::LogicInference"
-            ]
-          }
+            ],
+            "substantive_difference": "Explicit multi-arity predicate lattice, quantified reduction and variable permutation are absent from ordinary node/edge message passing or hyperedge averaging."
+          },
+          "source_card": "replacement_candidates.json"
         },
         {
-          "id": "fspool_fsunpool_evidence",
           "core": [
             "Shared two-layer pointwise feature encoder",
             "Featurewise deterministic NeuralSort descending rank maps",
@@ -602,22 +598,22 @@
             "Saved encoder sorting-map transpose maps positions back to original elements",
             "Shared pointwise decoder"
           ],
-          "source_card": "replacement_candidates.json",
+          "id": "fspool_fsunpool_evidence",
           "novelty_audit": {
             "closest_prior_ids": [
               "slot_attention",
               "graph_multiset_transformer"
             ],
-            "substantive_difference": "Featurewise learned rank functionals with retained soft sorting maps and transpose unpooling, not iterative slot assignment or attention pooling.",
             "same_round_overlap": "TokenLearner/Fuser uses learned spatial assignment; ToMe merges token pairs. Neither uses per-feature rank interpolation and its retained sorting map for synthesis.",
             "source_code_evidence": [
               "fspool.py::FSPool.forward,forward_transpose,determine_weight,deterministic_sort,cont_sort",
               "autoencoder/model.py::FSEncoder,FSDecoder,SAE"
-            ]
-          }
+            ],
+            "substantive_difference": "Featurewise learned rank functionals with retained soft sorting maps and transpose unpooling, not iterative slot assignment or attention pooling."
+          },
+          "source_card": "replacement_candidates.json"
         },
         {
-          "id": "rat_spn_evidence_circuit",
           "core": [
             "Create repeated random binary partitions of the complete scalar-variable scope; each split is disjoint and covers its parent",
             "Factorized normalized Gaussian components over leaf scopes",
@@ -626,24 +622,24 @@
             "Learn normalized mixture weights by log_softmax over child products; perform logsumexp",
             "Repeat through region hierarchy to multiple normalized root distributions"
           ],
-          "source_card": "replacement_candidates.json",
+          "id": "rat_spn_evidence_circuit",
           "novelty_audit": {
             "closest_prior_ids": [
               "capsule_variational_bayes",
               "hamburger_nmf_full",
               "equilibrium_aggregation"
             ],
-            "substantive_difference": "A multilevel normalized probability circuit with disjoint scopes and exact marginalization. There is no posterior-responsibility iteration, capsule vote/covariance fitting, dictionary factorization, or energy optimizer.",
             "same_round_overlap": "NetVLAD aggregates cluster residuals; rational-quadratic coupling transforms coordinates with an invertible flow. Neither constructs a decomposable hierarchy of all child products and normalized sums with exact variable elimination.",
             "source_code_evidence": [
               "README.md: explicit UAI19 author code, discriminative Adam and generative EM paths",
               "models/RegionGraph.py::RegionGraph.random_split,make_layers",
               "models/RatSpn.py::RatSpn,_make_gauss_layer,_make_prod_layer,_make_sum_layer"
-            ]
-          }
+            ],
+            "substantive_difference": "A multilevel normalized probability circuit with disjoint scopes and exact marginalization. There is no posterior-responsibility iteration, capsule vote/covariance fitting, dictionary factorization, or energy optimizer."
+          },
+          "source_card": "replacement_candidates.json"
         },
         {
-          "id": "ppgn_pair_composition",
           "core": {
             "chain": "Persistent order-2 pair tensor -> two independent shared per-pair nonlinear channel maps -> channelwise matrix multiplication over a third vertex -> concatenate previous pair state -> linear channel compression -> repeat three complete blocks -> diagonal/off-diagonal summaries.",
             "equation": "For layer l and channel c, A=f_l(X), B=g_l(X), P[i,j,c]=sum_k A[i,k,c]*B[k,j,c], X_next[i,j,:]=W_l concat(X[i,j,:],P[i,j,:])+b_l. f_l and g_l are separate two-layer ReLU MLPs applied independently at every pair. No attention softmax, row normalization, Hadamard-only replacement or node-only collapse occurs between blocks.",
@@ -657,7 +653,7 @@
               "Separate diagonal and off-diagonal summaries from every block"
             ]
           },
-          "source_card": "ppgn_candidate.json",
+          "id": "ppgn_pair_composition",
           "novelty_audit": {
             "closest_prior_ids": [
               "rrn_evidence",
@@ -666,10 +662,11 @@
               "pna_evidence",
               "hyper_sagnn"
             ],
-            "substantive_difference": "RRN aggregates endpoint-conditioned messages into node LSTM states. EGT preserves edge states but its attention and edge updates do not multiply two complete edge-state matrices through intermediate k. Sheaf learns incidence restriction maps and applies normalized diffusion to node features; PNA combines neighborhood statistics; Hyper-SAGNN contrasts static/contextual representations. None is the source PPGN pair-state product-plus-concatenation recurrence. Merely using more graph layers or a complete graph would not establish this difference.",
             "same_round_overlap": "neural_logic_machine_evidence maintains arities0/1/2/3 with variable expansion, existential max/universal min reductions, all variable-axis permutations and shared sigmoid inference. PPGN remains order2 and composes relations by sum_k f(X_ik)g(X_kj); it has no arity lattice or quantifier operations. DAT sends relation-valued node messages, DCFormer mixes attention heads, and other attention candidates normalize pairwise node scores, rather than retaining and multiplying learned pair-state matrices. isqrt_cov_full/spdnet_bimap_reeig_logeig act on feature covariance/SPD matrices, not the vertex-pair tensor. NetVLAD encodes center-relative moments without relation-path composition.",
-            "source_code_evidence": "Pinned modules.py RegularBlock lines19-25 independently evaluates mlp1 and mlp2, then torch.matmul(mlp1,mlp2), then SkipConnection. Lines64-69 concatenate the old input with the product and apply one channel projection. This exact intermediate-vertex contraction is the accepted distinguishing mechanism."
-          }
+            "source_code_evidence": "Pinned modules.py RegularBlock lines19-25 independently evaluates mlp1 and mlp2, then torch.matmul(mlp1,mlp2), then SkipConnection. Lines64-69 concatenate the old input with the product and apply one channel projection. This exact intermediate-vertex contraction is the accepted distinguishing mechanism.",
+            "substantive_difference": "RRN aggregates endpoint-conditioned messages into node LSTM states. EGT preserves edge states but its attention and edge updates do not multiply two complete edge-state matrices through intermediate k. Sheaf learns incidence restriction maps and applies normalized diffusion to node features; PNA combines neighborhood statistics; Hyper-SAGNN contrasts static/contextual representations. None is the source PPGN pair-state product-plus-concatenation recurrence. Merely using more graph layers or a complete graph would not establish this difference."
+          },
+          "source_card": "ppgn_candidate.json"
         }
       ],
       "rejected_candidates": [
@@ -690,84 +687,78 @@
           "reason": "Previously rejected normalization/pooling family; no re-entry merely by presenting a fuller wrapper."
         }
       ],
-      "remaining_new_designs_required": 0
+      "remaining_new_designs_required": 0,
+      "source_directory": "osram_meaningful20_round2_20261004",
+      "status": "20_designs_accepted_implemented_pending_combined_verification_and_cuda"
     },
     "3": {
-      "status": "reserved_not_trained",
-      "source_directory": "osram_new40_20261004",
       "methods": [
         {
-          "id": "optimization_dpp_subset_readout",
-          "title": "Determinantal Point Processes for Machine Learning",
+          "accepted": true,
           "authors": [
             "Alex Kulesza",
             "Ben Taskar"
           ],
-          "url": "https://arxiv.org/abs/1207.6083",
           "code_url": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py",
           "design_file": "docs/osram_new40_nine_designs.json",
           "design_sha256": "114d2e02cbb4b1ee4c92d972d53240e90d9b64bcca7b955f6a0042fbd24a4919",
-          "accepted": true,
-          "source": {
-            "paper": "https://arxiv.org/abs/1207.6083",
-            "code": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py"
-          },
+          "id": "optimization_dpp_subset_readout",
           "novelty_audit": {
             "closest_prior_ids": [
               "tome_merge_reconstruct",
               "slot_attention",
               "otke"
             ],
-            "substantive_difference": "ToMe是贪婪二部相似合并，slots是竞争聚类，OTKE是质量守恒匹配；DPP直接建模整组子集的行列式概率。与本lane的facility-location同属选集，但体积排斥不等于覆盖收益的递减。已核对撤回的experiments/osram_readout20_20261003/CANDIDATES.zh.md：DLRM/pair-dot和BAN双线性attention都没有对有限子集行列式归一化；本项不能退化为它们。",
             "same_round_overlap": "Shared families allowed; distinct complete cores required.",
-            "source_code_evidence": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py"
-          }
+            "source_code_evidence": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py",
+            "substantive_difference": "ToMe\u662f\u8d2a\u5a6a\u4e8c\u90e8\u76f8\u4f3c\u5408\u5e76\uff0cslots\u662f\u7ade\u4e89\u805a\u7c7b\uff0cOTKE\u662f\u8d28\u91cf\u5b88\u6052\u5339\u914d\uff1bDPP\u76f4\u63a5\u5efa\u6a21\u6574\u7ec4\u5b50\u96c6\u7684\u884c\u5217\u5f0f\u6982\u7387\u3002\u4e0e\u672clane\u7684facility-location\u540c\u5c5e\u9009\u96c6\uff0c\u4f46\u4f53\u79ef\u6392\u65a5\u4e0d\u7b49\u4e8e\u8986\u76d6\u6536\u76ca\u7684\u9012\u51cf\u3002\u5df2\u6838\u5bf9\u64a4\u56de\u7684experiments/osram_readout20_20261003/CANDIDATES.zh.md\uff1aDLRM/pair-dot\u548cBAN\u53cc\u7ebf\u6027attention\u90fd\u6ca1\u6709\u5bf9\u6709\u9650\u5b50\u96c6\u884c\u5217\u5f0f\u5f52\u4e00\u5316\uff1b\u672c\u9879\u4e0d\u80fd\u9000\u5316\u4e3a\u5b83\u4eec\u3002"
+          },
+          "source": {
+            "code": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py",
+            "paper": "https://arxiv.org/abs/1207.6083"
+          },
+          "title": "Determinantal Point Processes for Machine Learning",
+          "url": "https://arxiv.org/abs/1207.6083"
         },
         {
-          "id": "matrix_tree_nonprojective_evidence",
-          "title": "Learning Structured Text Representations",
+          "accepted": true,
           "authors": [
             "Yang Liu",
             "Mirella Lapata"
           ],
-          "url": "https://aclanthology.org/Q18-1005/",
           "code_url": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53",
           "design_file": "docs/osram_new40_structure_cards.json",
           "design_sha256": "b5d2b5d89bbeb2754d0ae9f3b54485560dfacdedb1f5aa060fcb7d65d7336010",
-          "accepted": true,
-          "source": {
-            "paper": "https://aclanthology.org/Q18-1005/",
-            "code": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53"
-          },
+          "id": "matrix_tree_nonprojective_evidence",
           "novelty_audit": {
             "closest_prior_ids": [
               "egt_evidence",
               "dual_attention_symbolic_relations",
               "ppgn_pair_composition"
             ],
-            "substantive_difference": "All edge weights are marginals of one globally normalized acyclic single-root tree distribution. EGT/dual attention have independently normalized edges or learned edge states, and PPGN composes pair tensors without a tree partition function. Not merely a softmax replacement: scoring, root partition, constrained marginals and bidirectional content u",
             "same_round_overlap": "Shared families allowed; distinct complete cores required.",
-            "source_code_evidence": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53"
-          }
+            "source_code_evidence": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53",
+            "substantive_difference": "All edge weights are marginals of one globally normalized acyclic single-root tree distribution. EGT/dual attention have independently normalized edges or learned edge states, and PPGN composes pair tensors without a tree partition function. Not merely a softmax replacement: scoring, root partition, constrained marginals and bidirectional content u"
+          },
+          "source": {
+            "code": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53",
+            "paper": "https://aclanthology.org/Q18-1005/"
+          },
+          "title": "Learning Structured Text Representations",
+          "url": "https://aclanthology.org/Q18-1005/"
         },
         {
-          "id": "sparsemap_role_partition",
-          "title": "SparseMAP: Differentiable Sparse Structured Inference",
+          "accepted": true,
           "authors": [
             "Vlad Niculae",
-            "André F. T. Martins",
+            "Andr\u00e9 F. T. Martins",
             "Mathieu Blondel",
             "Claire Cardie"
           ],
-          "url": "https://proceedings.mlr.press/v80/niculae18a.html",
           "code_url": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10",
           "design_file": "docs/osram_new40_structure_cards.json",
           "design_sha256": "9b431cff964e6276f152948fae99c45cb1676068da050c947f773155e7efe021",
-          "accepted": true,
-          "source": {
-            "paper": "https://proceedings.mlr.press/v80/niculae18a.html",
-            "code": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10"
-          },
+          "id": "sparsemap_role_partition",
           "novelty_audit": {
             "closest_prior_ids": [
               "otke",
@@ -775,42 +766,47 @@
               "equilibrium_aggregation",
               "contractive_deep_equilibrium_evidence"
             ],
-            "substantive_difference": "The equivalence-relation marginal polytope globally couples three-way transitivity and variable group count. OTKE matches to fixed supports, Slot uses soft per-slot responsibilities, EA optimizes an unconstrained summary, and DEQ solves a learned fixed point. This is a new structure space plus constrained graph computation, not changing one existin",
             "same_round_overlap": "Shared families allowed; distinct complete cores required.",
-            "source_code_evidence": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10"
-          }
+            "source_code_evidence": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10",
+            "substantive_difference": "The equivalence-relation marginal polytope globally couples three-way transitivity and variable group count. OTKE matches to fixed supports, Slot uses soft per-slot responsibilities, EA optimizes an unconstrained summary, and DEQ solves a learned fixed point. This is a new structure space plus constrained graph computation, not changing one existin"
+          },
+          "source": {
+            "code": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10",
+            "paper": "https://proceedings.mlr.press/v80/niculae18a.html"
+          },
+          "title": "SparseMAP: Differentiable Sparse Structured Inference",
+          "url": "https://proceedings.mlr.press/v80/niculae18a.html"
         },
         {
-          "id": "conditional_new_01_full_dynamic_hypernetwork",
-          "title": "HyperNetworks",
+          "accepted": true,
           "authors": [
             "David Ha",
             "Andrew Dai",
             "Quoc V. Le"
           ],
-          "url": "https://arxiv.org/abs/1609.09106",
           "code_url": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb",
           "design_file": "docs/osram_new40_conditional_cards.json",
           "design_sha256": "d0791961bb01674593ee6f4666935e45d2446b0dca4fde09d0800b40028bd251",
-          "accepted": true,
-          "source": {
-            "paper": "https://arxiv.org/abs/1609.09106",
-            "code": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb"
-          },
+          "id": "conditional_new_01_full_dynamic_hypernetwork",
           "novelty_audit": {
             "closest_prior_ids": [
               "dcformer_dynamic_head_composition",
               "conditional_rational_quadratic_spline_coupling",
               "withdrawn_film"
             ],
-            "substantive_difference": "生成整张主变换矩阵并在非线性两阶段链中执行。DCFormer生成head组合系数，Spline生成一元变换参数，FiLM是对角仿射；这里的每样本跨通道算子不受固定矩阵行缩放约束。与DFN迁为全连接后合并，不另计DFN。",
             "same_round_overlap": "Shared families allowed; distinct complete cores required.",
-            "source_code_evidence": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb"
-          }
+            "source_code_evidence": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb",
+            "substantive_difference": "\u751f\u6210\u6574\u5f20\u4e3b\u53d8\u6362\u77e9\u9635\u5e76\u5728\u975e\u7ebf\u6027\u4e24\u9636\u6bb5\u94fe\u4e2d\u6267\u884c\u3002DCFormer\u751f\u6210head\u7ec4\u5408\u7cfb\u6570\uff0cSpline\u751f\u6210\u4e00\u5143\u53d8\u6362\u53c2\u6570\uff0cFiLM\u662f\u5bf9\u89d2\u4eff\u5c04\uff1b\u8fd9\u91cc\u7684\u6bcf\u6837\u672c\u8de8\u901a\u9053\u7b97\u5b50\u4e0d\u53d7\u56fa\u5b9a\u77e9\u9635\u884c\u7f29\u653e\u7ea6\u675f\u3002\u4e0eDFN\u8fc1\u4e3a\u5168\u8fde\u63a5\u540e\u5408\u5e76\uff0c\u4e0d\u53e6\u8ba1DFN\u3002"
+          },
+          "source": {
+            "code": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb",
+            "paper": "https://arxiv.org/abs/1609.09106"
+          },
+          "title": "HyperNetworks",
+          "url": "https://arxiv.org/abs/1609.09106"
         },
         {
-          "id": "conditional_new_07_neural_production",
-          "title": "Neural Production Systems: Learning Rule-Governed Visual Dynamics",
+          "accepted": true,
           "authors": [
             "Anirudh Goyal",
             "Aniket Didolkar",
@@ -821,111 +817,416 @@
             "Michael Mozer",
             "Yoshua Bengio"
           ],
-          "url": "https://arxiv.org/abs/2103.01937",
           "code_url": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py",
           "design_file": "docs/osram_new40_conditional_cards.json",
           "design_sha256": "d709c34fdf63f45d1e540070ba8dd287dad766c543c216def7bd900d4d32ea33",
-          "accepted": true,
-          "source": {
-            "paper": "https://arxiv.org/abs/2103.01937",
-            "code": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py"
-          },
+          "id": "conditional_new_07_neural_production",
           "novelty_audit": {
             "closest_prior_ids": [
               "neural_logic_machine_evidence",
               "rrn_evidence",
               "mac_control_read_write"
             ],
-            "substantive_difference": "NLM是arity/量词链，RRN同一消息函数并行全图，MAC全局control/read/write；NPS将规则身份与实体身份分开，经离散双阶段binding只修改指定变量，是路由执行链而非简单gate。",
             "same_round_overlap": "Shared families allowed; distinct complete cores required.",
-            "source_code_evidence": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py"
-          }
+            "source_code_evidence": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py",
+            "substantive_difference": "NLM\u662farity/\u91cf\u8bcd\u94fe\uff0cRRN\u540c\u4e00\u6d88\u606f\u51fd\u6570\u5e76\u884c\u5168\u56fe\uff0cMAC\u5168\u5c40control/read/write\uff1bNPS\u5c06\u89c4\u5219\u8eab\u4efd\u4e0e\u5b9e\u4f53\u8eab\u4efd\u5206\u5f00\uff0c\u7ecf\u79bb\u6563\u53cc\u9636\u6bb5binding\u53ea\u4fee\u6539\u6307\u5b9a\u53d8\u91cf\uff0c\u662f\u8def\u7531\u6267\u884c\u94fe\u800c\u975e\u7b80\u5355gate\u3002"
+          },
+          "source": {
+            "code": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py",
+            "paper": "https://arxiv.org/abs/2103.01937"
+          },
+          "title": "Neural Production Systems: Learning Rule-Governed Visual Dynamics",
+          "url": "https://arxiv.org/abs/2103.01937"
         },
         {
-          "id": "repr_dst_corrected_evidence_combination",
-          "title": "An evidential classifier based on Dempster-Shafer theory and deep learning",
+          "accepted": true,
           "authors": [
             "Zheng Tong",
             "Philippe Xu",
             "Thierry Denoeux"
           ],
-          "url": "https://doi.org/10.1016/j.neucom.2021.03.066",
           "code_url": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py",
           "design_file": "docs/osram_new40_representation_cards.json",
           "design_sha256": "c5252d2ede8c7c02d413abf14b4da24e07b16e512ee96681f402b61ddebe62bf",
-          "accepted": true,
-          "source": {
-            "paper": "https://doi.org/10.1016/j.neucom.2021.03.066",
-            "code": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py"
-          },
+          "id": "repr_dst_corrected_evidence_combination",
           "novelty_audit": {
             "closest_prior_ids": [
               "netvlad_residual_encoding",
               "capsule_variational_bayes",
               "rat_spn_evidence_circuit"
             ],
-            "substantive_difference": "NetVLAD sums center residuals; VB capsules infer Gaussian assignments; RAT-SPN marginalizes a decomposable density. DST explicitly represents set-valued ignorance and incompatible mass through conjunctive fusion. Prototype distances alone do not qualify; all combination stages must remain.",
             "same_round_overlap": "Shared families allowed; distinct complete cores required.",
-            "source_code_evidence": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py"
-          }
+            "source_code_evidence": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py",
+            "substantive_difference": "NetVLAD sums center residuals; VB capsules infer Gaussian assignments; RAT-SPN marginalizes a decomposable density. DST explicitly represents set-valued ignorance and incompatible mass through conjunctive fusion. Prototype distances alone do not qualify; all combination stages must remain."
+          },
+          "source": {
+            "code": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py",
+            "paper": "https://doi.org/10.1016/j.neucom.2021.03.066"
+          },
+          "title": "An evidential classifier based on Dempster-Shafer theory and deep learning",
+          "url": "https://doi.org/10.1016/j.neucom.2021.03.066"
         },
         {
-          "id": "repr_lista_cpss_sparse_pursuit",
-          "title": "Theoretical Linear Convergence of Unfolded ISTA and Its Practical Weights and Thresholds",
+          "accepted": true,
           "authors": [
             "Xiaohan Chen",
             "Jialin Liu",
             "Zhangyang Wang",
             "Wotao Yin"
           ],
-          "url": "https://arxiv.org/abs/1808.10038",
           "code_url": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py",
           "design_file": "docs/osram_new40_representation_cards.json",
           "design_sha256": "85a151f99589961ac3e939bb25f00a9b8270f7c3a3eb661933ab11e489ffd82e",
-          "accepted": true,
-          "source": {
-            "paper": "https://arxiv.org/abs/1808.10038",
-            "code": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py"
-          },
+          "id": "repr_lista_cpss_sparse_pursuit",
           "novelty_audit": {
             "closest_prior_ids": [
               "crate_mssa_ista_full",
               "hamburger_nmf_full",
               "learned_robust_pca_evidence_decomposition"
             ],
-            "substantive_difference": "Closest is CRATE, not merely RPCA. CRATE alternates subspace attention with a one-step nonnegative dictionary sparsification of current tokens. CPSS repeatedly pursues one original y, tracks explicit coding residual and exempts a growing estimated support from signed shrinkage. Hamburger factorizes a per-sample nonnegative matrix; RPCA separates lo",
             "same_round_overlap": "Shared families allowed; distinct complete cores required.",
-            "source_code_evidence": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py"
-          }
+            "source_code_evidence": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py",
+            "substantive_difference": "Closest is CRATE, not merely RPCA. CRATE alternates subspace attention with a one-step nonnegative dictionary sparsification of current tokens. CPSS repeatedly pursues one original y, tracks explicit coding residual and exempts a growing estimated support from signed shrinkage. Hamburger factorizes a per-sample nonnegative matrix; RPCA separates lo"
+          },
+          "source": {
+            "code": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py",
+            "paper": "https://arxiv.org/abs/1808.10038"
+          },
+          "title": "Theoretical Linear Convergence of Unfolded ISTA and Its Practical Weights and Thresholds",
+          "url": "https://arxiv.org/abs/1808.10038"
         },
         {
-          "id": "n3_recursive_neighbor_volumes",
-          "title": "Neural Nearest Neighbors Networks",
+          "accepted": true,
           "authors": [
-            "Tobias Plötz",
+            "Tobias Pl\u00f6tz",
             "Stefan Roth"
           ],
-          "url": "https://proceedings.neurips.cc/paper/7386-neural-nearest-neighbors-networks.pdf",
           "code_url": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py",
           "design_file": "docs/osram_new40_retrieval_cards.json",
           "design_sha256": "e6883012fb1d51ef4537d5c3bf6552b10636236bbf2535f48a98def281e95a5c",
-          "accepted": true,
-          "source": {
-            "paper": "https://proceedings.neurips.cc/paper/7386-neural-nearest-neighbors-networks.pdf",
-            "code": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py"
-          },
+          "id": "n3_recursive_neighbor_volumes",
           "novelty_audit": {
             "closest_prior_ids": [
               "dgcnn_dynamic_edgeconv",
               "nonlocal",
               "otke"
             ],
-            "substantive_difference": "Recursive relaxed selection without replacement and separate ordered neighbor volumes, rather than hard kNN EdgeConv, a single weighted average, or transport to a reference bank.",
             "same_round_overlap": "Shared families allowed; distinct complete cores required.",
-            "source_code_evidence": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py"
-          }
+            "source_code_evidence": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py",
+            "substantive_difference": "Recursive relaxed selection without replacement and separate ordered neighbor volumes, rather than hard kNN EdgeConv, a single weighted average, or transport to a reference bank."
+          },
+          "source": {
+            "code": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py",
+            "paper": "https://proceedings.neurips.cc/paper/7386-neural-nearest-neighbors-networks.pdf"
+          },
+          "title": "Neural Nearest Neighbors Networks",
+          "url": "https://proceedings.neurips.cc/paper/7386-neural-nearest-neighbors-networks.pdf"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Octavian-Eugen Ganea",
+            "Gary B\u00e9cigneul",
+            "Thomas Hofmann"
+          ],
+          "code_url": "https://github.com/dalab/hyperbolic_nn/blob/dbeb8e8f8ed61bcc8e264fb8fbd2731fbdc23591/util.py",
+          "design_file": "docs/osram_new40_nine_designs.json",
+          "design_sha256": "96032a00d950748e4c925b916fb393ceb625f07ecc72f98892de1009ff036daa",
+          "id": "next_hyperbolic_gyrovector_readout",
+          "novelty_audit": {
+            "closest_prior_ids": "SPDNet\u3001Spline Flow",
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/dalab/hyperbolic_nn/blob/dbeb8e8f8ed61bcc8e264fb8fbd2731fbdc23591/util.py",
+            "substantive_difference": "SPDNet \u5bf9\u534f\u65b9\u5dee\u505a BiMap/ReEig/LogEig\uff1b\u672c\u9879\u5bf9\u4e00\u9636\u89d2\u8272\u5411\u91cf\u5728\u8d1f\u66f2\u7387\u7403\u4e0a\u6267\u884c\u57fa\u70b9\u4f9d\u8d56 gyrovector \u8fd0\u7b97\uff0c\u65e0\u534f\u65b9\u5dee\u8c31\u5c42\u3001coupling \u6216 attention\u3002"
+          },
+          "source": {
+            "code": "https://github.com/dalab/hyperbolic_nn/blob/dbeb8e8f8ed61bcc8e264fb8fbd2731fbdc23591/util.py",
+            "paper": "https://arxiv.org/abs/1805.09112"
+          },
+          "title": "Hyperbolic Neural Networks",
+          "url": "https://arxiv.org/abs/1805.09112"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Rex Ying",
+            "Jiaxuan You",
+            "Christopher Morris",
+            "Xiang Ren",
+            "William L. Hamilton",
+            "Jure Leskovec"
+          ],
+          "code_url": "https://github.com/RexYing/diffpool/blob/8dfb97cf60c2376ac804761837b9966f1d302acb/encoders.py#L329",
+          "design_file": "docs/osram_new40_structure_cards.json",
+          "design_sha256": "84b93102a90dc4385e5903df7a5cc688dfd7bcebf387c9302baaf821ad186c93",
+          "id": "diffpool_hierarchical_evidence_graph",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "graph_multiset_transformer",
+              "tokenlearner_fuser_v11",
+              "slot_attention",
+              "tome_merge_reconstruct"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/RexYing/diffpool/blob/8dfb97cf60c2376ac804761837b9966f1d302acb/encoders.py#L329",
+            "substantive_difference": "The learned adjacency itself is coarsened and drives the next graph stage. GMT/TokenLearner compress features via seeds/tokens without S^T A S graph hierarchy; ToMe merges selected pairs rather than assigning all nodes to jointly learned soft clusters. Only S-pooling without the coarsened-graph stage would fail the novelty requirement."
+          },
+          "source": {
+            "code": "https://github.com/RexYing/diffpool/blob/8dfb97cf60c2376ac804761837b9966f1d302acb/encoders.py#L329",
+            "paper": "https://arxiv.org/abs/1806.08804"
+          },
+          "title": "Hierarchical Graph Representation Learning with Differentiable Pooling",
+          "url": "https://arxiv.org/abs/1806.08804"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Cristian Bodnar",
+            "Fabrizio Frasca",
+            "Nina Otter",
+            "Yu Guang Wang",
+            "Pietro Li\u00f2",
+            "Guido Mont\u00fafar",
+            "Michael Bronstein"
+          ],
+          "code_url": "https://github.com/twitter-research/cwn/blob/c4ddd24e251929f934f8a2467da98fdba376864d/mp/layers.py#L271",
+          "design_file": "docs/osram_new40_structure_cards.json",
+          "design_sha256": "d643673fb7a291b44065eff3420205563f1239006c66f4941c6529b6f59211b6",
+          "id": "cwn_cellular_evidence",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "allset_transformer",
+              "ed_hnn",
+              "sheaf_hypergnn_diag",
+              "ppgn_pair_composition"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/twitter-research/cwn/blob/c4ddd24e251929f934f8a2467da98fdba376864d/mp/layers.py#L271",
+            "substantive_difference": "Maintains distinct vertex/edge/closed-cycle states and boundary-of-boundary incidence. AllSet/ED-HNN exchange node and undifferentiated hyperedge states; Sheaf learns restrictions over incidence; PPGN composes arbitrary ordered pairs. Here edge-ring boundaries govern upper-neighbor communication; replacing cycles with generic set pools would erase "
+          },
+          "source": {
+            "code": "https://github.com/twitter-research/cwn/blob/c4ddd24e251929f934f8a2467da98fdba376864d/mp/layers.py#L271",
+            "paper": "https://arxiv.org/abs/2106.12575"
+          },
+          "title": "Weisfeiler and Lehman Go Cellular: CW Networks",
+          "url": "https://arxiv.org/abs/2106.12575"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Stefania Ebli",
+            "Micha\u00ebl Defferrard",
+            "Gard Spreemann"
+          ],
+          "code_url": "https://github.com/stefaniaebli/simplicial_neural_networks/blob/094c0f00834a7b1daab6a0cb31be33b168fd38c1/scnn/scnn.py#L14",
+          "design_file": "docs/osram_new40_structure_cards.json",
+          "design_sha256": "e4e9179eb672767a06cdd45279b5d39f06c1e2cae9f56a21556997a6be923690",
+          "id": "simplicial_hodge_evidence",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "sheaf_hypergnn_diag",
+              "ed_hnn",
+              "ppgn_pair_composition"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/stefaniaebli/simplicial_neural_networks/blob/094c0f00834a7b1daab6a0cb31be33b168fd38c1/scnn/scnn.py#L14",
+            "substantive_difference": "A signed cochain signal lives on edges and is transported through upper/lower Hodge incidence, with orientation-equivariant nonlinear stages. CWN uses nonlinear boundary/upper adjacency messages over cells; BernNet/scattering use vertex graph spectra; old Sheaf uses learned restriction maps. Keeping only vertex Laplacian polynomial filtering would "
+          },
+          "source": {
+            "code": "https://github.com/stefaniaebli/simplicial_neural_networks/blob/094c0f00834a7b1daab6a0cb31be33b168fd38c1/scnn/scnn.py#L14",
+            "paper": "https://arxiv.org/abs/2010.03633"
+          },
+          "title": "Simplicial Neural Networks",
+          "url": "https://arxiv.org/abs/2010.03633"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Muhan Zhang",
+            "Pan Li"
+          ],
+          "code_url": "https://github.com/muhanzhang/NestedGNN/blob/a5adccf62d397ad7f83bc73be34eba3765df73fa/utils.py#L18",
+          "design_file": "docs/osram_new40_structure_cards.json",
+          "design_sha256": "d4085046ab4cfce64ddf5c5b4d8e8200c1f3c62f606dd690623fc82f307f0c6d",
+          "id": "nested_gnn_rooted_evidence",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "rrn_evidence",
+              "pna_evidence",
+              "dgcnn_dynamic_edgeconv",
+              "ppgn_pair_composition"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/muhanzhang/NestedGNN/blob/a5adccf62d397ad7f83bc73be34eba3765df73fa/utils.py#L18",
+            "substantive_difference": "A node has multiple separately evolving copies conditioned on different roots; induced edges among its neighbors are retained before inner computation. Existing message passing has one state per node and a rooted computation tree, while PPGN has a pair tensor with matrix products. This is not replacing a graph convolution or increasing hop count."
+          },
+          "source": {
+            "code": "https://github.com/muhanzhang/NestedGNN/blob/a5adccf62d397ad7f83bc73be34eba3765df73fa/utils.py#L18",
+            "paper": "https://arxiv.org/abs/2110.13197"
+          },
+          "title": "Nested Graph Neural Networks",
+          "url": "https://arxiv.org/abs/2110.13197"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Hongyang Gao",
+            "Shuiwang Ji"
+          ],
+          "code_url": "https://github.com/HongyangGao/Graph-U-Nets/blob/b3d2c735877868406673bb7af3dd6b7f7e6d4f02/src/utils/ops.py#L6",
+          "design_file": "docs/osram_new40_structure_cards.json",
+          "design_sha256": "7badeeffac04dea1d46f797fdef2982f2df991da4eb1af4f960b8c3af21d5146",
+          "id": "graph_unet_evidence_encoder_decoder",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "tome_merge_reconstruct",
+              "fspool_fsunpool_evidence",
+              "tokenlearner_fuser_v11"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/HongyangGao/Graph-U-Nets/blob/b3d2c735877868406673bb7af3dd6b7f7e6d4f02/src/utils/ops.py#L6",
+            "substantive_difference": "Hierarchical hard node selection plus connectivity augmentation, index-preserving unpool and graph decoder is distinct from DiffPool soft S^T A S, ToMe pairwise merging and FSPool per-channel ranking. A scalar gate/top-k by itself is expressly not the candidate."
+          },
+          "source": {
+            "code": "https://github.com/HongyangGao/Graph-U-Nets/blob/b3d2c735877868406673bb7af3dd6b7f7e6d4f02/src/utils/ops.py#L6",
+            "paper": "https://proceedings.mlr.press/v97/gao19a.html"
+          },
+          "title": "Graph U-Nets",
+          "url": "https://proceedings.mlr.press/v97/gao19a.html"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Shuai Zheng",
+            "Sadeep Jayasumana",
+            "Bernardino Romera-Paredes",
+            "Vibhav Vineet",
+            "Zhizhong Su",
+            "Dalong Du",
+            "Chang Huang",
+            "Philip H. S. Torr"
+          ],
+          "code_url": "https://github.com/sadeepj/crfasrnn_pytorch/blob/24899c528981dfbc14f1212869a3eae328dc6570/crfasrnn/crfrnn.py#L35",
+          "design_file": "docs/osram_new40_structure_cards.json",
+          "design_sha256": "73fd15a3f8bc377faf5476f6f89a73013bbe7bc08c5578b7ad3f87aac856666d",
+          "id": "crfrnn_latent_evidence_states",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "rat_spn_evidence_circuit",
+              "capsule_variational_bayes",
+              "rrn_evidence",
+              "contractive_deep_equilibrium_evidence"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/sadeepj/crfasrnn_pytorch/blob/24899c528981dfbc14f1212869a3eae328dc6570/crfasrnn/crfrnn.py#L35",
+            "substantive_difference": "The block performs approximate inference in a discrete pairwise latent-state Gibbs model with compatibility between state labels and persistent unary terms. RAT-SPN uses decomposable sum-product circuits; capsules infer mixture assignment/posteriors; RRN learns free recurrent messages; DEQ solves a continuous equilibrium. No external convergence/im"
+          },
+          "source": {
+            "code": "https://github.com/sadeepj/crfasrnn_pytorch/blob/24899c528981dfbc14f1212869a3eae328dc6570/crfasrnn/crfrnn.py#L35",
+            "paper": "https://arxiv.org/abs/1502.03240"
+          },
+          "title": "Conditional Random Fields as Recurrent Neural Networks",
+          "url": "https://arxiv.org/abs/1502.03240"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Yujia Li",
+            "Chenjie Gu",
+            "Thomas Dullien",
+            "Oriol Vinyals",
+            "Pushmeet Kohli"
+          ],
+          "code_url": "https://github.com/google-deepmind/deepmind-research/blob/f5de0ede8430809180254ee957abf36ed62579ef/graph_matching_networks/graph_matching_networks.ipynb",
+          "design_file": "docs/osram_new40_structure_cards.json",
+          "design_sha256": "7fe53ec968d0cda1d964644ed18d42f0125b4c2f91d900048ee9c19d9a480146",
+          "id": "graph_matching_base_gap_pairs",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "dense_coattention",
+              "mcan_encoder_decoder",
+              "hyper_sagnn",
+              "rrn_evidence"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/google-deepmind/deepmind-research/blob/f5de0ede8430809180254ee957abf36ed62579ef/graph_matching_networks/graph_matching_networks.ipynb",
+            "substantive_difference": "Full within-graph relation propagation and bidirectional cross-graph mismatch jointly update both node systems. DCN co-attends directly with additive transforms; MCAN has asymmetric self/cross stages; Hyper-SAGNN compares static and leave-self-out representations inside a hyperedge, not two coupled graph systems. Merely subtracting one attention ve"
+          },
+          "source": {
+            "code": "https://github.com/google-deepmind/deepmind-research/blob/f5de0ede8430809180254ee957abf36ed62579ef/graph_matching_networks/graph_matching_networks.ipynb",
+            "paper": "https://proceedings.mlr.press/v97/li19d.html"
+          },
+          "title": "Graph Matching Networks for Learning the Similarity of Graph Structured Objects",
+          "url": "https://proceedings.mlr.press/v97/li19d.html"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Anirudh Goyal",
+            "Alex Lamb",
+            "Jordan Hoffmann",
+            "Shagun Sodhani",
+            "Sergey Levine",
+            "Yoshua Bengio",
+            "Bernhard Sch\u00f6lkopf"
+          ],
+          "code_url": "https://github.com/anirudh9119/RIMs/blob/master/blocks_atari/a2c_ppo_acktr/blocks_core.py",
+          "design_file": "docs/osram_new40_conditional_cards.json",
+          "design_sha256": "c3a768aafc4fe208baa1de965a9c2ae064b7756d8a2d4adf24bbb6dffcf24db8",
+          "id": "conditional_new_06_rim",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "rrn_evidence",
+              "slot_attention",
+              "mac_control_read_write"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/anirudh9119/RIMs/blob/master/blocks_atari/a2c_ppo_acktr/blocks_core.py",
+            "substantive_difference": "RRN\u6bcf\u4e2a\u8282\u70b9\u5171\u4eabLSTM\u5e76\u5168\u90e8\u66f4\u65b0\uff1bSlot\u4ee5\u5171\u4eabGRU\u5438\u6536\u7ade\u4e89\u805a\u5408\uff1bMAC\u4e00\u4e2a\u63a7\u5236/\u8bb0\u5fc6\u94fe\u3002RIM\u662f\u4e92\u4e0d\u5171\u4eab\u8f6c\u79fb\u53c2\u6570\u7684\u673a\u5236\u3001top-k\u8ba1\u7b97\u51bb\u7ed3\u548c\u7a00\u758f\u901a\u4fe1\u4e09\u4ef6\u5957\uff1b\u53ea\u52a0top-k attention\u4e0d\u591f\u3002"
+          },
+          "source": {
+            "code": "https://github.com/anirudh9119/RIMs/blob/master/blocks_atari/a2c_ppo_acktr/blocks_core.py",
+            "paper": "https://arxiv.org/abs/1909.10893"
+          },
+          "title": "Recurrent Independent Mechanisms",
+          "url": "https://arxiv.org/abs/1909.10893"
+        },
+        {
+          "accepted": true,
+          "authors": [
+            "Nasim Rahaman",
+            "Muhammad Waleed Gondal",
+            "Shruti Joshi",
+            "Peter Gehler",
+            "Yoshua Bengio",
+            "Francesco Locatello",
+            "Bernhard Sch\u00f6lkopf"
+          ],
+          "code_url": "https://github.com/nasimrahaman/neural-interpreter/blob/17d46f0869f44e6a884ae740ba27ed3af4d384c7/neural_interpreters/core/nfc.py",
+          "design_file": "docs/osram_new40_conditional_cards.json",
+          "design_sha256": "da8f3ac652735732863a0a4902521d7718e356e7ddf94d2e3040ccf5c9cfb8b1",
+          "id": "conditional_new_08_neural_interpreter",
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "compositional_search_retrieval",
+              "dcformer_dynamic_head_composition",
+              "perceiver_io"
+            ],
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/nasimrahaman/neural-interpreter/blob/17d46f0869f44e6a884ae740ba27ed3af4d384c7/neural_interpreters/core/nfc.py",
+            "substantive_difference": "\u4e0d\u662fhead\u6df7\u5408\uff1a\u5148\u63a8\u65ad\u53d8\u91cf\u7c7b\u578b\uff0c\u51fd\u6570signature\u786e\u5b9a\u53ef\u8bbf\u95ee\u53d8\u91cf\u5b50\u56fe\uff0c\u5171\u4eabinterpreter\u7ecfcode\u5b9e\u73b0\u4e0d\u540c\u51fd\u6570\uff0c\u518d\u5728\u8ba1\u7b97\u6df1\u5ea6\u590d\u7528\u51fd\u6570\u3002\u51fd\u6570\u4eb2\u548c\u6027\u4e0ecode\u5fc5\u987b\u540c\u65f6\u4fdd\u7559\u3002"
+          },
+          "source": {
+            "code": "https://github.com/nasimrahaman/neural-interpreter/blob/17d46f0869f44e6a884ae740ba27ed3af4d384c7/neural_interpreters/core/nfc.py",
+            "paper": "https://arxiv.org/abs/2110.06399"
+          },
+          "title": "Dynamic Inference with Neural Interpreters",
+          "url": "https://arxiv.org/abs/2110.06399"
         }
-      ]
+      ],
+      "source_directory": "osram_new40_20261004",
+      "status": "reserved_not_trained"
     }
-  }
+  },
+  "trained_count": 20
 }

@@ -41,7 +41,7 @@ def allocated_memory():
 
 def group_admission(gpu, profile, active, allocations, *, max_per_gpu, disk_free_gib):
     """Free memory already excludes live allocations; reserve only their missing peak."""
-    if max_per_gpu not in (1,2,4): return False,'Only explicit per-GPU caps 1, 2 or 4 are supported'
+    if max_per_gpu not in (1,2,4,12): return False,'Only explicit per-GPU caps 1, 2, 4 or 12 are supported'
     same_gpu = [job for job in active if job.get('gpu_uuid')==gpu['uuid']]
     if len(same_gpu) >= max_per_gpu: return False,f'Per-GPU concurrency cap {max_per_gpu}'
     admitted,reason = busy_admission(gpu,profile,disk_free_gib=disk_free_gib)
@@ -72,6 +72,24 @@ def immutable_modules(snapshot):
     return manifest,preflight,queue,run,round_queue,round_manifest
 
 
+def validate_deferred(record, *, candidate, design_sha256, source_sha256):
+    """Explicit user waiver, never represented as a passed CUDA check."""
+    import hashlib
+    if (record.get('status') != 'cuda_smoke_deferred_by_user'
+            or record.get('candidate') != candidate
+            or record.get('design_sha256') != design_sha256
+            or record.get('source_sha256') != source_sha256):
+        raise ValueError('Deferred readiness identity mismatch')
+    cpu = record['cpu']
+    contents = Path(cpu['log']).read_bytes()
+    if cpu.get('returncode') != 0 or hashlib.sha256(contents).hexdigest() != cpu['sha256'] or b'\nOK\n' not in contents:
+        raise ValueError('Existing CPU evidence missing')
+    profile = record['profile']
+    if profile.get('measurement_status') != 'estimated_not_measured' or profile['peak_mib'] <= 0:
+        raise ValueError('Deferred run must disclose estimated resources')
+    return profile
+
+
 def train_child(record_path):
     import json
     record = json.loads(Path(record_path).read_text())
@@ -89,6 +107,8 @@ def train_child(record_path):
         return result
     original = run.shared.admission
     run.shared.admission = audited_admission
+    if record.get('cuda_smoke_deferred_by_user'):
+        run.shared.validate_readiness = validate_deferred
     sys.argv = ['experiments.osram_meaningful20_round2_20261004.run',*record['training_argv']]
     try:
         run.main()
@@ -110,13 +130,15 @@ def parser():
         result.add_argument('--'+key,type=Path,required=True)
     for key in ('candidate','gpu','gpu-uuid','cpu-command'):
         result.add_argument('--'+key,required=True)
-    result.add_argument('--max-per-gpu',type=int,choices=(1,2,4),default=1,
+    result.add_argument('--max-per-gpu',type=int,choices=(1,2,4,12),default=1,
                         help='Explicit real-job cap on this GPU; default remains one')
+    result.add_argument('--defer-cuda-smoke-by-user', action='store_true')
+    result.add_argument('--estimated-peak-mib', type=float, default=1700.)
     return result
 
 
 def launch(args):
-    if args.max_per_gpu not in (1,2,4): raise ValueError('Per-GPU cap must be 1, 2 or 4')
+    if args.max_per_gpu not in (1,2,4,12): raise ValueError('Per-GPU cap must be 1, 2, 4 or 12')
     for key in ('root','snapshot','manifest','reference_root','baseline_audit','data_manifest','cpu_log'):
         setattr(args,key,getattr(args,key).resolve())
     m,p,q,run,round_queue,round_manifest = immutable_modules(args.snapshot)
@@ -129,8 +151,13 @@ def launch(args):
     if not args.cpu_log.is_file() or '\nOK\n' not in args.cpu_log.read_text():
         raise ValueError('The existing shared CPU smoke must have passed')
     check = args.root/'checks'/args.candidate
-    evidence = m.read(check/'profile.json')
-    if (evidence.get('status')!='passed' or evidence.get('candidate')!=args.candidate
+    if args.defer_cuda_smoke_by_user:
+        evidence = dict(status='deferred_by_user', profile=dict(peak_mib=args.estimated_peak_mib,
+            artifact_gib=10., measurement_status='estimated_not_measured',
+            estimate_basis='Existing NEW40 batch32 CUDA peaks 1454-1594 MiB for six lightweight methods; unmeasured candidate, extra allocation reserve retained'))
+    else:
+        evidence = m.read(check/'profile.json')
+    if not args.defer_cuda_smoke_by_user and (evidence.get('status')!='passed' or evidence.get('candidate')!=args.candidate
             or str(evidence.get('gpu_index'))!=args.gpu or evidence.get('gpu_uuid')!=args.gpu_uuid
             or evidence.get('data_manifest_sha256')!=m.sha(args.data_manifest)
             or evidence.get('reference_config_sha256')!=m.sha(args.reference_root/'seed_66/config.json')):
@@ -139,9 +166,14 @@ def launch(args):
     ready = dict(status='ready',candidate=args.candidate,snapshot_root=str(args.snapshot),
         design_sha256=card['design_sha256'],source_sha256=source['source_sha256'],
         cpu=dict(command=args.cpu_command,returncode=0,log=str(args.cpu_log),sha256=m.sha(args.cpu_log)),
-        cuda=dict(command=evidence['command'],returncode=0,log=evidence['log'],sha256=evidence['log_sha256'],
-                  gpu_index=args.gpu,gpu_uuid=args.gpu_uuid),profile=evidence['profile'])
-    p.validate_readiness(ready,candidate=args.candidate,design_sha256=card['design_sha256'],source_sha256=source['source_sha256'])
+        cuda=(dict(status='deferred_by_user', reason='User explicitly requested no smoke, launch first')
+              if args.defer_cuda_smoke_by_user else
+              dict(command=evidence['command'],returncode=0,log=evidence['log'],sha256=evidence['log_sha256'],
+                   gpu_index=args.gpu,gpu_uuid=args.gpu_uuid)),profile=evidence['profile'])
+    if args.defer_cuda_smoke_by_user:
+        ready['status'] = 'cuda_smoke_deferred_by_user'
+    validator = validate_deferred if args.defer_cuda_smoke_by_user else p.validate_readiness
+    validator(ready,candidate=args.candidate,design_sha256=card['design_sha256'],source_sha256=source['source_sha256'])
     args.root.mkdir(parents=True,exist_ok=True)
     with (args.root/f'occupied_candidate_{args.candidate}.lock').open('a') as lane:
         fcntl.flock(lane,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -192,7 +224,9 @@ def launch(args):
                 snapshot_sha256=m.digest_json(source['source_sha256']),code_commit=source['code_commit'],
                 candidate=args.candidate,seed=66,gpu_index=args.gpu,gpu_uuid=args.gpu_uuid,output=str(output),
                 run_id=run_id,training_argv=training,command=command,invocation=sys.argv,
-                cuda_profile_sha256=m.sha(check/'profile.json'),resources_before_launch=resources[args.gpu],
+                cuda_profile_sha256=None if args.defer_cuda_smoke_by_user else m.sha(check/'profile.json'),
+                cuda_smoke_deferred_by_user=args.defer_cuda_smoke_by_user,
+                resources_before_launch=resources[args.gpu],
                 max_per_gpu=args.max_per_gpu,launch_admission=dict(reason=reason,disk_free_after_reservations_gib=disk_free,
                     active_run_ids=[job.get('run_id') for job in active],
                     process_allocations_mib={f'{gpu_uuid}:{pid}':used for (gpu_uuid,pid),used in allocations.items()}),

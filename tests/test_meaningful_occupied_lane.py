@@ -3,6 +3,19 @@ import unittest
 
 
 class OccupiedLaneTests(unittest.TestCase):
+    def test_explicit_twelve_cap_keeps_memory_and_count_limits(self):
+        from experiments.osram_meaningful20_round2_20261004 import occupied_lane as lane
+        gpu = dict(uuid='GPU-two', free_mib=12000, utilization=90, temperature=55)
+        profile = dict(peak_mib=1700, artifact_gib=10)
+        jobs = [dict(pid=i, gpu_uuid='GPU-two', profile=profile) for i in range(11)]
+        allocations = {('GPU-two', i): 2000 for i in range(11)}
+        self.assertTrue(lane.group_admission(gpu, profile, jobs, allocations,
+                        max_per_gpu=12, disk_free_gib=200)[0])
+        self.assertFalse(lane.group_admission(gpu, profile, jobs + [dict(jobs[0], pid=12)],
+                         allocations, max_per_gpu=12, disk_free_gib=200)[0])
+        self.assertFalse(lane.group_admission(dict(gpu, free_mib=2000), profile, jobs,
+                         allocations, max_per_gpu=12, disk_free_gib=200)[0])
+
     def test_two_per_gpu_admits_second_but_rejects_third(self):
         from experiments.osram_meaningful20_round2_20261004 import occupied_lane as lane
         gpu = dict(uuid='GPU-zero', free_mib=7900, utilization=100, temperature=60)
