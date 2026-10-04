@@ -1,0 +1,28 @@
+{
+  "server": "biggpu",
+  "code_commit": "98268f4d179fc274c3b4487cf698faec2e293a8f",
+  "source": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4",
+  "root": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004",
+  "manifest": "/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_round2_20261004/ROUND2.json",
+  "commands": {
+    "advance": "cd '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' && OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 PYTHONPATH='/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '/data2/yb/reproduction_workspace/envs/s0/bin/python' '-u' '-m' 'experiments.osram_meaningful20_round2_20261004.advance' '--root' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004' '--reference' '/data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full/seed_66' '--snapshot' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '--manifest' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_round2_20261004/ROUND2.json' '--dataset' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json' '--cpu-log' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/cpu_template.log' '--cpu-command' 'CUDA_VISIBLE_DEVICES='\\'''\\'' /home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest tests.test_meaningful_input tests.test_meaningful_block_integration tests.test_meaningful_blocks -v' >> '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/advance.log' 2>&1",
+    "queue": "cd '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' && OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 PYTHONPATH='/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4' '/data2/yb/reproduction_workspace/envs/s0/bin/python' '-u' '-m' 'experiments.osram_meaningful20_round2_20261004.queue' '--root' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004' '--manifest' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_round2_20261004/ROUND2.json' '--readiness-root' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/readiness' '--reference-root' '/data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full' '--baseline-audit' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/source_98268f4/experiments/osram_meaningful20_20261003/BASELINE_AUDIT.json' '--data-manifest' '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json' '--max-concurrent' '3' >> '/data2/yb/remote_experiments/osram_meaningful20_round2_20261004/queue.log' 2>&1"
+  },
+  "sessions": [
+    "osram_round2_advance",
+    "osram_round2_queue"
+  ],
+  "formal_training_confirmed": false,
+  "observed_state": {
+    "checked_at": "2026-10-04T08:27:47.550060+00:00",
+    "advance": "waiting_resources",
+    "first_candidate": "differential_attention_v1",
+    "initial_required_free_mib": 16384,
+    "queue_phase": "screening",
+    "accepted_count": 20,
+    "training_jobs": 0,
+    "coordinator_pid": 3032499,
+    "boot_id": "d5dd88da-31ec-491e-945c-846c470fff67",
+    "start_ticks": "114083488"
+  }
+}
