@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "lane": "structured_evidence_non_graph",
+  "date": "2026-10-04",
+  "status": "research_only_not_implementation_or_launch_approval",
+  "screened_count": 4,
+  "research_accepted_count": 3,
+  "scope": "No Memory/query/write/cache changes, no new labels or losses, no task-head replacement, no fabricated spatial/temporal head ordering. These are adaptations of mechanisms, not full-paper reproductions.",
+  "deduplication_sources_read": ["experiments/osram_meaningful20_20261003/METHODS.md", "experiments/osram_method_registry.json"],
+  "cross_lane_audit_status": "Only STATUS.json existed in the round-2 directory at writing. Same-round comparisons below cover this lane; coordinator must reconcile other lanes before counting or launching. No accepted count has been written to the global registry.",
+  "common_contract": {
+    "inputs": "Local[256], Base_forward[512], Gap_A/T/V_forward[512], real eight-head decomposition with value_dim=64, availability[3]. Backward halves remain their original causal zeros. Availability and actual history validity determine which evidence roles exist.",
+    "output": "Transform existing memory-read coordinates before the original Flat emotion_adapter. Preserve Local, local_skip, original adapter, normalization and task head. No new common output residual/zero bridge.",
+    "mask": "Use where before arithmetic to eliminate inactive NaN/Inf. Restore inactive role coordinates to exact zero after each operation. Padding/no-history bypass the entire transformation with the original Flat inputs. Never impute a missing modality.",
+    "state": "All inference/solver state is ephemeral per utterance. No batch statistics, persistent solver warm starts or random forward sampling. New parameter construction must preserve caller global RNG using the project's initialization isolation.",
+    "validation_before_counting": ["Identity initialization against original Flat including pre-clipping parameter/input gradients", "Inactive NaN/Inf invariance and every legal modality mask", "No-history and padding exact bypass", "Sample-alone versus batched output/gradient equality", "Mechanism-specific independent equation reference", "Finite backward and meaningful parameter updates after identity parameters move", "No additional task evaluations, auxiliary objectives or Memory calls"]
+  },
+  "candidates": [
+    {
+      "id": "conditional_rational_quadratic_spline_coupling",
+      "title": "Neural Spline Flows",
+      "authors": ["Conor Durkan", "Artur Bekasov", "Iain Murray", "George Papamakarios"],
+      "url": "https://arxiv.org/abs/1906.04032",
+      "pdf": "https://arxiv.org/pdf/1906.04032",
+      "domain": "Normalizing flows / density estimation",
+      "code_url": "https://github.com/bayesiains/nsf",
+      "code_pin": "1dcc0f2d0a0335974052d933c0edd04443eb5d14",
+      "license": "MIT",
+      "sources_read": [
+        {"url": "https://arxiv.org/pdf/1906.04032", "sections": "Coupling transforms and monotonic rational-quadratic spline construction; analytic inverse"},
+        {"url": "https://github.com/bayesiains/nsf/blob/1dcc0f2d0a0335974052d933c0edd04443eb5d14/nde/transforms/splines/rational_quadratic.py", "symbols": ["unconstrained_rational_quadratic_spline", "rational_quadratic_spline"]},
+        {"url": "https://github.com/bayesiains/nsf/blob/1dcc0f2d0a0335974052d933c0edd04443eb5d14/nde/transforms/coupling.py", "symbols": ["CouplingTransform.forward", "CouplingTransform.inverse", "PiecewiseRationalQuadraticCouplingTransform"]}
+      ],
+      "core": "Alternating coupling splits condition positive bin widths/heights and positive knot derivatives on unchanged coordinates. Each transformed coordinate uses a monotone rational-quadratic interpolant, with analytic inverse and identity tails. Stacking alternating splits gives an invertible nonlinear multivariate transformation, not a scalar evidence gate.",
+      "exact_mapping": {
+        "unit": "For each genuine head h, concatenate [Base_h, Gap_A_h, Gap_T_h, Gap_V_h] into x_h[256]. Inactive role blocks are zero and fixed. Eight heads share parameters, with explicit head identity as context; there is no head-neighbour topology.",
+        "layers": "Four coupling steps with separate parameters. Steps alternate unchanged even/odd coordinate indices within every 64-coordinate role block. Each unchanged half has 128 coordinates; transformed half has 128.",
+        "conditioner": "Concatenate unchanged half[128], Local[256], availability[3], one-hot head[8]: 395 -> 128 -> 128 -> 128*23 with GELU hidden activations, no normalization/dropout. Output 8 width logits, 8 height logits, 7 interior derivative logits per transformed coordinate. This conditioner choice is an explicit task adaptation, not a new candidate mechanism.",
+        "spline": "K=8 bins, support [-3,3], linear identity tails. Minimum width, height and derivative are 0.001. Normalize width/height logits as in the pinned spline/coupling implementation. Boundary derivatives are one. Transform active target coordinates only; retain inactive zero coordinates exactly.",
+        "readout": "Reassemble all four 512-dimensional forward evidence roles in their original Flat positions, keep Local and backward halves unchanged, then call the original adapter exactly once.",
+        "identity_init": "Set final conditioner weights and width/height biases to zero; interior derivative bias is inverse_softplus(1-0.001). Equal knot widths/heights and unit derivatives give the identity map. Numerical identity and gradients must be checked; do not implement a parameter-equality early return that blocks learning.",
+        "objective": "Original task objective only. No likelihood, log-determinant penalty, base-density sampling or flow pretraining. Inverse/log-Jacobian are verification tools, not training losses. Conditional bijectivity is claimed only for active memory coordinates at fixed Local, availability and head identity."
+      },
+      "hypothesis": "A conditional invertible recalibration can change how cross-role evidence occupies the original adapter's coordinate space without irreversibly pooling or deleting evidence.",
+      "mechanism_tests": ["Forward/inverse round-trip on all active-coordinate patterns including tail inputs", "Independent rational-quadratic bin formula and positive derivative check", "Initial equal-width/height/unit-derivative identity", "After training-step perturbation, both split halves can change but inactive coordinates remain zero"],
+      "novelty_audit": {
+        "closest_prior_ids": ["tabnet", "node", "crate_mssa_ista_full"],
+        "substantive_difference": "None performs an analytically invertible monotone spline coupling stack. TabNet selects coordinates, NODE routes to leaves, and CRATE compresses/sparsifies. The distinction is the constrained bijective coupling algorithm, not the insertion position or conditioner MLP.",
+        "same_round_overlap": "Do not separately count RealNVP, NICE, affine coupling, Glow or other spline-flow variants in this round. DEQ uses an implicit non-bijective state solve; LRPCA decomposes low-rank plus sparse components. Other lanes require coordinator reconciliation.",
+        "source_code_evidence": "Pinned CouplingTransform splits identity/transformed features; PiecewiseRationalQuadraticCouplingTransform calls the positive-knot rational-quadratic operator and its analytic inverse."
+      },
+      "risks": ["Without a density objective, generative/density claims do not transfer.", "Invertibility deliberately cannot discard information; it may be inferior to denoising.", "Inputs outside the fixed spline support remain unchanged in that step.", "Four conditioners add material cost and parameters; profile rather than assuming negligible overhead.", "Identity is mathematical; floating-point parity still requires an actual test."],
+      "accept": true,
+      "decision": "Accept as one substantive research candidate; no numerical validation or launch performed."
+    },
+    {
+      "id": "learned_robust_pca_evidence_decomposition",
+      "title": "Learned Robust PCA: A Scalable Deep Unfolding Approach for High-Dimensional Outlier Detection",
+      "authors": ["HanQin Cai", "Jialin Liu", "Wotao Yin"],
+      "url": "https://arxiv.org/abs/2110.05649",
+      "pdf": "https://arxiv.org/pdf/2110.05649",
+      "domain": "Robust matrix recovery / outlier detection",
+      "code_url": "https://github.com/caesarcai/LRPCA",
+      "code_pin": "d241beef37f855a5bab298f58861611f8d945f7b",
+      "license": "MIT",
+      "sources_read": [
+        {"url": "https://arxiv.org/pdf/2110.05649", "sections": "LRPCA alternating thresholding and scaled factor updates; finite unfolding versus feedforward-recurrent extension"},
+        {"url": "https://github.com/caesarcai/LRPCA/blob/d241beef37f855a5bab298f58861611f8d945f7b/synthetic_data_exp/training_codes.py", "symbols": ["MatNet", "MatNet.forward"], "inspection": "Spectral initialization, learned threshold/step arrays, simultaneous scaled updates, supervised reconstruction return"}
+      ],
+      "core": "Threshold the matrix residual to estimate signed sparse corruption, then update two low-rank factors using their inverse Gram matrices as preconditioners. Both factors use the old factor pair for a simultaneous step. A spectral initializer precedes the finite learned iteration chain. The source also offers recurrent continuation, which is not selected here.",
+      "exact_mapping": {
+        "matrix": "Pack only available columns [Base_forward, active Gap roles in A/T/V order] into Y[512,C], C in {1,2,3}. Coordinates are already in the same OSRAM value space; columns are evidence roles, not pixels/time. Rank r=1 is fixed. C=1 uses exact identity because there is no cross-role redundancy to decompose.",
+        "scale": "Per-utterance s=max(mean(abs(Y)),1e-6). Zero Y bypasses the solver. All thresholds are relative to s; no batch estimate.",
+        "initialization": "S0=soft_threshold(Y,0.1*s). Deterministic thin SVD of Y-S0 produces rank-one U0=u1*sqrt(sigma1), V0=v1*sqrt(sigma1). Compute this initialization under no_grad, with no randomized svd_lowrank and no global RNG use. If sigma1 is zero, bypass with Y. The initial threshold is fixed, not a dormant trainable parameter.",
+        "iterations": "Fourteen learned updates after the spectral initialization, matching a 15-stage finite variant. At t=1..14, zeta_t=softplus(theta_t)*s (initial 0.1*0.8^t*s), eta_t=sigmoid(phi_t) (initial 0.5). S_t=soft_threshold(Y-U_t V_t^T,zeta_t); E_t=Y-U_t V_t^T-S_t; U_next=U_t+eta_t E_t V_t/max(V_t^T V_t,1e-6); V_next=V_t+eta_t E_t^T U_t/max(U_t^T U_t,1e-6). Both updates use U_t,V_t. All learned scalar arrays must be registered parameters.",
+        "final_components": "L=U_final V_final^T; S=soft_threshold(Y-L,zeta_14); R=Y-L-S. This final residual classification is explicit task readout adaptation.",
+        "identity_init_and_readout": "Use reconstructed evidence Y_new=L+a*S+R, evaluated stably as Y+(a-1)*S, where a=1-tanh(gamma), gamma initialized to zero. This is native component recombination at the original evidence input, not an added output branch. Unpack existing roles; Local, missing roles and backward halves retain original values. Source decomposition, rather than a primitive standalone gate, determines the component being reweighted.",
+        "gradient_contract": "Differentiate all fourteen scaled updates and final thresholding, but not the spectral initializer. The first optimizer step can update gamma; core parameters receive gradients after gamma leaves zero. This delayed-core behavior must be tested, not called frozen training.",
+        "objective": "Use only the existing task loss. Do not use source clean-matrix supervision, synthetic training data, source layerwise curriculum or an auxiliary recovery loss."
+      },
+      "source_adaptations": ["Selected finite LRPCA core, not the paper's infinite feedforward-recurrent extension.", "Deterministic detached spectral initialization replaces randomized differentiable source svd_lowrank. This avoids both global forward RNG consumption and undefined SVD gradients at repeated singular values; it intentionally omits gradients through initialization.", "Rank-one Gram floors, bounded learned step sizes and data-scaled thresholds are numerical/task adaptations; recovery theorems are not claimed.", "Component recombination preserves initial Flat inputs; the source supervised reconstruction head is not transferred."],
+      "hypothesis": "A signed sparse disagreement component may distinguish a few conflicting value coordinates from shared cross-role structure; task training can learn whether to suppress or retain that component.",
+      "mechanism_tests": ["Independent one-step scaled-update reference verifies simultaneous rather than sequential factor updates", "Synthetic signed rank-one-plus-sparse matrix validates decomposition behavior without becoming a training objective", "Zero matrix, repeated singular values and rank-deficient factors remain finite", "Global RNG unchanged by forward", "Scalar parameter updates after gamma perturbation; no dormant trainable initializer parameter", "C=1, no-history and padding identity"],
+      "novelty_audit": {
+        "closest_prior_ids": ["hamburger_nmf_full", "crate_mssa_ista_full"],
+        "substantive_difference": "NMF models a nonnegative product and has no separate signed sparse residual or inverse-Gram factor scaling. CRATE applies sparse coding/ISTA after subspace attention and does not jointly solve low-rank-plus-sparse evidence decomposition. LRPCA retains coupled sparse classification and preconditioned low-rank factor updates, not merely another matrix-factorization rank or iteration count.",
+        "same_round_overlap": "Do not also count PCP/ADMM-RPCA, AltProj or another unrolled robust-PCA solver without proving a different substantive core. NSF is invertible coordinate transport; DEQ solves a general contractive state rather than low-rank/sparse factors. Other lanes require reconciliation.",
+        "source_code_evidence": "Pinned MatNet.forward computes thresholded residuals, V(V^T V)^-1 and U(U^T U)^-1 scaling, and simultaneous old-factor updates."
+      },
+      "risks": ["Only two or three columns exist when active, so the low-rank-plus-sparse assumption is much less identifiable than in source high-dimensional recovery experiments.", "A sparse disagreement may be useful evidence rather than corruption; improvement is a falsifiable hypothesis, not an assumed denoising benefit.", "Detached initialization is a material backward-path adaptation and must stay documented.", "Per-utterance SVD and fourteen updates require profiling despite small C.", "No source recovery guarantee or full-paper reproduction claim is valid for this task."],
+      "accept": true,
+      "decision": "Accept as a finite-LRPCA mechanism adaptation with explicit detached-initializer exception; numerical behavior remains untested."
+    },
+    {
+      "id": "contractive_deep_equilibrium_evidence",
+      "title": "Deep Equilibrium Models",
+      "authors": ["Shaojie Bai", "J. Zico Kolter", "Vladlen Koltun"],
+      "url": "https://arxiv.org/abs/1909.01377",
+      "pdf": "https://arxiv.org/pdf/1909.01377",
+      "domain": "Implicit deep networks / sequence modeling",
+      "code_url": "https://github.com/locuslab/deq",
+      "code_pin": "1fb7059d6d89bb26d16da80ab9489dcc73fc5472",
+      "license": "MIT",
+      "sources_read": [
+        {"url": "https://arxiv.org/pdf/1909.01377", "sections": "Root-based equilibrium forward computation and implicit differentiation theorem"},
+        {"url": "https://github.com/locuslab/deq/blob/1fb7059d6d89bb26d16da80ab9489dcc73fc5472/DEQ-Sequence/models/deq_transformer.py", "symbols": ["DEQTransformerLM._forward", "backward_hook"], "lines": "318-343: no-grad root solve and implicit transpose-Jacobian adjoint"},
+        {"url": "https://github.com/locuslab/deq/blob/1fb7059d6d89bb26d16da80ab9489dcc73fc5472/lib/solvers.py", "symbols": ["broyden", "line_search", "matvec", "rmatvec"]}
+      ],
+      "core": "A weight-tied nonlinear map is evaluated at its fixed point using a root solver without recording all forward iterations. Training solves a transpose-Jacobian linear fixed-point system for the implicit adjoint. The root-and-adjoint pair, rather than the choice of sequence backbone, is the transferred mechanism.",
+      "exact_mapping": {
+        "unit": "For each genuine head, x=[Base_h, Gap_A_h, Gap_T_h, Gap_V_h] in R^256 with repeated-coordinate active mask m. Context c=[Local256, availability3, head-onehot8] has 267 coordinates. No edges, learned slots or positional neighbourhoods.",
+        "fixed_point": "z*=f(z*;x,c), f(z)=x+0.9*m*Pbar*tanh(Qbar*(m*z)+C*c+b). P,Q are learned 256x256 matrices, C is 256x267, b is 256; Pbar=P/(1+||P||_F), Qbar=Q/(1+||Q||_F). This gives Lipschitz constant below 0.9 in z, no auxiliary Jacobian loss. P and Q are not constrained symmetric/transposes, so the map need not be a gradient field.",
+        "solver": "Implementation amendment authorized by coordinator: Picard fixed-point iteration replaces Broyden in both the forward root solve from z0=x and the implicit backward solve v=J_f(z*)^T v+upstream. The actual map has contraction bound below 0.9. Maximum 50 iterations for each; relative residual ||r||/(1+||state||) <=1e-6, checked again on returned state. Each utterance/head freezes independently on convergence; never use a batch-global stopping norm. No line search is needed for Picard. Exceeding tolerance is an explicit failure, with no unrolled-gradient fallback. No retained warm starts. A custom autograd Function evaluates the transpose-Jacobian solve at the detached converged root, retaining the genuine implicit adjoint.",
+        "identity_init": "Initialize P=0 and b=0, Q and C with isolated standard initialization. The unique fixed point is exactly x. Differentiate through Pbar and the implicit adjoint correctly; P must have a nonzero first-step gradient where the task signal permits. Avoid parameter-equality bypasses.",
+        "readout": "Unpack z* into the original forward evidence coordinates before Flat's existing adapter. Keep Local and backward zeros unchanged. Re-mask inactive coordinates after every solver evaluation. No-history/padding bypass.",
+        "source_exclusions": "Do not transfer Transformer-XL relative positions, mems/update_mems, language-model output layer, variational dropout, stacked pretraining mode, optional jac_loss_estimate or spectral-radius training loss. The paper's generic implicit-layer formulation is selected, not its full sequence-model architecture."
+      },
+      "hypothesis": "Joint nonlinear evidence consistency can be learned as a stable fixed-point relation instead of a prescribed finite aggregation trajectory.",
+      "mechanism_tests": ["Independent tiny linear fixed-point closed form and implicit parameter/input gradient reference", "Forward and backward residuals below declared tolerance", "Zero-P identity and original Flat gradient parity", "Contractive bound verified for the actual map, including masks and parameter normalization", "Example with asymmetric Jacobian to establish it is not scalar-potential gradient descent", "No batch-global stopping/line-search coupling", "Finite gradient for Frobenius norm at P=0"],
+      "novelty_audit": {
+        "closest_prior_ids": ["equilibrium_aggregation", "rrn_evidence"],
+        "substantive_difference": "First-round equilibrium_aggregation optimizes a learned scalar potential with ten explicitly differentiated Nesterov steps. This candidate permits a nonconservative nonlinear map, solves f(z)-z=0 to tolerance and differentiates the equilibrium through an implicit adjoint. It is not the same energy optimizer moved to Flat input. RRN uses a prescribed finite LSTM message-update trajectory, without root solving or an implicit adjoint. If implementation falls back to a fixed unrolled map or recycles the EA energy, reject it as failing this distinction.",
+        "same_round_overlap": "Treat generic implicit-layer / DEQ variants as one candidate. A convex optimization layer differentiated by KKT may overlap strongly and needs a substantive program-level distinction before separate counting. LRPCA is finite explicit low-rank/sparse decomposition; NSF is analytic invertible coupling. Other lanes require coordinator reconciliation.",
+        "source_code_evidence": "Pinned _forward lines 320-322 solve under no_grad; lines 335-343 solve the transpose-Jacobian adjoint. This paired mechanism is absent from the first-round EA description."
+      },
+      "risks": ["A substantive distinction from EA exists mathematically, but the coordinator must preserve it in implementation rather than count a renamed iterative aggregator.", "Strict per-instance convergence is more expensive than the source's batch-global stopping rule.", "Contractive normalization may underuse model capacity.", "Fifty iterations are a finite numerical budget, not a universal convergence guarantee; failure must be surfaced.", "Implicit differentiation needs careful hook lifetime, evaluation-mode behavior and zero-norm derivative handling; no implementation is included."],
+      "accept": true,
+      "decision": "Accept one generic DEQ mechanism adaptation, contingent on retaining both root solve and implicit adjoint as specified; not a full DEQ-Transformer reproduction."
+    },
+    {
+      "id": "iternorm_whitening_rejected",
+      "title": "Iterative Normalization: Beyond Standardization towards Efficient Whitening",
+      "authors": ["Lei Huang", "Yi Zhou", "Fan Zhu", "Li Liu", "Ling Shao"],
+      "url": "https://arxiv.org/abs/1904.03441",
+      "pdf": "https://arxiv.org/pdf/1904.03441",
+      "domain": "Deep network normalization",
+      "code_url": "https://github.com/huangleiBuaa/IterNorm",
+      "code_pin": "e00f6720fa82478535f1081e7d2e96b278f4849c",
+      "license": "BSD-2-Clause",
+      "sources_read": [
+        {"url": "https://arxiv.org/pdf/1904.03441", "sections": "Covariance normalization and iterative inverse square root"},
+        {"url": "https://github.com/huangleiBuaa/IterNorm/blob/e00f6720fa82478535f1081e7d2e96b278f4849c/module/DecorelateBN_PowerIter_GPU.lua", "symbols": ["DecorelateBN_PowerIter_GPU:updateOutput"], "inspection": "Batch centering, trace-normalized covariance, power iteration and running means/projections for evaluation"}
+      ],
+      "core": "Iterative covariance inverse-square-root whitening with learned affine output and training/evaluation statistics.",
+      "adaptation_considered": "Within-utterance evidence whitening could remove cross-utterance statistics, but it would replace the source statistics semantics and remain a single normalization operator rather than a substantive structured readout block.",
+      "mask": "A hypothetical within-utterance variant would exclude inactive roles before mean/covariance; no implementation or candidate protocol is proposed because it is rejected.",
+      "novelty_audit": {
+        "closest_prior_ids": ["isqrt_cov_meta_layer (screened/rejected in first-round METHODS.md)"],
+        "substantive_difference": "No sufficient task-level mechanism distinction from previously rejected primitive matrix-normalization/pooling directions.",
+        "same_round_overlap": "Do not count whitening, Newton-Schulz normalization, conditional whitening and IterNorm as separate meaningful methods.",
+        "source_code_evidence": "Pinned Lua implementation maintains running_means/running_projections and computes covariance over a batch."
+      },
+      "risks": ["Original batch statistics violate utterance independence.", "Replacing them with only a few evidence roles yields a rank-deficient covariance and does not resolve the method-complexity objection."],
+      "accept": false,
+      "decision": "Reject; do not count toward 20. No fifth qualified candidate was established in this lane."
+    }
+  ]
+}

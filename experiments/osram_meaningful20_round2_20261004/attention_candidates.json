@@ -1,0 +1,247 @@
+{
+  "schema_version": 1,
+  "round": 2,
+  "verified_on": "2026-10-04",
+  "lane": "complete_nontrivial_attention_cores",
+  "status": "five_source_verified_designs_no_implementation_no_training",
+  "accepted_count": 5,
+  "acceptance_scope": "Accepted as five distinct, concretely mapped source-core designs for coordinator review. Not a claim of model reproduction, implementation correctness, GPU readiness, or improvement. Global registry reconciliation remains coordinator-owned.",
+  "source_policy": "Primary method PDFs and actual author-owned code were inspected. Repository pins were resolved with read-only GitHub API requests. Independent mathematical implementation is proposed; no external code was copied into model files.",
+  "history_audit": {
+    "inspected": [
+      "experiments/osram_meaningful20_20261003/METHODS.md: all twenty first-round full mechanisms",
+      "experiments/osram_readout20_20261003/literature/bilinear.json: withdrawn MLB/MFB/MUTAN/BLOCK/MCB/BAN",
+      "experiments/osram_readout20_20261003/literature/interactions.json: withdrawn DCNv2/CIN/AutoInt/DIN/DLRM/AFF/Non-local",
+      "experiments/osram_readout20_20261003/literature/recalibration.json: withdrawn FiLM/SE/ECA/CBAM/GCT/SimAM/SK",
+      "gcnet_missing_m3/osram.py:681-745: historical CurrentHistoryRelationBlock and its pooled pairwise descriptor mechanism"
+    ],
+    "bounded_search": "No matches for the five method names in local experiment METHODS, registries, PROVENANCE, config, RESULT, or manifest artifacts at audit time. This name search supplements, rather than replaces, the mechanism comparisons below.",
+    "coordination": "Sent all five candidate families to the representation lane and coordinator. Explicitly avoided its bottleneck/compression families. Every entry includes same-round mechanism comparison; a later conflicting registry entry must be resolved before implementation.",
+    "not_counted": [
+      {"name": "Sinkformers", "reason": "Screened out before acceptance: its central iterative doubly-stochastic Sinkhorn normalization overlaps the already used OTKE transport-normalization family. A different paper or self-attention insertion point alone is insufficient novelty."},
+      {"name": "Agent Attention", "reason": "Not pursued as a quota filler: learned-agent relay is too close to already used latent bottleneck/Perceiver-style processing without a stronger independent distinction."},
+      {"name": "Differential Transformer V2", "reason": "Not a second method: same differential-attention family as the accepted V1 entry."}
+    ]
+  },
+  "shared_adaptation": {
+    "insertion_point": "Original Flat emotion_adapter INPUT, before its existing input LayerNorm/MLP; not an extra 128->1600 residual at emotion_norm. Existing local_skip continues to consume the original Local L.",
+    "producer_provenance": "osram.py MODALITIES is audio,text,visual. Existing causal _scan produces Base and Gap reads [batch,8,64], flattened to forward512; forward later appends the backward-zero512 half. Consume only existing forward read values. No memory queries, writes, history caches, or extra scans.",
+    "tokens": "For each history-bearing valid utterance independently: one Local256 token and eight head64 tokens from each active role Base/Gap-A/Gap-T/Gap-V. Base is active with prior history; Gap-m is active only when modality m is missing. Thus active length is 9,17,25 for the seven valid availability patterns. Use Local Linear256->128 and eight head-specific Linear64->128 maps shared across Base/Gap roles, plus learned role/head categorical embeddings and tokenwise LayerNorm128. Head identity carries no distance, chronology, or spatial geometry.",
+    "output": "Each complete core returns an output per active token. Decode the Local output with zero-initialized Linear128->256, and each memory-head output with a zero-initialized Linear128->64 shared across source roles for that head. Add these corrections only to the corresponding original Flat-input slots. Preserve inactive Gap as zero and append the untouched zero backward half to each memory role. No pooling destroys the typed/head layout.",
+    "flat_equation": "L_adapter=L+DeltaL; E_adapter[r,h]=E[r,h]+DeltaE[r,h] on active entries. hidden=emotion_norm(local_skip(L)+emotion_adapter(concat(L_adapter,Base_adapter,masked_Gap_adapter.flatten()))). The original Local Skip, emotion_adapter, emotion_norm and task head are retained. Zero decoder weights and biases give the exact original input mapping at initialization.",
+    "mask_safety": "Apply torch.where to invalid/padded/no-history input values before projection and after any biased embedding/decoder. Compact active tokens by availability group before each attention core; exclude invalid tokens from every normalization denominator. Bypass the entire adapter on no-history and padding rows. For all seven legal masks, at least nine valid tokens remain; never use all-masked softmax. Reassemble canonical role/head slots afterward.",
+    "causality": "Use bidirectional attention only among already-read evidence of the SAME current utterance. Do not impose a causal triangular order on memory heads; their order is categorical, not temporal. No RoPE, relative-position table, artificial grid, or nearest-neighbor geometry.",
+    "training_boundary": "No added loss, predictor, completion, teacher, extra task head, or parameter freeze. Dropout inside the new core is zero to avoid changing the legacy dropout stream. Preserve the original optimizer, schedule, mask construction and task loss. The initial zero decoder legitimately delays core gradients until its bridge opens; do not call every core parameter immediately updating a requirement at step zero.",
+    "full_core_definition": "Transfer each source's complete attention operator, including its normalization/competition/composition subchain and output projection. Source task embeddings, autoregressive cache, language/image head, and generic surrounding FFN stack are not transferred. The existing Flat MLP remains the downstream local processor. These are complete portable operator transfers, not claimed full Transformer reproductions. Width128 and head counts below are fixed task adaptations, not separate methods.",
+    "required_future_checks": "Independent operator-equation fixtures; permutations with role/head IDs moving together; inactive NaN/Inf invariance; exact original Flat outputs and raw shared gradients at identity initialization; no added scan; core gradients after a nonzero bridge; no-history/padding zero; actual batch32 CUDA forward/backward/eval feasibility. None was executed in this literature lane."
+  },
+  "candidates": [
+    {
+      "id": "differential_attention_v1",
+      "title": "Differential Transformer",
+      "authors": ["Tianzhu Ye", "Li Dong", "Yuqing Xia", "Yutao Sun", "Yi Zhu", "Gao Huang", "Furu Wei"],
+      "url": "https://arxiv.org/abs/2410.05258",
+      "pdf": "https://arxiv.org/pdf/2410.05258",
+      "venue": "ICLR 2025",
+      "domain": "Language modeling and contextual retrieval, not MSA/MERC",
+      "code": {
+        "repository": "https://github.com/microsoft/unilm",
+        "pin": "31c5b904ca1bf2afb4c234a6675c683a4e5fc7cd",
+        "url": "https://github.com/microsoft/unilm/blob/31c5b904ca1bf2afb4c234a6675c683a4e5fc7cd/Diff-Transformer/multihead_diffattn.py",
+        "symbols": ["MultiheadDiffAttn.__init__", "MultiheadDiffAttn.forward", "lambda_init_fn", "rms_norm.py::RMSNorm"],
+        "lines": ["multihead_diffattn.py:26-67", "multihead_diffattn.py:78-120", "rms_norm.py:4-22"],
+        "license": "MIT; root LICENSE inspected at the pin, Microsoft copyright",
+        "license_url": "https://github.com/microsoft/unilm/blob/31c5b904ca1bf2afb4c234a6675c683a4e5fc7cd/LICENSE"
+      },
+      "inspected": {
+        "primary_method": "PDF section2.1-2.2, equations1-3 and Figure2; inspected paired softmax, lambda parameterization, headwise normalization and fixed output scaling.",
+        "actual_code": "Read the full MultiheadDiffAttn implementation and fallback RMSNorm. Author code normalizes the last 2d dimensions per differential head with RMSNorm, despite the paper's GroupNorm terminology. Lambda's four vectors are shared across heads within one module, not independently invented per head.",
+        "source_caveat": "The reference imports optional FlashAttention/Apex/rotary helpers; independently implement the unfused mathematical path with ordinary PyTorch, without adding these dependencies. V2 source exists but is deliberately excluded."
+      },
+      "core": {
+        "chain": "Two independent query/key maps -> two separately normalized attention maps -> learned signed subtraction -> shared doubled-width value aggregation -> per-head RMSNorm -> fixed (1-lambda_init) scaling -> output projection.",
+        "equation": "For each differential head, A=softmax(Q1 K1^T/sqrt(d))-lambda*softmax(Q2 K2^T/sqrt(d)); Y=(1-lambda_init)*RMSNorm(A V); concatenate Y and apply Wo. lambda=exp(dot(lambda_q1,lambda_k1))-exp(dot(lambda_q2,lambda_k2))+lambda_init.",
+        "must_preserve": ["Both separate softmax normalizations", "Signed subtraction before value aggregation", "Learned exponential-difference lambda parameterization", "Per-head RMSNorm and fixed scaling", "Output projection"]
+      },
+      "adaptation": {
+        "configuration": {"token_dim":128,"differential_heads":4,"query_key_subhead_dim":16,"value_head_dim":32,"modules":1,"depth_index":0,"lambda_init":0.2,"lambda_vector_init_std":0.1,"head_rms_eps":0.00001,"dropout":0.0},
+        "resolved_mapping": "Apply the complete differential operator to compact typed evidence tokens. No causal triangular mask or rotary embedding is used, because evidence slots are not an autoregressive sequence. Decode every resulting token to its original Flat-input slot using the shared identity-initialized adapter contract.",
+        "motivation": "Test whether subtracting two evidence-attention distributions reduces common distractor contributions before the original Flat fusion. This is a hypothesis, not a claim that Base/Gap noise has the paper's language-model statistics."
+      },
+      "uniqueness": "Signed cancellation between normalized pairwise attention maps is absent from the first-round twenty and withdrawn bilinear/gate list. It is not additional width, ordinary softmax, or a feature gate.",
+      "novelty_audit": {
+        "closest_prior_ids": ["autoint", "nonlocal_dot", "crate_mssa_ista_full", "egt_evidence"],
+        "substantive_difference": "Those mechanisms never subtract two independent normalized maps using the source lambda parameterization followed by per-head RMS normalization. Neither dictionary shrinkage nor edge-state attention is being reused here.",
+        "same_round_overlap": "Distinct from Flowformer resource normalization, Compositional retrieval selection, DAT relation-valued messages, and DCFormer cross-head matrix composition. No V2/alternative lambda setting counts as another candidate."
+      },
+      "risks": ["Signed weights can cancel useful minority shift evidence, not only noise.","Exponentiated lambda parameters can become numerically large; inspect finite gradients without silently replacing the source equation with a gate.","Removing token-order RoPE/causal masking is an explicit set-readout adaptation.","Full language-model scaling or denoising gains do not transfer as established results."],
+      "accepted": true
+    },
+    {
+      "id": "flowformer_conservation",
+      "title": "Flowformer: Linearizing Transformers with Conservation Flows",
+      "authors": ["Haixu Wu", "Jialong Wu", "Jiehui Xu", "Jianmin Wang", "Mingsheng Long"],
+      "url": "https://proceedings.mlr.press/v162/wu22m.html",
+      "pdf": "https://proceedings.mlr.press/v162/wu22m/wu22m.pdf",
+      "venue": "ICML 2022",
+      "domain": "General sequence, vision, language and reinforcement learning, not MSA/MERC",
+      "code": {
+        "repository": "https://github.com/thuml/Flowformer",
+        "pin": "61f5d8c83907955a8bc226af03b81b59b2724c8f",
+        "url": "https://github.com/thuml/Flowformer/blob/61f5d8c83907955a8bc226af03b81b59b2724c8f/Flow_Attention.py",
+        "symbols": ["Flow_Attention.kernel_method", "Flow_Attention.dot_product", "Flow_Attention.forward"],
+        "lines": ["Flow_Attention.py:7-64"],
+        "license": "MIT; pinned root LICENSE inspected, THUML/Tsinghua copyright",
+        "license_url": "https://github.com/thuml/Flowformer/blob/61f5d8c83907955a8bc226af03b81b59b2724c8f/LICENSE"
+      },
+      "inspected": {
+        "primary_method": "PDF sections3.1-3.2, equations4-8 and Figure2: incoming/outgoing capacity, two conservation refinements, source competition, aggregation, sink allocation.",
+        "actual_code": "Read the complete noncausal Flow_Attention implementation. It uses sigmoid Q/K features, epsilon inside capacity dot products, conserved-source clipping to [-1,1], source softmax times source count, and sink sigmoid scaled by query_count/key_count.",
+        "source_caveat": "Keep these author-code stabilization and cardinality factors explicitly; a plain linear-attention kernel plus learned gate is not this method. Do not use the cumulative-sum causal variant over arbitrary head order."
+      },
+      "core": {
+        "chain": "Positive Q/K features -> reciprocal source/sink capacities -> opposite-side conservation refinement -> competitive source redistribution -> normalized associative KV aggregation -> sink allocation -> output projection.",
+        "equation": "q=sigmoid(Wq X),k=sigmoid(Wk X). i=1/dot(q+eps,sum(k)+eps), o=1/dot(k+eps,sum(q)+eps). ci=dot(q+eps,sum(k*o)+eps); co=clip(dot(k+eps,sum(q*i)+eps),-1,1). c=N*softmax(co); a=sigmoid(ci*Nq/Nk); Y=a*(q*i)@(k^T@(V*c)), followed by Wo.",
+        "must_preserve": ["Both source and sink capacities", "Both conservation refinements", "Source competition and sink allocation", "Capacity-normalized aggregation", "Actual active cardinality factors"]
+      },
+      "adaptation": {
+        "configuration": {"token_dim":128,"heads":4,"head_dim":32,"modules":1,"epsilon":0.000001,"dropout":0.0,"source_clip":[-1.0,1.0]},
+        "resolved_mapping": "Use each compact active evidence token as both source and sink. Nq=Nk is 9,17,25, never padded33. Return one transformed row per original token and use the identity-initialized Flat-input decoders. The source-count multiplier must change with the real mask, not with a fabricated fixed token grid.",
+        "motivation": "Test coupled global resource allocation among correlated Base/Gap evidence, rather than independently weighting each channel. No efficiency claim is made for these very short sets."
+      },
+      "uniqueness": "Coupled source/sink normalization derived from the same positive pair capacities controls allocation. The final sigmoid is only one piece; removing either conservation path would collapse the accepted mechanism.",
+      "novelty_audit": {
+        "closest_prior_ids": ["otke", "local_evidence_gate", "aff", "se", "nonlocal_dot"],
+        "substantive_difference": "Unlike OTKE, there are no learned target supports, iterative Sinkhorn marginals, or transport pooling. Unlike gates, weighting is constrained by both source and sink capacities and followed by normalized token-to-token aggregation.",
+        "same_round_overlap": "Not differential map subtraction, retrieval-bank competition, relation-plus-symbol values, or cross-head composition. Sinkformer was excluded instead of being counted as another normalization candidate."
+      },
+      "risks": ["The source clipping may reduce contrast between already similar evidence capacities.","Memory tokens outnumber the single Local token; conservation is not a reliability or modality-balance guarantee.","Positive kernels and extra normalization can smooth genuine disagreement.","Mask compaction is mandatory: padded zeros passed through sigmoid would become nonzero participants."],
+      "accepted": true
+    },
+    {
+      "id": "compositional_search_retrieval",
+      "title": "Compositional Attention: Disentangling Search and Retrieval",
+      "authors": ["Sarthak Mittal", "Sharath Chandra Raparthy", "Irina Rish", "Yoshua Bengio", "Guillaume Lajoie"],
+      "url": "https://arxiv.org/abs/2110.09419",
+      "pdf": "https://arxiv.org/pdf/2110.09419",
+      "venue": "ICLR 2022",
+      "domain": "Compositional retrieval, visual reasoning and sequence tasks, not MSA/MERC",
+      "code": {
+        "repository": "https://github.com/sarthmit/Compositional-Attention",
+        "pin": "c2c9d8391144db4155922bb859183e844eefb568",
+        "url": "https://github.com/sarthmit/Compositional-Attention/blob/c2c9d8391144db4155922bb859183e844eefb568/Contextual_Retrieval_Task/model.py",
+        "symbols": ["Compositional_dot_Transformer.__init__", "Compositional_dot_Transformer.forward"],
+        "lines": ["Contextual_Retrieval_Task/model.py:32-120"],
+        "license": "No root/source-file license verified. Tree contains fairseq/LICENSE for a vendored subproject, which must not be assumed to license this separate contextual-retrieval file.",
+        "license_url": null,
+        "implementation_policy": "Source-reference-only; independent mathematical implementation with attribution, no copying/direct translation of unlicensed code."
+      },
+      "inspected": {
+        "primary_method": "PDF section3, equations7-14: independent search/retrieval families, all S*R candidate retrievals, query-conditioned secondary attention over retrieval choices.",
+        "actual_code": "Read complete Contextual_Retrieval_Task/model.py. Chosen source configuration uses softmax, shared value-key projection, no gumbel sampling, no extra concat input, and linear output. The source retrieval task masks self-attention diagonal.",
+        "source_caveat": "The optional separate-value-key branch reshapes using head_v_dim where head_dim is expected; avoid claiming that every source option is interchangeable. Chosen equal 32d search/value widths and separate=False follow a consistent inspected path."
+      },
+      "core": {
+        "chain": "Independent search softmax maps -> independent value projections -> all search-by-retrieval candidate outputs -> content-conditioned attention over retrieval choices -> per-search mixture -> concatenate/project.",
+        "equation": "For s in1..S,r in1..R: As=softmax(Qs Ks^T/sqrt(d)); Zsr=As Vr. bs,r=softmax_r(dot(Qvalue_s(X),Kvalue(Zsr))/sqrt(d)); Ys=sum_r bs,r*Zsr; Y=concat_s(Ys)Wo.",
+        "must_preserve": ["All S*R candidate retrievals rather than fixed s=r pairing", "Separate retrieval query and value-key maps", "Second softmax over retrieval choices", "Output mixture depends on actual candidate retrieval content"]
+      },
+      "adaptation": {
+        "configuration": {"token_dim":128,"searches":4,"retrievals":4,"search_head_dim":32,"retrieval_head_dim":32,"modules":1,"separate_value_key":false,"gumbel":false,"nonlinear_output":false,"concat_original":false,"exclude_self":true},
+        "resolved_mapping": "Each token searches other active evidence rows under four criteria; every search is applied to all four retrieval subspaces. Keep the reference diagonal exclusion; legal history-bearing inputs have at least nine tokens so no empty source set occurs. Decode per-token output into original Flat-input slots. No source-task scalar decoder is transferred.",
+        "motivation": "Test whether the criterion for matching historical evidence should be disentangled from which attributes are extracted, instead of forcing one fixed query/key/value-head pairing."
+      },
+      "uniqueness": "The extra competition is over candidate retrieval operations, not over observed tokens alone, channel gates, or bilinear Local-times-pooled-history products.",
+      "novelty_audit": {
+        "closest_prior_ids": ["autoint", "ban", "perceiver_io", "crate_mssa_ista_full"],
+        "substantive_difference": "None computes all S*R search/value pairings and then chooses among their content-dependent retrieval outputs. BAN's bilinear glimpses and CRATE's tied projection/ISTA do not implement that chain.",
+        "same_round_overlap": "DCFormer composes the head axis of pairwise score/weight tensors before aggregation; this method leaves search maps intact and composes value-retrieval results afterward. These are different intervening tensors and conditional operations, not renamed width variants."
+      },
+      "risks": ["S*R candidates can cost more than ordinary attention despite the small evidence set.","Search/retrieval specialization may collapse without any guaranteed benefit on MOSI.","Self-exclusion is a declared task-specific source choice; identity is provided by the untouched Flat input, not a fabricated extra observed token.","No license for this author file was verified; only an independent equation implementation is acceptable."],
+      "accepted": true
+    },
+    {
+      "id": "dual_attention_symbolic_relations",
+      "title": "Disentangling and Integrating Relational and Sensory Information in Transformer Architectures",
+      "authors": ["Awni Altabaa", "John Lafferty"],
+      "url": "https://proceedings.mlr.press/v267/altabaa25a.html",
+      "pdf": "https://arxiv.org/pdf/2405.16727",
+      "venue": "ICML 2025",
+      "domain": "Relational reasoning, language and vision, not MSA/MERC",
+      "code": {
+        "repository": "https://github.com/Awni00/dual-attention",
+        "pin": "dce218cbf5ec9aa7f90687c1323050a1fba17966",
+        "url": "https://github.com/Awni00/dual-attention/blob/dce218cbf5ec9aa7f90687c1323050a1fba17966/dual_attention/dual_attention.py",
+        "additional_urls": ["https://github.com/Awni00/dual-attention/blob/dce218cbf5ec9aa7f90687c1323050a1fba17966/dual_attention/relational_attention.py", "https://github.com/Awni00/dual-attention/blob/dce218cbf5ec9aa7f90687c1323050a1fba17966/dual_attention/symbol_retrieval.py"],
+        "symbols": ["DualAttention.forward", "RelationalAttention.forward", "SymbolicAttention.forward"],
+        "lines": ["dual_attention.py:80-151", "relational_attention.py:90-139,184-282", "symbol_retrieval.py:9-86"],
+        "license": "MIT; pinned root LICENSE inspected, Awni copyright",
+        "license_url": "https://github.com/Awni00/dual-attention/blob/dce218cbf5ec9aa7f90687c1323050a1fba17966/LICENSE"
+      },
+      "inspected": {
+        "primary_method": "PDF sections2.2-2.3 and Algorithm1: separate attention-selection and relation projections, sender symbols, parallel sensory/relational heads. SymbolicAttention equation3 is an explicitly source-supported non-positional identifier option.",
+        "actual_code": "Inspected attention/relation projection dimensions, relation scaling, symbol-value projection, weighted relation aggregation then projection, and parallel-output concatenation. Inspected actual SymbolicAttention query/template/symbol-library retrieval.",
+        "source_caveat": "Do not substitute the repository's older RelationalCrossAttention ablation for RelationalAttention. Do not use positional/relative-positional symbols or relational-neighborhood symbolic attention: those would fabricate an order for OSRAM heads."
+      },
+      "core": {
+        "chain": "Content-based symbolic identifier assignment -> sensory attention in parallel with relation-valued attention -> separate relation selection and pair comparison -> symbol-tagged relation aggregation -> concatenate the two paths.",
+        "equation": "sj=softmax((xj Wsymbol) Ftemplates^T/sqrt(ds)) Slibrary. r_ij,l=dot(xi Wq_rel,l,xj Wk_rel,l)/sqrt(dr). a_i,h=sum_j alpha_ij,h*(r_ij Wr,h+sj Ws,h), where alpha has separate attention Q/K. Concatenate sensory heads sum_j beta_ij,h*Vj with the relational heads after each branch's output projection.",
+        "must_preserve": ["Separate selection projections and relation projections", "Explicit sender-symbol contribution", "Learned content-based symbol templates and library", "Both sensory and relational paths", "No persistent edge state or learned spatial labels"]
+      },
+      "adaptation": {
+        "configuration": {"token_dim":128,"sensory_heads":2,"relational_heads":2,"head_dim":32,"relations":4,"relation_projection_dim":16,"symbol_heads":4,"symbol_count":8,"modules":1,"relation_activation":"identity","symmetric_relations":false,"share_attention_parameters":false,"dropout":0.0},
+        "resolved_mapping": "Use compact typed Local/Base/Gap head tokens as objects. Assign symbols by feature templates, not index or geometry. Compute every active pair's relation with separate Q/K filters, retain both branch outputs, and decode each original token to its Flat input slot. Symbol library entries are model parameters used independently per token, not a new memory cache or pooled latent history state.",
+        "motivation": "Test whether Flat fusion benefits from explicit comparisons between current/read evidence alongside direct sensory content, with relation messages tagged by a learned finite identity vocabulary."
+      },
+      "uniqueness": "Relation-valued attention with content-derived symbolic sender identifiers and a parallel sensory branch differs from both ordinary value attention and pairwise-MLP averaging.",
+      "novelty_audit": {
+        "closest_prior_ids": ["osram_relation_block", "osram_relation_dual_readout", "rrn_evidence", "egt_evidence", "slot_attention", "perceiver_io"],
+        "substantive_difference": "Historical relation code averages Local/history MLP descriptors [q,k,q*k,abs(q-k),type], with no attention selector or symbols. RRN iterates recurrent messages; EGT carries evolving edge states. This method instead routes independently computed relation vectors plus learned sender symbols in parallel with sensory messages. Symbol retrieval does not compress the token set into slots or induce a persistent latent state.",
+        "same_round_overlap": "Unlike Compositional Attention, there is no search-by-value-bank selection; unlike DCFormer there is no attention-head mixing matrix. Representation lane was told not to duplicate this symbolic relational family."
+      },
+      "risks": ["Learned symbol assignment may collapse or retain nuisance features; relation-centric interpretation is not guaranteed by this downstream task.","Correlated memory heads can still dominate Local through cardinality.","Pairwise relation scores can have large magnitude; retain source scaling and check finite gradients.","The port is a complete DualAttention operator transfer, not reproduction of source relational benchmarks or its whole Transformer."],
+      "accepted": true
+    },
+    {
+      "id": "dcformer_dynamic_head_composition",
+      "title": "Improving Transformers with Dynamically Composable Multi-Head Attention",
+      "authors": ["Da Xiao", "Qingye Meng", "Shengping Li", "Xingyuan Yuan"],
+      "url": "https://proceedings.mlr.press/v235/xiao24d.html",
+      "pdf": "https://arxiv.org/pdf/2405.08553",
+      "venue": "ICML 2024",
+      "domain": "Language modeling and compositional synthetic tasks, not MSA/MERC",
+      "code": {
+        "repository": "https://github.com/Caiyun-AI/DCFormer",
+        "pin": "df8671f23b4830cb3a254c23e5576d45141cfbd6",
+        "url": "https://github.com/Caiyun-AI/DCFormer/blob/df8671f23b4830cb3a254c23e5576d45141cfbd6/pytorch/dcformer/modeling_dcformer.py",
+        "symbols": ["DynamicWeightProjection", "CrossHeadProjection", "DCMHAttention", "_atten_context", "_cross_head_proj"],
+        "lines": ["modeling_dcformer.py:291-350", "modeling_dcformer.py:382-442", "modeling_dcformer.py:445-486", "modeling_dcformer.py:728-754"],
+        "license": "MIT; pinned root LICENSE inspected, Caiyun-AI copyright",
+        "license_url": "https://github.com/Caiyun-AI/DCFormer/blob/df8671f23b4830cb3a254c23e5576d45141cfbd6/LICENSE"
+      },
+      "inspected": {
+        "primary_method": "PDF section3, equations3-7, Figure2: full five-branch Compose, both pre-softmax and post-softmax placement, query/key-conditioned low-rank head mixing, and dynamic diagonal branches.",
+        "actual_code": "Read DynamicWeightProjection, CrossHeadProjection, DCMHAttention setup and the unfused _atten_context/_cross_head_proj equations. The default base composition is identity (use_sw=False); both query-wise and key-wise rank-two branches and both diagonal terms are retained.",
+        "source_caveat": "Reference deployment code includes autoregressive KV/KW caches, weight-merging parameter aliases, rotary/window logic and explicit bfloat16 casts. None is needed for the portable operator. Independently implement the explicit unfused, no-cache equations; do not inherit unused duplicated parameters or force lower precision."
+      },
+      "core": {
+        "chain": "Q/K/V -> pairwise head-score vector -> input-conditioned five-branch Compose -> token softmax -> independently parameterized five-branch Compose -> value aggregation -> output projection.",
+        "equation": "For a pair's H-vector a, Compose(a,xi,xj)=a Wb+(a Uq(xi))Vq(xi)+a* gq(xi)+(a Uk(xj))Vk(xj)+a*gk(xj). U/V are generated by a GELU MLP, U is RMS-normalized across heads, g=tanh(linear(x)); use independent pre/post sets. A=softmax_keys(Compose_pre(QK^T/sqrt(d))); O=Compose_post(A) V Wo.",
+        "must_preserve": ["Both pre-softmax and post-softmax Compose", "Query-wise AND key-wise dynamic off-diagonal head composition", "Both diagonal composition terms and base identity", "RMS normalization of generated first factors", "Separate dynamic generators for pre/post stages"]
+      },
+      "adaptation": {
+        "configuration": {"token_dim":128,"attention_heads":4,"head_dim":32,"dynamic_rank":2,"generator_hidden_dim":16,"groups":1,"modules":1,"base_composition":"identity/use_sw=False","qk_norm":false,"dropout":0.0,"causal":false,"cache":false},
+        "resolved_mapping": "The four attention heads are new readout projection subspaces, not the eight physical OSRAM value heads. Compose operates over the four attention channels for each active token pair, not over fabricated neighboring memory heads. Use full active-set attention without RoPE/windowing, preserve all four dynamic branches at both stages, and decode each resulting token into its original Flat-input slot.",
+        "motivation": "Test whether evidence-matching criteria should exchange their pairwise scores in a receiver/sender-dependent manner instead of treating attention heads independently. This is dynamic interaction between relation channels, not simply a low-rank feature adapter."
+      },
+      "uniqueness": "The defining operation is input-dependent mixing across attention heads before and after softmax. Rank-two factors are an implementation of complete pair-dependent head transformations, not a stand-alone low-rank/Hadamard readout.",
+      "novelty_audit": {
+        "closest_prior_ids": ["autoint", "mlb", "mutan", "block", "crate_mssa_ista_full", "egt_evidence"],
+        "substantive_difference": "Prior bilinear blocks factor a feature interaction; these generated matrices transform the head axis of every pairwise score/weight tensor at two distinct stages. CRATE binds Q/K/V and sparsifies a dictionary; EGT updates edge states. Neither supplies the complete query/key-conditioned Compose chain.",
+        "same_round_overlap": "Compositional Attention chooses among search-by-retrieval VALUE outputs after aggregation; DCFormer composes ATTENTION SCORE/WEIGHT heads before aggregation. Differential attention's scalar subtraction is also not a full query/key-conditioned head transform. Do not add static Talking-Heads or query-only/key-only ablations as extra quota entries."
+      },
+      "risks": ["Post-softmax composition can produce signed/non-stochastic weights; do not silently renormalize them back to softmax and change the mechanism.","Dropping the off-diagonal branches would reduce the design to rejected head gates.","The compact set is unlikely to benefit from the source long-sequence efficiency motivation.","Dynamic factor normalization and mixed precision require numerical verification; no speed or accuracy improvement is asserted."],
+      "accepted": true
+    }
+  ]
+}

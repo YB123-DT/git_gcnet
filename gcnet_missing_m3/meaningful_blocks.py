@@ -3,6 +3,7 @@ import importlib
 import torch
 from torch import nn
 from .meaningful_blocks_common import safe_mask
+from .meaningful_input import INPUT_METHODS
 
 FAMILIES = {
     'graph': ('rrn_evidence','egt_evidence','residual_gated_graph_evidence','pna_evidence'),
@@ -12,7 +13,8 @@ FAMILIES = {
     'optimization': ('hamburger_nmf_full','crate_mssa_ista_full','equilibrium_aggregation'),
     'feature_reasoning': ('tabnet','node'),
 }
-MEANINGFUL_METHODS = tuple(name for names in FAMILIES.values() for name in names)
+ROUND1_METHODS = tuple(name for names in FAMILIES.values() for name in names)
+MEANINGFUL_METHODS = ROUND1_METHODS + INPUT_METHODS
 
 
 def build_core(method, latent_dim, num_heads, value_dim):

@@ -1,16 +1,20 @@
 {
   "round": 2,
-  "status": "primary_paper_and_author_code_screening",
+  "status": "20_implemented_cpu_verified_pending_remote_cuda_admission",
   "user_authorized": true,
   "target_distinct_methods": 20,
-  "accepted_methods": 0,
-  "implemented_methods": 0,
+  "accepted_methods": 20,
+  "implemented_methods": 20,
   "training_started": false,
   "global_method_cap": 60,
   "prior_trained_methods": 20,
   "global_method_registry": "../osram_method_registry.json",
   "semantic_deduplication_required": true,
-  "prior_round_best": {"method": "perceiver_io", "seed": 66, "mean8_wf1_percent": 80.81795857267967},
+  "prior_round_best": {
+    "method": "perceiver_io",
+    "seed": 66,
+    "mean8_wf1_percent": 80.81795857267967
+  },
   "matched_flat_mean8_wf1_percent": 81.06809539495711,
   "rules": [
     "Exclude all twenty first-round methods and renamed/depth/width variations",
@@ -20,8 +24,23 @@
     "Consider identity-preserving transformations at existing Flat inputs; do not silently expand architecture authority",
     "One common minimal correctness and real-batch short-run template; no extra general review rounds",
     "Passing candidates enter fixed-protocol seed66 training on biggpu; GPU4 and its UUID banned",
-    "Freeze this round's twenty distinct designs before training; no performance promise",
+    "Freeze accepted design subsets and code before launch; append-only revisions cannot alter a running experiment; no performance promise",
     "All adaptive test-oracle results remain INTERNAL DIAGNOSTIC ONLY"
   ],
-  "research_lanes": ["vqa_candidates.json", "attention_candidates.json", "structured_candidates.json", "representation_candidates.json"]
+  "research_lanes": [
+    "vqa_candidates.json",
+    "attention_candidates.json",
+    "structured_candidates.json",
+    "representation_candidates.json",
+    "spectral_candidates.json",
+    "replacement_candidates.json",
+    "ppgn_candidate.json"
+  ],
+  "correctness_evidence": {
+    "methods_checked": 20,
+    "tests": "One shared mask/identity/update template and full-model train/eval output+RNG equivalence; prior methods retained",
+    "passed": true,
+    "elapsed_seconds": 17.675,
+    "cuda_checked": false
+  }
 }

@@ -1,0 +1,74 @@
+{
+  "scope": "Source-backed complete-core screening, not implementation, training approval, or measured improvement",
+  "date": "2026-10-04",
+  "skill": "Research Literature Trace",
+  "screened_against": ["experiments/osram_method_registry.json", "attention_candidates.json", "vqa_candidates.json", "representation_candidates.json", "structured_candidates.json"],
+  "common_adaptation": {
+    "input": "One Local256 plus Base and active Gap real 8x64 forward heads. Project Local256->64 and each head64->64 into a shared learned descriptor space; add role and actual-head identity embeddings. Exactly 9/17/25 unordered descriptors for legal availability. These are heterogeneous evidence descriptors, not iid temporal samples, image pixels, or an estimate of a population sentiment covariance.",
+    "statistic": "Pack only active descriptors X[n,64]; mu=mean_rows(X); S=(X-mu)^T(X-mu)/n. n is active count, never fixed storage33. No artificial spatial layout. Ridge S_delta=S+1e-4 I64 is explicit regularization: n<=25 guarantees rank deficiency without it. Covariance is invariant to consistent descriptor permutations and measures dispersion of this current read set, not change of historical observations.",
+    "insertion": "Use the resulting spectral representation z only for zero-initialized affine corrections to existing emotion_adapter input slots, not a replacement task head. Local_adapter=L+W_L0 z; each active real head C_type,h'=C_type,h+W_type,h,0 z. Local skip uses original L; existing Flat, emotion_norm and task classifier remain unchanged. Output heads W have zero weights AND biases. Gap slots remain fixed and inactive slots are hard zero. This shared global-statistic writeback is a declared wrapper, not source architecture or independent novelty.",
+    "masks": "Before any projection sanitize with where. Valid-prefix history cumsum(umask)-umask>0; no-history/padded rows bypass the whole branch and every biased correction. Consume emotion-ablation-masked reads, never raw reads bypassing ablation. Pack active descriptors; if all memory evidence is ablated bypass rather than compute a one-point statistic. Re-mask inactive Gap after writeback. Use only real forward512, preserve backward-zero halves. No BatchNorm, new dropout, batch statistics, persistent covariance, extra OSRAM reads/writes, labels, completion or auxiliary loss.",
+    "interpretation_limit": "Centered covariance loses first-order means; the original Flat and Local skip preserve their direct information. Head correlation is not automatically useful sentiment evidence. No accuracy benefit is implied."
+  },
+  "candidates": [
+    {
+      "id": "isqrt_cov_full",
+      "accepted": true,
+      "title": "Towards Faster Training of Global Covariance Pooling Networks by Iterative Matrix Square Root Normalization",
+      "authors": ["Peihua Li", "Jiangtao Xie", "Qilong Wang", "Zilin Gao"],
+      "url": "https://arxiv.org/abs/1712.01034",
+      "pdf": "https://arxiv.org/pdf/1712.01034",
+      "code": {"url": "https://github.com/jiangtaoxie/fast-MPN-COV", "pin": "c430c781264b7ce77536493308b09d73d534ce7a", "license": "MIT", "license_url": "https://github.com/jiangtaoxie/fast-MPN-COV/blob/c430c781264b7ce77536493308b09d73d534ce7a/LICENSE"},
+      "source_inspected": [
+        {"url": "https://arxiv.org/pdf/1712.01034", "finding": "Figure1 and Section3 specify centered covariance, trace/Frobenius pre-normalization, coupled Newton-Schulz iterations, scale compensation and differentiation through all stages."},
+        {"url": "https://github.com/jiangtaoxie/fast-MPN-COV/blob/c430c781264b7ce77536493308b09d73d534ce7a/src/representation/MPNCOV.py", "symbols": ["MPNCOV.forward", "Covpool", "Sqrtm", "Triuvec"], "finding": "Author implementation uses biased centered covariance1/n, trace normalization, iterative coupled factors, sqrt(trace) compensation and unweighted upper-triangle vectorization. Optional Conv/BN reduction is outside the selected meta-layer."}
+      ],
+      "core": "Full CovPool -> trace pre-normalization -> finite coupled matrix square-root iteration -> trace-scale post-compensation -> upper-triangle representation. No replacement by ordinary covariance, elementwise sqrt, isolated matrix sqrt, or eigensolver-only normalization.",
+      "adaptation": {
+        "equations": "t=trace(S_delta); Y0=S_delta/t, Z0=I. For k=1..5 use T=.5*(3I-Z_(k-1)Y_(k-1)); Yk=Y_(k-1)T; Zk=T Z_(k-1), using the same previous factors. C=sqrt(t)*Y5. z=upper_triangle(C), 2080 dimensions. Differentiate the finite five-step map including t and compensation; no detach or extra convergence loss.",
+        "parameters": "Descriptor width64, five iterations, fixed ridge1e-4. Raw2080d output is consumed by common zero-affine slot heads; no extra learned gate or invented factor network. Source allows iterNum; chosen five is fixed and not separately counted.",
+        "honest_changes": "Source image backbone and classifier omitted; common typed real-head projection replaces CNN descriptors. No source BatchNorm because per-utterance isolation. Ridge and fixed64 width are declared adaptations. Trace and upper-triangle conventions preserve the inspected author core."
+      },
+      "masks": "Common masks before covariance and before all output corrections; denominators count only active tokens; all-empty or no-history bypass. Positive ridge guarantees finite trace even for identical descriptors.",
+      "risks": ["A complete global pooling meta-layer, not a large trainable interaction network; accept only this full chain, never pad the list with other matrix powers or iteration counts.", "Earlier round1 notes rejected isolated iSQRT normalization as a primitive. This card revisits the complete source meta-layer but is not a claim that the previous rejection was experimentally disproved.", "Few correlated descriptors make covariance noisy; ridge can dominate low-variance directions. Five-step approximation is intentionally not asserted exact square root.", "2080d global-statistic writeback may be parameter-heavy; exact parameter count and numerical tests required before implementation approval."],
+      "novelty_audit": {
+        "closest_prior_ids": ["capsule_variational_bayes", "hamburger_nmf_full", "learned_robust_pca_evidence_decomposition"],
+        "substantive_difference": "Computes a single centered cross-channel second-order representation with finite normalized matrix-power geometry. VB fits multiple activation-weighted vote posteriors and responsibilities; Hamburger reconstructs nonnegative token factors; LRPCA decomposes the token matrix into signed sparse corruption and low-rank factors. None applies this complete covariance/normalization/compensation pooling chain.",
+        "same_round_overlap": "SPDNet shares only the covariance input wrapper; it learns multiple constrained congruences with spectral rectification before logarithmic charting. Do NOT treat plain sqrt versus plain log covariance as two methods. All attention/VQA/representation cards use token interactions/assignments rather than this full second-order pipeline.",
+        "source_code_evidence": "MPNCOV.forward explicitly composes Covpool, Sqrtm and Triuvec; Sqrtm includes pre/post trace scale and finite iterations."
+      }
+    },
+    {
+      "id": "spdnet_bimap_reeig_logeig",
+      "accepted": true,
+      "title": "A Riemannian Network for SPD Matrix Learning",
+      "authors": ["Zhiwu Huang", "Luc Van Gool"],
+      "url": "https://arxiv.org/abs/1608.04233",
+      "pdf": "https://arxiv.org/pdf/1608.04233",
+      "code": {"url": "https://github.com/zhiwu-huang/SPDNet", "pin": "527110a2209e918785075738b81c4ab091664e61", "license": "Root code license not verified; independent mathematical implementation only, no source copying. Bundled Manopt has its own license and must not be imported."},
+      "source_inspected": [
+        {"url": "https://arxiv.org/pdf/1608.04233", "finding": "Section Riemannian SPD Matrix Network specifies full-rank semiorthogonal BiMap, eigenvalue rectification and LogEig; training section uses Stiefel optimization."},
+        {"url": "https://github.com/zhiwu-huang/SPDNet/blob/527110a2209e918785075738b81c4ab091664e61/spdnet_init_afew.m", "finding": "Actual released chain is BiMap/ReEig/BiMap/ReEig/BiMap/LogEig then source classifier. Three dimensional reductions are retained, not collapsed into a single log-covariance layer."},
+        {"url": "https://github.com/zhiwu-huang/SPDNet/blob/527110a2209e918785075738b81c4ab091664e61/spdnet/vl_mybfc.m", "finding": "Column-orthonormal W convention computes W' X W; transpose is essential when translating paper row-orthonormal convention."},
+        {"url": "https://github.com/zhiwu-huang/SPDNet/blob/527110a2209e918785075738b81c4ab091664e61/spdnet/vl_myrec.m", "finding": "Reconstruct U max(lambda,epsilon) U'; manual spectral backward handles eigenvalue gaps."},
+        {"url": "https://github.com/zhiwu-huang/SPDNet/blob/527110a2209e918785075738b81c4ab091664e61/spdnet/vl_mylog.m", "finding": "LogEig reconstructs U log(lambda) U' and provides explicit spectral backward; do not naively differentiate eigenvectors at repeated eigenvalues."}
+      ],
+      "core": "Three learned SPD-preserving dimensional reductions with two intermediate spectral rectifications, followed by LogEig Euclidean charting. The learned congruence hierarchy plus nonlinear eigenvalue floor is indispensable; isolated log-covariance is not SPDNet.",
+      "adaptation": {
+        "equations": "S0=S_delta64 with ridge1e-4; S1=ReEig_floor1e-3(W1' S0 W1), W1:64x32; S2=ReEig_floor1e-2(W2' S1 W2), W2:32x16; S3=W3' S2 W3, W3:16x8; z=vec(LogEig(S3))64. Fixed stage-specific ReEig floors=(1e-3,1e-2). Keep full64-element final flatten as source classifier input convention, not another square-root pool.",
+        "constraint_and_optimizer": "Keep original global Adam unchanged. Parameterize each effective column-orthonormal W as exp(A-A')[:, :d_out] with learned square A and independent seeded orthogonal initial basis. This preserves W'W=I by construction and needs no extra optimizer or loss. It is an explicit smooth-parametrization adaptation, NOT reproduction of the author's Stiefel-SGD trajectory. Never replace W by unconstrained rectangular Adam weights and claim source parity.",
+        "spectral_backward": "Implement derivatives of symmetric spectral matrix functions via Loewner divided differences: offdiagonal (f(lambda_i)-f(lambda_j))/(lambda_i-lambda_j), continuous derivative limit for repeated eigenvalues; ReEig uses a declared zero subgradient at the floor. Symmetrize upstream matrix gradient. Verify finite repeated-spectrum forward/backward, gradcheck away from threshold and source-equation equivalence. Do not add random eigenvalue jitter to hide unstable eigenvector derivatives.",
+        "honest_changes": "Covariance construction from available read descriptors replaces supplied SPD data. Width64->32->16->8, ridge1e-4, fixed stage-specific floors=(1e-3,1e-2) and differentiable orthogonal parametrization are adaptations, not exact author-source configuration. Original Flat classifier/loss unchanged; no source classification head, manifold regularizer or reconstruction objective.",
+        "implementation_review_amendment": "2026-10-04: Implementation review found ridge=floor1=floor2=1e-4 makes both ReEig stages mathematically identity under strict semiorthogonal congruences, which preserve the minimum-eigenvalue lower bound. Merely raising both floors to1e-3 still makes the second stage identity after the first. Root approved fixed floors1e-3 then1e-2 so both stages can actually rectify small modes. This is one declared architecture setting, not hyperparameter search or a claim of source-training parity."
+      },
+      "masks": "Same common packing and no-history guards. Ridge makes input strictly positive definite even for rank<=n-1; semiorthogonal congruences preserve positivity; no fake sample or missing-feature insertion.",
+      "risks": ["Source includes general visual/action recognition and AFEW; this is a general SPD geometry core, not an MSA/MERC missing-modality method.", "An implementation without the orthogonality constraint or stable spectral backward would fail this card; no runtime readiness is claimed.", "Matrix exponential and three eigendecompositions cost more than fixed square-root pooling; GPU latency and peak memory require real-batch verification.", "Repeated eigenvalues are guaranteed by ridge in rank-deficient covariance, making naive torch.linalg.eigh eigenvector backward unsafe.", "Evidence covariance is heterogeneous descriptor dispersion; no iid statistical confidence or calibrated uncertainty claim."],
+      "novelty_audit": {
+        "closest_prior_ids": ["sheaf_hypergnn_diag", "capsule_variational_bayes", "learned_robust_pca_evidence_decomposition"],
+        "substantive_difference": "Learns a hierarchy of constrained channel-congruence SPD maps and eigenvalue nonlinearities. Sheaf transports node fibers through incidence maps, VB iterates probabilistic assignments, and LRPCA estimates low-rank plus sparse components of the data matrix. No shared core computation with those methods.",
+        "same_round_overlap": "Shares covariance input with isqrt_cov_full but not its fixed matrix-power pooling mechanism. Distinctness depends on retaining all three learned BiMaps and both ReEig stages; replacing the hierarchy by LogEig alone would be rejected as another normalization variant. No duplicate among attention/VQA/representation cards.",
+        "source_code_evidence": "spdnet_init_afew.m and vl_mybfc/vl_myrec/vl_mylog implement the complete six-stage SPD hierarchy."
+      }
+    }
+  ]
+}

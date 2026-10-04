@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "status": "Research-screened mechanisms; not implementation, CUDA or training approval",
+  "date": "2026-10-04",
+  "deduplication_sources_read": ["experiments/osram_method_registry.json", "attention_candidates.json", "vqa_candidates.json", "representation_candidates.json", "structured_candidates.json"],
+  "common_contract": {
+    "placement": "Use existing Local and effective Base/Gap reads to compute zero-initialized affine corrections to memory slots immediately before the original emotion_adapter. Keep original Local, Local skip, adapter, normalization and task head. Never modify OSRAM writes, queries or memory state.",
+    "masks": "Use already ablation-masked emotion reads. torch.where before arithmetic removes inactive NaN/Inf. Re-mask every inactive output including affine bias. Valid utterances with no strictly prior valid history and padding bypass the branch exactly. Causal backward context halves remain zero.",
+    "training": "Original task-only objective and protocol; no auxiliary reconstruction, density, logic or contrastive objective. Initialization and fixed architecture randomness must not consume caller RNG; no stochastic forward sampling.",
+    "claims": "Complete source mechanism adapted to existing readout evidence, not reproduction of the source dataset/backbone/head or a claim of effectiveness. CPU mechanism references and actual CUDA resource admission remain mandatory."
+  },
+  "candidates": [
+    {
+      "id": "neural_logic_machine_evidence",
+      "title": "Neural Logic Machines",
+      "authors": ["Honghua Dong", "Jiayuan Mao", "Tian Lin", "Chong Wang", "Lihong Li", "Denny Zhou"],
+      "url": "https://arxiv.org/abs/1904.11694",
+      "pdf": "https://arxiv.org/pdf/1904.11694",
+      "code_url": "https://github.com/google/neural-logic-machines",
+      "code_pin": "3f8a8966c54d13d2658c77c03793a9a98a283e22",
+      "source_inspected": ["difflogic/nn/neural_logic/layer.py::LogicLayer,LogicMachine", "difflogic/nn/neural_logic/modules/dimension.py::Expander,Reducer,Permutation", "difflogic/nn/neural_logic/modules/neural_logic.py::LogicInference"],
+      "license": "Apache-2.0 source headers inspected; implement independent equations without importing Jacinle",
+      "core": ["Represent predicates at arities 0,1,2,3", "Expand lower-arity predicates by adding a variable; reduce higher-arity predicates by existential max and universal min", "Concatenate all variable-axis permutations at each arity", "Shared per-grounding MLP and sigmoid infer new soft predicates", "Repeat four full logic layers so ternary information can return to unary outputs"],
+      "adaptation": {
+        "objects": "One token for Local and one for each active Base/Gap role, not one object per head. Project full Local256 and full real forward512 per memory role to 32 dimensions. This preserves every existing head coordinate as input while bounding arity-three cost; object count is 2/3/4 for legal availability patterns. No invented temporal or spatial relation.",
+        "input_predicates": "Unary 16-channel sigmoid projection of typed role token; binary 4-channel learned sigmoid MLP of ordered token pair. These are latent predicates, not labels or assertions of physical relations. Initial nullary/ternary tensors absent, as supported by source.",
+        "config": "Four layers, breadth 3, 16 output predicates at each arity, no recursion or residual concatenation; source shared inference MLP, normal sigmoid outputs.",
+        "output": "Final unary16 for each active memory object, optionally final nullary16 broadcast to it, feeds role-specific zero-initialized affine projection to its original512 memory coordinates. Local object conditions inference but its original Flat/Skip inputs remain unchanged."
+      },
+      "masks": "Pack only existing role objects. Exclude repeated-variable tuples using source reducer neutral values: 0 for max, 1 for min. Do not equate an absent modality with a false predicate. Preserve source interleaved existential/universal channels. Two-object ternary distinct tuples can be empty: use these neutral reductions, never NaN max/min; test explicitly.",
+      "risks": ["With only 2-4 role objects, high-arity predicates are often constrained or vacuous; do not claim symbolic semantics or extrapolative reasoning", "Packing complete role vectors is an explicit efficiency adaptation, not the 25-token head graph", "Independent numerical reference must test expansion, all six ternary permutations, interleaved max/min and unary gradients"],
+      "novelty_audit": {"closest_prior_ids": ["rrn_evidence", "ed_hnn", "pna_evidence"], "substantive_difference": "Explicit multi-arity predicate lattice, quantified reduction and variable permutation are absent from ordinary node/edge message passing or hyperedge averaging.", "same_round_overlap": "PPGN uses second-order matrix multiplication, not an arity lattice with existential/universal quantification; neither should be described merely as a graph MLP."},
+      "decision": "research_accepted_complete_core"
+    },
+    {
+      "id": "fspool_fsunpool_evidence",
+      "title": "FSPool: Learning Set Representations with Featurewise Sort Pooling",
+      "authors": ["Yan Zhang", "Jonathon Hare", "Adam Prügel-Bennett"],
+      "url": "https://arxiv.org/abs/1906.02795",
+      "pdf": "https://arxiv.org/pdf/1906.02795",
+      "code_url": "https://github.com/Cyanogenoid/fspool",
+      "code_pin": "a9f93cc774610c6d96c2c3095a1ab16f53abbefb",
+      "source_inspected": ["fspool.py::FSPool.forward,forward_transpose,determine_weight,deterministic_sort,cont_sort", "autoencoder/model.py::FSEncoder,FSDecoder,SAE"],
+      "license": "MIT repository; independent equation implementation",
+      "core": ["Shared two-layer pointwise feature encoder", "Featurewise deterministic NeuralSort descending rank maps", "Learned piecewise-linear rank weights and sum over ranked elements", "Encoder latent Linear-ReLU-Linear followed by a separate decoder latent Linear-ReLU-Linear, preserving both FSEncoder.lin and FSDecoder.lin in the pinned author code", "Decoder-specific rank weights expand latent features back to sorted positions", "Saved encoder sorting-map transpose maps positions back to original elements", "Shared pointwise decoder"],
+      "adaptation": {"tokens": "Local256 projected to64 plus each active real64-dimensional memory head, with role/head identity; packed sets have 9/17/25 tokens.", "config": "Encoder/both latent MLPs/decoder width64, 20 rank pieces (21 learned knots), relaxed deterministic NeuralSort with temperature1 as author encoder default. Separate encoder and decoder rank weights. Keep both source latent MLPs: FSEncoder.lin after pooling and FSDecoder.lin before unpooling; actual pinned autoencoder/model.py lines80-84 and181-185 verified.", "output": "Decoded64 at each original memory head passes a zero-initialized affine head correction; concatenate eight corrected heads into each original512 slot. Local token may condition pool but is not rewritten."},
+      "masks": "Pack only active tokens instead of source large negative padding sentinel. No inactive token enters rank normalization or sorting. Restore original slot identity through saved maps, then hard-mask absent roles and bypass no-history/padding.",
+      "risks": ["Soft sorting-map transpose is not an exact matrix inverse or lossless recovery", "Source reconstruction loss is deliberately absent; decoder transforms existing reads, never predicts missing modalities", "Sorting is content-based order statistics, not assumed spatial/temporal order of heads", "Accept only full encoder-pool-latent-unpool-decoder, not standalone weighted sorting pool"],
+      "novelty_audit": {"closest_prior_ids": ["slot_attention", "graph_multiset_transformer"], "substantive_difference": "Featurewise learned rank functionals with retained soft sorting maps and transpose unpooling, not iterative slot assignment or attention pooling.", "same_round_overlap": "TokenLearner/Fuser uses learned spatial assignment; ToMe merges token pairs. Neither uses per-feature rank interpolation and its retained sorting map for synthesis."},
+      "decision": "research_accepted_complete_core"
+    }
+  ],
+  "additional_candidate": {
+    "id": "rat_spn_evidence_circuit",
+    "title": "Random Sum-Product Networks: A Simple and Effective Approach to Probabilistic Deep Learning",
+    "authors": ["Robert Peharz", "Antonio Vergari", "Karl Stelzner", "Alejandro Molina", "Xiaoting Shao", "Martin Trapp", "Kristian Kersting", "Zoubin Ghahramani"],
+    "url": "https://proceedings.mlr.press/v115/peharz20a.html",
+    "pdf": "https://proceedings.mlr.press/v115/peharz20a/peharz20a.pdf",
+    "code_url": "https://github.com/cambridge-mlg/RAT-SPN",
+    "code_pin": "366e33a6488d8a8d16ba9a2ba512e7f2779afd7b",
+    "source_inspected": ["README.md: explicit UAI19 author code, discriminative Adam and generative EM paths", "models/RegionGraph.py::RegionGraph.random_split,make_layers", "models/RatSpn.py::RatSpn,_make_gauss_layer,_make_prod_layer,_make_sum_layer"],
+    "license": "Not verified: root LICENSE URL returned404. Reference-only independent mathematical implementation; do not copy author source or import its TensorFlow dependency.",
+    "core": ["Create repeated random binary partitions of the complete scalar-variable scope; each split is disjoint and covers its parent", "Factorized normalized Gaussian components over leaf scopes", "Enumerate all cross-products of child distributions on disjoint scopes, adding log values", "For each region concatenate products from every partition of that same scope", "Learn normalized mixture weights by log_softmax over child products; perform logsumexp", "Repeat through region hierarchy to multiple normalized root distributions"],
+    "adaptation": {
+      "variables": "Project Local256 independently to four scalar coordinates and each real memory head64 independently to four coordinates. Fixed scope has (1+4*8)*4=132 variables with real role/head/coordinate identity. All projection maps must be slot-local: never mix absent coordinates into observed coordinates before marginalization.",
+      "config": "Four repeated binary partitions, depth3, eight factorized Gaussian components per leaf, eight mixture outputs per internal region, 32 root distributions. Variance bounded by source sigmoid-log-variance parameterization within [0.1,10]. Private architecture seed1729; store exact partition structure as checkpoint buffers.",
+      "output": "32 root log-density features feed role-specific zero-initialized affine corrections to existing512 memory slots. Original Local/Local Skip/Flat/taskhead stay unchanged.",
+      "training": "Use ordinary backprop from original task loss, not source EM, not a new likelihood or ELBO objective. Disable source input/sum dropout. Circuit density calculations are internal forward computations, not additional training losses."
+    },
+    "masks": "For each inactive read slot, first safely zero its raw input using where; then set every corresponding scalar leaf log-density to exact0, integrating that normalized variable out. Do not plug zero values into Gaussian density as observed measurements. Products and normalized sums then propagate exact marginal likelihood. This marginalizes inactive read coordinates, not unobserved raw modality features. Outer no-history/padding branch still bypasses all correction. An entirely marginalized scope must yield root log-values0 within numerical tolerance.",
+    "risks": ["Normalized densities are over learned projected coordinates, not calibrated densities of raw multimodal data; no uncertainty/calibration claim", "Magnitude depends on number of observed variables and Gaussian scale; verify finite log-space arithmetic and gradient magnitudes", "Region structure must be immutable and identical across train/eval; no per-batch random partitions or running statistics", "Full smooth/decomposable circuit must remain intact; a single Gaussian mixture or product pool is not this candidate", "These read coordinates include Gap query outputs; masking them is not a missing-feature completion model"],
+    "novelty_audit": {"closest_prior_ids": ["capsule_variational_bayes", "hamburger_nmf_full", "equilibrium_aggregation"], "substantive_difference": "A multilevel normalized probability circuit with disjoint scopes and exact marginalization. There is no posterior-responsibility iteration, capsule vote/covariance fitting, dictionary factorization, or energy optimizer.", "same_round_overlap": "NetVLAD aggregates cluster residuals; rational-quadratic coupling transforms coordinates with an invertible flow. Neither constructs a decomposable hierarchy of all child products and normalized sums with exact variable elimination."},
+    "validation_required": ["Independent exhaustive tiny-circuit sum/product reference", "Leaf normalization and all-marginalized root0", "Inactive NaN/Inf invariance for all seven legal masks", "Batch versus single example equality and finite gradients", "Partition disjointness/union and same-scope sum invariants", "Frozen architecture buffers unchanged in eval and private RNG invariance", "Exact baseline initialization and no-history bypass"],
+    "decision": "research_accepted_complete_core_pending_coordinator_count"
+  },
+  "not_counted": ["Fisher mixture encoding: close to NetVLAD and variational capsules", "RepSet matching: close to OTKE", "Modern Hopfield lookup: attention-equivalent update is not sufficient novelty", "OptNet: independently sourced but deferred; no need to expand beyond requested twenty"]
+}

@@ -9,8 +9,8 @@ class WrapperTests(unittest.TestCase):
 
     def test_factory_and_safe_zero_bridge(self):
         self.assertIsNotNone(importlib.util.find_spec('gcnet_missing_m3.meaningful_blocks'))
-        from gcnet_missing_m3.meaningful_blocks import MEANINGFUL_METHODS, MeaningfulReadoutResidual
-        self.assertEqual(len(set(MEANINGFUL_METHODS)),20)
+        from gcnet_missing_m3.meaningful_blocks import ROUND1_METHODS, MeaningfulReadoutResidual
+        self.assertEqual(len(set(ROUND1_METHODS)),20)
         local = torch.randn(4,2,256)
         base = torch.randn(4,2,1024)
         gap = torch.randn(4,2,3,1024)

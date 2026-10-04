@@ -1,0 +1,275 @@
+{
+  "scope": "Round-2 VQA/visual-language core screening only; not implementation, launch approval, reproduction or evidence of OSRAM improvement",
+  "checked_date_utc": "2026-10-04",
+  "owner": "decision_impl",
+  "skill": "Research Literature Trace",
+  "screened_against": [
+    "experiments/osram_method_registry.json",
+    "experiments/osram_meaningful20_20261003/METHODS.md",
+    "gcnet_missing_m3/readout_candidates.py",
+    "gcnet_missing_m3/readout_candidates_bilinear.py"
+  ],
+  "acceptance_definition": "accepted=true means primary method and author implementation were inspected and a nontrivial complete-core adaptation is specified. Final cross-lane novelty and architecture review remain root responsibilities. No performance claim is implied.",
+  "common_adaptation": {
+    "status": "proposed design, not original-paper protocol",
+    "input": "For a valid utterance with earlier valid history, L is the existing Local256; B is only the real causal Base forward512 reshaped [8,64]; G_a/G_t/G_v are only real causal Gap forward512 reshaped [8,64]. Never read the backward zero half. Let Q=[P_B B_h + e_Base + e_h] for h=0..7, and V=[P_L L + e_Local, P_m G_mh + e_m + e_h for active m,h]. P_B/P_m:64->128, P_L:256->128, independent learned role projections, no new input LayerNorm. Role/head embeddings are learned; no spatial or temporal positional embedding. Thus Q has8 genuine head tokens; V has1/9/17 tokens under legal nonempty modality availability. Base is not duplicated into V, and Local is not split into fake words. This semantics deliberately assigns common-history heads to the conditioning bank and Local/Gap to the evidence bank; neither is claimed to be natural language or image geometry.",
+    "inactive_and_history": "Use the existing emotion-ablation masks as well as availability. Hard torch.where sanitization before any affine/multiplication/normalization, then pack active tokens. Valid-prefix history is cumsum(umask)-umask>0, not t>0. Padding/first-valid rows never enter the new core and every correction is hard zero. If an ablation removes all Base heads, bypass this two-bank core rather than invent a query token. Masked/inactive Gap slots remain exact zeros after writeback. With all modalities observed, V contains Local only: retain the method, acknowledge singleton evidence attention in this edge case; do not synthesize Gap or silently bypass the whole method.",
+    "insertion": "Identity-initialized structured processing of the existing emotion_adapter input, before its original packing/MLP, not a common residual added before emotion_norm. Each method below declares exactly which original input slots receive a correction. All output-writeback affine weights AND biases are zero-initialized; all original Flat parameters remain present and trainable. Existing local_skip consumes the original L, not L_adapter. Preserve original emotion_adapter/local_skip/emotion_norm/smax_fc and task loss. For updated forward memory slots append the original untouched backward-zero half. Availability is never changed.",
+    "preserved": [
+      "One unchanged observed encoder, Local path and causal OSRAM Memory scan; no new persistent Memory query, write, cache, replacement or recurrence across utterances",
+      "No label inputs, completion targets, auxiliary objectives, paired views, changed metric or checkpoint selection",
+      "No source VQA image encoder, question LSTM, answer classifier, answer distribution loss, bounding boxes or object detector",
+      "No stochastic dropout added to these adaptations; parameter construction inside fork_rng preserves original initialization/global RNG; original Flat dropout remains unchanged",
+      "Mask selection, original task loss/reduction and all original training protocol settings remain unchanged"
+    ],
+    "minimum_future_tests": [
+      "Historical disabled path exact state, output and RNG; enabled zero-writeback train/eval output equality and shared raw gradients before clipping",
+      "First-valid with leading/interior padding, all7 legal availability patterns, ablated-empty Base, poisoned inactive Gap/backward/padding NaNs; finite core forward/backward",
+      "Full-source equations on tiny tensors and architecture hooks prove every stated core stage runs; no isolated attention/Hadamard substitute",
+      "Exactly one OSRAM scan; unchanged original head and loss; strict checkpoint reconstruction; bridge learns first, core learns after bridge becomes nonzero",
+      "Do not demand enabled optimizer-update parity under global gradient clipping: new bridge gradients legitimately change the common clipping scale"
+    ]
+  },
+  "candidates": [
+    {
+      "id": "mcan_encoder_decoder",
+      "accepted": true,
+      "title": "Deep Modular Co-Attention Networks for Visual Question Answering",
+      "authors": ["Zhou Yu", "Jun Yu", "Yuhao Cui", "Dacheng Tao", "Qi Tian"],
+      "venue": "CVPR 2019",
+      "url": "https://arxiv.org/abs/1906.10770",
+      "pdf": "https://arxiv.org/pdf/1906.10770",
+      "code_url": "https://github.com/MILVLG/mcan-vqa",
+      "code_commit": "6b165e9a88800e2a09ece4645a3c8261938897c6",
+      "code_pinned": "https://github.com/MILVLG/mcan-vqa/tree/6b165e9a88800e2a09ece4645a3c8261938897c6",
+      "source_inspected": {
+        "paper": "Read method Sections3.1-3.2 and4.1-4.3, attention equations1-3, MCA compositions, encoder-decoder discussion and masking; inspected PDF, not just abstract.",
+        "author_provenance": "Author/lab repository README names this CVPR paper and authors.",
+        "files": [
+          {"url": "https://github.com/MILVLG/mcan-vqa/blob/6b165e9a88800e2a09ece4645a3c8261938897c6/core/model/mca.py", "read": "entire186-line file", "symbols": ["MHAtt.att", "SA.forward", "SGA.forward", "MCA_ED.forward"], "sha256": "61594a4cbc7ddae71a99eeba57f6973ebbfcfdcc7ec228ebc07a8c7d1fa22750"},
+          {"url": "https://github.com/MILVLG/mcan-vqa/blob/6b165e9a88800e2a09ece4645a3c8261938897c6/core/model/net.py", "read": "entire file; AttFlat and Net.forward distinguish core from domain readout", "sha256": "07a2428428a8ab0454b3da6ffdacd4508d3291300683d93cfdec417e31f8c024"},
+          {"url": "https://github.com/MILVLG/mcan-vqa/blob/6b165e9a88800e2a09ece4645a3c8261938897c6/cfgs/small_model.yml", "read": "entire12-line file; source has6 layers,8 heads,512 width"}
+        ]
+      },
+      "core": "Complete MCA encoder-decoder: six question-bank SA blocks encode Q; six evidence-bank SGA blocks each self-attend V, cross-attend with Q_final as keys/values, then apply a4d ReLU FFN. Each sublayer has residual/post-LayerNorm. Scaled multihead attention uses sqrt(head_width). Both banks retain their token cardinalities; there is no learned latent bottleneck. The separate VQA AttFlat/answer pipeline is outside the claimed transferred core.",
+      "adaptation": {
+        "parameters": "d=128,4 heads, FFN512,6 encoder and6 decoder blocks; no dropout. Depth is fixed, not counted as another method.",
+        "mapping": "Use common Q=Base8 and V=Local+activeGap. Run full encoder then full guided decoder; no per-layer alternation substituted for encoder-decoder.",
+        "writeback": "B'_h=B_h+W_B0 Q_final,h; L_adapter=L+W_L0 V_final,Local; G'_mh=G_mh+W_m0 V_final,mh. W_B0/W_m0:128->64 and W_L0:128->256 are zero affine maps. Preserve each token identity and use the original Local skip.",
+        "honest_omissions": "Domain feature extractors, AttFlat reduction and answer classifier omitted because the original Flat consumes token-aligned slots. Transferred claim is the complete MCA_ED interaction core, not the complete VQA network. Width/head reduction and disabled dropout are explicit adaptation choices. Source SGA uses one shared terminal FFN, not a complete SA FFN followed by another GA FFN."
+      },
+      "masks": "Common mask contract; key masks in every SA/GA, invalid-query states hard zero after each sublayer. Pack valid evidence tokens so padded projections/biases cannot influence attention. No all-key-masked row is evaluated.",
+      "novelty_vs_round1": "No first-round method maintains two real semantic banks through full self-encoder and guided self/cross-decoder stages. Perceiver compresses into learned latents and query-decodes; GMT graph-generates K/V and pools; AllSet transports via hyperedges. This distinction is architectural, not the insertion point, width or layer count.",
+      "novelty_audit": {
+        "closest_prior_ids": ["perceiver_io", "graph_multiset_transformer", "allset_transformer", "withdrawn_readout20:nonlocal"],
+        "substantive_difference": "The transferred computation operates on both real input banks with cardinality-preserving encoder/decoder state; no bottleneck, graph pooling or one-pass nonlocal summary. Risk of grouping all attention methods as one family is acknowledged; acceptance rests on complete bank-state computation, not paper name.",
+        "same_round_overlap": "DCN has no self-attention/FFN encoder-decoder: it synchronously updates two banks from shared affinities with two normalization axes, null slots and averaged full-value heads. MBT instead forces interaction through bottleneck tokens; coordinated with representation lane. BAN/MFH use bilinear contractions rather than this chain.",
+        "source_code_evidence": "MCA_ED.forward runs all enc_list layers before dec_list; SGA.forward performs MHAtt(x,x,x), MHAtt(y,y,x), FFN(x)."
+      },
+      "risks": ["Source question tokens become common-history heads, so semantic guidance may be weaker than VQA; no claimed gain", "When V has only Local, V self-attention has one token while cross-attention to Base remains nontrivial", "MCAN and DCN are close at family level; reject a reduced implementation that erases their stated differences"],
+      "license": "Repository LICENSE is Apache-2.0; inspected source headers say MIT. Record this inconsistency and independently implement equations rather than copying code; retain bibliographic/source attribution."
+    },
+    {
+      "id": "dense_coattention",
+      "accepted": true,
+      "title": "Improved Fusion of Visual and Language Representations by Dense Symmetric Co-Attention for Visual Question Answering",
+      "authors": ["Duy-Kien Nguyen", "Takayuki Okatani"],
+      "venue": "CVPR 2018",
+      "url": "https://arxiv.org/abs/1804.00775",
+      "pdf": "https://arxiv.org/pdf/1804.00775",
+      "code_url": "https://github.com/cvlab-tohoku/Dense-CoAttention-Network",
+      "code_commit": "0bc2c2b355bdc3d052d1c1163db2b888e42971fd",
+      "code_pinned": "https://github.com/cvlab-tohoku/Dense-CoAttention-Network/tree/0bc2c2b355bdc3d052d1c1163db2b888e42971fd",
+      "source_inspected": {
+        "paper": "Read Sections3.2-3.3, equations7-15 including nowhere-to-attend slots, parallel average attention and two simultaneous fusion updates; inspected PDF.",
+        "author_provenance": "Tohoku author-lab repository for the named paper, explicit paper/author attribution in README.",
+        "files": [
+          {"url": "https://github.com/cvlab-tohoku/Dense-CoAttention-Network/blob/0bc2c2b355bdc3d052d1c1163db2b888e42971fd/dense_coattn/modules/dense_coattn.py", "read": "entire56-line file", "symbols": ["DenseCoAttn.forward"], "sha256": "7d5b6ffa7633e2ed5959833097fe2ad67684861d3a54a53fe5ea376845b34438"},
+          {"url": "https://github.com/cvlab-tohoku/Dense-CoAttention-Network/blob/0bc2c2b355bdc3d052d1c1163db2b888e42971fd/dense_coattn/modules/dense_coattn_layer.py", "read": "entire46-line file", "symbols": ["NormalSubLayer.forward", "DCNLayer.forward"], "sha256": "2fc6f5f237ca3ab3700389c2740e58e0d032c4d3d7ea5ce94c52d5f21fed6c15"},
+          {"url": "https://github.com/cvlab-tohoku/Dense-CoAttention-Network/blob/0bc2c2b355bdc3d052d1c1163db2b888e42971fd/dense_coattn/modules/attention_fn.py", "read": "entire37-line file; scale/mask/softmax/value path", "sha256": "01923c4316ddfd028d41bb45960416817217d5d86eb3754ec450b46b0794c20f"},
+          {"url": "https://github.com/cvlab-tohoku/Dense-CoAttention-Network/blob/0bc2c2b355bdc3d052d1c1163db2b888e42971fd/dense_coattn/config.py", "read": "entire file; source num_seq5, num_none3, num_dense_attn4"}
+        ]
+      },
+      "core": "Each dense symmetric layer appends learned nowhere-to-attend vectors to both banks, forms projected head affinities, and obtains the two directions by row/column normalization of the same affinity. Attend original full-width values and average across parallel attention maps, not concatenate projected values. Remove sentinel query rows, then update both original banks simultaneously by x+ReLU(W[x,attended_other]+b). Repeat the full layer with independent parameters. Dense refers to all-pair interactions, not DenseNet concatenation of all earlier layers.",
+      "adaptation": {
+        "parameters": "d=128,4 parallel affinity heads,3 learned null vectors per bank per layer,5 sequential full symmetric layers, is_multi_head=False source mode; no dropout or added LayerNorm.",
+        "mapping": "Q=Base8, V=Local+activeGap. Recreate layer-specific null vectors from parameters in each layer; never write nulls back or retain them across utterances. Both directional attentions use the same pre-update Q,V.",
+        "writeback": "Token-aligned zero affine bridges from final Q to each Base head, final V Local to L_adapter and final V Gap tokens to their original modality/head slots; same dimensions as MCAN. No new common pre-norm residual.",
+        "honest_omissions": "Source embedding/CNN/RNN and final SummaryAttn+answer predictor are domain readout, not transferred. This preserves the entire DCNLayer interaction core, not the VQA predictor. Replace unsafe source .data masking with differentiable out-of-place masks."
+      },
+      "masks": "Common contract; exclude inactive actual tokens from affinities/values and from query updates. Null tokens are valid only inside an otherwise eligible row. Padding/no-history cannot use learned nulls to create corrections.",
+      "novelty_vs_round1": "Unlike learned-latent pooling, nulls are optional-match alternatives within symmetric all-pair bank updates; they are neither output slots nor the unique communication bottleneck. Unlike graph/edge updates, affinity is rederived from two real banks and not a persistent edge-state network.",
+      "novelty_audit": {
+        "closest_prior_ids": ["perceiver_io", "egt_evidence", "allset_transformer", "withdrawn_readout20:nonlocal"],
+        "substantive_difference": "Null-augmented bidirectional shared affinities, different softmax axes, head-averaged full-value reads, and synchronous concatenative residual fusion together define the new core. A pair of ordinary cross-attention blocks would not qualify.",
+        "same_round_overlap": "MCAN preserves SA/FFN encoder then guided decoder, absent here. DCN preserves simultaneous bidirectional updates and source null/parallel-average mechanism, absent there. BAN uses globally normalized joint pair maps for bilinear reduction rather than separate conditional distributions.",
+        "source_code_evidence": "DenseCoAttn.forward returns two original-value weighted sums; NormalSubLayer consumes both before mutating either input; DCNLayer owns sequential distinct sublayers."
+      },
+      "risks": ["Learned nulls can dominate small banks; inspect attention mass rather than treat nulls as recovered missing data", "No normalization in source residual update; monitor finite gradients without silently adding a new normalization mechanism", "Five layers are a fixed implementation choice, not five candidates"],
+      "license": "MIT reported by repository metadata/README; independent equation implementation planned."
+    },
+    {
+      "id": "ban_bilinear_attention",
+      "accepted": true,
+      "title": "Bilinear Attention Networks",
+      "authors": ["Jin-Hwa Kim", "Jaehyun Jun", "Byoung-Tak Zhang"],
+      "venue": "NeurIPS 2018",
+      "url": "https://arxiv.org/abs/1805.07932",
+      "pdf": "https://arxiv.org/pdf/1805.07932",
+      "code_url": "https://github.com/jnhwkim/ban-vqa",
+      "code_commit": "ef4cc36d63f6b31344301ac1bd91afd807d132e5",
+      "code_pinned": "https://github.com/jnhwkim/ban-vqa/tree/ef4cc36d63f6b31344301ac1bd91afd807d132e5",
+      "source_inspected": {
+        "paper": "Read Section3 equations5-11, two-bank bilinear attention maps and residual integration; inspected separate BAN+Counter discussion so bounding-box counter is not misrepresented as required BAN core.",
+        "author_provenance": "First-author repository, README identifies the NeurIPS2018 paper.",
+        "files": [
+          {"url": "https://github.com/jnhwkim/ban-vqa/blob/ef4cc36d63f6b31344301ac1bd91afd807d132e5/attention.py", "read": "entire file", "symbols": ["BiAttention.forward_all"]},
+          {"url": "https://github.com/jnhwkim/ban-vqa/blob/ef4cc36d63f6b31344301ac1bd91afd807d132e5/bc.py", "read": "entire78-line file", "symbols": ["BCNet.forward", "BCNet.forward_with_weights"], "sha256": "f3996f891abbef9b5a15248ac1cbe8282b6d604ce25c0446356b76ad6fd4ae4a"},
+          {"url": "https://github.com/jnhwkim/ban-vqa/blob/ef4cc36d63f6b31344301ac1bd91afd807d132e5/base_model.py", "read": "entire123-line file", "symbols": ["BanModel.forward", "build_ban"], "sha256": "7e1871996e318932737f66a03a7ed54bb431e83f30c73c058e80904b9b01dd5b"},
+          {"url": "https://github.com/jnhwkim/ban-vqa/blob/ef4cc36d63f6b31344301ac1bd91afd807d132e5/fc.py", "read": "entire file; ReLU and weight-normalized affine projections"}
+        ]
+      },
+      "core": "Create multiple full V-by-Q bilinear attention maps, normalizing each over all valid pairs jointly. Compute maps once from initial banks. At each glimpse, contract that map with separately projected V and the currently updated Q to obtain a bilinear joint vector; project and broadcast-add it to every Q token before the next glimpse. This pair-matrix contraction plus recurrent query-bank refinement, not merely a low-rank elementwise product, is the transferred core.",
+      "adaptation": {
+        "parameters": "d=128,8 glimpses; attention expansion factor3 as BiAttention; glimpse extraction factor1 as build_ban; preserve source ReLU/weight-normalized projections, with source dropout disabled.",
+        "mapping": "Q0=Base8 and V=Local+activeGap. A_g=softmax over all valid(v,h) of learned bilinear logits. For g=0..7: b_g=sum_v,h A_gvh * relu(U_g V_v) * relu(W_g Q_g,h); Q_(g+1),h=Q_g,h+R_g b_g. Maps A_g remain those computed from Q0, matching author forward.",
+        "writeback": "B'_h=B_h+W_B0 Q_8,h, W_B0:128->64 zero affine; Local and Gap feature slots unchanged. Every input still affects the Base correction via the complete pair contraction. Original Flat and original Local skip consume their usual slots.",
+        "honest_omissions": "Omit optional object-counting branch, bounding boxes, VQA embeddings and classifier. Original forward has a labels argument that is unused by the core; adaptation must not accept labels. This is BAN's full residual-attention core without the separately identified Counter extension."
+      },
+      "masks": "Common contract; pair validity is outer product of the two token masks, then a single flattened-pair softmax per glimpse. No rowwise softmax substitute. Keep query residual writes zero for inactive Base; global no-history guard excludes the entire row.",
+      "novelty_vs_round1": "First-round20 has no joint pair-distribution bilinear contraction with sequential query-bank updates. Crucially, the earlier withdrawn readout20 contains a BAN-named one-Local-query, one-glimpse reduction; that historical source was inspected, not ignored.",
+      "novelty_audit": {
+        "closest_prior_ids": ["withdrawn_readout20:ban", "withdrawn_readout20:mlb", "withdrawn_readout20:mfb", "egt_evidence"],
+        "substantive_difference": "Historical BAN.interact projects a single Local query, softmaxes over4 role summaries and returns one weighted product; it has no genuine second token axis, no query-bank state and no iterative residual integration. Proposed BAN includes the paper's missing joint-matrix and state-refinement mechanisms. Changing glimpse count alone would not establish novelty; if review classifies restoration of a historical truncated BAN under the same banned family, reject rather than rename.",
+        "same_round_overlap": "MFH collapses Q first, then conditionally pools V and cascades expanded-order products. BAN does not collapse Q before pairwise attention, does not cascade MFH orders and instead repeatedly updates the token bank. DCN uses two conditional attention distributions and weighted values, not globally normalized joint bilinear contractions.",
+        "source_code_evidence": "BiAttention.forward_all flattens V*Q for softmax; BanModel.forward computes att once, calls b_net[g].forward_with_weights on current q_emb, then adds q_prj[g] to q_emb. The historical gcnet_missing_m3/readout_candidates_bilinear.py:BAN.interact lacks this loop and second real bank."
+      },
+      "risks": ["Same-paper historical primitive collision requires explicit root acceptance of the substantive missing-core distinction; never conceal it with a new ID", "Repeated shared broadcast additions may dominate Base; inspect per-head correction norms", "Signed rank products need finite numerical tests; no label or geometry-based counting branch"],
+      "license": "MIT in author repository metadata/README; independent equation implementation with source attribution."
+    },
+    {
+      "id": "mac_control_read_write",
+      "accepted": true,
+      "title": "Compositional Attention Networks for Machine Reasoning",
+      "authors": ["Drew A. Hudson", "Christopher D. Manning"],
+      "venue": "ICLR 2018",
+      "url": "https://arxiv.org/abs/1803.03067",
+      "pdf": "https://arxiv.org/pdf/1803.03067",
+      "code_url": "https://github.com/stanfordnlp/mac-network",
+      "code_commit": "118d9b6a5a93348af8275ba9245228eb1a25f1cc",
+      "code_pinned": "https://github.com/stanfordnlp/mac-network/tree/118d9b6a5a93348af8275ba9245228eb1a25f1cc",
+      "source_inspected": {
+        "paper": "Read Section2.2 control/read/write equations c1-c2, r1-r3, w1-w3, plus optionality of self-attention and memory gate; inspected PDF.",
+        "author_provenance": "Stanford NLP author repository README names Hudson/Manning and links the paper/project.",
+        "files": [
+          {"url": "https://github.com/stanfordnlp/mac-network/blob/118d9b6a5a93348af8275ba9245228eb1a25f1cc/mac_cell.py", "read": "control/read/write, __call__, initState and zero_state ranges; source alternatives explicitly distinguished", "symbols": ["MACCell.control", "MACCell.read", "MACCell.write", "MACCell.__call__", "MACCell.zero_state"], "sha256": "59072c92cbaf1e4f4c69f7238446c8b7d2516e13ee4afa154f0d8d72733a7612"},
+          {"url": "https://github.com/stanfordnlp/mac-network/blob/118d9b6a5a93348af8275ba9245228eb1a25f1cc/config.py", "read": "control/read/write defaults and init flags", "sha256": "25c05dc7202acb49c1e5815c5e289d6cea018fa675329b83ed15c53c0ff2d9ef"},
+          {"url": "https://github.com/stanfordnlp/mac-network/blob/118d9b6a5a93348af8275ba9245228eb1a25f1cc/configs/args.txt", "read": "entire22-line file; readProjInputs/readMemConcatKB/readMemConcatProj/readMemProj/readCtrl/writeMemProj; default README run uses4 steps", "sha256": "c9f6f71c600aea65cdd037ca0510908b1c6056b1f19d4a6f246a34a49715dd95"},
+          {"url": "https://github.com/stanfordnlp/mac-network/blob/118d9b6a5a93348af8275ba9245228eb1a25f1cc/ops.py", "read": "mul projection/interaction/concat helper relevant to MACCell read"}
+        ]
+      },
+      "core": "Four-step MAC with separate control and temporary reasoning-memory states. Each control is an attention mixture over conditioning tokens, using step-specific global-query projection plus prior control. The read first combines prior memory with knowledge elements, then scores those interactions using control, and averages knowledge values. The write linearly integrates retrieved information and prior memory. Preserve the mandatory control/read/write chain; optional write self-attention and gate are disabled, as explicitly allowed by the paper.",
+      "adaptation": {
+        "parameters": "d=128,4 shared-cell steps; learned c0 and m0 fresh-broadcast each utterance; separate step-specific q_i affine from projected Local; no dropout or BatchNorm. This follows paper recurrent-control equations, enabling author-code controlFeedPrev/controlFeedPrevAtt/controlFeedInputs even though the supplied args.txt leaves these flags off.",
+        "mapping": "q=P_L L; control context Q=Base8; knowledge V=Local+activeGap. At step i: cq_i=W_c[c_(i-1),q_i]+b; c_i=sum_h softmax_h(w_c^T(cq_i*Q_h))Q_h. I_v=(W_m m_(i-1)+b_m)*(W_k V_v+b_k); J_v=W_j[I_v,V_v]+b_j; r_i=sum_v softmax_v(w_r^T(c_i*J_v))V_v; m_i=W_w[r_i,m_(i-1)]+b_w. Core projections shared across steps, q_i unshared. This uses paper raw V in concatenation; author implementation can express this by readMemConcatKB=true/readMemConcatProj=false, differing explicitly from supplied args.txt.",
+        "writeback": "L_adapter=L+W_L0 concat(q,m4), W_L0:256->256 zero affine. Base/Gap slots and original local_skip(L) unchanged. q/m4 combination is an input-side conditioning correction, not a new task head.",
+        "honest_omissions": "No image convolution, natural-language encoder, answer classifier, optional write gate/self-attention or variational dropout. Internal m_i is reset per utterance, never registered as a persistent runtime buffer and never confused with OSRAM Memory. This is the complete basic MAC cell supported by paper and author code, not the exact default author training configuration."
+      },
+      "masks": "Common contract; control softmax uses only active Base heads, read softmax only Local/activeGap. Base-ablated rows bypass. With all-observed V=Local, the read is a singleton but Base-conditioned controls and iterative writes remain well-defined. No-history never runs the recurrent cell.",
+      "novelty_vs_round1": "RRN iterates node messages with LSTM updates; MAC instead keeps a separate constrained control state, staged memory-dependent evidence retrieval and temporary memory integration. Perceiver uses latent self-attention and query decoding, not this control/read/write recurrence. No additional external-memory query is introduced.",
+      "novelty_audit": {
+        "closest_prior_ids": ["rrn_evidence", "perceiver_io", "slot_attention"],
+        "substantive_difference": "The two-state control/data separation and two-stage memory-then-control retrieval are compulsory. Replacing them with a GRU/LSTM or a generic repeated attention pool would be an impermissible alias.",
+        "same_round_overlap": "Ownership explicitly coordinated with root and representation lane. No overlap with MBT, TokenLearner/Fuser, GroupViT, NetVLAD or ToMe. Unlike BAN, attention maps change with temporary memory/control at every reasoning step.",
+        "source_code_evidence": "MACCell.control projects into inWords attention; read handles memory interactions then control interactions; write uses BOTH prior memory/info; zero_state resets the temporary computation."
+      },
+      "risks": ["Base heads are not words: interpretable linguistic reasoning claims do not transfer", "Paper recurrence and repository default flags differ; tests must use the explicitly declared flag-equivalent equations, not claim default-checkpoint parity", "Temporary MAC memory naming must not lead to changes in OSRAM cache or recurrent history writes"],
+      "license": "Apache-2.0 in official repository metadata; independent PyTorch equation implementation proposed, no TensorFlow dependency."
+    },
+    {
+      "id": "mfh_coattention",
+      "accepted": true,
+      "title": "Beyond Bilinear: Generalized Multimodal Factorized High-order Pooling for Visual Question Answering",
+      "authors": ["Zhou Yu", "Jun Yu", "Chenchao Xiang", "Jianping Fan", "Dacheng Tao"],
+      "venue": "IEEE Transactions on Neural Networks and Learning Systems, arXiv 2017",
+      "url": "https://arxiv.org/abs/1708.03619",
+      "pdf": "https://arxiv.org/pdf/1708.03619",
+      "code_url": "https://github.com/yuzcccc/vqa-mfb",
+      "code_commit": "7fab8dddca5924ed1023149795cdaeacf029ff34",
+      "code_pinned": "https://github.com/yuzcccc/vqa-mfb/tree/7fab8dddca5924ed1023149795cdaeacf029ff34",
+      "maintained_author_code": {"url": "https://github.com/MILVLG/openvqa", "commit": "f8f9966f202d5edf2a84096e1bc05ebf58ef55e6", "pinned": "https://github.com/MILVLG/openvqa/tree/f8f9966f202d5edf2a84096e1bc05ebf58ef55e6"},
+      "source_inspected": {
+        "paper": "Read SectionsIII-A/B equations4-8, SectionIV-B complete co-attention chain and SectionV answer-loss distinction; inspected PDF.",
+        "author_provenance": "First-author yuzcccc repository links this paper and redirects to maintained OpenVQA. OpenVQA README identifies Zhou Yu as maintainer and lists MFH implementation.",
+        "files": [
+          {"url": "https://github.com/yuzcccc/vqa-mfb/blob/7fab8dddca5924ed1023149795cdaeacf029ff34/mfh_coatt_glove/train_mfh_coatt_glove.py", "read": "lines75-180 fully: Q attention, conditional image attention, both expansion/squeeze orders and concatenation", "symbols": ["mfb_coatt", "mfb_iq_o3_eltwise", "mfb_o23_l2"], "sha256": "222b50af58330f07a4a3708de2e03e69eb9110a602d04e06d637ca5e48062bc1"},
+          {"url": "https://github.com/MILVLG/openvqa/blob/f8f9966f202d5edf2a84096e1bc05ebf58ef55e6/openvqa/models/mfb/mfb.py", "read": "entire152-line file", "symbols": ["MFB.forward", "QAtt.forward", "IAtt.forward", "CoAtt.forward"], "sha256": "f5572cef9ee2b248855029ea592bea60e8044b76548871cd24d13e184b03e7b5"},
+          {"url": "https://github.com/MILVLG/openvqa/blob/f8f9966f202d5edf2a84096e1bc05ebf58ef55e6/configs/vqa/mfh.yml", "read": "entire24-line file; HIGH_ORDER true, K5, Q/I_GLIMPSES2"},
+          {"url": "https://github.com/MILVLG/openvqa/blob/f8f9966f202d5edf2a84096e1bc05ebf58ef55e6/README.md", "read": "author maintenance and license sections"}
+        ]
+      },
+      "core": "Full MFH+CoAtt first forms two self-attentive Q summaries, then computes MFB-fused Q-conditioned attention over V and two V summaries. Fusion retains an expanded rank-factor state: E1=(U1 v)*(W1 q), E2=E1*(U2 v)*(W2 q). Each order is separately factor-summed, power-normalized and L2-normalized, then concatenated. The essential second order multiplies the unpooled expanded E1, not the already compressed normalized output. This includes the two-stage co-attention and full high-order fusion, not an isolated MFB operator.",
+      "adaptation": {
+        "parameters": "d=128,2 Q glimpses,2 V glimpses,K=5,O=128,p=2; qbar and vbar are each256, expanded order state640, final concatenated feature256. Attention MLP width128. No dropout.",
+        "mapping": "Q=Base8, V=Local+activeGap. QAtt is self-attention, not conditioned on V. For each V token, MFB(V_v,qbar) produces a128-dimensional joint feature; score2 evidence glimpses and concatenate their weighted original V values. Apply the complete two-order MFH to vbar/qbar; never substitute mean-pooling the banks before attention.",
+        "writeback": "L_adapter=L+W_L0 concat(z1,z2), W_L0:256->256 zero affine. Base and Gap slots remain original. The complete co-attention/fusion summary modifies the original Flat's Local input only; no new post-Flat norm/head.",
+        "numerical_contract": "Use finite smooth power normalization z/sqrt(abs(z)+1e-8) instead of literal sqrt(relu(z))-sqrt(relu(-z)), whose derivative at zero is unsafe. This is an explicit numerical adaptation, not exact source arithmetic. Use epsilon-safe L2 norm. In conditional V-attention MFB, author PyTorch code normalizes the flattened valid V-by-O table per sample; mask inactive entries BEFORE that norm, not only before final softmax. Final pooled order features normalize independently over O.",
+        "honest_omissions": "No image grid geometry, LSTM, pretrained embeddings, answer classifier, answer-distribution KL objective or ensemble. p=2 is one fixed full MFH instance, not an extra candidate for each order/rank."
+      },
+      "masks": "Common contract; Q/V softmax over valid tokens; inactive V rows cannot influence the cross-token normalization. Empty-Q/no-history bypass avoids all-masked normalization/softmax. All-observed singleton V is accepted without fake evidence.",
+      "novelty_vs_round1": "No first-round20 has co-attention followed by high-order expanded-state cascading. Earlier withdrawn MFB was a single Local/mean-history projection-product-factor-sum block; this source was inspected. The proposed chain adds structural attention stages and dependence across pre-pooling expansion states, not merely an increased rank or dimension.",
+      "novelty_audit": {
+        "closest_prior_ids": ["withdrawn_readout20:mfb", "withdrawn_readout20:mlb", "withdrawn_readout20:mutan", "withdrawn_readout20:block"],
+        "substantive_difference": "Full QAtt→conditional IAtt→expanded-state MFH, with two separately normalized retained-order outputs. Historical MFB.interact receives mean context and performs one projection/product/sum/norm with no token attentions or retained expansion recurrence. A p=1/no-CoAtt version would be rejected as the old MFB primitive.",
+        "same_round_overlap": "BAN uses joint V×Q maps and repeated token-bank residual updates, not independent Q pooling followed by Q-conditioned V pooling and polynomial-order fusion. Thus both are bilinear-family methods but not rank/depth variants of the same computational core.",
+        "source_code_evidence": "OpenVQA CoAtt.forward calls q_att, i_att, mfh1 then mfh2(exp_in=exp1) and concatenates z1,z2. Original author Caffe mfb_iq_o3_eltwise explicitly multiplies the two new projections with mfb_iq_o2_drop."
+      },
+      "risks": ["Products can be numerically ill-conditioned; finite near-zero backward and magnitude stress tests are mandatory before training", "MFH and BAN require the historical-primitive distinction to survive review; do not count both if reduced to one product plus attention", "Tokenwise normalization differs across possible ports; follow the explicitly recorded author PyTorch valid-table convention", "No expected performance advantage is inferred from VQA results"],
+      "license": "Original vqa-mfb repository has no LICENSE in inspected tree; do not copy it. Maintained author OpenVQA root LICENSE/README is Apache-2.0, while some module headers say MIT. Independently implement paper equations; record all provenance and the header mismatch."
+    }
+  ],
+  "rejected_or_unverified": [
+    {
+      "id": "dfaf_unverified_author_code",
+      "accepted": false,
+      "title": "Dynamic Fusion with Intra- and Inter-modality Attention Flow for Visual Question Answering",
+      "authors": ["Peng Gao", "Zhengkai Jiang", "Haoxuan You", "Pan Lu", "Steven Hoi", "Xiaogang Wang", "Hongsheng Li"],
+      "url": "https://arxiv.org/abs/1812.05252",
+      "pdf": "https://arxiv.org/pdf/1812.05252",
+      "code_url": null,
+      "source_inspected": "Read primary PDF method including InterMAF and cross-conditioned intra-modality gates. Search found explicitly unofficial alibabadoufu/dynamic_fusion_reimplementation and KaihuaTang implementations; guessed author path PengGao1994/DFAF returned404. This is not proof no author code exists, only that it was not verified in this bounded pass.",
+      "reason": "Author-code requirement unmet; do not count a third-party implementation as official or accept from abstract only.",
+      "novelty_audit": {"closest_prior_ids": ["perceiver_io"], "substantive_difference": "Unresolved pending verified author source", "same_round_overlap": "Potentially close to MCAN/DCN; no acceptance asserted", "source_code_evidence": "No verified author source"}
+    },
+    {
+      "id": "redan_unverified_author_code",
+      "accepted": false,
+      "title": "Multi-step Reasoning via Recurrent Dual Attention for Visual Dialog",
+      "authors": ["Zhe Gan", "Yu Cheng", "Ahmed El Kholy", "Linjie Li", "Jingjing Liu", "Jianfeng Gao"],
+      "url": "https://aclanthology.org/P19-1648/",
+      "pdf": "https://aclanthology.org/P19-1648.pdf",
+      "code_url": null,
+      "source_inspected": "Read primary method section on recurrent visual/dialog attention. Guessed microsoft/ReDAN and zhegan27/ReDAN paths returned404; no relevant verified author repository located. Full source implementation not inspected.",
+      "reason": "Author-code requirement unmet; dialog-history substitution also needs a distinct non-MAC mechanism argument.",
+      "novelty_audit": {"closest_prior_ids": ["rrn_evidence"], "substantive_difference": "Unresolved pending source", "same_round_overlap": "Potential MAC recurrence overlap", "source_code_evidence": "No verified author source"}
+    },
+    {
+      "id": "dan_unverified_author_code",
+      "accepted": false,
+      "title": "Dual Attention Networks for Multimodal Reasoning and Matching",
+      "authors": ["Hyeonseob Nam", "Jung-Woo Ha", "Jeonghee Kim"],
+      "url": "https://arxiv.org/abs/1611.00471",
+      "pdf": "https://arxiv.org/pdf/1611.00471",
+      "code_url": null,
+      "source_inspected": "Bibliographic/abstract search only, not full method/source verification. Located iammrhelo/pytorch-vqa-dan and JunweiLiang/DualAttentionNetwork as unofficial implementations; guessed HyeonseobNam/DualAttentionNetworks returned404.",
+      "reason": "Not enough verified primary-method plus author-code evidence; not accepted.",
+      "novelty_audit": {"closest_prior_ids": ["rrn_evidence"], "substantive_difference": "Unresolved", "same_round_overlap": "Potential DCN/MAC overlap must be audited if revisited", "source_code_evidence": "No verified author source"}
+    }
+  ],
+  "handoff": {
+    "accepted_design_ids": ["mcan_encoder_decoder", "dense_coattention", "ban_bilinear_attention", "mac_control_read_write", "mfh_coattention"],
+    "important_review_gate": "BAN and MFH explicitly disclose historical withdrawn BAN/MFB primitives. Their acceptance is based on additional complete-core state/attention mechanisms, never on renaming, width or placement. Root may conservatively reject them under an all-family ban; no launch should silently bypass this novelty decision.",
+    "no_actions_taken": ["No model/training code edited", "No git operation", "No SSH or training launch", "No recursive delegation"],
+    "evidence_limit": "Primary methods and listed author source were actually read. Source files were fetched read-only from commit-pinned URLs; no author training was run. All OSRAM mappings, dimensions, zero bridges and expected tests are proposed adaptations, not source-paper claims or measured gains."
+  }
+}

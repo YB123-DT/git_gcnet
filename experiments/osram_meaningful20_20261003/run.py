@@ -153,11 +153,11 @@ def verify_launch_hashes(args):
             raise ValueError(f'Pinned launch input changed: {name}')
 
 
-def train(args):
+def train(args, *, round_validator=validate_round):
     from .queue import process_identity
     verify_launch_hashes(args)
     manifest = read(args.manifest)
-    ids = validate_round(manifest)
+    ids = round_validator(manifest)
     if args.candidate not in ids: raise ValueError('Candidate not in accepted twenty')
     card = next(c for c in manifest['cards'] if c['id'] == args.candidate)
     source = verify_snapshot(args.snapshot)

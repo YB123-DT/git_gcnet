@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "round": 2,
+  "verified_on": "2026-10-04",
+  "status": "one_source_verified_distinct_core_design_no_implementation",
+  "accepted_count": 1,
+  "acceptance_scope": "Source and mechanism acceptance for coordinator review only. This is a concretely mapped adaptation of the complete PPGN pair-tensor core, not a graph-benchmark reproduction, performance claim or implementation authorization.",
+  "candidates": [
+    {
+      "id": "ppgn_pair_composition",
+      "title": "Provably Powerful Graph Networks",
+      "authors": ["Haggai Maron", "Heli Ben-Hamu", "Hadar Serviansky", "Yaron Lipman"],
+      "url": "https://proceedings.neurips.cc/paper/2019/hash/bb04af0f7ecaee4aae62035497da1387-Abstract.html",
+      "pdf": "https://arxiv.org/pdf/1905.11136",
+      "venue": "NeurIPS 2019",
+      "domain": "Graph representation learning, not MSA/MERC",
+      "sourcepin": {
+        "repository": "https://github.com/hadarser/ProvablyPowerfulGraphNetworks_torch",
+        "commit": "4576eff7dc9137c70bdcef724392b82a1642c562",
+        "url": "https://github.com/hadarser/ProvablyPowerfulGraphNetworks_torch/blob/4576eff7dc9137c70bdcef724392b82a1642c562/layers/modules.py",
+        "files": [
+          {"path": "layers/modules.py", "symbols": ["RegularBlock", "MlpBlock", "SkipConnection"], "lines": "5-69", "url": "https://github.com/hadarser/ProvablyPowerfulGraphNetworks_torch/blob/4576eff7dc9137c70bdcef724392b82a1642c562/layers/modules.py#L5-L69"},
+          {"path": "layers/layers.py", "symbols": ["diag_offdiag_maxpool"], "url": "https://github.com/hadarser/ProvablyPowerfulGraphNetworks_torch/blob/4576eff7dc9137c70bdcef724392b82a1642c562/layers/layers.py"},
+          {"path": "models/base_model.py", "symbols": ["BaseModel.__init__", "BaseModel.forward"], "url": "https://github.com/hadarser/ProvablyPowerfulGraphNetworks_torch/blob/4576eff7dc9137c70bdcef724392b82a1642c562/models/base_model.py"},
+          {"path": "configs/10fold_config.json", "symbols": ["architecture.block_features", "architecture.depth_of_mlp"], "url": "https://github.com/hadarser/ProvablyPowerfulGraphNetworks_torch/blob/4576eff7dc9137c70bdcef724392b82a1642c562/configs/10fold_config.json"}
+        ],
+        "official_provenance": "The original author's TensorFlow repository README explicitly links this same-author PyTorch repository; this is not an unverified third-party reimplementation.",
+        "original_repository_pin": "ba13fbdef7f3224728f5947f5bec2cec6ef942b0",
+        "original_readme": "https://github.com/hadarser/ProvablyPowerfulGraphNetworks/blob/ba13fbdef7f3224728f5947f5bec2cec6ef942b0/README.md",
+        "license": "Apache-2.0",
+        "license_url": "https://github.com/hadarser/ProvablyPowerfulGraphNetworks_torch/blob/4576eff7dc9137c70bdcef724392b82a1642c562/LICENSE",
+        "implementation_policy": "Independent mathematical implementation is proposed. No external code has been copied or implemented in this research task."
+      },
+      "inspected": {
+        "primary_method": "Read paper section6, equation6, Figure2, the channelwise matrix-multiplication construction, and section7 implementation details. The mathematical block concatenates a retained input representation with the product of two independently transformed pair tensors. The experimental implementation uses three blocks, two-layer branch MLPs and a linear channel reducer after concatenation.",
+        "actual_code": "Read complete RegularBlock/MlpBlock/SkipConnection definitions, BaseModel, diagonal/off-diagonal pooling and the supplied architecture config. Each branch is Linear-equivalent 1x1 channel projection plus ReLU at BOTH layers. RegularBlock multiplies matching channels with torch.matmul; the skip is concatenation plus linear projection, NOT an additive residual and NOT another ReLU. The classification version has pooled readouts after each block.",
+        "source_precision": "The source uses 1x1 Conv2d merely to apply shared channel MLPs to an n-by-n pair tensor: the two axes index graph vertices, not image coordinates. Replacing these 1x1 operations by last-dimension Linear is exactly equivalent. Source pooling suppresses the diagonal using an input-dependent large offset; use exact boolean diagonal exclusion instead to avoid any dependence on extrema from other batch rows.",
+        "history_and_coordination": "Compared the global method registry, same-round representation/attention/structured/spectral cards and replacement_candidates.json. rank_gate_variants confirmed no overlap with its five attention operators; drift_helpers confirmed the new NLM id and full arity-lattice workflow."
+      },
+      "core": {
+        "chain": "Persistent order-2 pair tensor -> two independent shared per-pair nonlinear channel maps -> channelwise matrix multiplication over a third vertex -> concatenate previous pair state -> linear channel compression -> repeat three complete blocks -> diagonal/off-diagonal summaries.",
+        "equation": "For layer l and channel c, A=f_l(X), B=g_l(X), P[i,j,c]=sum_k A[i,k,c]*B[k,j,c], X_next[i,j,:]=W_l concat(X[i,j,:],P[i,j,:])+b_l. f_l and g_l are separate two-layer ReLU MLPs applied independently at every pair. No attention softmax, row normalization, Hadamard-only replacement or node-only collapse occurs between blocks.",
+        "equivariance": "Under a simultaneous permutation of pair axes, each channel transforms X_c -> Q X_c Q^T, and its product transforms identically. Endpoint feature lifting and diagonal extraction respect the same relabeling when categorical role/head identities move with the tokens.",
+        "must_preserve": ["A learned feature vector for EVERY active ordered pair throughout all three blocks", "Independent left and right nonlinear pair transforms", "The sum over intermediate vertex k, with matching channels, not a dot product over features", "Concatenation of old pair state before the source linear compression", "ReLU after each of the two branch affine layers, but no invented activation after the skip reducer", "Separate diagonal and off-diagonal summaries from every block"]
+      },
+      "exactmapping": {
+        "input": "For one history-bearing utterance, reuse HeadTokenizer at width128: one Local256 token and the eight real 64-dimensional forward heads of Base and each active Gap-A/T/V role. Use active_groups to compact to n=9,17,25. Do not split Local into fake heads, merge existing heads, re-query memory, or append backward-zero halves as evidence.",
+        "pair_lift": "For active tokens z_i, form X0[i,j]=Linear257->64(concat(z_i,z_j,1[i=j])). This is a directed relation descriptor on two categorical evidence identities. The diagonal indicator is vertex equality, not a spatial distance. Use source-style Xavier weights and zero biases; tokenwise normalization remains only in the shared tokenizer.",
+        "core_configuration": {"token_dim": 128, "pair_channels": 64, "regular_blocks": 3, "branch_mlp_depth": 2, "branch_hidden": 64, "branch_activation": "ReLU after each affine layer", "pair_reducer": "Linear128->64 with bias and no activation", "matrix_product": "Unnormalized channelwise sum over active intermediate vertex", "dropout": 0.0, "batch_norm": false, "forward_rng": false},
+        "readback": "At each layer l compute d_l=max_i X_l[i,i,:] and o_l=max_{i!=j} X_l[i,j,:]. For each original active token i concatenate [X_l[i,i,:],d_l,o_l] over all three layers, yielding h_i in R576. Decode Local with Linear576->256, and memory head h with its Linear576->64 shared across Base/Gap roles. All final decoder weights and biases start at zero. This per-node diagonal-plus-global readback adapts the source graph-classification suffix; it does not replace or add a task classifier.",
+        "integration": "Add decoded corrections only to the corresponding original Flat emotion_adapter INPUT slots. Preserve existing Flat slot packing, zero backward halves, original local_skip(L), normalization, classifier and original task loss. The original raw inputs are exactly retained at initialization.",
+        "numerics": "Compute pair transforms/products in FP32 during autocast, preserving float64 when module parameters are float64. Do not silently divide the matrix product by n, apply softmax or clip activations; those alter the audited core. If the minimal authorized smoke is nonfinite, report that concrete failure before changing the equation.",
+        "boundary": "No adjacency or edge labels from ground truth: all pairs are created solely from the current already-read evidence. No extra loss, pretrained backbone, reconstruction target, completion output, persistent memory/cache or cross-utterance operation.",
+        "adaptation_not_reproduction": "The source colored-graph adjacency/diagonal encoding and graph classification suffix are replaced by the explicit evidence-pair lift and per-slot readback above. Width64 is a fixed feasibility setting, not another method. No claim that this finite adapted readout inherits the paper's universal 3-WL distinguishing guarantee."
+      },
+      "masks": {
+        "input": "torch.where inactive evidence to zero BEFORE projection; active_groups excludes inactive tokens from both axes and from every intermediate-k sum. A zero-valued fake vertex is NOT safe because biased branch MLPs would make it contribute paths.",
+        "output": "Scatter only into original active role/head slots, then hard-mask decoded inactive entries after all biased operations. Outer no-history/padding rows bypass the module and retain the original path. All-inactive unit inputs return zero corrections without pair construction.",
+        "pooling": "Compute diagonal and off-diagonal maxima within each sample. Exclude diagonal entries with a boolean mask and negative infinity, not by subtracting a batch-dependent value. For n<=1 define the empty off-diagonal summary as zero; n=0 bypasses the entire core. No batch statistics or fabricated spatial connected components."
+      },
+      "hypothesis": "Composing evidence-pair relations through a shared intermediate head may reveal support or conflict paths that pairwise endpoint messages and single-step attention do not explicitly retain. This is an untested readout hypothesis, not evidence that stronger graph-isomorphism theory improves emotion prediction.",
+      "uniqueness": "The irreducible operation is ordered pair-path composition in a persistent second-order state. Removing the channelwise n-by-n products leaves a per-pair MLP and invalidates the method claim.",
+      "novelty_audit": {
+        "closest_prior_ids": ["rrn_evidence", "egt_evidence", "sheaf_hypergnn_diag", "pna_evidence", "hyper_sagnn"],
+        "substantive_difference": "RRN aggregates endpoint-conditioned messages into node LSTM states. EGT preserves edge states but its attention and edge updates do not multiply two complete edge-state matrices through intermediate k. Sheaf learns incidence restriction maps and applies normalized diffusion to node features; PNA combines neighborhood statistics; Hyper-SAGNN contrasts static/contextual representations. None is the source PPGN pair-state product-plus-concatenation recurrence. Merely using more graph layers or a complete graph would not establish this difference.",
+        "same_round_overlap": "neural_logic_machine_evidence maintains arities0/1/2/3 with variable expansion, existential max/universal min reductions, all variable-axis permutations and shared sigmoid inference. PPGN remains order2 and composes relations by sum_k f(X_ik)g(X_kj); it has no arity lattice or quantifier operations. DAT sends relation-valued node messages, DCFormer mixes attention heads, and other attention candidates normalize pairwise node scores, rather than retaining and multiplying learned pair-state matrices. isqrt_cov_full/spdnet_bimap_reeig_logeig act on feature covariance/SPD matrices, not the vertex-pair tensor. NetVLAD encodes center-relative moments without relation-path composition.",
+        "source_code_evidence": "Pinned modules.py RegularBlock lines19-25 independently evaluates mlp1 and mlp2, then torch.matmul(mlp1,mlp2), then SkipConnection. Lines64-69 concatenate the old input with the product and apply one channel projection. This exact intermediate-vertex contraction is the accepted distinguishing mechanism."
+      },
+      "risks": [
+        "Unnormalized repeated products can grow with token count or parameters; finite forward/backward is not yet measured.",
+        "The pair state costs O(n^2*c) memory and O(n^3*c) product work per block; n<=25 makes the proposal bounded but is not a measured runtime guarantee.",
+        "Max summaries have sparse gradients and can emphasize outlier pair features.",
+        "The new evidence graph has typed, continuous features and no natural edge supervision; graph-benchmark gains and 3-WL theorems do not predict downstream gains.",
+        "The source full graph classifier is not copied; only the complete equivariant core and per-block diagonal/off-diagonal summaries are retained, with an explicitly adapted per-slot readback."
+      ],
+      "accepted": true
+    }
+  ],
+  "verification": {"performed": ["Primary method and implementation sections read", "Author-owned PyTorch core and suffix/config inspected at immutable pin", "Official repository linkage and license checked", "Mechanism comparison with registry and same-round NLM/attention/spectral candidates", "Required JSON fields validated after writing"], "not_performed": ["Implementation", "Forward/backward smoke", "Training", "GPU or SSH launch", "Git operations"]}
+}

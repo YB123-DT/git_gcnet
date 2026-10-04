@@ -848,8 +848,11 @@ class OSRAMBackbone(nn.Module):
     ) -> None:
         super().__init__()
         self.osram_meaningful_block = osram_meaningful_block
+        self.meaningful_input_mode = False
         if osram_meaningful_block != 'none':
             from .meaningful_blocks import MEANINGFUL_METHODS
+            from .meaningful_input import INPUT_METHODS
+            self.meaningful_input_mode = osram_meaningful_block in INPUT_METHODS
             if (osram_meaningful_block not in MEANINGFUL_METHODS or osram_readout_candidate != 'none'
                     or (num_heads,value_dim) != (8,64)):
                 raise ValueError('meaningful block requires original cfg84 heads and a known independent method')
@@ -1112,8 +1115,10 @@ class OSRAMBackbone(nn.Module):
         self.last_diagnostics: dict[str, object] = {}
         if self.osram_meaningful_block != 'none':
             from .meaningful_blocks import MeaningfulReadoutResidual
+            from .meaningful_input import MeaningfulInputAdapter
             with torch.random.fork_rng(devices=[]):
-                self.meaningful_block = MeaningfulReadoutResidual(
+                factory = MeaningfulInputAdapter if self.meaningful_input_mode else MeaningfulReadoutResidual
+                self.meaningful_block = factory(
                     self.latent_dim,self.context_dim,self.output_dim,self.osram_meaningful_block,
                     self.num_heads,self.value_dim)
         if self.osram_readout_candidate != 'none':
@@ -1706,12 +1711,16 @@ class OSRAMBackbone(nn.Module):
                 emotion_base = alpha * emotion_base
                 emotion_gap = alpha.unsqueeze(-1) * emotion_gap
                 missing = torch.where(valid.unsqueeze(-1), missing, torch.zeros_like(missing))
+            readout_local = local
+            if self.meaningful_input_mode:
+                readout_local, emotion_base, emotion_gap = self.meaningful_block(
+                    local,emotion_base,emotion_gap,availability,umask)
             if self.osram_memory_only_adapter:
                 emotion_input = torch.cat((emotion_base, emotion_gap.flatten(2)), dim=-1)
             else:
                 emotion_input = torch.cat(
                     (
-                        local,
+                        readout_local,
                         emotion_base,
                         (emotion_gap * missing.unsqueeze(-1)).reshape(
                             active_gap_context.shape[0], active_gap_context.shape[1], -1
@@ -1719,7 +1728,9 @@ class OSRAMBackbone(nn.Module):
                     ),
                     dim=-1,
                 )
-            if self.osram_meaningful_block != 'none':
+            if self.meaningful_input_mode:
+                hidden = self.emotion_norm(self.local_skip(local) + self.emotion_adapter(emotion_input))
+            elif self.osram_meaningful_block != 'none':
                 flat_anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)
                 residual = self.meaningful_block(
                     local,emotion_base,emotion_gap,availability,umask,flat_anchor)

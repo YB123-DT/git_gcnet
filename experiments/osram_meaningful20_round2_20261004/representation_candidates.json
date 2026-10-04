@@ -1,0 +1,273 @@
+{
+  "schema_version": 1,
+  "round": 2,
+  "verified_on": "2026-10-04",
+  "lane": "representation_compression_reconstruction_and_grouping",
+  "status": "five_source_verified_designs_for_cross_lane_review_no_implementation",
+  "accepted_count": 5,
+  "acceptance_scope": "Accepted here means an independently specified, source-audited core adaptation, not a reproduction, performance claim, implementation approval, or training authorization. Coordinator owns final cross-round acceptance. GroupViT has an explicitly elevated family-overlap risk; its single grouping block alone is NOT accepted as distinct from Slot Attention.",
+  "source_policy": "Read primary method PDFs and actual author-owned implementation files. Resolve immutable commits by read-only GitHub API. Proposed independent mathematical implementations; no upstream source was copied into model code. Licenses are recorded, not presumed interchangeable.",
+  "history_audit": {
+    "registry": "experiments/osram_method_registry.json",
+    "compared_round1": ["rrn_evidence", "egt_evidence", "residual_gated_graph_evidence", "pna_evidence", "allset_transformer", "ed_hnn", "hyper_sagnn", "sheaf_hypergnn_diag", "capsule_dynamic_routing", "slot_attention", "otke", "capsule_variational_bayes", "perceiver_io", "dgcnn_dynamic_edgeconv", "graph_multiset_transformer", "hamburger_nmf_full", "crate_mssa_ista_full", "equilibrium_aggregation", "tabnet", "node"],
+    "same_round_coordination": "Exchanged method ownership with decision_impl and rank_gate_variants. VQA lane owns MCAN, Dense Co-Attention, BAN, MAC and MFH+CoAtt; attention lane owns Differential Transformer V1, Flowformer, Compositional Attention, Dual Attention Transformer and DCFormer. Also inspected the structured lane IDs: spline coupling, learned robust PCA and contractive DEQ. No one-dimensional gate, generic cross-attention, basic bilinear operator or additional width is counted here.",
+    "acceptance_rule": "Distinctness must survive removal of the input/output wrapper: compression/reconstruction with separately learned synthesis, synchronous role-local bottleneck exchange, full hard hierarchical grouping, residual-statistics encoding, or matching with size-aware coarsening. A different insertion point is never the reason for acceptance."
+  },
+  "shared_adaptation": {
+    "input": "One utterance only: Local L256, the already-produced forward Base read with 8 real 64-dimensional heads, and already-produced active Gap-A/T/V reads with the same 8-head structure. No OSRAM memory query, read, write, state, scan or trajectory is added. Availability determines which existing Gap roles participate; it is not a new learned gate.",
+    "tokenization": "One Local token via Linear256->128, plus one token per existing active memory head via eight head-specific Linear64->128 maps shared across Base/Gap roles. Add learned categorical role/head embeddings and tokenwise LayerNorm128. No positional distance, invented patch grid, token replication, temporal convolution or triangular causal order. Compact valid entries in canonical Local, Base, Gap-A, Gap-T, Gap-V role/head order; the seven legal availability patterns yield 9, 17 or 25 active tokens.",
+    "insertion": "Adjust only the input slots of the original Flat emotion_adapter, before its original input normalization/MLP. The existing local_skip still sees original L. Preserve original Flat slot ordering, zero backward halves, availability packing, emotion_norm, classifier, loss, optimizer and checkpoint selection. No replacement task head or pooled residual at a later hidden layer.",
+    "identity": "Decode the adapted Local token with Linear128->256 and each adapted memory token with its head-specific Linear128->64 shared across roles. All final decoder weights and biases start at zero, so the original Flat inputs are exactly preserved at initialization. Core initializations remain nonzero where needed; in particular TokenFuser's source zero token mixer is changed to Xavier because two serial zero maps would create a dead branch. This initialization change is disclosed, not claimed as a new method.",
+    "masks": "Sanitize inactive NaN/Inf using torch.where BEFORE every projection, then exclude inactive tokens from all assignment denominators, attention keys, pooling, matching and stream averages. Zero inactive decoded slots after biased operations. Run cores only on valid history-bearing rows; no-history rows receive exactly zero corrections and retain original L. Padded rows retain original strict zero behavior. Unit-level all-inactive inputs bypass the core and return zero corrections; do not call an all-masked softmax.",
+    "learning_and_rng": "Only the original task loss; no image/text pairs, objects, reconstruction targets, contrastive loss, cluster loss, distillation, completion, gold labels as inputs, external pretraining, or running feature cache. All new dropout and stochastic depth are zero. GroupViT's source training Gumbel noise uses a separate CPU Generator seeded from the experiment initialization seed plus a fixed offset, with persistent checkpointed RNG-state buffer; no legacy global RNG is consumed. Eval uses deterministic hard assignment and mutates no buffers.",
+    "verification_required_before_implementation_acceptance": ["Independent equation fixtures that fail if the distinguishing stage is deleted", "Every one of seven legal availability masks plus no-history/padding/all-inactive inputs", "Inactive NaN/Inf invariance and finite trainable gradients after opening the zero decoder", "Exact original Flat input/output equivalence at identity initialization", "Single unchanged OSRAM scan and original local skip/task-head hooks", "Strict checkpoint reload, private RNG next-draw equality where applicable, and eval-state invariance", "Actual batch-shaped CPU and authorized GPU feasibility; no feasibility or accuracy result is asserted by these cards"]
+  },
+  "candidates": [
+    {
+      "id": "tokenlearner_fuser_v11",
+      "rank": 1,
+      "title": "TokenLearner: What Can 8 Learned Tokens Do for Images and Videos?",
+      "authors": ["Michael S. Ryoo", "AJ Piergiovanni", "Anurag Arnab", "Mostafa Dehghani", "Anelia Angelova"],
+      "url": "https://arxiv.org/abs/2106.11297",
+      "pdf": "https://arxiv.org/pdf/2106.11297",
+      "domain": "Image/video representation, not MSA/MERC",
+      "codepin": {
+        "repository": "https://github.com/google-research/scenic",
+        "commit": "8c113c501c9f700b69899c55a69e65bb46727da6",
+        "file": "scenic/projects/token_learner/model.py",
+        "url": "https://github.com/google-research/scenic/blob/8c113c501c9f700b69899c55a69e65bb46727da6/scenic/projects/token_learner/model.py",
+        "symbols": ["TokenLearnerModuleV11", "TokenFuser", "EncoderModFuser"],
+        "license": "Apache-2.0, inspected source header",
+        "license_url": "https://github.com/google-research/scenic/blob/8c113c501c9f700b69899c55a69e65bb46727da6/LICENSE"
+      },
+      "inspected": {
+        "paper": "Sections 2.1-2.2, TokenFuser equation 2 and combined TokenLearner/Transformer/TokenFuser diagrams. The fuser learns synthesis maps independently from token extraction.",
+        "code": "Read the original conv implementation, V1.1 implementation, TokenFuser and EncoderModFuser call chain. V1.1 accepts [batch,tokens,channels] without a grid. Its MLP uses GELU and softmax over input tokens. Fuser applies a learned token-axis Dense, then independently computed sigmoid mixing maps; the residual is added by EncoderModFuser, not by TokenFuser itself.",
+        "version_boundary": "This is the author's V1.1 MLP/softmax variant plus the complete fuser chain. It is not a reproduction of the original four 3x3-convolution/sigmoid token learner; that original implementation requires a spatial layout and is unsuitable here."
+      },
+      "core": {
+        "chain": "Input-dependent analysis weights -> compressed tokens -> latent Transformer -> learned cross-token mixing -> independent input-conditioned synthesis weights -> per-original-token residual reconstruction.",
+        "formula": "A=softmax_over_inputs(MLP(LN(X))^T); Z=A X; Z'=Transformer(Z); U=LN(W_token LN(Z')); B=sigmoid(MLP(LN(X))); DeltaX=B U; X'=X+DeltaX. W_token acts on the compressed-token axis, not channels; A and B are not tied/transposes.",
+        "must_preserve": ["Input-dependent compressed token values", "A complete self-attention plus FFN residual block in compressed space", "Learned mixing among compressed token indices", "A separate input-dependent synthesis map to each original token", "The original-token residual path"]
+      },
+      "adaptation": {
+        "configuration": {"token_dim": 128, "compressed_tokens": 4, "learner_hidden": 64, "fuser_hidden": 64, "latent_transformer_blocks": 1, "attention_heads": 4, "ffn_hidden": 256, "dropout": 0.0, "layernorm_epsilon": 0.000001},
+        "resolved_mapping": "Apply one complete analysis-transform-synthesis block to all compact current evidence tokens. Use fuser corrections DeltaX, not the compressed Z alone, as the per-token inputs to the zero raw-slot decoders. Source token-axis mixer initialization is changed from zero to Xavier; all fuser biases initially zero. This preserves the full equation while avoiding a zero-mixer/zero-decoder dead branch.",
+        "hypothesis": "A small learned evidence basis can interact jointly and return different corrections to each observed role/head, without overwriting the unchanged Flat path.",
+        "not_reproduced": "Video time axes, patch convolutions, positional embeddings, original backbone depth and image/video task heads are absent. This is a set-of-readouts adaptation of the author code variant, not a reported TokenLearner benchmark reproduction."
+      },
+      "masks": "Softmax A uses only active inputs. B is computed only for active original tokens, then output slots are re-masked. Four compressed tokens are valid latent summaries, not missing-modality estimates. No-history/all-inactive bypasses prevent empty reductions.",
+      "uniqueness": "Unlike a feature gate, the complete module changes cardinality, performs interaction in compressed space, and reconstructs every input with a separately learned synthesis map and cross-token mixer.",
+      "novelty_audit": {
+        "closest_prior_ids": ["perceiver_io", "slot_attention", "otke", "se", "cbam"],
+        "substantive_difference": "The source has input-conditioned analysis masks and an independently learned sigmoid synthesis map with token-axis mixing. Perceiver's learned-latent cross-attention encoder/query decoder, Slot's competitive GRU refinement and OTKE's balanced transport solver are not reused. Accept only this entire chain: TokenLearner scoring alone would overlap simple attention/gating and is rejected.",
+        "same_round_overlap": "MBT maintains separate full-resolution role streams and averages bottleneck proposals; GroupViT makes hard hierarchical assignments; ToMe uses nonparametric matching and size tracking; NetVLAD encodes residual statistics. No equivalent VQA or attention-lane chain was claimed.",
+        "source_code_evidence": "TokenLearnerModuleV11 -> Encoder1DBlock -> TokenFuser -> explicit residual in EncoderModFuser at the pinned Scenic file."
+      },
+      "risks": ["Compressing as few as nine active tokens to four can discard useful weak evidence.", "The two learned synthesis/analysis maps are not an inverse and must not be described as recovering missing content.", "The V1.1 and initialization changes must remain visible in names and provenance.", "This is not a claim of computational acceleration over the small original Flat MLP."],
+      "accepted": true
+    },
+    {
+      "id": "mbt_role_bottleneck",
+      "rank": 2,
+      "title": "Attention Bottlenecks for Multimodal Fusion",
+      "authors": ["Arsha Nagrani", "Shan Yang", "Anurag Arnab", "Aren Jansen", "Cordelia Schmid", "Chen Sun"],
+      "url": "https://arxiv.org/abs/2107.00135",
+      "pdf": "https://arxiv.org/pdf/2107.00135",
+      "domain": "Audio-visual recognition, not MSA/MERC",
+      "codepin": {
+        "repository": "https://github.com/google-research/scenic",
+        "commit": "8c113c501c9f700b69899c55a69e65bb46727da6",
+        "file": "scenic/projects/mbt/model.py",
+        "url": "https://github.com/google-research/scenic/blob/8c113c501c9f700b69899c55a69e65bb46727da6/scenic/projects/mbt/model.py",
+        "symbols": ["Encoder", "EncoderBlock"],
+        "lines": ["Encoder:339-352"],
+        "license": "Apache-2.0, inspected source header",
+        "license_url": "https://github.com/google-research/scenic/blob/8c113c501c9f700b69899c55a69e65bb46727da6/LICENSE"
+      },
+      "inspected": {
+        "paper": "Section 3.3, bottleneck fusion equations and bottleneck-size/fusion-depth design. Shared tokens constrain inter-stream communication; full modality transformers update both stream and bottleneck tokens.",
+        "code": "Pinned Encoder lines339-352: each modality concatenates the SAME pre-round bottleneck, applies its encoder, splits stream and proposed bottleneck outputs, and only afterward averages all proposals. With share_encoder=false, roles have separate parameters. This is synchronous averaging, not sequential overwriting or a single cross-attention lookup."
+      },
+      "core": {
+        "chain": "Independent stream processing -> append shared bottleneck to each stream -> full role-specific Transformer updates -> split stream/bottleneck outputs -> mean bottleneck proposals -> repeat exchange -> return updated streams.",
+        "formula": "[X_r^(l+1),Zhat_r^(l+1)]=T_r^l([X_r^l,Z^l]); Z^(l+1)=mean_{r active} Zhat_r^(l+1). All r use the same snapshot Z^l. Later rounds make the aggregate affect the original stream tokens.",
+        "must_preserve": ["Separate persistent role streams", "Full joint stream-and-bottleneck self-attention and FFN blocks", "Synchronous mean of role proposals", "At least two fusion rounds", "Updated stream outputs rather than only a pooled bottleneck"]
+      },
+      "adaptation": {
+        "configuration": {"token_dim": 128, "bottleneck_tokens": 4, "private_blocks": 1, "fusion_rounds": 2, "attention_heads": 4, "ffn_hidden": 256, "share_role_encoders": false, "dropout": 0.0, "bottleneck_init_std": 0.02},
+        "resolved_mapping": "Streams are Local(1), Base(8), and each active Gap role(8). These are evidence-source roles, NOT claims that Base or Gap is an audio/image sequence. Each stream gets one private Transformer then two independently parameterized fusion rounds; learned initial bottlenecks are fresh per utterance, not persistent memory. Apply final tokenwise LN and decode all updated stream tokens into their own raw slots.",
+        "hypothesis": "Restrict cross-role communication while allowing head-level within-role processing, so sources retain their own working representation instead of being immediately mixed into one pool.",
+        "not_reproduced": "Audio/video patchification, temporal/spatial embeddings, original two-modality backbone and recognition heads. The experiment uses only the existing task loss and existing readouts."
+      },
+      "masks": "Skip an absent Gap stream completely, including its bottleneck proposal; average by the number of active roles, never by a fixed five. Local and Base are present on history-bearing rows. Group rows by availability pattern to avoid all-masked stream attention. Final inactive raw slots remain zero.",
+      "uniqueness": "The communication topology is parallel role-local processing with consensus bottleneck exchange, not an ordinary global latent encoder/decoder.",
+      "novelty_audit": {
+        "closest_prior_ids": ["perceiver_io", "allset_transformer", "graph_multiset_transformer"],
+        "substantive_difference": "Perceiver and multiset pooling map one input set into latent summaries and decode/pool them. This core retains all role streams, jointly updates each stream with shared tokens using its own full Transformer, averages simultaneous proposals, and repeats before reading the streams. Merely replacing Perceiver's latent count or adding one cross-attention round would not qualify.",
+        "same_round_overlap": "No VQA lane dense pairwise co-attention is used: direct cross-stream edges are forbidden and proposals are averaged. TokenLearner/Fuser compresses a single joint set and synthesizes it back; MBT never replaces each stream by the shared bottleneck.",
+        "source_code_evidence": "Pinned Scenic Encoder uses bottle.append(out_mod[:,t_mod:]) followed outside the modality loop by jnp.mean(jnp.stack(bottle),axis=-1)."
+      },
+      "risks": ["Local has only one token; its private block offers no within-stream pair reasoning, though it participates nontrivially in both fusion rounds.", "Equal weighting of source-role proposals may dilute a strong Base stream as more Gap streams activate.", "Fewer than two rounds would fail to transfer aggregated bottleneck information back into source outputs.", "This is related to latent communication families; distinctness rests on the retained full workflow, not the paper name."],
+      "accepted": true
+    },
+    {
+      "id": "groupvit_hierarchical",
+      "rank": 5,
+      "title": "GroupViT: Semantic Segmentation Emerges from Text Supervision",
+      "authors": ["Jiarui Xu", "Shalini De Mello", "Sifei Liu", "Wonmin Byeon", "Thomas Breuel", "Jan Kautz", "Xiaolong Wang"],
+      "url": "https://arxiv.org/abs/2202.11094",
+      "pdf": "https://arxiv.org/pdf/2202.11094",
+      "domain": "Hierarchical visual grouping, not MSA/MERC",
+      "codepin": {
+        "repository": "https://github.com/NVlabs/GroupViT",
+        "commit": "13b786155a1dfffe4703f40d028c92be58e1178d",
+        "file": "models/group_vit.py",
+        "url": "https://github.com/NVlabs/GroupViT/blob/13b786155a1dfffe4703f40d028c92be58e1178d/models/group_vit.py",
+        "symbols": ["hard_softmax", "gumbel_softmax", "AssignAttention", "GroupingBlock", "GroupingLayer", "GroupViT"],
+        "additional_file": "https://github.com/NVlabs/GroupViT/blob/13b786155a1dfffe4703f40d028c92be58e1178d/segmentation/evaluation/group_vit_seg.py#L144-L190",
+        "license": "NVIDIA Source Code License for GroupViT; use limitation is non-commercial research/evaluation, not MIT/Apache",
+        "license_url": "https://github.com/NVlabs/GroupViT/blob/13b786155a1dfffe4703f40d028c92be58e1178d/LICENSE"
+      },
+      "inspected": {
+        "paper": "Section3.1, equations1-5 and hierarchical grouping diagram. Explicitly inspected the paper's admission that ONE GroupingBlock resembles a single Slot Attention iteration. That isolated block is insufficient novelty here.",
+        "code": "Read assignment functions, GroupingBlock lines200-287, GroupingLayer concatenation/split/carry logic, GroupViT stage/projector construction lines713-765, and segmentation get_attn_maps lines144-190. Source includes pre-assignment CrossAttnBlock, projected-group residual, channel FFN, and previous-stage group-token projection, not only hard softmax.",
+        "source_precision": "Code AssignAttention divides group weights by assigned_mass+assign_eps, default assign_eps=1.0; the paper's concise equation omits this stabilizer. Source segmentation composes deterministic SOFT assignment maps and does so under no_grad; a trainable readout decoder must explicitly expose attached maps instead of silently claiming an identical training path."
+      },
+      "core": {
+        "chain": "Joint data/group-token Transformer -> group-axis projection -> group-to-data pre-assignment cross-attention -> straight-through Gumbel one-parent assignment -> groupwise merge plus group residual/FFN -> inherited group initialization and second full stage -> final grouped-token Transformer.",
+        "formula": "A_soft=softmax_over_groups(Q_group K_input^T/sqrt(d)); A_ST=onehot(argmax(A_gumbel))-stopgrad(A_gumbel)+A_gumbel in training; grouped=projected_group+Wo[(A_ST/(sum_inputs(A_ST)+1)) V_input], followed by residual channel FFN. Repeat at a smaller cardinality; retain each stage's assignment map.",
+        "must_preserve": ["At least two complete grouping stages", "Joint original/group-token Transformer", "Previous-stage group-token projection and pre-assignment cross-attention", "Hard single-parent ST assignments rather than only softmax direction", "Group residual/channel FFN and final group Transformer", "Composed maps back to original token identities"]
+      },
+      "adaptation": {
+        "configuration": {"token_dim": 128, "stage_group_tokens": [8, 4], "stage_output_groups": [8, 4], "joint_blocks_per_stage": 1, "final_group_blocks": 1, "attention_heads": 4, "assignment_heads": 1, "ffn_hidden": 512, "token_axis_mlp_hidden": 64, "assignment_epsilon": 1.0, "gumbel_temperature": 1.0, "private_rng_seed_offset": 130363, "dropout": 0.0},
+        "resolved_mapping": "Group the current active evidence set into 8 then 4 latent groups, with source group carry projector and complete GroupingBlocks. Run one final grouped-token Transformer. Let P1=A_soft1^T and P2=A_soft2^T; decode per-original-token features (P1 P2) Z_final into existing raw slots. Soft map composition follows the source inference algebra, but remains attached for this task-trained adapter; no image resize, text embedding or segmentation decision is used.",
+        "hypothesis": "Hard multi-level coarsening can test whether current evidence forms a useful hierarchy, while joint group-token processing supplies contextual assignment rather than a fixed codebook.",
+        "not_reproduced": "No text encoder, contrastive learning, pretrained visual model, semantic segmentation head, image grid or claim that the latent groups are objects/poses/missing modalities. Group collapse is possible under the original task loss."
+      },
+      "masks": "Only observed active tokens enter the first stage. Learned groups are legitimate latent computation, not observed modalities; empty groups retain the source residual and finite mass+1 normalization. Absent raw slots receive no reconstructed output. Private checkpointed training Gumbel RNG and deterministic eval argmax are mandatory; all-inactive/no-history rows bypass both stages.",
+      "uniqueness": "Accepted only at the complete hierarchical architecture level; single-stage competitive assignment is deliberately NOT a new method relative to the first-round Slot implementation.",
+      "novelty_audit": {
+        "closest_prior_ids": ["slot_attention", "capsule_dynamic_routing", "perceiver_io", "allset_transformer"],
+        "substantive_difference": "First-round Slot repeatedly refines fixed-cardinality slots with competitive assignment and GRU. This full core performs joint input/group self-attention, hard single-parent irreversible coarsening at two cardinalities, inherited group-token projections, separate pre-assignment cross-attention, and composed hierarchical maps. If these are removed, or the review defines all such grouping as the Slot family, reject this candidate rather than count a renamed Slot variant.",
+        "same_round_overlap": "TokenLearner uses soft learned analysis plus independent synthesis; ToMe merges observed tokens by key-space bipartite matching without learned group queries or ST Gumbel; NetVLAD accumulates center-relative residuals without hierarchy. MBT keeps source streams at full cardinality.",
+        "source_code_evidence": "GroupingLayer.forward concatenates input and learned group tokens; GroupingBlock.forward includes project_group_token, pre_assign_attn, assign, group residual and mlp_channels; GroupViT adds previous-group projectors; get_attn_maps composes stage maps.",
+        "overlap_risk": "Elevated and explicitly escalated to coordinator: the paper itself compares its single grouping block with Slot Attention. Acceptance requires the full architectural distinction above, not merely hard versus soft normalization."
+      },
+      "risks": ["Highest family-overlap risk among these five; never market it as unrelated to Slot Attention.", "With only 9-25 inputs, learned groups can be empty or collapse; no extra balancing loss is authorized.", "Hard assignment may discard discriminative cross-group relations.", "Source code has a non-commercial license; any copied/derived implementation requires license compliance. Independent equations are proposed, not a blanket license exemption."],
+      "accepted": true
+    },
+    {
+      "id": "netvlad_residual_encoding",
+      "rank": 3,
+      "title": "NetVLAD: CNN architecture for weakly supervised place recognition",
+      "authors": ["Relja Arandjelović", "Petr Gronat", "Akihiko Torii", "Tomas Pajdla", "Josef Sivic"],
+      "url": "https://arxiv.org/abs/1511.07247",
+      "pdf": "https://arxiv.org/pdf/1511.07247",
+      "domain": "Visual descriptor encoding/place recognition, not MSA/MERC",
+      "codepin": {
+        "repository": "https://github.com/Relja/netvlad",
+        "commit": "652dbe71aa45c691961ddd9f6cf902574e6bdc2f",
+        "file": "layerVLADv2.m",
+        "url": "https://github.com/Relja/netvlad/blob/652dbe71aa45c691961ddd9f6cf902574e6bdc2f/layerVLADv2.m",
+        "additional_files": ["https://github.com/Relja/netvlad/blob/652dbe71aa45c691961ddd9f6cf902574e6bdc2f/layerVLAD.m", "https://github.com/Relja/netvlad/blob/652dbe71aa45c691961ddd9f6cf902574e6bdc2f/addLayers.m"],
+        "symbols": ["layerVLADv2.forward_", "layerVLADv2.backward_", "addLayers"],
+        "license": "MIT, LICENCE inspected",
+        "license_url": "https://github.com/Relja/netvlad/blob/652dbe71aa45c691961ddd9f6cf902574e6bdc2f/LICENCE"
+      },
+      "inspected": {
+        "paper": "NetVLAD section3/equations2-4 and Figure2: soft descriptor assignment, independently trainable centers, residual accumulation, per-cluster intra-normalization and global descriptor L2 normalization.",
+        "code": "Read both MATLAB VLAD variants and addLayers. layerVLADv2 includes assignment biases and center offsets, matching the three parameter families in the paper; layerVLAD omits assignment biases. Normalization is intentionally outside forward_ and is added by addLayers. Source initialization uses dataset descriptors/k-means; that data-dependent initialization is not imported."
+      },
+      "core": {
+        "chain": "Per-descriptor L2 normalization -> learned soft code assignment -> independent code-center subtraction -> assigned first-order residual accumulation -> per-code L2 normalization -> flattened global L2 normalization.",
+        "formula": "a_ik=softmax_k(w_k^T x_i+b_k); V_k=sum_{i active} a_ik(x_i-c_k); Vhat_k=V_k/max(norm(V_k),eps); Vbar=Vhat/max(norm(vec(Vhat)),eps). Assignment parameters (w,b) and residual centers c remain independently trainable.",
+        "must_preserve": ["Center-relative residuals, not just weighted means", "Independent assignment and center parameters", "Separate K residual blocks", "Intra-normalization before global normalization", "Gradient paths through both assignment and residual values"]
+      },
+      "adaptation": {
+        "configuration": {"token_dim": 128, "codewords": 8, "descriptor_dim": 1024, "input_l2_normalize": true, "intra_normalize": true, "global_l2_normalize": true, "epsilon": 0.000001, "dropout": 0.0},
+        "resolved_mapping": "Encode all active typed evidence tokens with the complete 8-code NetVLAD pipeline. Return a context vector to each existing input i by h_i=sum_k a_ik Vbar_k, then apply its zero raw-slot decoder. This assignment-conditioned redistribution is a NEW adapter around the source encoder, not a claimed NetVLAD reconstruction algorithm. Random independent model initialization replaces source k-means initialization; no dataset scan, external descriptor bank or extra loss.",
+        "hypothesis": "Center-relative residual statistics may expose whether an evidence head deviates from learned readout prototypes, which a simple mean or positive weighted pool would not encode.",
+        "not_reproduced": "No place-retrieval ranking/triplet loss, GPS supervision, CNN image features, PCA/whitening training or retrieval metric. Complete descriptor encoder only, with an explicitly new typed-slot decoder."
+      },
+      "masks": "Each inactive descriptor is removed from both assignment-weighted x sums and assigned center mass; multiplying a NaN by zero is forbidden. Empty residual blocks normalize to exact zero with epsilon floors. All-inactive rows bypass output biases. Redistribution only targets original active role/head slots.",
+      "uniqueness": "A learned local-coordinate residual-statistics encoder is more than a scalar/feature gate or an attention average; dropping the residual centers or either normalization would remove the audited complete core.",
+      "novelty_audit": {
+        "closest_prior_ids": ["otke", "capsule_dynamic_routing", "capsule_variational_bayes", "graph_multiset_transformer"],
+        "substantive_difference": "OTKE solves a balanced two-marginal transport problem and pools values; capsules update agreement or posterior responsibilities. NetVLAD has no such iterative solver: it encodes center-relative first moments in K independently normalized coordinate systems with separate assignment/center parameters. A plain codeword attention sum would not qualify.",
+        "same_round_overlap": "Distinct from GroupViT hard hierarchy, TokenLearner synthesis, ToMe token matching, and VQA BAN/MFH bilinear joint-feature pooling. The new redistribution wrapper alone is not counted as novelty.",
+        "source_code_evidence": "layerVLADv2.forward_ computes softmax(conv(x,w,b)) and sums assignment times (x-center); addLayers separately adds vlad:intranorm and postL2."
+      },
+      "risks": ["Small evidence sets and random rather than k-means initialization may leave codewords underused.", "Residual cancellation and normalization near zero require finite-gradient tests.", "The method is an encoder with a new readout redistribution adapter, not an original reconstruction method.", "If the requirement excludes all descriptor-pooling blocks even when their complete residual-statistics pipeline is preserved, exclude rather than relabel it as reasoning."],
+      "accepted": true
+    },
+    {
+      "id": "tome_merge_reconstruct",
+      "rank": 4,
+      "title": "Token Merging: Your ViT But Faster",
+      "authors": ["Daniel Bolya", "Cheng-Yang Fu", "Xiaoliang Dai", "Peizhao Zhang", "Christoph Feichtenhofer", "Judy Hoffman"],
+      "url": "https://arxiv.org/abs/2210.09461",
+      "pdf": "https://arxiv.org/pdf/2210.09461",
+      "domain": "Image/video/audio Transformer token coarsening, not MSA/MERC",
+      "codepin": {
+        "repository": "https://github.com/facebookresearch/ToMe",
+        "commit": "af95e4b1befa172dadccd8c81e223b10090f9579",
+        "file": "tome/merge.py",
+        "url": "https://github.com/facebookresearch/ToMe/blob/af95e4b1befa172dadccd8c81e223b10090f9579/tome/merge.py",
+        "additional_file": "https://github.com/facebookresearch/ToMe/blob/af95e4b1befa172dadccd8c81e223b10090f9579/tome/patch/timm.py",
+        "symbols": ["bipartite_soft_matching", "merge_wavg", "merge_source", "ToMeBlock", "ToMeAttention"],
+        "license": "CC-BY-NC-4.0, LICENSE inspected; not a permissive commercial software license",
+        "license_url": "https://github.com/facebookresearch/ToMe/blob/af95e4b1befa172dadccd8c81e223b10090f9579/LICENSE"
+      },
+      "inspected": {
+        "paper": "Section3/Figure1, five-step bipartite matching algorithm, token-size tracking and proportional-attention equation1; training treats the hard merge as pooling without Gumbel gradient tricks.",
+        "code": "Read merge.py balanced matching/merge/unmerge and merge_wavg, plus complete timm patch. Matching uses normalized mean keys across heads, is selected under no_grad, and leaves value aggregation differentiable. The source unmerge broadcasts destination outputs to merged sources; it does not invert lost values. ToMeBlock inserts merging AFTER attention residual and BEFORE the FFN. ToMeAttention adds log token size to key logits."
+      },
+      "core": {
+        "chain": "Self-attention -> normalized mean-key similarity -> balanced bipartite best-destination matching -> retain top-r edges -> size-weighted merging -> FFN -> next size-corrected attention/merge stage -> reverse saved unmerge maps.",
+        "formula": "For each source i in A choose j(i)=argmax_{j in B} cos(mean_heads K_i,mean_heads K_j); keep top-r source edges. Merge z_C=sum_{i in C}s_i x_i/sum_{i in C}s_i with s_C=sum_i s_i. Later attention is softmax(QK^T/sqrt(d)+log(s)^T)V. Unmerge copies each merged output to its tracked original members.",
+        "must_preserve": ["Actual key-derived matching, not learned attention pooling", "Best destination plus global top-r source-edge selection", "Size-weighted values and cumulative sizes", "At least a second attention block that consumes log sizes", "Attention-before-merge-before-FFN placement", "Source-membership tracking and restoration to original slots"]
+      },
+      "adaptation": {
+        "configuration": {"token_dim": 128, "tome_blocks": 2, "attention_heads": 4, "ffn_hidden": 256, "max_merges_per_block": 4, "protect_local_token": true, "proportional_attention": true, "dropout": 0.0, "cosine_epsilon": 0.000001},
+        "resolved_mapping": "Compact active canonical role/head tokens, protect Local as the source protects a class token, and initialize all sizes to one. In each of two full ToMe blocks use r=min(4,floor((n-1)/2)); partition alternating token indices solely as a deterministic graph partition, NOT spatial/temporal adjacency. Use stable identity-based tie breaks. Save each merge's unmerge callable/indices within this forward only; apply in reverse after block2 to recover one contextual output per original token, then zero raw-slot decode.",
+        "hypothesis": "Explicitly merge redundant readout evidence while retaining unmerged minority heads and compensating attention for represented mass. This tests a topology-changing algorithm, not a wider attention layer.",
+        "not_reproduced": "No diffusion process, image grid, patch sequence or pretraining. The original paper mostly classifies compressed tokens; the official unmerge operation is used here as an explicit adapter to preserve Flat's typed input cardinality. No speedup is claimed for such short evidence sets."
+      },
+      "masks": "Compact before bipartition so inactive roles never become destinations or affect r. Local cannot be merged away. Mask-free active batches avoid negative-infinity argmax over empty sets; tiny/all-inactive cases bypass merging. Use epsilon-safe key normalization for zero keys. Scatter restored values only to original active indices; erase invalid output slots after decoder biases.",
+      "uniqueness": "Deterministic hard matching among actual evidence tokens, cumulative token masses and proportional attention change the computational graph. This is neither fixed-query grouping nor a primitive pooling coefficient.",
+      "novelty_audit": {
+        "closest_prior_ids": ["dgcnn_dynamic_edgeconv", "slot_attention", "otke", "perceiver_io"],
+        "substantive_difference": "DGCNN rebuilds kNN neighborhoods and propagates edge messages without coarsening or mass tracking. Slot/Perceiver/OTKE aggregate to learned latent supports. ToMe merges actual observed tokens selected by key-space bipartite top-edge matching, retains cumulative sizes, and changes later attention with log sizes. A one-off average of similar tokens would be insufficient.",
+        "same_round_overlap": "GroupViT uses learned group tokens, hard ST assignments and hierarchical group residuals; ToMe has no learned group queries or Gumbel. TokenLearner has independent learned synthesis; ToMe restoration is deterministic membership broadcasting. None of the attention-lane operators performs token coarsening/mass correction.",
+        "source_code_evidence": "merge.py lines18-97 supplies balanced matching and returned unmerge; merge_wavg propagates sizes; timm.py ToMeBlock and ToMeAttention preserve the attention/merge/FFN order and log-size correction."
+      },
+      "risks": ["Merged heads receive identical core outputs before typed decoding; irreversible information loss is real and the raw residual path must remain.", "Canonical bipartition is an algorithmic choice and not permutation-invariant unless identities and partition membership travel together.", "Matching is nondifferentiable by design; gradients through pooled values and key-producing attention must still be verified.", "Zero/equal keys need explicit finite normalization and deterministic ties beyond the source's raw divide-by-norm.", "Official code is non-commercial; license compliance remains necessary for copied/derived code."],
+      "accepted": true
+    }
+  ],
+  "rejected_or_deferred": [
+    {
+      "id": "tokencut_full_rejected",
+      "title": "Self-Supervised Transformers for Unsupervised Object Discovery Using Normalized Cut",
+      "authors": ["Yangtao Wang", "Xi Shen", "Shell Xu Hu", "Yuan Yuan", "James L. Crowley", "Dominique Vaufreydaz"],
+      "url": "https://arxiv.org/abs/2202.11539",
+      "pdf": "https://arxiv.org/pdf/2202.11539",
+      "codepin": {"repository": "https://github.com/YangtaoWANG95/TokenCut", "commit": "fed52cd5b60891baefd8ec7110dafa73be816ee1", "url": "https://github.com/YangtaoWANG95/TokenCut/blob/fed52cd5b60891baefd8ec7110dafa73be816ee1/object_discovery.py", "license": "MIT, LICENSE inspected"},
+      "inspected": "Primary sections3.1-3.2, equations4-5 and four-step algorithm; actual ncut and detect_box functions. Code transfers to NumPy/SciPy generalized eigh, thresholds the second eigenvector, reshapes to spatial dims, labels 2D connected components and extracts a bounding box.",
+      "core": "Thresholded cosine graph -> generalized normalized-cut eigenproblem -> mean eigenvector bipartition -> maximum-absolute seed -> spatial connected component and bounding box.",
+      "adaptation": "Not proposed. A differentiable spectral pooling layer could be a different research direction, but replacing the non-differentiable threshold/eigensolver and dropping source foreground/spatial selection would not preserve this complete TokenCut module.",
+      "masks": "No valid transfer of source 2D connected-component semantics to unordered Local/Base/Gap heads.",
+      "uniqueness": "Spectral graph partition is distinct, but distinctness alone does not make the complete source transferable.",
+      "novelty_audit": {"closest_prior_ids": ["dgcnn_dynamic_edgeconv", "graph_multiset_transformer"], "substantive_difference": "Global generalized eigenvector cut differs from message passing, but the accepted adaptation would require deleting source-defining foreground/spatial processing.", "same_round_overlap": "Not counted beside ToMe or GroupViT.", "source_code_evidence": "object_discovery.py ncut converts to NumPy and detect_box uses scipy.ndimage.label on reshaped dims."},
+      "risks": ["Invented 2D layout", "Source path is not end-to-end differentiable", "Foreground/object assumptions do not describe evidence roles"],
+      "accepted": false
+    }
+  ],
+  "additional_screening_notes": [
+    {"name": "LookupViT", "accepted": false, "reason": "Potentially relevant compress/process/fuse chain, but only third-party reproductions were located in bounded screening; no verified author implementation pin. Not counted and no claim that author code cannot exist."},
+    {"name": "TCFormer", "accepted": false, "reason": "Screened out before a full source audit: the original hierarchical spatial token/map workflow needs image-layout semantics that these heads do not have. Not counted as a verified candidate."},
+    {"name": "TokenLearner original four-convolution variant", "accepted": false, "reason": "Actual author code inspected: four 3x3 convolutions and square reshaping require a spatial layout. Only the separately labeled author V1.1 full-chain card is accepted."}
+  ],
+  "verification": {"performed": ["Read primary method material", "Read actual official code at recorded immutable pins", "Inspect official license notices", "Cross-round registry comparison", "Same-round ownership exchange and mechanism comparison", "JSON structure and required fields checked after writing"], "not_performed": ["Implementation", "Unit/integration mathematical verification", "Training", "GPU launch", "Git modification", "Accuracy or throughput evaluation"]}
+}

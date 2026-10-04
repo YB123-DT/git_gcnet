@@ -150,9 +150,10 @@ def _phase(state, ids, baseline):
         state['phase'] = 'replication'
 
 
-def coordinate(args):
+def coordinate(args, *, round_validator=validate_round,
+               runner_module='experiments.osram_meaningful20_20261003.run', phase_fn=_phase):
     manifest = read(args.manifest)
-    ids = validate_round(manifest)
+    ids = round_validator(manifest)
     cards = {card['id']: card for card in manifest['cards']}
     args.root.mkdir(parents=True, exist_ok=True)
     (args.root / 'logs').mkdir(exist_ok=True)
@@ -175,7 +176,7 @@ def coordinate(args):
                     code = handles[key].poll()
                     if code is not None: job['process_exit_code'] = code
                 state['jobs'][key] = reconcile_job(job)
-            _phase(state, ids, baseline)
+            phase_fn(state, ids, baseline)
             state.update(updated_at=now(), coordinator=process_identity(os.getpid()))
             if state['phase'] in ('awaiting_new_round', 'verified_improvement'):
                 write(path, state)
@@ -231,7 +232,7 @@ def coordinate(args):
                     state['jobs'][key] = {'output': str(output), 'status': 'inspection_pending', 'detail': 'orphan output'}
                     continue
                 run_id = previous['run_id'] if previous else uuid.uuid4().hex
-                command = [args.python, '-u', '-m', 'experiments.osram_meaningful20_20261003.run',
+                command = [args.python, '-u', '-m', runner_module,
                     '--candidate', candidate, '--seed', str(seed), '--output', str(output.resolve()),
                     '--manifest', str(args.manifest.resolve()), '--manifest-sha256', spec['manifest_sha256'],
                     '--snapshot', str(snapshot), '--readiness', str(ready_path.resolve()),
