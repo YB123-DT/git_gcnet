@@ -1,0 +1,41 @@
+{
+  "status": "source_checked_designs_not_implemented",
+  "candidates": [
+    {
+      "id": "n3_recursive_neighbor_volumes",
+      "title": "Neural Nearest Neighbors Networks",
+      "authors": ["Tobias Plötz", "Stefan Roth"],
+      "url": "https://proceedings.neurips.cc/paper/7386-neural-nearest-neighbors-networks.pdf",
+      "code_url": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py",
+      "source_symbols": ["NeuralNearestNeighbors.forward", "N3AggregationBase.forward", "N3Aggregation2D.forward"],
+      "source_core": "Learn distances and temperature; recursively form multiple neighbor distributions, updating logits by log(1-p) after each selection; retain separate neighbor volumes and their differences from the query.",
+      "transfer": "Use projected Local plus active role/head tokens as the within-utterance set. Exclude self, produce three relaxed neighbor volumes per query, concatenate query and three neighbor-minus-query vectors, decode token corrections through zero-initialized output maps. No cross-utterance database.",
+      "implementation": "At each of three ranks: p=softmax(logits); neighbor=p@values; logits+=log1p(-p.clamp(max=1-eps)). Keep ranks separate, rather than summing them into one attention result. Positive bounded learned temperature; no batch normalization or random sampling.",
+      "nearest_old": ["dgcnn_dynamic_edgeconv", "nonlocal", "otke"],
+      "substantive_difference": "Recursive relaxed selection without replacement and separate ordered neighbor volumes, rather than hard kNN EdgeConv, a single weighted average, or transport to a reference bank.",
+      "mask": "Only active tokens enter distance normalization. Existing input wrapper handles empty history, first utterance, padding and inactive slots.",
+      "risk": "Feature-space neighbors may not correspond to useful sentiment evidence; temperature saturation can reduce gradient quality. Selection ranks are proximity ranks, not temporal order.",
+      "accepted_for_training": false
+    },
+    {
+      "id": "pointcnn_x_transformed_evidence",
+      "title": "PointCNN: Convolution On X-Transformed Points",
+      "authors": ["Yangyan Li", "Rui Bu", "Mingchao Sun", "Wei Wu", "Xinhan Di", "Baoquan Chen"],
+      "url": "https://papers.neurips.cc/paper/7362-pointcnn-convolution-on-x-transformed-points.pdf",
+      "code_url": "https://github.com/yangyanli/PointCNN/blob/master/pointcnn.py",
+      "source_symbols": ["xconv"],
+      "source_core": "Neighborhood relative coordinates generate a dense K-by-K X transformation; lifted coordinates and features are transformed jointly before separable neighborhood convolution.",
+      "transfer": "Learn an eight-dimensional feature chart for Local and active role/head tokens. For each token use four nearest active chart neighbors, lift relative chart coordinates, generate the dense X matrix, mix neighbor features, then apply channelwise neighbor kernels and a pointwise channel map. Compose two X-conv blocks, then zero-initialized token correction decoders.",
+      "implementation": "Preserve the source three-stage X generator: flattened neighborhood-to-K*K projection followed by two rowwise K-to-K transformations, last linear; coordinate lift uses two affine/ELU layers. No image grid or hardcoded head adjacency. Keep token role/head embeddings.",
+      "nearest_old": ["dgcnn_dynamic_edgeconv", "conditional_rational_quadratic_spline_coupling"],
+      "substantive_difference": "Dense neighborhood canonicalization followed by separable contraction, not EdgeConv max pooling or invertible coupling. Learned chart is an explicit adaptation, not source 3D geometry.",
+      "mask": "Select neighborhoods from active tokens only; fixed K=4 is feasible with Base's eight forward heads even for ATV. Existing wrapper bypasses absent history and remasks inactive outputs.",
+      "risk": "Chart neighborhoods and latent canonicalization are hypotheses; no spatial or rotation-invariance claim. Hard neighbor membership has piecewise gradients. This is an adapted X-conv block, not a PointCNN benchmark reproduction.",
+      "accepted_for_training": false
+    }
+  ],
+  "not_counted": [
+    {"id": "iresnet", "reason": "Source and paper checked, but spectral-normalized residual MLP alone does not meet this request's substantive-block threshold; invertibility is not needed by the proposed readout."},
+    {"id": "modern_hopfield", "reason": "Iterative author code checked, but full paper retrieval was blocked and distinction from existing repeated attention/equilibrium routes needs stronger grounding; not counted."}
+  ]
+}

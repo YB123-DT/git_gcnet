@@ -1,0 +1,63 @@
+{
+  "label": "INTERNAL DIAGNOSTIC ONLY",
+  "status": "cpu_code_contract_verified_not_trained",
+  "baseline_commit": "789c6dd",
+  "branch": "feature/osram-uniform-forced-text",
+  "new_methods": 40,
+  "final_combined_verification": {
+    "command": "python -m unittest tests.test_meaningful_new40 tests.test_meaningful_input tests.test_meaningful_block_integration",
+    "tests": 5,
+    "result": "PASS",
+    "elapsed_seconds": 41.079,
+    "implementation_hashes_match_PARAMETERS": true
+  },
+  "training_runs_started": 0,
+  "new_dependencies": [],
+  "checks": [
+    {
+      "command": "python -m unittest tests.test_meaningful_new40",
+      "tests": 2,
+      "result": "PASS",
+      "coverage": "forty factories, disjoint IDs, catalog selection and global cap"
+    },
+    {
+      "command": "python -m unittest tests.test_meaningful_input tests.test_meaningful_block_integration",
+      "tests": 3,
+      "result": "PASS",
+      "elapsed_seconds": 41.433,
+      "coverage": "shared input contract and full-model initial train/eval predictions, original parameters and RNG; all registered methods"
+    },
+    {
+      "command": "python -m experiments.osram_new40_20261004.prepare --candidate n3_recursive_neighbor_volumes --dry-run",
+      "result": "PASS; no reservation or training started"
+    },
+    {
+      "command": "python -m compileall -q [new Python files]",
+      "result": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "red_evidence": [
+    "catalog test failed before registry existed",
+    "selection test failed before prepare module existed"
+  ],
+  "not_tested": [
+    "real-data batch32 CUDA readiness on biggpu",
+    "GPU memory and wall-clock training throughput",
+    "full training and W-F1",
+    "multi-seed robustness"
+  ],
+  "actual_adaptations": {
+    "NPS": "deterministic straight-through argmax replaces Gumbel noise",
+    "LNN": "position-dependent SPD mass Lagrangian; actual Hessian and mixed derivatives retained",
+    "CPFlow": "analytic full ICNN gradient preserves mixed task derivatives",
+    "Grassmann": "regularized spectral-projector backward at tiny boundary eigengaps",
+    "MFN": "direct PDF unavailable; primary cached text/official slides/author core used"
+  },
+  "training_cap": 60,
+  "banned_server_gpu": "biggpu physical GPU4",
+  "parameter_file": "PARAMETERS.json"
+}

@@ -1,0 +1,315 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-04",
+  "status": "implementation_design_only_not_implemented_not_trained",
+  "scope": "Nine retained families; independently specified operators, not source model reproductions. Family overlap alone is not rejection; each has a distinct computational hypothesis.",
+  "local_evidence": [
+    "AGENTS.md",
+    "gcnet_missing_m3/meaningful_input.py",
+    "gcnet_missing_m3/meaningful_blocks_common.py",
+    "docs/osram_next40_optimization.json",
+    "docs/osram_next40_geometry.json",
+    "docs/osram_next40_representation.json",
+    "docs/osram_next40_conditional.json"
+  ],
+  "contract": {
+    "signature": "core(local[N,256], evidence[N,4,512], active[N,4], av[N,3]) -> (local_new[N,256], evidence_new[N,4,512])",
+    "placement": "Existing MeaningfulInputAdapter history-only branch before Flat. Preserve base/gap backward512, original memory query/read/write, original Local skip, task head and loss. No new dependencies.",
+    "mask": "Sanitize evidence with safe_mask BEFORE any projection/reduction; also mask projected inactive roles after bias. active[0]=true and active[1:]=~av for valid calls. av binary nonempty means 1..3 active evidence roles, 8..24 real evidence heads. For direct empty N return immediately. Any all-inactive row returns safe zero evidence and unchanged local. Missing/padded NaN sentinels must never enter arithmetic.",
+    "bridge": "Ordinary candidates end in affine residual map(s), both weights and bias zero. Return local+delta_local and safe_mask(evidence+delta_evidence,active). Do not zero mechanism internal weights: first backward updates bridge, subsequent optimizer steps must update mechanism. Do not skip computing mechanism merely because bridge=0.",
+    "disabled_rng": "Feature default is disabled. Disabled factory path must instantiate no candidate, allocate no random tensor, import no side-effectful code, and call no new forward. Verify torch CPU/CUDA RNG states and original backbone initial parameters/output are unchanged. Enabled constructor may use existing initialization RNG; forward uses no randomness, dropout, stochastic wiring, batch statistics or persistent hidden state.",
+    "dtype": "Use float32 internal arithmetic under disabled autocast for geometric/ODE/polynomial operators; float64 reference checks. Cast final residual to input dtype. Raise on nonfinite active input/result instead of silently nan_to_num; safe_mask removes only inactive corruption.",
+    "shared_flat": "s=cat(local,safe_mask(evidence,active).flatten(1),av.to(local)) has 2307 columns. Ordinary compact front is tanh(Linear(2307,64)(s)); availability is fixed conditioning, not a learned label.",
+    "shared_tokens": "Reuse HeadTokenizer(256,8,64,dim=32,shared_projection=True,normalize=False): 33 canonical tokens, Local then 4x8 role/head slots; mask from active. Parameters=10720. No order interpreted as time.",
+    "graph": "For active canonical tokens, undirected A_ij=1 if i!=j and either endpoint is Local, or both evidence nodes share role, or both share real head id. Take union, not additive duplicate weights. Remove inactive nodes BEFORE degree normalization. No self edges. With any evidence, graph connected and d_i>=1. Define S=D^-1/2 A D^-1/2; L=I-S. Group identical masks only for batching; never reduce over examples.",
+    "verification_required": [
+      "Use only the shared minimum template: initidentity, mask, finitegrad, update, fullmodeldefaultoff.",
+      "No additional per-method validation gate. On a concrete error, nonfinite result, mask leak or protocol inconsistency, perform the relevant targeted diagnosis."
+    ],
+    "oracle_field_status": "Every per-method oracle field below is a mathematical reference for targeted debugging only, not a required test suite, acceptance criterion, or additional delivery gate. No training or performance claim follows from the shared checks."
+  },
+  "candidates": [
+    {
+      "id": "DPP",
+      "source_id": "next_dpp_joint_subset_readout",
+      "family": "exact_cardinality_two_determinantal_subset_expectation",
+      "chain": [
+        "Tokenize shared_tokens; select only active evidence heads v_i in R32; Local token l in R32 conditions quality and pair network.",
+        "q_i=0.1+1.9*sigmoid(Linear64to1(cat(v_i,l))). u_i=Linear32to16(v_i); phi_i=u_i/sqrt(sum(u_i^2)+1e-6).",
+        "PSD kernel H=diag(q)*(Phi Phi^T + 1e-3 I)*diag(q). Enumerate all i<j (at most 276). d_ij=q_i^2*q_j^2*((||phi_i||^2+ridge)*(||phi_j||^2+ridge)-(phi_i dot phi_j)^2).",
+        "Calculate d in float64 to resist cancellation; clamp_min(0) only for final roundoff. p_ij=d_ij/sum(d); ridge guarantees strictly positive denominator when M>=2. No sampled subset, eigenvector sampler, softmax(dot) or independent marginal selection.",
+        "rho_ij=Linear64to64(GELU(Linear128to64(cat(v_i+v_j,abs(v_i-v_j),v_i*v_j,l)))). z=sum_ij p_ij*rho_ij. Distinct symmetric nonlinear pair representation prevents reducing the method to per-item marginal gates.",
+        "Zero-init Linear64to2304(z), split local/evidence residual. For artificial M<2 bypass; legal interface always M>=8."
+      ],
+      "numerics": "ridge fixed 1e-3; quality in (0.1,2); fixed k=2. No learned inverse or logdet required. Kernel ridge is a declared diversity regularization, not paper's unregularized kernel.",
+      "parameters": {
+        "formula": "10720 + 65 + 528 + 8256 + 4160 + 149760",
+        "expected": 173489,
+        "hard_cap": 180000
+      },
+      "sources": [
+        {
+          "url": "https://www.alexkulesza.com/pubs/dpps_fnt12.pdf",
+          "basis": "L-ensemble determinant probabilities, quality/diversity factorization, fixed-cardinality conditioning; chapters 2,3,5."
+        },
+        {
+          "url": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py",
+          "basis": "Prior card inspected fixed-k reference API; independent NumPy library, not differentiable author model."
+        }
+      ],
+      "gaps": "No formula gap for k=2. Joint learned pair encoder and ridge are this transfer's explicit design, not validated by source. Exact determinant reference and gradient tests remain unexecuted.",
+      "oracle": "For 3 noncollinear items compare p against torch.linalg.det of all 2x2 principal submatrices; collinear and zero phi remain finite; pair representation must have nonzero mixed derivatives after bridge opens."
+    },
+    {
+      "id": "hyperbolic",
+      "source_id": "next_hyperbolic_gyrovector_readout",
+      "family": "poincare_nonorigin_role_composition",
+      "chain": [
+        "Use independent Linear256to32(local), four Linear512to32(role), then v=0.5*tanh(projection)/sqrt(32); zero inactive role v after projection. Fixed c=1 avoids curvature collapse.",
+        "exp0(v)=tanh(||v||)*v/||v||; xL=exp0(vL), xr=exp0(vr). For each active role compute yr=mob(exp0(M_r*log0(xr)),exp0(b_r)), with M_r[32,32], b_r[32].",
+        "mob(x,y)=((1+2<x,y>+||y||^2)*x+(1-||x||^2)*y)/(1+2<x,y>+||x||^2||y||^2). Start g=xL; compose g=mob(g,yr) for active Base,GapA,GapT,GapV in canonical order; skipped roles do no operation.",
+        "For every active role compute dr=log_xL(yr): u=mob(-xL,yr), lambda=2/(1-||xL||^2), dr=(2/lambda)*atanh(||u||)*u/||u||. Mask dr to zero for inactive roles.",
+        "Concatenate log0(g) and four dr (160 dimensions); zero-init Linear160to2304 and split. Both non-origin logs and noncommutative translations remain; exp0/MLP/log0 alone is prohibited."
+      ],
+      "numerics": "Project each ball result radially to norm <=1-1e-4; clamp atanh argument <=1-1e-4. Denominator floor 1e-8 only a numerical safeguard, count excursions. Implement norm ratios with analytic zero limits and safe branches, not epsilon added to every coordinate. Bound tangent M outputs by v/sqrt(1+||v||^2) before exp0 to avoid boundary crowding; this is a declared transfer bound.",
+      "parameters": {
+        "formula": "8224 + 4*16416 + 4*(1024+32) + 2304*(160+1)",
+        "expected": 449056,
+        "hard_cap": 455000
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/abs/1805.09112",
+          "basis": "Sections 2.3-2.4 and 3.2."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/dalab/hyperbolic_nn/dbeb8e8f8ed61bcc8e264fb8fbd2731fbdc23591/util.py",
+          "basis": "Reopened tf_mob_add, exp/log at arbitrary basepoint and mobius matrix multiplication."
+        }
+      ],
+      "gaps": "No operator formula gap. Fixed role order, bounded tangent parametrization and negative-curvature usefulness are adaptation assumptions; no source evidence of hierarchical OSRAM evidence.",
+      "oracle": "exp0/log0 inversion interior; log_x(x)=0; mob(-x,mob(x,y))=y away from clipping; nonparallel mob(x,y) differs from mob(y,x); zero-vector backward finite."
+    },
+    {
+      "id": "BernNet",
+      "source_id": "next_bernstein_spectral_readout",
+      "family": "learned_nonnegative_bernstein_spectral_filter",
+      "chain": [
+        "shared_tokens and graph; let X be packed [M,32] tokens. K=6, P=L/2, Q=I-P.",
+        "Form V_k=choose(6,k)*Q^(6-k)*P^k*X for k=0..6 using dense small matrix multiplications. P,Q commute because both polynomials in L; precompute constant operator products per mask as buffers, not detached input-dependent quantities.",
+        "theta_k=softplus(a_k), initialize a_k=log(expm1(1)); Y=sum theta_k V_k. All theta=1 gives identity polynomial up to roundoff; coefficients remain nonnegative but not bounded by one.",
+        "Zero-init Linear32to256 on Local Y; shared zero-init Linear32to64 on each evidence Y token; reshape canonical 4x8x64 and mask before residual addition. No nonlinear stack substituted for spectral filter."
+      ],
+      "numerics": "Symmetric S and L; eigenvalues expected within [0,2], checked in oracle. Scaled P/Q avoid large unscaled polynomial powers. Constant disconnected artificial Local-only graph handled as bypass; no epsilon-degree fiction.",
+      "parameters": {
+        "formula": "10720 + 7 + 8448 + 2112",
+        "expected": 21287,
+        "hard_cap": 22000
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/abs/2106.10994",
+          "basis": "Bernstein polynomial response on normalized graph Laplacian."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/ivam-he/BernNet/main/NodeClassification/Bernpro.py",
+          "basis": "Reopened author polynomial propagation; implementation uses ReLU coefficients, transfer chooses strictly positive softplus parametrization."
+        }
+      ],
+      "gaps": "No operator formula gap. Graph semantic usefulness and limited distinct eigenvalues remain empirical risks; no PyG dependency is necessary.",
+      "oracle": "Compare matrix polynomial against eigh response sum theta_k*C(6,k)*(1-lambda/2)^(6-k)*(lambda/2)^k; all-one coefficients recover X; unequal coefficients change spectral response."
+    },
+    {
+      "id": "scattering",
+      "source_id": "next_diffusion_scattering_readout",
+      "family": "two_order_diffusion_modulus_paths",
+      "chain": [
+        "shared_tokens and graph. T=(I+S)/2; J=3, Psi0=I-T, Psi1=T-T^2, Psi2=T^2-T^4. Fixed graph operators per mask.",
+        "Use author-code lowpass U=d/sum(d). S0=U^T X, S1[j]=U^T abs(Psi_j X), S2[j,k]=U^T abs(Psi_k abs(Psi_j X)) for all nine ordered paths. Retain 1+3+9=13 vectors in R32, no j<k pruning.",
+        "z=GELU(Linear416to64(concat(S0,S1,S2))). Zero-init Linear64to2304(z) and split to role-specific local/evidence residual slices."
+      ],
+      "numerics": "32 feature channels and 13 paths; abs has zero subgradient at zero. No detach on X, no NumPy processing of learned signals. Source uses degree probability lowpass with symmetric normalized T; do not silently claim U is its stationary eigenvector.",
+      "parameters": {
+        "formula": "10720 + 416*64+64 + 149760",
+        "expected": 187168,
+        "hard_cap": 190000
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/abs/1806.08829",
+          "basis": "Diffusion wavelet/modulus cascade equations 6-9."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/alelab-upenn/graph-scattering-transforms/72930a54e603ecf6643c560008d36d4e3fb77644/Modules/graphScattering.py",
+          "basis": "Reopened diffusionWavelets, computeTransform and DiffusionScattering. Source U=d/||d||_1 explicitly confirmed."
+        }
+      ],
+      "gaps": "No forward formula gap. Source stability theorem is not automatically a guarantee for this masked graph adaptation; global summaries lose sign/identity, retained original residual anchor only mitigates this.",
+      "oracle": "Against direct dense path enumeration; second-order output changes under nontrivial signal perturbations; S1(-X)=S1(X), S0(-X)=-S0(X). Do not accidentally return only one linear lowpass."
+    },
+    {
+      "id": "SandwichLBDN",
+      "source_id": "next_sandwich_lipschitz_readout",
+      "family": "coupled_cayley_sandwich_function",
+      "chain": [
+        "s in R2307 from shared_flat; no unconstrained learned input projection or LayerNorm. SandwichFc(2307,64), then SandwichFc(64,64), then SandwichLin(64,64,AB=false,bias=true). All scale=1.",
+        "For each width n->m use free W[m,m+n], R=W^T partition U=R[:m,:] and V=R[m:,:]. Z=U-U^T+V^T V. Compute tall Q=[(I+Z)^-1(I-Z); -2 V(I+Z)^-1] via torch.linalg.solve, then transpose. Split Qrow=[A,B] with A[m,m],B[m,n].",
+        "Fc(x)=sqrt(2)*A^T*(exp(psi)*relu(sqrt(2)*exp(-psi)*(B*x)+b)); psi=3*tanh(raw_psi). Lin(x)=B*x+b. Direct free W is sufficient for Cayley; omit source redundant alpha*W/||W|| parametrization and its zero-norm failure.",
+        "Bridge C[2304,64]=R0/sqrt(1+sum(R0^2)) with R0 initialized exactly zero and bias zero. delta=C*z+b0, split and mask. C spectral norm<=Frobenius norm<1; zero initialization has useful derivative. This bridge remains part of branch bound."
+      ],
+      "numerics": "Cayley solve size 64, never 2307 or 2304. Use float32 solve and float64 oracle; reject nonfinite/failed solve. exp(±psi) <=exp(3). Recompute train/eval Q every forward, no stale detached cached weights. Bias does not affect fixed-mask Lipschitz constant.",
+      "parameters": {
+        "formula": "64*(2307+64)+2*64 + 64*(64+64)+2*64 + 64*(64+64)+64 + 2304*64+2304",
+        "expected": 318208,
+        "hard_cap": 325000
+      },
+      "sources": [
+        {
+          "url": "https://proceedings.mlr.press/v202/wang23v.html",
+          "basis": "Coupled sandwich parametrization and branch Lipschitz bound."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/acfr/LBDN/main/layer.py",
+          "basis": "Reopened cayley, SandwichFc and SandwichLin; formula and block orientations confirmed."
+        }
+      ],
+      "gaps": "No algebraic forward gap. Numerical bound must be verified. Claim only <=1 sensitivity of correction branch at fixed av/mask, <=2 for residual input map; no certified OSRAM robustness or cross-mask bound.",
+      "oracle": "Check Qrow Qrow^T=I and finite solve gradients; small finite-difference Jacobian spectral norms of each layer/correction <=1 within tolerance; identity bridge exact and bridge gradient nonzero."
+    },
+    {
+      "id": "KAN",
+      "source_id": "repr_kan_function_composition",
+      "family": "two_layer_edge_specific_cubic_splines",
+      "chain": [
+        "x=tanh(Linear2307to64(s)). Numerical KAN layer 64->32 then bounded tanh output then KAN layer32->64. Each edge i->j has base coefficient a_ij and eight cubic spline coefficients c_ijq.",
+        "Fixed G=5 intervals on [-1,1], h=0.4, extended knots t_q=-1+(q-3)*0.4 for q=0..11, giving G+k=8 degree-3 basis functions. Clamp bounded x to [-1+1e-6,1-1e-6].",
+        "B_i,0(x)=1[t_i<=x<t_(i+1)]; Cox-de Boor recurrence B_i,p=(x-t_i)/(t_(i+p)-t_i)*B_i,p-1 +(t_(i+p+1)-x)/(t_(i+p+1)-t_(i+1))*B_i+1,p-1, p=1..3.",
+        "Each layer y_j=sum_i(a_ij*silu(x_i)+sum_q c_ijq B_q(x_i)); no shared activation replacing edge functions. Absorb source spline scale into coefficients; no per-edge pruning mask or standalone second spline scale needed.",
+        "Use fan-in-scaled nonzero initialization for a and c; zero-init Linear64to2304 final bridge. No grid adaptation, symbolic branch, data quantiles, extra penalties or spline-fitting dependency."
+      ],
+      "numerics": "Strict uniform knots eliminate zero denominators. Evaluate basis once per input coordinate then einsum with edge coefficients; avoid materializing N*in*out*knots. Boundary is bounded transfer, no extrapolation claim.",
+      "parameters": {
+        "formula": "2307*64+64 + (64*32+32*64)*9 + 149760",
+        "expected": 334336,
+        "hard_cap": 340000
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/abs/2404.19756",
+          "basis": "Compositions of sums of edge-specific univariate functions."
+        },
+        {
+          "url": "https://github.com/KindXiaoming/pykan/blob/master/kan/KANLayer.py",
+          "basis": "Prior card verified coef2curve plus independent base/spline scales and sum over inputs."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/KindXiaoming/pykan/master/kan/spline.py",
+          "basis": "Reopened B_batch, coef2curve, extend_grid; cubic recurrence and G+k basis count confirmed."
+        }
+      ],
+      "gaps": "No operator gap; saturation, learned-coordinate interpretability and performance are unverified. This is fixed-grid numerical KAN, not source symbolic discovery or adaptive-grid training.",
+      "oracle": "Basis nonnegative and sum=1 on interior; compare cubic basis to hand scalar recurrence; distinct edges respond differently to same scalar; finite gradients through two spline layers."
+    },
+    {
+      "id": "lattice",
+      "source_id": "repr_deep_lattice_composition",
+      "family": "two_stage_calibrated_multilinear_lattice",
+      "chain": [
+        "x=sigmoid(Linear2307to64(s)). Per-coordinate PWL calibrator with fixed input knots [0,.25,.5,.75,1] and learned outputs sigmoid(v[64,5]); use interval floor/clamp, gather two vertices and interpolate.",
+        "Learned embedding Linear64to64 then sigmoid bounds; second PWL calibrator [64,5]. Form 16 4D lattices from contiguous disjoint coordinate groups. Each lattice has 3 knots per axis (0,.5,1), 3^4=81 learned vertex values bounded by sigmoid.",
+        "For coordinate x_j, cell_j=min(floor(2*x_j),1), t_j=2*x_j-cell_j. Enumerate b in {0,1}^4, index=sum_j(cell_j+b_j)*3^(3-j); y=sum_b V[index]*product_j(t_j if b_j else 1-t_j). These 16 corners depend on cell; this is local interpolation, not all binary threshold paths.",
+        "Stage two: Linear16to64 + sigmoid, PWL[64,5], then another 16 independent 4D 3-knot lattices. z[16] feeds zero-init Linear16to2304. Keep both lattice banks and their calibrators.",
+        "Initialize PWL vertices to mildly perturbed identity logits away from exact 0/1; lattice vertices to nonconstant finite values. No monotonic projection: learned latent coordinates have no justified partial order."
+      ],
+      "numerics": "Clamp x to [0,1]; at x=1 use cell=1,t=1 exactly. Piecewise gradients at knots use framework one-sided selection; test away from cell boundaries for gradcheck. 2*16*81 vertex parameters. Dense embeddings deliberately mix role coordinates before grouping.",
+      "parameters": {
+        "formula": "147712 + 3*64*5 + 64*64+64 + 2*16*81 +16*64+64 + 2304*17",
+        "expected": 195680,
+        "hard_cap": 200000
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/abs/1709.06680",
+          "basis": "Alternation of calibrators, linear embeddings and lattice ensembles."
+        },
+        {
+          "url": "https://github.com/tensorflow/lattice/blob/master/tensorflow_lattice/python/lattice_layer.py",
+          "basis": "Prior card verified hypercube/simplex dispatch."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/tensorflow/lattice/master/tensorflow_lattice/python/lattice_lib.py",
+          "basis": "Primary library retrieved as formula cross-reference; implement independent hypercube interpolation, no TensorFlow dependency."
+        }
+      ],
+      "gaps": "Monotonic guarantees intentionally not transferred. Exact historical 2017 code parity is not claimed; local hypercube implementation and gradients remain to be tested.",
+      "oracle": "Each integer-grid query exactly selects its vertex; corner weights nonnegative sum=1; affine vertex table reproduces affine function; interior nonseparable table yields true mixed interactions through two stages."
+    },
+    {
+      "id": "difflogic",
+      "source_id": "repr_differentiable_logic_circuit",
+      "family": "four_layer_sixteen_truth_table_circuit",
+      "chain": [
+        "x=sigmoid(Linear2307to64(s)); four logic layers 64->256,256->256,256->256,256->256. Buffer wiring is deterministic. For layer l, m=input width, node j=0..255: a_j=j mod m, b_j=(a_j+1+(floor(j/m)+17*l) mod (m-1)) mod m. a!=b and every input used.",
+        "For a,b in [0,1] use truth basis w00=(1-a)*(1-b), w01=(1-a)*b, w10=a*(1-b),w11=a*b. Operator o=0..15 has bit vector [(o>>3)&1,(o>>2)&1,(o>>1)&1,o&1] for outcomes 00,01,10,11; f_o=dot(bits,w).",
+        "Per node learn logits[16], initialize small non-identical values (constructor only). Train output=sum softmax(logits)_o f_o. Eval select f_argmax(logits); torch.argmax tie-break lowest index. Do not sample operators or connections.",
+        "Reshape final256 into32 groups of8; sum each group /8 for z[32] (fixed source GroupSum temperature=8). Zero-init Linear32to2304 residual bridge. Hard eval retains continuous soft predicates, not bit-packed Boolean inference."
+      ],
+      "numerics": "Truth-basis interpolation keeps all outputs in [0,1] up to roundoff. Temperature=1 operator softmax. Avoid all-zero logits: uniform mixture is constant 0.5 and blocks predecessor gradients. Default gradients exact autograd (no source custom gradient scaling).",
+      "parameters": {
+        "formula": "147712 + 4*256*16 + 2304*33",
+        "expected": 240128,
+        "hard_cap": 245000
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/abs/2210.08277",
+          "basis": "16 relaxed binary operators, fixed sparse wiring, grouped sums."
+        },
+        {
+          "url": "https://github.com/Felix-Petersen/difflogic/blob/main/difflogic/difflogic.py",
+          "basis": "Prior card verified train softmax/eval argmax policy."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/Felix-Petersen/difflogic/main/difflogic/functional.py",
+          "basis": "Reopened truth-table operator ordering and Python formulas. Deterministic wiring is explicit transfer replacement for source random permutation."
+        }
+      ],
+      "gaps": "No formula gap. Train/eval discrepancy remains inherent and must be reported; deterministic wiring coverage does not guarantee all long-range interactions survive optimization.",
+      "oracle": "All 16 operators at four Boolean corners match source ordering; layer inputs remain bounded; verify wiring coverage and nonself pairs; after bridge opens verify gradients through all four layers, compare soft vs hard output gap."
+    },
+    {
+      "id": "finiteODE",
+      "source_id": "conditional_03_neural_ode_finite_flow",
+      "family": "finite_time_error_controlled_neural_flow",
+      "chain": [
+        "z0=tanh(Linear2048to64(masked evidence.flatten(1))); c=tanh(Linear259to32(cat(local,av))). Vector field f(t,z,c)=tanh(W2*tanh(W1*cat(z,c,t)+b1)+b2), dimensions97->64->64. T=1, no fixed-point solve.",
+        "Integrate each sample independently with Bogacki-Shampine embedded RK3(2), initial h=.125. k1=f(t,z), k2=f(t+h/2,z+h*k1/2), k3=f(t+3h/4,z+3h*k2/4); z3=z+h*(2k1/9+k2/3+4k3/9); k4=f(t+h,z3); z2=z+h*(7k1/24+k2/4+k3/3+k4/8).",
+        "e=sqrt(mean(((z3-z2)/(atol+rtol*max(abs(z),abs(z3))))^2)) over that sample's 64 state coordinates; atol=1e-5,rtol=1e-4. Accept iff e<=1; accepted z=z3,t=t+h. Otherwise leave z,t unchanged. All accepted states retain autograd history.",
+        "Step controller based on detached scalar error only: factor=clamp(.9*max(e,1e-12)^(-1/3),.2,5); next_h=clamp(h*factor,1e-5,.25); trial_h=min(next_h,1-t). At minimum h with failed tolerance, nonfinite values, or 256 attempted steps raise with sample index/t/error; never silently Euler fallback.",
+        "Use ordinary reverse-mode differentiation through accepted RK stages (discretize-then-optimize), not continuous adjoint. Zero-init Linear64to2304 on z(T)-z0; local conditions field and may receive output correction. State is reset every utterance."
+      ],
+      "numerics": "Bounded tanh field ensures |z(T)-z0|<=1 per coordinate up to solver tolerance. Float32 required minimum; finite time and explicit tolerances recorded in config. Detached decisions make gradients conditional on accepted mesh; no O(1) memory or exact-adjoint claim. Vectorized independent per-sample h/t is allowed only if accepted updates and error norms stay per row.",
+      "parameters": {
+        "formula": "2048*64+64 +259*32+32 +97*64+64 +64*64+64 +149760",
+        "expected": 299648,
+        "hard_cap": 305000
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/abs/1806.07366",
+          "basis": "Finite-time neural initial-value problem; paper's continuous-adjoint training is explicitly not reproduced."
+        },
+        {
+          "url": "https://github.com/rtqichen/torchdiffeq/blob/master/examples/odenet_mnist.py",
+          "basis": "Source ODE function and block pattern from existing card."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rtqichen/torchdiffeq/master/torchdiffeq/_impl/bosh3.py",
+          "basis": "Reopened exact Bogacki-Shampine third/second-order coefficients; implements error-controlled solver without adding torchdiffeq."
+        }
+      ],
+      "gaps": "Finite ODE family retained with explicit solver and standard discrete autograd; if selection insists continuous adjoint is mandatory, this design remains pending instead of relabeling discrete gradients as adjoint. Adaptive-control backward discontinuities and runtime are untested.",
+      "oracle": "Use dz/dt=constant and diagonal linear field with analytic exp solution; tighter tolerance reduces endpoint error. Compare parameter/input finite differences away from mesh-switch boundaries. Batch split/permutation identical per-sample solution/step counts. Distinguish z(T) from fixed point."
+    }
+  ]
+}

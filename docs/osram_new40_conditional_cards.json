@@ -1,0 +1,373 @@
+{
+  "schema_version": 1,
+  "lane": "conditional_computation_dynamics_control",
+  "checked_at": "2026-10-04",
+  "requested": 12,
+  "implementation_review_candidates": 10,
+  "pending_not_counted": 1,
+  "shortfall_to_requested": 2,
+  "status": "RESEARCH_ONLY_NO_IMPLEMENTATION_OR_TRAINING",
+  "skill": "/home/yangbin/.codex/skills/research-literature-trace/SKILL.md",
+  "scope": {
+    "inputs": "L256 + four separately masked forward512 history roles (Base,Gap-A,Gap-T,Gap-V) + existing availability",
+    "unchanged": [
+      "OSRAM Memory read/write",
+      "OSRAM query",
+      "ObservedSetEncoder",
+      "original task head",
+      "original task loss"
+    ],
+    "forbidden": [
+      "cross-utterance or cross-batch extra cache",
+      "completion target",
+      "new auxiliary loss",
+      "external support set",
+      "using head/channel order as physical time or pixels"
+    ],
+    "M0": "padding或无前序有效历史时直接返回原输入。其余行Base有效，Gap-r仅原协议激活时有效。先torch.where安全清零再投影/归一化/生成参数；新分支解码4×512后再where写入有效角色，Local及原Local skip不变。只写真正forward512，backward恒零部分不作新输入。所有中间state是一次readout内的计算变量，调用结束销毁。"
+  },
+  "provenance": "浏览原论文、作者原始代码及现有历史清单。仅独立公式适配设计，未下载执行第三方项目，未测试性能。源码main/master链接是核查时可变引用，实施快照必须进一步固定commit与许可。10项候选均需leader核心去重与最小实现验证，不是已接纳实验。",
+  "cards": [
+    {
+      "id": "conditional_new_01_full_dynamic_hypernetwork",
+      "title": "HyperNetworks",
+      "authors": [
+        "David Ha",
+        "Andrew Dai",
+        "Quoc V. Le"
+      ],
+      "url": "https://arxiv.org/abs/1609.09106",
+      "code_url": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb",
+      "code_symbols": [
+        "build_model: w1,w2,z2,h_in,h_final,kernel2"
+      ],
+      "paper_evidence": "§3.1完整核生成；§3.2式(5)完整动态矩阵，与式(7)-(8)行缩放分开。已重读原PDF及notebook代码。",
+      "decision": "candidate_implementation_review",
+      "prior_status": "旧conditional_01 pending：完整动态矩阵与高效HyperLSTM代码不一致。本次明确按原式(5)独立实现，并以作者完整静态核生成作算子参考，不能称作者已有同版动态代码。",
+      "graph": "x=P([L,where(m,C,0),availability]); c=G(x)。两个独立输出头生成完整64×64矩阵W1(c),W2(c)和bias；z=GELU(W1(c)x64+b1(c)); r=W2(c)z+b2(c)；r解码为4×512修正。W矩阵各元素独立生成，不用对角缩放、Hadamard、低秩U(c)V(c)或专家线性混合替代。",
+      "nearest_old": [
+        "dcformer_dynamic_head_composition",
+        "conditional_rational_quadratic_spline_coupling",
+        "withdrawn_film"
+      ],
+      "difference": "生成整张主变换矩阵并在非线性两阶段链中执行。DCFormer生成head组合系数，Spline生成一元变换参数，FiLM是对角仿射；这里的每样本跨通道算子不受固定矩阵行缩放约束。与DFN迁为全连接后合并，不另计DFN。",
+      "ode_lbdn_difference": "没有积分、固定点或Lipschitz耦合参数化。",
+      "risk": "完整生成参数较多、易过拟合；必须测非对角条件变化和有效矩阵秩，不能为了节省资源退化成旧MLB/FiLM。来源代码静态z2是参数，本迁移把z改为当前输入函数，需如实标为公式适配。",
+      "mask": "公共M0；先屏蔽所有无效输入再生成参数，否则无效值可通过生成器泄漏。输出只写活跃历史。",
+      "verification": "相同有效输入、任意替换inactive值应逐元素不变；两个生成矩阵的非对角元素应随c变化；任务梯度应穿过参数生成及两层主变换。"
+    },
+    {
+      "id": "conditional_new_02_ltc_conductance",
+      "title": "Liquid Time-constant Networks",
+      "authors": [
+        "Ramin Hasani",
+        "Mathias Lechner",
+        "Alexander Amini",
+        "Daniela Rus",
+        "Radu Grosu"
+      ],
+      "url": "https://arxiv.org/abs/2006.04439",
+      "code_url": "https://github.com/raminmh/liquid_time_constant_networks/blob/master/experiments_with_ltcs/ltc_model.py",
+      "code_symbols": [
+        "LTCCell._ode_step",
+        "LTCCell._sigmoid",
+        "LTCCell.get_param_constrain_op"
+      ],
+      "paper_evidence": "§2式(3)、Algorithm 1及作者_ode_step分子/分母实现已重核。",
+      "decision": "candidate_implementation_review",
+      "prior_status": "旧conditional_04 pending的ODE家族疑虑因本轮允许同家族不同核心而解除；简单gate退化限制保留。",
+      "graph": "u=P([L,masked C,availability]), v0=Q(masked C)。g_ij(v)=softplus(w_ij)*sigmoid(sigma_ij*(v_i-mu_ij))，另有u驱动的sensory电导；固定单读出6子步，v_next=(C/dt*v+g_leak*E_leak+sum(g*E)+sum(g_sens*E_sens))/(C/dt+g_leak+sum(g)+sum(g_sens))。解码v_final为历史修正。C和电导用正参数化，反转电位可正可负。",
+      "nearest_old": [
+        "contractive_deep_equilibrium_evidence",
+        "rrn_evidence",
+        "withdrawn_aff"
+      ],
+      "difference": "保留电容、漏电、状态/输入电导、反转电位和半隐式分母的完整微电路；不是单sigmoid gate或GRU替换。",
+      "ode_lbdn_difference": "ODE是自由向量场初值积分；LTC是条件电导决定有效时间常数的受约束动力学与fused更新。LBDN约束静态映射敏感性，没有这种电路演化。",
+      "risk": "计算时间非历史时间；源连续时间优势不能直接迁移。softplus替代作者post-update clipping是显式参数化适配，不影响原任务loss但必须记录；有限离散步数不自动继承所有连续理论。",
+      "mask": "公共M0；sensor输入来自已屏蔽证据；隐状态每话语初始化，不缓存。",
+      "verification": "分母严格正且finite；所有电导/电容有梯度；去掉反转电位或电导分母即不算本候选。"
+    },
+    {
+      "id": "conditional_new_03_hamiltonian_flow",
+      "title": "Hamiltonian Neural Networks",
+      "authors": [
+        "Sam Greydanus",
+        "Misko Dzamba",
+        "Jason Yosinski"
+      ],
+      "url": "https://arxiv.org/abs/1906.01563",
+      "code_url": "https://github.com/greydanus/hamiltonian-nn/blob/master/hnn.py",
+      "code_symbols": [
+        "HNN.time_derivative",
+        "HNN.permutation_tensor",
+        "HNN.rk4_time_derivative"
+      ],
+      "paper_evidence": "原论文Hamiltonian gradients与作者solenoidal分支已读；不使用PixelHNN autoencoder或原导数监督目标。",
+      "decision": "candidate_implementation_review",
+      "graph": "把全部有效输入投影为z0=(q0,p0)∈R64；c由L和availability得到并在本次积分中固定。标量H_theta(q,p;c)为平滑MLP；f(z)=J*grad_z H；用RK4有限计算时间积分8步，再解码zT回4×512修正。训练通过create_graph的导数及积分到原taskloss；评估内部仍需enable_grad但不更新参数。",
+      "nearest_old": [
+        "equilibrium_aggregation",
+        "contractive_deep_equilibrium_evidence"
+      ],
+      "difference": "EA沿势能下降求汇总，Hamiltonian沿辛旋转梯度流动，连续精确系统不沿H下降；DEQ求平衡点，这里只取初值轨迹有限终点。",
+      "ode_lbdn_difference": "与通用ODE共享积分器，但向量场必须来自同一标量H和固定J，因此不是只换solver/深度。LBDN只界定敏感性，不保证该几何约束。",
+      "risk": "q,p只是学习的内部计算坐标，不宣称情感有真实Hamiltonian、守恒定律或物理时间。RK4不严格保能；二阶自动微分成本高；守恒偏置可能不利去噪。",
+      "mask": "公共M0；全向量投影前屏蔽，再构造内部64维状态，不把无效槽作为独立相空间变量。",
+      "verification": "小随机点检grad(H)·f≈0；终点对H参数的二阶梯度finite；no_grad评估封装仍应工作；任务头和loss无改变。"
+    },
+    {
+      "id": "conditional_new_04_lagrangian_flow",
+      "title": "Lagrangian Neural Networks",
+      "authors": [
+        "Miles Cranmer",
+        "Sam Greydanus",
+        "Stephan Hoyer",
+        "Peter Battaglia",
+        "David Spergel",
+        "Shirley Ho"
+      ],
+      "url": "https://arxiv.org/abs/2003.04630",
+      "code_url": "https://github.com/MilesCranmer/lagrangian_nns/blob/master/lnn/core.py",
+      "code_symbols": [
+        "lagrangian_eom",
+        "lagrangian_eom_rk4",
+        "solve_dynamics"
+      ],
+      "paper_evidence": "§2式(6)、§4与Appendix A；源码hessian、mixed jacobian、pinv计算已读。",
+      "decision": "candidate_implementation_review_high_numerical_risk",
+      "graph": "由有效输入初始化(q,v)∈R16+16，固定条件c；定义标量L(q,v;c)。a=pinv(d²L/dv²)*(dL/dq-(d²L/dv dq)*v)；积分(qdot=v,vdot=a)至固定终点，解码回历史。采用float64小矩阵求导/伪逆，输出再转原dtype；不附加Euler-Lagrange loss或物理监督。",
+      "nearest_old": [
+        "equilibrium_aggregation",
+        "spdnet_bimap_reeig_logeig"
+      ],
+      "difference": "不是势能最小化或SPD协方差读出；必须包含速度Hessian、混合导数和线性系统解的Euler-Lagrange链。",
+      "ode_lbdn_difference": "与HNN同动力家族但通过速度Hessian求加速度，不是J∇H；与通用ODE的直接向量场不同；LBDN不含高阶导数动力学。",
+      "risk": "Hessian可能近奇异，pinv阈值切换造成不稳定梯度。作者代码q%(2π)只适用摆角，迁移必须删除；源dt=0.1缩放也需与积分步长统一。不宣称潜变量是机械坐标。若有限性/梯度检查失败，不应静默改成普通ODE凑数。",
+      "mask": "公共M0；只在当前有效输入派生的内部状态求导，首句不求Hessian。",
+      "verification": "双精度gradcheck包含Hessian和pinv；对可解析非奇异二次L验证a；检查无效输入梯度零；所有矩阵求解finite。"
+    },
+    {
+      "id": "conditional_new_05_contracting_ren",
+      "title": "Recurrent Equilibrium Networks: Flexible Dynamic Models with Guaranteed Stability and Robustness",
+      "authors": [
+        "Max Revay",
+        "Ruigang Wang",
+        "Ian R. Manchester"
+      ],
+      "url": "https://arxiv.org/abs/2104.05942",
+      "code_url": "https://github.com/acfr/RobustNeuralNetworks.jl/blob/main/src/ParameterTypes/utils.jl",
+      "code_symbols": [
+        "ContractingRENParams",
+        "direct_to_explicit",
+        "hmatrix_to_explicit",
+        "x_to_h",
+        "src/Base/acyclic_ren_solver.jl"
+      ],
+      "paper_evidence": "原文直接参数化及acyclic REN；作者Julia H分块转显式参数的代码已逐段核对。",
+      "decision": "candidate_implementation_review",
+      "graph": "u=P(masked全部输入)，x0=Q(masked输入)；构造H=XᵀX+epsilon I并按(nx,nv,nx)分块，P=H33,F=H31,E=(H11+P/alpha²+Y-Yᵀ)/2，Lambda_inv=2/diag(H22)，D11=Lambda_inv*(-tril(H22,-1))，C1=Lambda_inv*(-H21)。按作者hmatrix_to_explicit得到A=solve(E,F),B1,B2,D12。每个计算步顺序解w_i=relu(C1_i*x+sum(j<i)D11_ij*w_j+D12_i*u+b_i)，随后x_next=A*x+B1*w+B2*u+b；4次重复后线性输出。",
+      "nearest_old": [
+        "contractive_deep_equilibrium_evidence",
+        "rrn_evidence"
+      ],
+      "difference": "旧DEQ对同一状态求无限深固定点且用隐式梯度；这里是有显式动态state的有限recurrent系统，每步内部非线性为下三角可前代计算，整体耦合H参数化控制增量行为。只用谱归一化RNN不能叫REN。",
+      "ode_lbdn_difference": "LBDN Sandwich使用Cayley静态层；REN的E,F,P,H耦合状态转移和非线性反馈，并非Sandwich换深度。不是ODE积分。",
+      "risk": "PyTorch独立翻译Julia涉及矩阵分块和转置，必须按小型作者公式核对。收缩只针对相同固定输入序列的内部状态，原Flat、mask变化与前后投影不享有全局证书。只采用ContractingREN一项，不把Lipschitz/Passive超参版本再计数。",
+      "mask": "公共M0；u固定于本读出，所有x/w结束即销毁；禁止跨话语保留REN状态。",
+      "verification": "H正定与E可解；D11严格下三角；小维前代与直接方程残差一致；重复相同u的不同初态距离按正确度量检查，不把该检查当全模型保证。"
+    },
+    {
+      "id": "conditional_new_06_rim",
+      "title": "Recurrent Independent Mechanisms",
+      "authors": [
+        "Anirudh Goyal",
+        "Alex Lamb",
+        "Jordan Hoffmann",
+        "Shagun Sodhani",
+        "Sergey Levine",
+        "Yoshua Bengio",
+        "Bernhard Schölkopf"
+      ],
+      "url": "https://arxiv.org/abs/1909.10893",
+      "code_url": "https://github.com/anirudh9119/RIMs/blob/master/blocks_atari/a2c_ppo_acktr/blocks_core.py",
+      "code_symbols": [
+        "BlocksCore.forward",
+        "BlocksCore.step_attention",
+        "BlockLSTM",
+        "blocked_grad"
+      ],
+      "paper_evidence": "论文input attention、independent dynamics、communication三步以及作者version1/version2代码已核对。",
+      "decision": "candidate_implementation_review",
+      "graph": "Local和活跃历史heads形成带role/head身份的集合T。4个独立LSTM机制初始化于同次读出的投影；每推理步机制query对T+null做input attention，按非null质量top2激活；各自独立参数LSTM更新；机制间communication attention，inactive机制的state保持原值；重复3步，再解码所有机制到历史修正。选择论文null竞争路径，清楚区别作者默认version2。",
+      "nearest_old": [
+        "rrn_evidence",
+        "slot_attention",
+        "mac_control_read_write"
+      ],
+      "difference": "RRN每个节点共享LSTM并全部更新；Slot以共享GRU吸收竞争聚合；MAC一个控制/记忆链。RIM是互不共享转移参数的机制、top-k计算冻结和稀疏通信三件套；只加top-k attention不够。",
+      "ode_lbdn_difference": "离散模块化执行，无ODE或静态Lipschitz参数化。",
+      "risk": "训练top-k分支不连续且可能长期饿死机制；不得新增负载均衡loss；本任务没有真实序列输入，这里同一证据集合重复读仅为计算迭代，不继承跨环境因果结论。",
+      "mask": "公共M0；attention对inactive heads置-inf，null为专门零输入而不是缺失槽；每话语重置hidden/cell。",
+      "verification": "inactive机制state逐元素不变；禁用heads无法影响top-k；独立LSTM参数都有获激活时的梯度；评估top-k确定性。"
+    },
+    {
+      "id": "conditional_new_07_neural_production",
+      "title": "Neural Production Systems: Learning Rule-Governed Visual Dynamics",
+      "authors": [
+        "Anirudh Goyal",
+        "Aniket Didolkar",
+        "Nan Rosemary Ke",
+        "Charles Blundell",
+        "Philippe Beaudoin",
+        "Nicolas Heess",
+        "Michael Mozer",
+        "Yoshua Bengio"
+      ],
+      "url": "https://arxiv.org/abs/2103.01937",
+      "code_url": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py",
+      "code_symbols": [
+        "RuleNetwork.forward",
+        "rule_mlp",
+        "phase_1_mha",
+        "phase_2_mha",
+        "ArgMax"
+      ],
+      "paper_evidence": "Appendix Algorithm1的rule-primary联合选择、context选择、只更新primary；作者仓库有多application_option，不能不选分支直接搬整仓。",
+      "decision": "candidate_implementation_review",
+      "graph": "把Local与活跃历史heads编码为固定身份变量V；4个rule embedding及各自双输入MLP。3轮：计算所有(rule,primary)匹配→训练straight-through Gumbel选择单对、评估argmax→以选中primary选择一个合法context→用所选rule MLP([Vp,Vc])生成增量，仅加回primary。最后按原槽decode。不接源视频编码器/slot发现/未来帧loss。",
+      "nearest_old": [
+        "neural_logic_machine_evidence",
+        "rrn_evidence",
+        "mac_control_read_write"
+      ],
+      "difference": "NLM是arity/量词链，RRN同一消息函数并行全图，MAC全局control/read/write；NPS将规则身份与实体身份分开，经离散双阶段binding只修改指定变量，是路由执行链而非简单gate。",
+      "ode_lbdn_difference": "不是动力积分或敏感性约束。与RIM不同：RIM规则参数绑定机制身份；NPS规则可在不同变量上复用。",
+      "risk": "只有原taskloss，规则使用可能坍塌；Gumbel需要私有可恢复RNG，eval无噪声；learned rule不等于人可读逻辑、物理对象或因果规则。",
+      "mask": "公共M0；primary/context候选空间都剔除无效槽，不能仅末尾乘mask；禁止写未激活的Gap。",
+      "verification": "每轮仅一个primary变化；不被选中的变量保持；规则与变量选择器收到ST任务梯度；eval确定性。"
+    },
+    {
+      "id": "conditional_new_08_neural_interpreter",
+      "title": "Dynamic Inference with Neural Interpreters",
+      "authors": [
+        "Nasim Rahaman",
+        "Muhammad Waleed Gondal",
+        "Shruti Joshi",
+        "Peter Gehler",
+        "Yoshua Bengio",
+        "Francesco Locatello",
+        "Bernhard Schölkopf"
+      ],
+      "url": "https://arxiv.org/abs/2110.06399",
+      "code_url": "https://github.com/nasimrahaman/neural-interpreter/blob/17d46f0869f44e6a884ae740ba27ed3af4d384c7/neural_interpreters/core/nfc.py",
+      "code_symbols": [
+        "LOCPod.forward",
+        "FunctionPod.forward",
+        "Script",
+        "TypeInference",
+        "DotProductKernel._direct_truncate"
+      ],
+      "paper_evidence": "§2式(2)-(14)已读；核实现位于core/kernels.py，源码把distance>tau设inf，网页式(3)打印方向与邻域文字矛盾，按作者源码小距离有效。",
+      "decision": "candidate_implementation_review",
+      "graph": "有效token→归一化type向量；4个固定单位function signatures与可训练codes。compatibility=exp(-distance/sigma)*1(distance<=tau)，沿functions归一化；每function由自身code调制QKV/MLP，pair attention还乘C_ui*C_uj；2个LOC后按compatibility汇总每个变量；重新推断type、再执行2次function iteration；decode同槽位。quantize_function_signature=false,quantize_variable_types=false,num_temporary_variables=0，不产生commitment loss。",
+      "nearest_old": [
+        "compositional_search_retrieval",
+        "dcformer_dynamic_head_composition",
+        "perceiver_io"
+      ],
+      "difference": "不是head混合：先推断变量类型，函数signature确定可访问变量子图，共享interpreter经code实现不同函数，再在计算深度复用函数。函数亲和性与code必须同时保留。",
+      "ode_lbdn_difference": "无积分/固定点；LBDN没有类型匹配和函数执行；不能把ModLin单独作为候选，因为它接近已撤回FiLM。",
+      "risk": "无匹配函数时必须identity，否则全零路由破坏输入；不自动使用作者可选量化/辅助loss；函数簇未必可解释；截断邻域梯度与低维type坍塌需检查。",
+      "mask": "公共M0；function-token亲和性对无效token为0，同时屏蔽pair两个轴；valid但未匹配token保持原值。",
+      "verification": "全零compatibility分支恒等且finite；禁用token不影响type路由；所有函数code和type MLP经taskloss有梯度；没有额外loss项。"
+    },
+    {
+      "id": "conditional_new_09_sympnet",
+      "title": "SympNets: Intrinsic structure-preserving symplectic networks for identifying Hamiltonian systems",
+      "authors": [
+        "Pengzhan Jin",
+        "Zhen Zhang",
+        "Aiqing Zhu",
+        "Yifa Tang",
+        "George Em Karniadakis"
+      ],
+      "url": "https://arxiv.org/abs/2001.03750",
+      "code_url": "https://github.com/jpzxshi/sympnets/blob/master/learner/nn/sympnet.py",
+      "code_symbols": [
+        "GradientModule.forward",
+        "GSympNet.forward",
+        "LinearModule.forward",
+        "LASympNet"
+      ],
+      "paper_evidence": "§3.3梯度模块、§3.4 G-SympNet及作者weight tying实现已读。只计G-SympNet一个，不另外计LA/Extended变体。",
+      "decision": "candidate_implementation_review",
+      "graph": "masked输入投影成(p,q)∈R32+32；交替6个gradient shear：p←p+h*Kᵀ diag(a) sigma(Kq+b)，下一模块q←q+h*Kᵀ diag(a) sigma(Kp+b)，各模块独立参数，但同模块两侧K严格转置绑定；固定h，末态解码为历史修正。",
+      "nearest_old": [
+        "conditional_rational_quadratic_spline_coupling",
+        "spdnet_bimap_reeig_logeig"
+      ],
+      "difference": "与Spline都可逆但不是一元monotone spline：完整交叉坐标shear来自标量势的梯度，Jacobian满足JᵀΩJ=Ω，不是任意coupling或更深MLP。SPDNet是协方差流形变换。",
+      "ode_lbdn_difference": "HNN先导数构造向量场再数值积分，SympNet直接学习离散辛映射，无内层autograd或ODE solver；LBDN保证敏感性界而非辛Jacobian。",
+      "risk": "辛仅针对内部64维映射，投影/解码和原Flat不辛。保体积不等于保能量/去噪；不宣称情感物理结构。若去掉K转置绑定便失去主机制。",
+      "mask": "公共M0；整体有效向量投影后再构造相空间，禁止把head顺序当运动时间。",
+      "verification": "小维Jacobian验证JᵀΩJ≈Ω，逐模块解析逆验证；参数梯度finite；外层输出仍遵守mask。"
+    },
+    {
+      "id": "conditional_new_10_cornn",
+      "title": "Coupled Oscillatory Recurrent Neural Network (coRNN): An accurate and (gradient) stable architecture for learning long time dependencies",
+      "authors": [
+        "T. Konstantin Rusch",
+        "Siddhartha Mishra"
+      ],
+      "url": "https://arxiv.org/abs/2010.00951",
+      "code_url": "https://github.com/tk-rusch/coRNN/blob/master/sMNIST/network.py",
+      "code_symbols": [
+        "coRNNCell.forward",
+        "coRNN.forward"
+      ],
+      "paper_evidence": "原文二阶阻尼耦合振子及离散化；官方coRNNCell的先hz再hy更新已读。",
+      "decision": "candidate_implementation_review",
+      "graph": "u=P([L,masked C,a])，y0=Q(masked C),z0=0；8次固定计算步：z←z+dt*(tanh(Wu*u+Wz*z+Wy*y+b)-gamma*y-epsilon*z)；y←y+dt*z（使用新z）。gamma,epsilon,dt预先固定正值，解码(y,z)末态；没有跨话语状态。",
+      "nearest_old": [
+        "rrn_evidence",
+        "contractive_deep_equilibrium_evidence"
+      ],
+      "difference": "不同于RRN的LSTM消息，coRNN是具有位置/速度两态、恢复力和阻尼的二阶系统及半隐式更新；不能简化成单次tanh残差后叫振子。",
+      "ode_lbdn_difference": "与ODE/LTC同动力家族但核心是惯性、恢复力和阻尼，LTC是一阶电导时间常数；HNN无该耗散阻尼；LBDN是静态耦合界。",
+      "risk": "同一静态u重复驱动只有计算深度含义，原长时依赖优势不直接成立；任意dt不能引用作者稳定性定理。核心较小，需leader审查完整二阶演化是否满足本轮非平凡阈值，不以加深本身作为独立性。",
+      "mask": "公共M0；u与初值均由安全masked输入生成；每读出y/z重置。",
+      "verification": "和作者cell一步数值一致；确认y使用更新后的z；阻尼与恢复力都存在；多步前后向finite且无跨调用依赖。"
+    },
+    {
+      "id": "conditional_hold_11_nbeats",
+      "title": "N-BEATS: Neural basis expansion analysis for interpretable time series forecasting",
+      "authors": [
+        "Boris N. Oreshkin",
+        "Dmitri Carpov",
+        "Nicolas Chapados",
+        "Yoshua Bengio"
+      ],
+      "url": "https://arxiv.org/abs/1905.10437",
+      "code_url": "https://github.com/ServiceNow/N-BEATS/blob/master/models/nbeats.py",
+      "code_symbols": [
+        "NBeats.forward",
+        "NBeatsBlock.forward",
+        "GenericBasis.forward"
+      ],
+      "paper_evidence": "此前记录§3双残差，本次重读作者forward：backcast扣除，forecast累加，GenericBasis仅theta切分。",
+      "decision": "pending_not_counted",
+      "prior_status": "旧conditional_05 pending保留，没有新的实质证据消除更深残差MLP疑虑。",
+      "graph": "r0=masked输入；[b_k,f_k]=Block_k(r_k)，r_next=(r_k-b_k)*mask，s_next=s_k+f_k。保留两路链可实现，但generic basis仍普通MLP和线性输出；不能为了时间basis将head或channel冒充时间。",
+      "nearest_old": [
+        "tabnet",
+        "learned_robust_pca_evidence_decomposition"
+      ],
+      "difference": "显式扣除与累计不同于TabNet特征mask，但不足以确定越过本用户禁止普通MLP深宽的门槛。",
+      "ode_lbdn_difference": "无ODE或LBDN结构约束。",
+      "mask": "若未来接纳也须公共M0；backcast只解释已有latent，不补全任何缺失模态。",
+      "risk": "去掉forecast时间语义后容易仅剩双分支残差MLP；本次不推荐计数或实施。",
+      "verification": "不进入实现清单。"
+    }
+  ]
+}

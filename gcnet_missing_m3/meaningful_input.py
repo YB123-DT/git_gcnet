@@ -9,6 +9,7 @@ import torch
 from torch import nn
 
 from .meaningful_blocks_common import safe_mask
+from .meaningful_new40_registry import NEW40_METHODS
 
 
 INPUT_FAMILIES = {
@@ -26,6 +27,7 @@ INPUT_FAMILIES = {
     'sorting': ('fspool_fsunpool_evidence',),
     'circuit': ('rat_spn_evidence_circuit',),
     'pair': ('ppgn_pair_composition',),
+    'new40': NEW40_METHODS,
 }
 INPUT_METHODS = tuple(name for names in INPUT_FAMILIES.values() for name in names)
 

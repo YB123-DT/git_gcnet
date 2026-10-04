@@ -1,0 +1,1141 @@
+{
+  "status": "code_catalog_not_training_queue",
+  "target_count": 40,
+  "training_cap": 60,
+  "cards": [
+    {
+      "id": "optimization_dpp_subset_readout",
+      "title": "Determinantal Point Processes for Machine Learning",
+      "authors": [
+        "Alex Kulesza",
+        "Ben Taskar"
+      ],
+      "url": "https://arxiv.org/abs/1207.6083",
+      "code_url": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py",
+      "design_file": "docs/osram_new40_nine_designs.json",
+      "design_sha256": "114d2e02cbb4b1ee4c92d972d53240e90d9b64bcca7b955f6a0042fbd24a4919",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1207.6083",
+        "code": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "tome_merge_reconstruct",
+          "slot_attention",
+          "otke"
+        ],
+        "substantive_difference": "ToMe是贪婪二部相似合并，slots是竞争聚类，OTKE是质量守恒匹配；DPP直接建模整组子集的行列式概率。与本lane的facility-location同属选集，但体积排斥不等于覆盖收益的递减。已核对撤回的experiments/osram_readout20_20261003/CANDIDATES.zh.md：DLRM/pair-dot和BAN双线性attention都没有对有限子集行列式归一化；本项不能退化为它们。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py"
+      }
+    },
+    {
+      "id": "next_hyperbolic_gyrovector_readout",
+      "title": "Hyperbolic Neural Networks",
+      "authors": [
+        "Octavian-Eugen Ganea",
+        "Gary Bécigneul",
+        "Thomas Hofmann"
+      ],
+      "url": "https://arxiv.org/abs/1805.09112",
+      "code_url": "https://github.com/dalab/hyperbolic_nn/blob/dbeb8e8f8ed61bcc8e264fb8fbd2731fbdc23591/util.py",
+      "design_file": "docs/osram_new40_nine_designs.json",
+      "design_sha256": "96032a00d950748e4c925b916fb393ceb625f07ecc72f98892de1009ff036daa",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1805.09112",
+        "code": "https://github.com/dalab/hyperbolic_nn/blob/dbeb8e8f8ed61bcc8e264fb8fbd2731fbdc23591/util.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": "SPDNet、Spline Flow",
+        "substantive_difference": "SPDNet 对协方差做 BiMap/ReEig/LogEig；本项对一阶角色向量在负曲率球上执行基点依赖 gyrovector 运算，无协方差谱层、coupling 或 attention。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/dalab/hyperbolic_nn/blob/dbeb8e8f8ed61bcc8e264fb8fbd2731fbdc23591/util.py"
+      }
+    },
+    {
+      "id": "next_bernstein_spectral_readout",
+      "title": "BernNet: Learning Arbitrary Graph Spectral Filters via Bernstein Approximation",
+      "authors": [
+        "Mingguo He",
+        "Zhewei Wei",
+        "Zengfeng Huang",
+        "Hongteng Xu"
+      ],
+      "url": "https://arxiv.org/abs/2106.10994",
+      "code_url": "https://github.com/ivam-he/BernNet/blob/main/NodeClassification/Bernpro.py",
+      "design_file": "docs/osram_new40_nine_designs.json",
+      "design_sha256": "a50b094882f825f36dafcd392d91392629da6b7dba5a72f70ae4ab9975532724",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2106.10994",
+        "code": "https://github.com/ivam-he/BernNet/blob/main/NodeClassification/Bernpro.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": "SheafHyperGNN、ED-HNN、GatedGCN",
+        "substantive_difference": "旧项学习 restriction/receiver-conditioned diffusion/边门控；本项在固定语义 Laplacian 上学习全局频率响应，允许抑制中间频带而保留差异。与下项 scattering 也不同：本项输出线性谱滤波响应，scattering 保留多阶 modulus 路径系数。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/ivam-he/BernNet/blob/main/NodeClassification/Bernpro.py"
+      }
+    },
+    {
+      "id": "next_diffusion_scattering_readout",
+      "title": "Diffusion Scattering Transforms on Graphs",
+      "authors": [
+        "Fernando Gama",
+        "Alejandro Ribeiro",
+        "Joan Bruna"
+      ],
+      "url": "https://arxiv.org/abs/1806.08829",
+      "code_url": "https://github.com/alelab-upenn/graph-scattering-transforms/blob/72930a54e603ecf6643c560008d36d4e3fb77644/Modules/graphScattering.py",
+      "design_file": "docs/osram_new40_nine_designs.json",
+      "design_sha256": "b9c719565e72f59a219ed6784049b605afbf8f6ad15117f30fbd1aec112db856",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1806.08829",
+        "code": "https://github.com/alelab-upenn/graph-scattering-transforms/blob/72930a54e603ecf6643c560008d36d4e3fb77644/Modules/graphScattering.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": "SheafHyperGNN、PNA；本批最近项BernNet",
+        "substantive_difference": "不是学习更多传播层；固定wavelet-bank、多路径模值解调和各阶摘要是完整机制，区别于Sheaf传输及BernNet单次可学习谱响应。不能把不同wavelet家族另算候选。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/alelab-upenn/graph-scattering-transforms/blob/72930a54e603ecf6643c560008d36d4e3fb77644/Modules/graphScattering.py"
+      }
+    },
+    {
+      "id": "next_sandwich_lipschitz_readout",
+      "title": "Direct Parameterization of Lipschitz-Bounded Deep Networks",
+      "authors": [
+        "Ruigang Wang",
+        "Ian Manchester"
+      ],
+      "url": "https://proceedings.mlr.press/v202/wang23v.html",
+      "code_url": "https://github.com/acfr/LBDN/blob/main/layer.py",
+      "design_file": "docs/osram_new40_nine_designs.json",
+      "design_sha256": "b043fd37723052e4d6e58737309cc2e76e1f4f8d9e66e758d5432807fa688ebb",
+      "accepted": true,
+      "source": {
+        "paper": "https://proceedings.mlr.press/v202/wang23v.html",
+        "code": "https://github.com/acfr/LBDN/blob/main/layer.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": "收缩型DEQ、SPDNet",
+        "substantive_difference": "DEQ以收缩约束保证固定点并隐式反传，本项无固定点或内循环；SPDNet正交BiMap用于SPD几何，本项Cayley与Psi共同实现前馈函数类的敏感性约束。不是给原MLP换一个激活函数。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/acfr/LBDN/blob/main/layer.py"
+      }
+    },
+    {
+      "id": "repr_kan_function_composition",
+      "title": "KAN: Kolmogorov-Arnold Networks",
+      "authors": [
+        "Ziming Liu",
+        "Yixuan Wang",
+        "Sachin Vaidya",
+        "Fabian Ruehle",
+        "James Halverson",
+        "Marin Soljačić",
+        "Thomas Y. Hou",
+        "Max Tegmark"
+      ],
+      "url": "https://arxiv.org/abs/2404.19756",
+      "code_url": "https://github.com/KindXiaoming/pykan/blob/master/kan/KANLayer.py",
+      "design_file": "docs/osram_new40_nine_designs.json",
+      "design_sha256": "7dbf74a66b4de827d01e9904e078aacd858ebdb6c45a183ec863d3b9d73a2ab0",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2404.19756",
+        "code": "https://github.com/KindXiaoming/pykan/blob/master/kan/KANLayer.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": "conditional_rational_quadratic_spline_coupling; tabnet",
+        "substantive_difference": "Old spline module is an alternating invertible coordinate coupling conditioned on the untouched half. KAN is a noninvertible multivariate function decomposition by edge-specific functions and nested sums, without coupling masks, density Jacobians, or adaptive feature selection.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/KindXiaoming/pykan/blob/master/kan/KANLayer.py"
+      }
+    },
+    {
+      "id": "repr_deep_lattice_composition",
+      "title": "Deep Lattice Networks and Partial Monotonic Functions",
+      "authors": [
+        "Seungil You",
+        "David Ding",
+        "Kevin Canini",
+        "Jan Pfeifer",
+        "Maya R. Gupta"
+      ],
+      "url": "https://arxiv.org/abs/1709.06680",
+      "code_url": "https://github.com/tensorflow/lattice/blob/master/tensorflow_lattice/python/lattice_layer.py",
+      "design_file": "docs/osram_new40_nine_designs.json",
+      "design_sha256": "7f91c07498da0f59bc626000f59637df980bfaea5033bdd79436347312452e0a",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1709.06680",
+        "code": "https://github.com/tensorflow/lattice/blob/master/tensorflow_lattice/python/lattice_layer.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": "node; conditional_rational_quadratic_spline_coupling",
+        "substantive_difference": "NODE enumerates products of learned threshold decisions along oblivious-tree paths; DLN evaluates local multidimensional interpolation cells with vertex parameters and composes calibrated lookup tables. It is not a tree-depth change or invertible univariate spline coupling.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/tensorflow/lattice/blob/master/tensorflow_lattice/python/lattice_layer.py"
+      }
+    },
+    {
+      "id": "repr_differentiable_logic_circuit",
+      "title": "Deep Differentiable Logic Gate Networks",
+      "authors": [
+        "Felix Petersen",
+        "Christian Borgelt",
+        "Hilde Kuehne",
+        "Oliver Deussen"
+      ],
+      "url": "https://arxiv.org/abs/2210.08277",
+      "code_url": "https://github.com/Felix-Petersen/difflogic/blob/main/difflogic/difflogic.py",
+      "design_file": "docs/osram_new40_nine_designs.json",
+      "design_sha256": "702abe1c4fccc6f4773d55386b6837450665c99be029ec9841386f166439af78",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2210.08277",
+        "code": "https://github.com/Felix-Petersen/difflogic/blob/main/difflogic/difflogic.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": "neural_logic_machine_evidence; node; rat_spn_evidence_circuit",
+        "substantive_difference": "NLM propagates predicates across arities using variable permutations and exists/forall reductions; this circuit instead learns truth-table operators in fixed sparse wiring with no quantifiers or object tuples. NODE selects tree tests; RAT-SPN has constrained sums/products for densities. None learns the full Boolean operator library at each circuit ",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/Felix-Petersen/difflogic/blob/main/difflogic/difflogic.py"
+      }
+    },
+    {
+      "id": "conditional_03_neural_ode_finite_flow",
+      "title": "Neural Ordinary Differential Equations",
+      "authors": [
+        "Ricky T. Q. Chen",
+        "Yulia Rubanova",
+        "Jesse Bettencourt",
+        "David Duvenaud"
+      ],
+      "url": "https://arxiv.org/abs/1806.07366",
+      "code_url": "https://github.com/rtqichen/torchdiffeq/blob/master/examples/odenet_mnist.py",
+      "design_file": "docs/osram_new40_nine_designs.json",
+      "design_sha256": "10fb6a930592575f40aa40306c2db7161e10835877c6dc71b63a43a2d3ac4181",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1806.07366",
+        "code": "https://github.com/rtqichen/torchdiffeq/blob/master/examples/odenet_mnist.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": "contractive_deep_equilibrium_evidence；equilibrium_aggregation",
+        "substantive_difference": "DEQ求z=f(z)并解固定点伴随；EA最小化聚合势能；这里求指定初值的有限时间非平衡轨迹，允许旋转等非梯度场。必须保留数值误差控制或明确solver，否则可能只是更多层。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/rtqichen/torchdiffeq/blob/master/examples/odenet_mnist.py"
+      }
+    },
+    {
+      "id": "matrix_tree_nonprojective_evidence",
+      "title": "Learning Structured Text Representations",
+      "authors": [
+        "Yang Liu",
+        "Mirella Lapata"
+      ],
+      "url": "https://aclanthology.org/Q18-1005/",
+      "code_url": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53",
+      "design_file": "docs/osram_new40_structure_cards.json",
+      "design_sha256": "b5d2b5d89bbeb2754d0ae9f3b54485560dfacdedb1f5aa060fcb7d65d7336010",
+      "accepted": true,
+      "source": {
+        "paper": "https://aclanthology.org/Q18-1005/",
+        "code": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "egt_evidence",
+          "dual_attention_symbolic_relations",
+          "ppgn_pair_composition"
+        ],
+        "substantive_difference": "All edge weights are marginals of one globally normalized acyclic single-root tree distribution. EGT/dual attention have independently normalized edges or learned edge states, and PPGN composes pair tensors without a tree partition function. Not merely a softmax replacement: scoring, root partition, constrained marginals and bidirectional content u",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53"
+      }
+    },
+    {
+      "id": "sparsemap_role_partition",
+      "title": "SparseMAP: Differentiable Sparse Structured Inference",
+      "authors": [
+        "Vlad Niculae",
+        "André F. T. Martins",
+        "Mathieu Blondel",
+        "Claire Cardie"
+      ],
+      "url": "https://proceedings.mlr.press/v80/niculae18a.html",
+      "code_url": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10",
+      "design_file": "docs/osram_new40_structure_cards.json",
+      "design_sha256": "9b431cff964e6276f152948fae99c45cb1676068da050c947f773155e7efe021",
+      "accepted": true,
+      "source": {
+        "paper": "https://proceedings.mlr.press/v80/niculae18a.html",
+        "code": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "otke",
+          "slot_attention",
+          "equilibrium_aggregation",
+          "contractive_deep_equilibrium_evidence"
+        ],
+        "substantive_difference": "The equivalence-relation marginal polytope globally couples three-way transitivity and variable group count. OTKE matches to fixed supports, Slot uses soft per-slot responsibilities, EA optimizes an unconstrained summary, and DEQ solves a learned fixed point. This is a new structure space plus constrained graph computation, not changing one existin",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10"
+      }
+    },
+    {
+      "id": "janossy_full_role_symmetrization",
+      "title": "Janossy Pooling: Learning Deep Permutation-Invariant Functions for Variable-Size Inputs",
+      "authors": [
+        "Ryan L. Murphy",
+        "Balasubramaniam Srinivasan",
+        "Vinayak Rao",
+        "Bruno Ribeiro"
+      ],
+      "url": "https://arxiv.org/abs/1811.01900",
+      "code_url": "https://github.com/PurdueMINDS/JanossyPooling/blob/58e398d492be96c231a3f8c6684b519302c5c3d6/arithmetic_tasks/models.py#L65",
+      "design_file": "docs/osram_new40_structure_cards.json",
+      "design_sha256": "cab000655356662a02eed76d84ebd15b6d8a76fb157b39e2b9fa290104ed34f8",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1811.01900",
+        "code": "https://github.com/PurdueMINDS/JanossyPooling/blob/58e398d492be96c231a3f8c6684b519302c5c3d6/arithmetic_tasks/models.py#L65"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "rrn_evidence",
+          "mac_control_read_write",
+          "fspool_fsunpool_evidence"
+        ],
+        "substantive_difference": "Exact group averaging of noncommutative recurrent whole-set compositions is not RRN's graph message recurrence, MAC's learned control/read/write, or FSPool's per-feature sorting. Retain all orders and nonlinear recurrent composition; a single chosen order or sum-pool plus MLP would not be this candidate.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/PurdueMINDS/JanossyPooling/blob/58e398d492be96c231a3f8c6684b519302c5c3d6/arithmetic_tasks/models.py#L65"
+      }
+    },
+    {
+      "id": "diffpool_hierarchical_evidence_graph",
+      "title": "Hierarchical Graph Representation Learning with Differentiable Pooling",
+      "authors": [
+        "Rex Ying",
+        "Jiaxuan You",
+        "Christopher Morris",
+        "Xiang Ren",
+        "William L. Hamilton",
+        "Jure Leskovec"
+      ],
+      "url": "https://arxiv.org/abs/1806.08804",
+      "code_url": "https://github.com/RexYing/diffpool/blob/8dfb97cf60c2376ac804761837b9966f1d302acb/encoders.py#L329",
+      "design_file": "docs/osram_new40_structure_cards.json",
+      "design_sha256": "84b93102a90dc4385e5903df7a5cc688dfd7bcebf387c9302baaf821ad186c93",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1806.08804",
+        "code": "https://github.com/RexYing/diffpool/blob/8dfb97cf60c2376ac804761837b9966f1d302acb/encoders.py#L329"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "graph_multiset_transformer",
+          "tokenlearner_fuser_v11",
+          "slot_attention",
+          "tome_merge_reconstruct"
+        ],
+        "substantive_difference": "The learned adjacency itself is coarsened and drives the next graph stage. GMT/TokenLearner compress features via seeds/tokens without S^T A S graph hierarchy; ToMe merges selected pairs rather than assigning all nodes to jointly learned soft clusters. Only S-pooling without the coarsened-graph stage would fail the novelty requirement.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/RexYing/diffpool/blob/8dfb97cf60c2376ac804761837b9966f1d302acb/encoders.py#L329"
+      }
+    },
+    {
+      "id": "cwn_cellular_evidence",
+      "title": "Weisfeiler and Lehman Go Cellular: CW Networks",
+      "authors": [
+        "Cristian Bodnar",
+        "Fabrizio Frasca",
+        "Nina Otter",
+        "Yu Guang Wang",
+        "Pietro Liò",
+        "Guido Montúfar",
+        "Michael Bronstein"
+      ],
+      "url": "https://arxiv.org/abs/2106.12575",
+      "code_url": "https://github.com/twitter-research/cwn/blob/c4ddd24e251929f934f8a2467da98fdba376864d/mp/layers.py#L271",
+      "design_file": "docs/osram_new40_structure_cards.json",
+      "design_sha256": "d643673fb7a291b44065eff3420205563f1239006c66f4941c6529b6f59211b6",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2106.12575",
+        "code": "https://github.com/twitter-research/cwn/blob/c4ddd24e251929f934f8a2467da98fdba376864d/mp/layers.py#L271"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "allset_transformer",
+          "ed_hnn",
+          "sheaf_hypergnn_diag",
+          "ppgn_pair_composition"
+        ],
+        "substantive_difference": "Maintains distinct vertex/edge/closed-cycle states and boundary-of-boundary incidence. AllSet/ED-HNN exchange node and undifferentiated hyperedge states; Sheaf learns restrictions over incidence; PPGN composes arbitrary ordered pairs. Here edge-ring boundaries govern upper-neighbor communication; replacing cycles with generic set pools would erase ",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/twitter-research/cwn/blob/c4ddd24e251929f934f8a2467da98fdba376864d/mp/layers.py#L271"
+      }
+    },
+    {
+      "id": "simplicial_hodge_evidence",
+      "title": "Simplicial Neural Networks",
+      "authors": [
+        "Stefania Ebli",
+        "Michaël Defferrard",
+        "Gard Spreemann"
+      ],
+      "url": "https://arxiv.org/abs/2010.03633",
+      "code_url": "https://github.com/stefaniaebli/simplicial_neural_networks/blob/094c0f00834a7b1daab6a0cb31be33b168fd38c1/scnn/scnn.py#L14",
+      "design_file": "docs/osram_new40_structure_cards.json",
+      "design_sha256": "e4e9179eb672767a06cdd45279b5d39f06c1e2cae9f56a21556997a6be923690",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2010.03633",
+        "code": "https://github.com/stefaniaebli/simplicial_neural_networks/blob/094c0f00834a7b1daab6a0cb31be33b168fd38c1/scnn/scnn.py#L14"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "sheaf_hypergnn_diag",
+          "ed_hnn",
+          "ppgn_pair_composition"
+        ],
+        "substantive_difference": "A signed cochain signal lives on edges and is transported through upper/lower Hodge incidence, with orientation-equivariant nonlinear stages. CWN uses nonlinear boundary/upper adjacency messages over cells; BernNet/scattering use vertex graph spectra; old Sheaf uses learned restriction maps. Keeping only vertex Laplacian polynomial filtering would ",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/stefaniaebli/simplicial_neural_networks/blob/094c0f00834a7b1daab6a0cb31be33b168fd38c1/scnn/scnn.py#L14"
+      }
+    },
+    {
+      "id": "nested_gnn_rooted_evidence",
+      "title": "Nested Graph Neural Networks",
+      "authors": [
+        "Muhan Zhang",
+        "Pan Li"
+      ],
+      "url": "https://arxiv.org/abs/2110.13197",
+      "code_url": "https://github.com/muhanzhang/NestedGNN/blob/a5adccf62d397ad7f83bc73be34eba3765df73fa/utils.py#L18",
+      "design_file": "docs/osram_new40_structure_cards.json",
+      "design_sha256": "d4085046ab4cfce64ddf5c5b4d8e8200c1f3c62f606dd690623fc82f307f0c6d",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2110.13197",
+        "code": "https://github.com/muhanzhang/NestedGNN/blob/a5adccf62d397ad7f83bc73be34eba3765df73fa/utils.py#L18"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "rrn_evidence",
+          "pna_evidence",
+          "dgcnn_dynamic_edgeconv",
+          "ppgn_pair_composition"
+        ],
+        "substantive_difference": "A node has multiple separately evolving copies conditioned on different roots; induced edges among its neighbors are retained before inner computation. Existing message passing has one state per node and a rooted computation tree, while PPGN has a pair tensor with matrix products. This is not replacing a graph convolution or increasing hop count.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/muhanzhang/NestedGNN/blob/a5adccf62d397ad7f83bc73be34eba3765df73fa/utils.py#L18"
+      }
+    },
+    {
+      "id": "graph_unet_evidence_encoder_decoder",
+      "title": "Graph U-Nets",
+      "authors": [
+        "Hongyang Gao",
+        "Shuiwang Ji"
+      ],
+      "url": "https://proceedings.mlr.press/v97/gao19a.html",
+      "code_url": "https://github.com/HongyangGao/Graph-U-Nets/blob/b3d2c735877868406673bb7af3dd6b7f7e6d4f02/src/utils/ops.py#L6",
+      "design_file": "docs/osram_new40_structure_cards.json",
+      "design_sha256": "7badeeffac04dea1d46f797fdef2982f2df991da4eb1af4f960b8c3af21d5146",
+      "accepted": true,
+      "source": {
+        "paper": "https://proceedings.mlr.press/v97/gao19a.html",
+        "code": "https://github.com/HongyangGao/Graph-U-Nets/blob/b3d2c735877868406673bb7af3dd6b7f7e6d4f02/src/utils/ops.py#L6"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "tome_merge_reconstruct",
+          "fspool_fsunpool_evidence",
+          "tokenlearner_fuser_v11"
+        ],
+        "substantive_difference": "Hierarchical hard node selection plus connectivity augmentation, index-preserving unpool and graph decoder is distinct from DiffPool soft S^T A S, ToMe pairwise merging and FSPool per-channel ranking. A scalar gate/top-k by itself is expressly not the candidate.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/HongyangGao/Graph-U-Nets/blob/b3d2c735877868406673bb7af3dd6b7f7e6d4f02/src/utils/ops.py#L6"
+      }
+    },
+    {
+      "id": "crfrnn_latent_evidence_states",
+      "title": "Conditional Random Fields as Recurrent Neural Networks",
+      "authors": [
+        "Shuai Zheng",
+        "Sadeep Jayasumana",
+        "Bernardino Romera-Paredes",
+        "Vibhav Vineet",
+        "Zhizhong Su",
+        "Dalong Du",
+        "Chang Huang",
+        "Philip H. S. Torr"
+      ],
+      "url": "https://arxiv.org/abs/1502.03240",
+      "code_url": "https://github.com/sadeepj/crfasrnn_pytorch/blob/24899c528981dfbc14f1212869a3eae328dc6570/crfasrnn/crfrnn.py#L35",
+      "design_file": "docs/osram_new40_structure_cards.json",
+      "design_sha256": "73fd15a3f8bc377faf5476f6f89a73013bbe7bc08c5578b7ad3f87aac856666d",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1502.03240",
+        "code": "https://github.com/sadeepj/crfasrnn_pytorch/blob/24899c528981dfbc14f1212869a3eae328dc6570/crfasrnn/crfrnn.py#L35"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "rat_spn_evidence_circuit",
+          "capsule_variational_bayes",
+          "rrn_evidence",
+          "contractive_deep_equilibrium_evidence"
+        ],
+        "substantive_difference": "The block performs approximate inference in a discrete pairwise latent-state Gibbs model with compatibility between state labels and persistent unary terms. RAT-SPN uses decomposable sum-product circuits; capsules infer mixture assignment/posteriors; RRN learns free recurrent messages; DEQ solves a continuous equilibrium. No external convergence/im",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/sadeepj/crfasrnn_pytorch/blob/24899c528981dfbc14f1212869a3eae328dc6570/crfasrnn/crfrnn.py#L35"
+      }
+    },
+    {
+      "id": "graph_matching_base_gap_pairs",
+      "title": "Graph Matching Networks for Learning the Similarity of Graph Structured Objects",
+      "authors": [
+        "Yujia Li",
+        "Chenjie Gu",
+        "Thomas Dullien",
+        "Oriol Vinyals",
+        "Pushmeet Kohli"
+      ],
+      "url": "https://proceedings.mlr.press/v97/li19d.html",
+      "code_url": "https://github.com/google-deepmind/deepmind-research/blob/f5de0ede8430809180254ee957abf36ed62579ef/graph_matching_networks/graph_matching_networks.ipynb",
+      "design_file": "docs/osram_new40_structure_cards.json",
+      "design_sha256": "7fe53ec968d0cda1d964644ed18d42f0125b4c2f91d900048ee9c19d9a480146",
+      "accepted": true,
+      "source": {
+        "paper": "https://proceedings.mlr.press/v97/li19d.html",
+        "code": "https://github.com/google-deepmind/deepmind-research/blob/f5de0ede8430809180254ee957abf36ed62579ef/graph_matching_networks/graph_matching_networks.ipynb"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "dense_coattention",
+          "mcan_encoder_decoder",
+          "hyper_sagnn",
+          "rrn_evidence"
+        ],
+        "substantive_difference": "Full within-graph relation propagation and bidirectional cross-graph mismatch jointly update both node systems. DCN co-attends directly with additive transforms; MCAN has asymmetric self/cross stages; Hyper-SAGNN compares static and leave-self-out representations inside a hyperedge, not two coupled graph systems. Merely subtracting one attention ve",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/google-deepmind/deepmind-research/blob/f5de0ede8430809180254ee957abf36ed62579ef/graph_matching_networks/graph_matching_networks.ipynb"
+      }
+    },
+    {
+      "id": "conditional_new_01_full_dynamic_hypernetwork",
+      "title": "HyperNetworks",
+      "authors": [
+        "David Ha",
+        "Andrew Dai",
+        "Quoc V. Le"
+      ],
+      "url": "https://arxiv.org/abs/1609.09106",
+      "code_url": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb",
+      "design_file": "docs/osram_new40_conditional_cards.json",
+      "design_sha256": "d0791961bb01674593ee6f4666935e45d2446b0dca4fde09d0800b40028bd251",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1609.09106",
+        "code": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "dcformer_dynamic_head_composition",
+          "conditional_rational_quadratic_spline_coupling",
+          "withdrawn_film"
+        ],
+        "substantive_difference": "生成整张主变换矩阵并在非线性两阶段链中执行。DCFormer生成head组合系数，Spline生成一元变换参数，FiLM是对角仿射；这里的每样本跨通道算子不受固定矩阵行缩放约束。与DFN迁为全连接后合并，不另计DFN。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb"
+      }
+    },
+    {
+      "id": "conditional_new_02_ltc_conductance",
+      "title": "Liquid Time-constant Networks",
+      "authors": [
+        "Ramin Hasani",
+        "Mathias Lechner",
+        "Alexander Amini",
+        "Daniela Rus",
+        "Radu Grosu"
+      ],
+      "url": "https://arxiv.org/abs/2006.04439",
+      "code_url": "https://github.com/raminmh/liquid_time_constant_networks/blob/master/experiments_with_ltcs/ltc_model.py",
+      "design_file": "docs/osram_new40_conditional_cards.json",
+      "design_sha256": "6d7dacbf57d10ddc881b51a9484cffadde546482a18a506c9dcbda3c400b80da",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2006.04439",
+        "code": "https://github.com/raminmh/liquid_time_constant_networks/blob/master/experiments_with_ltcs/ltc_model.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "contractive_deep_equilibrium_evidence",
+          "rrn_evidence",
+          "withdrawn_aff"
+        ],
+        "substantive_difference": "保留电容、漏电、状态/输入电导、反转电位和半隐式分母的完整微电路；不是单sigmoid gate或GRU替换。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/raminmh/liquid_time_constant_networks/blob/master/experiments_with_ltcs/ltc_model.py"
+      }
+    },
+    {
+      "id": "conditional_new_03_hamiltonian_flow",
+      "title": "Hamiltonian Neural Networks",
+      "authors": [
+        "Sam Greydanus",
+        "Misko Dzamba",
+        "Jason Yosinski"
+      ],
+      "url": "https://arxiv.org/abs/1906.01563",
+      "code_url": "https://github.com/greydanus/hamiltonian-nn/blob/master/hnn.py",
+      "design_file": "docs/osram_new40_conditional_cards.json",
+      "design_sha256": "649d9aecd3c9c6cce248de253afb1fed3c33eb8a9cf8f80ad695813c04b5c488",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1906.01563",
+        "code": "https://github.com/greydanus/hamiltonian-nn/blob/master/hnn.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "equilibrium_aggregation",
+          "contractive_deep_equilibrium_evidence"
+        ],
+        "substantive_difference": "EA沿势能下降求汇总，Hamiltonian沿辛旋转梯度流动，连续精确系统不沿H下降；DEQ求平衡点，这里只取初值轨迹有限终点。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/greydanus/hamiltonian-nn/blob/master/hnn.py"
+      }
+    },
+    {
+      "id": "conditional_new_04_lagrangian_flow",
+      "title": "Lagrangian Neural Networks",
+      "authors": [
+        "Miles Cranmer",
+        "Sam Greydanus",
+        "Stephan Hoyer",
+        "Peter Battaglia",
+        "David Spergel",
+        "Shirley Ho"
+      ],
+      "url": "https://arxiv.org/abs/2003.04630",
+      "code_url": "https://github.com/MilesCranmer/lagrangian_nns/blob/master/lnn/core.py",
+      "design_file": "docs/osram_new40_conditional_cards.json",
+      "design_sha256": "cf83074527491cbe9965270e745c598caee487b9aec260ae74f25fda6445a082",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2003.04630",
+        "code": "https://github.com/MilesCranmer/lagrangian_nns/blob/master/lnn/core.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "equilibrium_aggregation",
+          "spdnet_bimap_reeig_logeig"
+        ],
+        "substantive_difference": "不是势能最小化或SPD协方差读出；必须包含速度Hessian、混合导数和线性系统解的Euler-Lagrange链。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/MilesCranmer/lagrangian_nns/blob/master/lnn/core.py"
+      }
+    },
+    {
+      "id": "conditional_new_05_contracting_ren",
+      "title": "Recurrent Equilibrium Networks: Flexible Dynamic Models with Guaranteed Stability and Robustness",
+      "authors": [
+        "Max Revay",
+        "Ruigang Wang",
+        "Ian R. Manchester"
+      ],
+      "url": "https://arxiv.org/abs/2104.05942",
+      "code_url": "https://github.com/acfr/RobustNeuralNetworks.jl/blob/main/src/ParameterTypes/utils.jl",
+      "design_file": "docs/osram_new40_conditional_cards.json",
+      "design_sha256": "0afee710ba5e91ac9d4d9b4d6c4205f7ca74759319d1db69258e0fa3781a6d67",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2104.05942",
+        "code": "https://github.com/acfr/RobustNeuralNetworks.jl/blob/main/src/ParameterTypes/utils.jl"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "contractive_deep_equilibrium_evidence",
+          "rrn_evidence"
+        ],
+        "substantive_difference": "旧DEQ对同一状态求无限深固定点且用隐式梯度；这里是有显式动态state的有限recurrent系统，每步内部非线性为下三角可前代计算，整体耦合H参数化控制增量行为。只用谱归一化RNN不能叫REN。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/acfr/RobustNeuralNetworks.jl/blob/main/src/ParameterTypes/utils.jl"
+      }
+    },
+    {
+      "id": "conditional_new_06_rim",
+      "title": "Recurrent Independent Mechanisms",
+      "authors": [
+        "Anirudh Goyal",
+        "Alex Lamb",
+        "Jordan Hoffmann",
+        "Shagun Sodhani",
+        "Sergey Levine",
+        "Yoshua Bengio",
+        "Bernhard Schölkopf"
+      ],
+      "url": "https://arxiv.org/abs/1909.10893",
+      "code_url": "https://github.com/anirudh9119/RIMs/blob/master/blocks_atari/a2c_ppo_acktr/blocks_core.py",
+      "design_file": "docs/osram_new40_conditional_cards.json",
+      "design_sha256": "c3a768aafc4fe208baa1de965a9c2ae064b7756d8a2d4adf24bbb6dffcf24db8",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1909.10893",
+        "code": "https://github.com/anirudh9119/RIMs/blob/master/blocks_atari/a2c_ppo_acktr/blocks_core.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "rrn_evidence",
+          "slot_attention",
+          "mac_control_read_write"
+        ],
+        "substantive_difference": "RRN每个节点共享LSTM并全部更新；Slot以共享GRU吸收竞争聚合；MAC一个控制/记忆链。RIM是互不共享转移参数的机制、top-k计算冻结和稀疏通信三件套；只加top-k attention不够。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/anirudh9119/RIMs/blob/master/blocks_atari/a2c_ppo_acktr/blocks_core.py"
+      }
+    },
+    {
+      "id": "conditional_new_07_neural_production",
+      "title": "Neural Production Systems: Learning Rule-Governed Visual Dynamics",
+      "authors": [
+        "Anirudh Goyal",
+        "Aniket Didolkar",
+        "Nan Rosemary Ke",
+        "Charles Blundell",
+        "Philippe Beaudoin",
+        "Nicolas Heess",
+        "Michael Mozer",
+        "Yoshua Bengio"
+      ],
+      "url": "https://arxiv.org/abs/2103.01937",
+      "code_url": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py",
+      "design_file": "docs/osram_new40_conditional_cards.json",
+      "design_sha256": "d709c34fdf63f45d1e540070ba8dd287dad766c543c216def7bd900d4d32ea33",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2103.01937",
+        "code": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "neural_logic_machine_evidence",
+          "rrn_evidence",
+          "mac_control_read_write"
+        ],
+        "substantive_difference": "NLM是arity/量词链，RRN同一消息函数并行全图，MAC全局control/read/write；NPS将规则身份与实体身份分开，经离散双阶段binding只修改指定变量，是路由执行链而非简单gate。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py"
+      }
+    },
+    {
+      "id": "conditional_new_08_neural_interpreter",
+      "title": "Dynamic Inference with Neural Interpreters",
+      "authors": [
+        "Nasim Rahaman",
+        "Muhammad Waleed Gondal",
+        "Shruti Joshi",
+        "Peter Gehler",
+        "Yoshua Bengio",
+        "Francesco Locatello",
+        "Bernhard Schölkopf"
+      ],
+      "url": "https://arxiv.org/abs/2110.06399",
+      "code_url": "https://github.com/nasimrahaman/neural-interpreter/blob/17d46f0869f44e6a884ae740ba27ed3af4d384c7/neural_interpreters/core/nfc.py",
+      "design_file": "docs/osram_new40_conditional_cards.json",
+      "design_sha256": "da8f3ac652735732863a0a4902521d7718e356e7ddf94d2e3040ccf5c9cfb8b1",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2110.06399",
+        "code": "https://github.com/nasimrahaman/neural-interpreter/blob/17d46f0869f44e6a884ae740ba27ed3af4d384c7/neural_interpreters/core/nfc.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "compositional_search_retrieval",
+          "dcformer_dynamic_head_composition",
+          "perceiver_io"
+        ],
+        "substantive_difference": "不是head混合：先推断变量类型，函数signature确定可访问变量子图，共享interpreter经code实现不同函数，再在计算深度复用函数。函数亲和性与code必须同时保留。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/nasimrahaman/neural-interpreter/blob/17d46f0869f44e6a884ae740ba27ed3af4d384c7/neural_interpreters/core/nfc.py"
+      }
+    },
+    {
+      "id": "conditional_new_09_sympnet",
+      "title": "SympNets: Intrinsic structure-preserving symplectic networks for identifying Hamiltonian systems",
+      "authors": [
+        "Pengzhan Jin",
+        "Zhen Zhang",
+        "Aiqing Zhu",
+        "Yifa Tang",
+        "George Em Karniadakis"
+      ],
+      "url": "https://arxiv.org/abs/2001.03750",
+      "code_url": "https://github.com/jpzxshi/sympnets/blob/master/learner/nn/sympnet.py",
+      "design_file": "docs/osram_new40_conditional_cards.json",
+      "design_sha256": "e44e8530af1bbd7e76992eb8d07f1660296c22d4d2b3e222b475644a5b6d7f72",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2001.03750",
+        "code": "https://github.com/jpzxshi/sympnets/blob/master/learner/nn/sympnet.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "conditional_rational_quadratic_spline_coupling",
+          "spdnet_bimap_reeig_logeig"
+        ],
+        "substantive_difference": "与Spline都可逆但不是一元monotone spline：完整交叉坐标shear来自标量势的梯度，Jacobian满足JᵀΩJ=Ω，不是任意coupling或更深MLP。SPDNet是协方差流形变换。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/jpzxshi/sympnets/blob/master/learner/nn/sympnet.py"
+      }
+    },
+    {
+      "id": "conditional_new_10_cornn",
+      "title": "Coupled Oscillatory Recurrent Neural Network (coRNN): An accurate and (gradient) stable architecture for learning long time dependencies",
+      "authors": [
+        "T. Konstantin Rusch",
+        "Siddhartha Mishra"
+      ],
+      "url": "https://arxiv.org/abs/2010.00951",
+      "code_url": "https://github.com/tk-rusch/coRNN/blob/master/sMNIST/network.py",
+      "design_file": "docs/osram_new40_conditional_cards.json",
+      "design_sha256": "acc5152a6d9583cb54fbc70182d8fc35fa1668396fd5e474100060b9207c2854",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2010.00951",
+        "code": "https://github.com/tk-rusch/coRNN/blob/master/sMNIST/network.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "rrn_evidence",
+          "contractive_deep_equilibrium_evidence"
+        ],
+        "substantive_difference": "不同于RRN的LSTM消息，coRNN是具有位置/速度两态、恢复力和阻尼的二阶系统及半隐式更新；不能简化成单次tanh残差后叫振子。",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/tk-rusch/coRNN/blob/master/sMNIST/network.py"
+      }
+    },
+    {
+      "id": "repr_dst_corrected_evidence_combination",
+      "title": "An evidential classifier based on Dempster-Shafer theory and deep learning",
+      "authors": [
+        "Zheng Tong",
+        "Philippe Xu",
+        "Thierry Denoeux"
+      ],
+      "url": "https://doi.org/10.1016/j.neucom.2021.03.066",
+      "code_url": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py",
+      "design_file": "docs/osram_new40_representation_cards.json",
+      "design_sha256": "c5252d2ede8c7c02d413abf14b4da24e07b16e512ee96681f402b61ddebe62bf",
+      "accepted": true,
+      "source": {
+        "paper": "https://doi.org/10.1016/j.neucom.2021.03.066",
+        "code": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "netvlad_residual_encoding",
+          "capsule_variational_bayes",
+          "rat_spn_evidence_circuit"
+        ],
+        "substantive_difference": "NetVLAD sums center residuals; VB capsules infer Gaussian assignments; RAT-SPN marginalizes a decomposable density. DST explicitly represents set-valued ignorance and incompatible mass through conjunctive fusion. Prototype distances alone do not qualify; all combination stages must remain.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py"
+      }
+    },
+    {
+      "id": "repr_bcos_alignment_network",
+      "title": "B-cos Networks: Alignment is All We Need for Interpretability",
+      "authors": [
+        "Moritz Boehle",
+        "Mario Fritz",
+        "Bernt Schiele"
+      ],
+      "url": "https://arxiv.org/abs/2205.10268",
+      "code_url": "https://github.com/moboehle/B-cos/blob/19c7ea4dce9a4d049533b0955236b85d5f336b12/modules/bcosconv2d.py",
+      "design_file": "docs/osram_new40_representation_cards.json",
+      "design_sha256": "140e3ec9266fab2295b8636c79c2cba92b9a9546631072b3109e6fdb1c9b056a",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2205.10268",
+        "code": "https://github.com/moboehle/B-cos/blob/19c7ea4dce9a4d049533b0955236b85d5f336b12/modules/bcosconv2d.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "withdrawn SE/FiLM/gates",
+          "Flat MLP"
+        ],
+        "substantive_difference": "Directional normalized transforms replace all internal affine/nonlinear layers; no content branch is merely rescaled by a scalar reliability head. Layerwise dynamic linearity is a mechanism of the entire branch.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/moboehle/B-cos/blob/19c7ea4dce9a4d049533b0955236b85d5f336b12/modules/bcosconv2d.py"
+      }
+    },
+    {
+      "id": "repr_mfn_gabor_filter_chain",
+      "title": "Multiplicative Filter Networks",
+      "authors": [
+        "Rizal Fathony",
+        "Anit Kumar Sahu",
+        "Devin Willmott",
+        "J. Zico Kolter"
+      ],
+      "url": "https://openreview.net/forum?id=OmtmcPkkhT",
+      "code_url": "https://github.com/boschresearch/multiplicative-filter-networks/blob/58c3c4dd5908bce9d5c3b077926cb588cc6052da/mfn/mfn.py",
+      "design_file": "docs/osram_new40_representation_cards.json",
+      "design_sha256": "a263a6ee79e4a88e81a2b26d0907b65d06be1a4ac81a6fdbb374bb9c619c0883",
+      "accepted": true,
+      "source": {
+        "paper": "https://openreview.net/forum?id=OmtmcPkkhT",
+        "code": "https://github.com/boschresearch/multiplicative-filter-networks/blob/58c3c4dd5908bce9d5c3b077926cb588cc6052da/mfn/mfn.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "withdrawn MLB/MFB/MUTAN/BLOCK/CIN",
+          "conditional_rational_quadratic_spline_coupling"
+        ],
+        "substantive_difference": "Withdrawn methods factor a finite bilinear/polynomial interaction of embeddings. MFN repeatedly reinjects nonlinear localized sinusoidal filters of the complete input and composes their product expansion. A single Gabor feature map followed by an MLP, or separate FourierNet and GaborNet counting, is not allowed.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/boschresearch/multiplicative-filter-networks/blob/58c3c4dd5908bce9d5c3b077926cb588cc6052da/mfn/mfn.py"
+      }
+    },
+    {
+      "id": "repr_linf_distance_network",
+      "title": "Towards Certifying L-infinity Robustness using Neural Networks with L-inf-dist Neurons",
+      "authors": [
+        "Bohang Zhang",
+        "Tianle Cai",
+        "Zhou Lu",
+        "Di He",
+        "Liwei Wang"
+      ],
+      "url": "https://proceedings.mlr.press/v139/zhang21b.html",
+      "code_url": "https://github.com/zbh2047/L_inf-dist-net/blob/f2554c0ec7e3cc03dd7c5fb5f886fca9bc32e650/model/norm_dist.py",
+      "design_file": "docs/osram_new40_representation_cards.json",
+      "design_sha256": "14773ca87f2f90eb438ab063059d2635b323a43b19c01191020258f82c640fb6",
+      "accepted": true,
+      "source": {
+        "paper": "https://proceedings.mlr.press/v139/zhang21b.html",
+        "code": "https://github.com/zbh2047/L_inf-dist-net/blob/f2554c0ec7e3cc03dd7c5fb5f886fca9bc32e650/model/norm_dist.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "netvlad_residual_encoding",
+          "Flat MLP",
+          "post-GRN"
+        ],
+        "substantive_difference": "NetVLAD pools residual vectors with soft assignments; here repeated learned-center maximum-distance maps define the network. There is no token clustering or normalization-only wrapper.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/zbh2047/L_inf-dist-net/blob/f2554c0ec7e3cc03dd7c5fb5f886fca9bc32e650/model/norm_dist.py"
+      }
+    },
+    {
+      "id": "repr_sos_signed_probability_circuit",
+      "title": "Sum of Squares Circuits",
+      "authors": [
+        "Lorenzo Loconte",
+        "Stefan Mengel",
+        "Antonio Vergari"
+      ],
+      "url": "https://arxiv.org/abs/2408.11778",
+      "code_url": "https://github.com/april-tools/sos-npcs/blob/8b3c8592ab1db852166c9d1cdf202c1cccc7e6d4/src/models.py",
+      "design_file": "docs/osram_new40_representation_cards.json",
+      "design_sha256": "98f0488c4aef755c6848f77e7de53ec25199fcf17d542a44564233a28bf7791a",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2408.11778",
+        "code": "https://github.com/april-tools/sos-npcs/blob/8b3c8592ab1db852166c9d1cdf202c1cccc7e6d4/src/models.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "rat_spn_evidence_circuit",
+          "withdrawn Tensor-Train compression"
+        ],
+        "substantive_difference": "RAT-SPN uses nonnegative normalized mixtures without destructive cross terms. SOS combines signed amplitudes and contracts their squares, so marginalization requires cross-basis integrals. It is neither a new random SPN partition nor a compressed affine tensor-train layer.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/april-tools/sos-npcs/blob/8b3c8592ab1db852166c9d1cdf202c1cccc7e6d4/src/models.py"
+      }
+    },
+    {
+      "id": "repr_lista_cpss_sparse_pursuit",
+      "title": "Theoretical Linear Convergence of Unfolded ISTA and Its Practical Weights and Thresholds",
+      "authors": [
+        "Xiaohan Chen",
+        "Jialin Liu",
+        "Zhangyang Wang",
+        "Wotao Yin"
+      ],
+      "url": "https://arxiv.org/abs/1808.10038",
+      "code_url": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py",
+      "design_file": "docs/osram_new40_representation_cards.json",
+      "design_sha256": "85a151f99589961ac3e939bb25f00a9b8270f7c3a3eb661933ab11e489ffd82e",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/1808.10038",
+        "code": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "crate_mssa_ista_full",
+          "hamburger_nmf_full",
+          "learned_robust_pca_evidence_decomposition"
+        ],
+        "substantive_difference": "Closest is CRATE, not merely RPCA. CRATE alternates subspace attention with a one-step nonnegative dictionary sparsification of current tokens. CPSS repeatedly pursues one original y, tracks explicit coding residual and exempts a growing estimated support from signed shrinkage. Hamburger factorizes a per-sample nonnegative matrix; RPCA separates lo",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py"
+      }
+    },
+    {
+      "id": "repr_grassmann_projection_pooling",
+      "title": "Building Deep Networks on Grassmann Manifolds",
+      "authors": [
+        "Zhiwu Huang",
+        "Jiqing Wu",
+        "Luc Van Gool"
+      ],
+      "url": "https://doi.org/10.1609/aaai.v32i1.11725",
+      "code_url": "https://github.com/zhiwu-huang/GrNet/tree/6ca1834ddb92cd244344e9af31f73237152a9dd0/grnet",
+      "design_file": "docs/osram_new40_representation_cards.json",
+      "design_sha256": "e6a3c56e1dca415e36d22369c6bd382c16c30406ed518da073a6fc37a3561960",
+      "accepted": true,
+      "source": {
+        "paper": "https://doi.org/10.1609/aaai.v32i1.11725",
+        "code": "https://github.com/zhiwu-huang/GrNet/tree/6ca1834ddb92cd244344e9af31f73237152a9dd0/grnet"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "spdnet_bimap_reeig_logeig",
+          "hamburger_nmf_full"
+        ],
+        "substantive_difference": "SPDNet learns spectral functions of covariance magnitude; GrNet identifies a q-dimensional subspace modulo basis rotation and performs projector averaging followed by rank-q eigenspace selection. It discards basis choice, not the head labels used to construct each matrix.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/zhiwu-huang/GrNet/tree/6ca1834ddb92cd244344e9af31f73237152a9dd0/grnet"
+      }
+    },
+    {
+      "id": "repr_neural_kernel_composition",
+      "title": "Differentiable Compositional Kernel Learning for Gaussian Processes",
+      "authors": [
+        "Shengyang Sun",
+        "Guodong Zhang",
+        "Chaoqi Wang",
+        "Wenyuan Zeng",
+        "Jiaman Li",
+        "Roger Grosse"
+      ],
+      "url": "https://proceedings.mlr.press/v80/sun18e.html",
+      "code_url": "https://github.com/ssydasheng/GPflow-Slim/tree/96ea01e5aa7b488997755a2b35bc433ca8a85b39/gpflowSlim/neural_kernel_network",
+      "design_file": "docs/osram_new40_representation_cards.json",
+      "design_sha256": "291811bf10d1ad5d687d15b7540a39331a33d7fea8e514ccad7f74cb3a5a2f17",
+      "accepted": true,
+      "source": {
+        "paper": "https://proceedings.mlr.press/v80/sun18e.html",
+        "code": "https://github.com/ssydasheng/GPflow-Slim/tree/96ea01e5aa7b488997755a2b35bc433ca8a85b39/gpflowSlim/neural_kernel_network"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "rat_spn_evidence_circuit",
+          "otke",
+          "withdrawn DLRM/MLB"
+        ],
+        "substantive_difference": "RAT-SPN requires decomposable variable scopes and density leaves; NKN composes valid pairwise kernels with repeated overlapping input arguments and Schur products. OTKE uses a kernel inside balanced transport, whereas NKN learns the kernel algebra itself. Simple pair-dot readout lacks the entire composition network.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/ssydasheng/GPflow-Slim/tree/96ea01e5aa7b488997755a2b35bc433ca8a85b39/gpflowSlim/neural_kernel_network"
+      }
+    },
+    {
+      "id": "repr_convex_potential_gradient_flow",
+      "title": "Convex Potential Flows: Universal Probability Distributions with Optimal Transport and Convex Optimization",
+      "authors": [
+        "Chin-Wei Huang",
+        "Ricky T. Q. Chen",
+        "Christos Tsirigotis",
+        "Aaron Courville"
+      ],
+      "url": "https://arxiv.org/abs/2012.05942",
+      "code_url": "https://github.com/CW-Huang/CP-Flow/blob/d01303cb4ebeb5a0bbfca638ffaf5b7a8ec22fb1/lib/flows/cpflows.py",
+      "design_file": "docs/osram_new40_representation_cards.json",
+      "design_sha256": "299588a823ab4571ec62cd26279acedbdb7864538cb8ed256a3b42dd6b14f1e7",
+      "accepted": true,
+      "source": {
+        "paper": "https://arxiv.org/abs/2012.05942",
+        "code": "https://github.com/CW-Huang/CP-Flow/blob/d01303cb4ebeb5a0bbfca638ffaf5b7a8ec22fb1/lib/flows/cpflows.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "conditional_rational_quadratic_spline_coupling",
+          "contractive_deep_equilibrium_evidence",
+          "equilibrium_aggregation"
+        ],
+        "substantive_difference": "Spline updates alternating coordinate halves with monotone scalar splines; DEQ solves a fixed-point state. CP-Flow directly differentiates a global convex scalar potential to produce a coupled vector map. Its defining condition is Hessian positivity, not a contractive residual or numerical convergence to equilibrium.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/CW-Huang/CP-Flow/blob/d01303cb4ebeb5a0bbfca638ffaf5b7a8ec22fb1/lib/flows/cpflows.py"
+      }
+    },
+    {
+      "id": "n3_recursive_neighbor_volumes",
+      "title": "Neural Nearest Neighbors Networks",
+      "authors": [
+        "Tobias Plötz",
+        "Stefan Roth"
+      ],
+      "url": "https://proceedings.neurips.cc/paper/7386-neural-nearest-neighbors-networks.pdf",
+      "code_url": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py",
+      "design_file": "docs/osram_new40_retrieval_cards.json",
+      "design_sha256": "e6883012fb1d51ef4537d5c3bf6552b10636236bbf2535f48a98def281e95a5c",
+      "accepted": true,
+      "source": {
+        "paper": "https://proceedings.neurips.cc/paper/7386-neural-nearest-neighbors-networks.pdf",
+        "code": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "dgcnn_dynamic_edgeconv",
+          "nonlocal",
+          "otke"
+        ],
+        "substantive_difference": "Recursive relaxed selection without replacement and separate ordered neighbor volumes, rather than hard kNN EdgeConv, a single weighted average, or transport to a reference bank.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py"
+      }
+    },
+    {
+      "id": "pointcnn_x_transformed_evidence",
+      "title": "PointCNN: Convolution On X-Transformed Points",
+      "authors": [
+        "Yangyan Li",
+        "Rui Bu",
+        "Mingchao Sun",
+        "Wei Wu",
+        "Xinhan Di",
+        "Baoquan Chen"
+      ],
+      "url": "https://papers.neurips.cc/paper/7362-pointcnn-convolution-on-x-transformed-points.pdf",
+      "code_url": "https://github.com/yangyanli/PointCNN/blob/master/pointcnn.py",
+      "design_file": "docs/osram_new40_retrieval_cards.json",
+      "design_sha256": "8d670425b527ad8f560810ffc6fc4ed751cda3d7d41f3713f63aee245c78ae46",
+      "accepted": true,
+      "source": {
+        "paper": "https://papers.neurips.cc/paper/7362-pointcnn-convolution-on-x-transformed-points.pdf",
+        "code": "https://github.com/yangyanli/PointCNN/blob/master/pointcnn.py"
+      },
+      "novelty_audit": {
+        "closest_prior_ids": [
+          "dgcnn_dynamic_edgeconv",
+          "conditional_rational_quadratic_spline_coupling"
+        ],
+        "substantive_difference": "Dense neighborhood canonicalization followed by separable contraction, not EdgeConv max pooling or invertible coupling. Learned chart is an explicit adaptation, not source 3D geometry.",
+        "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+        "source_code_evidence": "https://github.com/yangyanli/PointCNN/blob/master/pointcnn.py"
+      }
+    }
+  ]
+}
