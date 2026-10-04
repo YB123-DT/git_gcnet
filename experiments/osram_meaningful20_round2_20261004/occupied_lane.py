@@ -41,7 +41,7 @@ def allocated_memory():
 
 def group_admission(gpu, profile, active, allocations, *, max_per_gpu, disk_free_gib):
     """Free memory already excludes live allocations; reserve only their missing peak."""
-    if max_per_gpu not in (1,4): return False,'Only explicit per-GPU caps 1 or 4 are supported'
+    if max_per_gpu not in (1,2,4): return False,'Only explicit per-GPU caps 1, 2 or 4 are supported'
     same_gpu = [job for job in active if job.get('gpu_uuid')==gpu['uuid']]
     if len(same_gpu) >= max_per_gpu: return False,f'Per-GPU concurrency cap {max_per_gpu}'
     admitted,reason = busy_admission(gpu,profile,disk_free_gib=disk_free_gib)
@@ -110,13 +110,13 @@ def parser():
         result.add_argument('--'+key,type=Path,required=True)
     for key in ('candidate','gpu','gpu-uuid','cpu-command'):
         result.add_argument('--'+key,required=True)
-    result.add_argument('--max-per-gpu',type=int,choices=(1,4),default=1,
-                        help='Opt in to four real jobs on this GPU; default remains one')
+    result.add_argument('--max-per-gpu',type=int,choices=(1,2,4),default=1,
+                        help='Explicit real-job cap on this GPU; default remains one')
     return result
 
 
 def launch(args):
-    if args.max_per_gpu not in (1,4): raise ValueError('Per-GPU cap must be 1 or 4')
+    if args.max_per_gpu not in (1,2,4): raise ValueError('Per-GPU cap must be 1, 2 or 4')
     for key in ('root','snapshot','manifest','reference_root','baseline_audit','data_manifest','cpu_log'):
         setattr(args,key,getattr(args,key).resolve())
     m,p,q,run,round_queue,round_manifest = immutable_modules(args.snapshot)

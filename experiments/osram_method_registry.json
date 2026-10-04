@@ -1,6 +1,13 @@
 {
   "purpose": "Cross-round semantic deduplication ledger; different names do not establish different methods",
-  "code_catalogs": [{"path": "osram_new40_20261004/CATALOG.json", "count": 40, "status": "implemented_not_trained", "note": "Not forty additional training slots. Select/reserve at most twenty after the existing forty; same hypotheses allowed, duplicate core algorithms forbidden."}],
+  "code_catalogs": [
+    {
+      "path": "osram_new40_20261004/CATALOG.json",
+      "count": 40,
+      "status": "implemented_not_trained",
+      "note": "Not forty additional training slots. Select/reserve at most twenty after the existing forty; same hypotheses allowed, duplicate core algorithms forbidden."
+    }
+  ],
   "max_distinct_trained_methods": 60,
   "trained_count": 20,
   "round1_source_manifest": "osram_meaningful20_20261003/ROUND1.json",
@@ -684,6 +691,241 @@
         }
       ],
       "remaining_new_designs_required": 0
+    },
+    "3": {
+      "status": "reserved_not_trained",
+      "source_directory": "osram_new40_20261004",
+      "methods": [
+        {
+          "id": "optimization_dpp_subset_readout",
+          "title": "Determinantal Point Processes for Machine Learning",
+          "authors": [
+            "Alex Kulesza",
+            "Ben Taskar"
+          ],
+          "url": "https://arxiv.org/abs/1207.6083",
+          "code_url": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py",
+          "design_file": "docs/osram_new40_nine_designs.json",
+          "design_sha256": "114d2e02cbb4b1ee4c92d972d53240e90d9b64bcca7b955f6a0042fbd24a4919",
+          "accepted": true,
+          "source": {
+            "paper": "https://arxiv.org/abs/1207.6083",
+            "code": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py"
+          },
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "tome_merge_reconstruct",
+              "slot_attention",
+              "otke"
+            ],
+            "substantive_difference": "ToMe是贪婪二部相似合并，slots是竞争聚类，OTKE是质量守恒匹配；DPP直接建模整组子集的行列式概率。与本lane的facility-location同属选集，但体积排斥不等于覆盖收益的递减。已核对撤回的experiments/osram_readout20_20261003/CANDIDATES.zh.md：DLRM/pair-dot和BAN双线性attention都没有对有限子集行列式归一化；本项不能退化为它们。",
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/guilgautier/DPPy/blob/master/dppy/finite_dpps.py"
+          }
+        },
+        {
+          "id": "matrix_tree_nonprojective_evidence",
+          "title": "Learning Structured Text Representations",
+          "authors": [
+            "Yang Liu",
+            "Mirella Lapata"
+          ],
+          "url": "https://aclanthology.org/Q18-1005/",
+          "code_url": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53",
+          "design_file": "docs/osram_new40_structure_cards.json",
+          "design_sha256": "b5d2b5d89bbeb2754d0ae9f3b54485560dfacdedb1f5aa060fcb7d65d7336010",
+          "accepted": true,
+          "source": {
+            "paper": "https://aclanthology.org/Q18-1005/",
+            "code": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53"
+          },
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "egt_evidence",
+              "dual_attention_symbolic_relations",
+              "ppgn_pair_composition"
+            ],
+            "substantive_difference": "All edge weights are marginals of one globally normalized acyclic single-root tree distribution. EGT/dual attention have independently normalized edges or learned edge states, and PPGN composes pair tensors without a tree partition function. Not merely a softmax replacement: scoring, root partition, constrained marginals and bidirectional content u",
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/nlpyang/structured/blob/015e9d496dda5d74dbca81118f20b9f4be5b53c9/neural.py#L53"
+          }
+        },
+        {
+          "id": "sparsemap_role_partition",
+          "title": "SparseMAP: Differentiable Sparse Structured Inference",
+          "authors": [
+            "Vlad Niculae",
+            "André F. T. Martins",
+            "Mathieu Blondel",
+            "Claire Cardie"
+          ],
+          "url": "https://proceedings.mlr.press/v80/niculae18a.html",
+          "code_url": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10",
+          "design_file": "docs/osram_new40_structure_cards.json",
+          "design_sha256": "9b431cff964e6276f152948fae99c45cb1676068da050c947f773155e7efe021",
+          "accepted": true,
+          "source": {
+            "paper": "https://proceedings.mlr.press/v80/niculae18a.html",
+            "code": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10"
+          },
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "otke",
+              "slot_attention",
+              "equilibrium_aggregation",
+              "contractive_deep_equilibrium_evidence"
+            ],
+            "substantive_difference": "The equivalence-relation marginal polytope globally couples three-way transitivity and variable group count. OTKE matches to fixed supports, Slot uses soft per-slot responsibilities, EA optimizes an unconstrained summary, and DEQ solves a learned fixed point. This is a new structure space plus constrained graph computation, not changing one existin",
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/vene/sparsemap/blob/98128d5065dcdc5325fe741ccb6ce9dd27da31b7/python/sparsemap/layers_pt/base.py#L10"
+          }
+        },
+        {
+          "id": "conditional_new_01_full_dynamic_hypernetwork",
+          "title": "HyperNetworks",
+          "authors": [
+            "David Ha",
+            "Andrew Dai",
+            "Quoc V. Le"
+          ],
+          "url": "https://arxiv.org/abs/1609.09106",
+          "code_url": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb",
+          "design_file": "docs/osram_new40_conditional_cards.json",
+          "design_sha256": "d0791961bb01674593ee6f4666935e45d2446b0dca4fde09d0800b40028bd251",
+          "accepted": true,
+          "source": {
+            "paper": "https://arxiv.org/abs/1609.09106",
+            "code": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb"
+          },
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "dcformer_dynamic_head_composition",
+              "conditional_rational_quadratic_spline_coupling",
+              "withdrawn_film"
+            ],
+            "substantive_difference": "生成整张主变换矩阵并在非线性两阶段链中执行。DCFormer生成head组合系数，Spline生成一元变换参数，FiLM是对角仿射；这里的每样本跨通道算子不受固定矩阵行缩放约束。与DFN迁为全连接后合并，不另计DFN。",
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/hardmaru/supercell/blob/master/assets/MNIST_Static_HyperNetwork_Example.ipynb"
+          }
+        },
+        {
+          "id": "conditional_new_07_neural_production",
+          "title": "Neural Production Systems: Learning Rule-Governed Visual Dynamics",
+          "authors": [
+            "Anirudh Goyal",
+            "Aniket Didolkar",
+            "Nan Rosemary Ke",
+            "Charles Blundell",
+            "Philippe Beaudoin",
+            "Nicolas Heess",
+            "Michael Mozer",
+            "Yoshua Bengio"
+          ],
+          "url": "https://arxiv.org/abs/2103.01937",
+          "code_url": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py",
+          "design_file": "docs/osram_new40_conditional_cards.json",
+          "design_sha256": "d709c34fdf63f45d1e540070ba8dd287dad766c543c216def7bd900d4d32ea33",
+          "accepted": true,
+          "source": {
+            "paper": "https://arxiv.org/abs/2103.01937",
+            "code": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py"
+          },
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "neural_logic_machine_evidence",
+              "rrn_evidence",
+              "mac_control_read_write"
+            ],
+            "substantive_difference": "NLM是arity/量词链，RRN同一消息函数并行全图，MAC全局control/read/write；NPS将规则身份与实体身份分开，经离散双阶段binding只修改指定变量，是路由执行链而非简单gate。",
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/anirudh9119/neural_production_systems/blob/master/synthetic/RuleNetwork.py"
+          }
+        },
+        {
+          "id": "repr_dst_corrected_evidence_combination",
+          "title": "An evidential classifier based on Dempster-Shafer theory and deep learning",
+          "authors": [
+            "Zheng Tong",
+            "Philippe Xu",
+            "Thierry Denoeux"
+          ],
+          "url": "https://doi.org/10.1016/j.neucom.2021.03.066",
+          "code_url": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py",
+          "design_file": "docs/osram_new40_representation_cards.json",
+          "design_sha256": "c5252d2ede8c7c02d413abf14b4da24e07b16e512ee96681f402b61ddebe62bf",
+          "accepted": true,
+          "source": {
+            "paper": "https://doi.org/10.1016/j.neucom.2021.03.066",
+            "code": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py"
+          },
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "netvlad_residual_encoding",
+              "capsule_variational_bayes",
+              "rat_spn_evidence_circuit"
+            ],
+            "substantive_difference": "NetVLAD sums center residuals; VB capsules infer Gaussian assignments; RAT-SPN marginalizes a decomposable density. DST explicitly represents set-valued ignorance and incompatible mass through conjunctive fusion. Prototype distances alone do not qualify; all combination stages must remain.",
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/tongzheng1992/E-CNN-classifier/blob/8272ae54c42a1bdde278661f7ed4e7f8c23d269c/libs/ds_layer.py"
+          }
+        },
+        {
+          "id": "repr_lista_cpss_sparse_pursuit",
+          "title": "Theoretical Linear Convergence of Unfolded ISTA and Its Practical Weights and Thresholds",
+          "authors": [
+            "Xiaohan Chen",
+            "Jialin Liu",
+            "Zhangyang Wang",
+            "Wotao Yin"
+          ],
+          "url": "https://arxiv.org/abs/1808.10038",
+          "code_url": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py",
+          "design_file": "docs/osram_new40_representation_cards.json",
+          "design_sha256": "85a151f99589961ac3e939bb25f00a9b8270f7c3a3eb661933ab11e489ffd82e",
+          "accepted": true,
+          "source": {
+            "paper": "https://arxiv.org/abs/1808.10038",
+            "code": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py"
+          },
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "crate_mssa_ista_full",
+              "hamburger_nmf_full",
+              "learned_robust_pca_evidence_decomposition"
+            ],
+            "substantive_difference": "Closest is CRATE, not merely RPCA. CRATE alternates subspace attention with a one-step nonnegative dictionary sparsification of current tokens. CPSS repeatedly pursues one original y, tracks explicit coding residual and exempts a growing estimated support from signed shrinkage. Hamburger factorizes a per-sample nonnegative matrix; RPCA separates lo",
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/VITA-Group/LISTA-CPSS/blob/1598fbc1d889ab27c088ef82f071b1217902c49e/models/LISTA_cpss.py"
+          }
+        },
+        {
+          "id": "n3_recursive_neighbor_volumes",
+          "title": "Neural Nearest Neighbors Networks",
+          "authors": [
+            "Tobias Plötz",
+            "Stefan Roth"
+          ],
+          "url": "https://proceedings.neurips.cc/paper/7386-neural-nearest-neighbors-networks.pdf",
+          "code_url": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py",
+          "design_file": "docs/osram_new40_retrieval_cards.json",
+          "design_sha256": "e6883012fb1d51ef4537d5c3bf6552b10636236bbf2535f48a98def281e95a5c",
+          "accepted": true,
+          "source": {
+            "paper": "https://proceedings.neurips.cc/paper/7386-neural-nearest-neighbors-networks.pdf",
+            "code": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py"
+          },
+          "novelty_audit": {
+            "closest_prior_ids": [
+              "dgcnn_dynamic_edgeconv",
+              "nonlocal",
+              "otke"
+            ],
+            "substantive_difference": "Recursive relaxed selection without replacement and separate ordered neighbor volumes, rather than hard kNN EdgeConv, a single weighted average, or transport to a reference bank.",
+            "same_round_overlap": "Shared families allowed; distinct complete cores required.",
+            "source_code_evidence": "https://github.com/visinf/n3net/blob/master/src_denoising/models/non_local.py"
+          }
+        }
+      ]
     }
   }
 }

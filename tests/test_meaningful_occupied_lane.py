@@ -3,6 +3,19 @@ import unittest
 
 
 class OccupiedLaneTests(unittest.TestCase):
+    def test_two_per_gpu_admits_second_but_rejects_third(self):
+        from experiments.osram_meaningful20_round2_20261004 import occupied_lane as lane
+        gpu = dict(uuid='GPU-zero', free_mib=7900, utilization=100, temperature=60)
+        profile = dict(peak_mib=2000, artifact_gib=10)
+        jobs = [dict(pid=10, gpu_uuid='GPU-zero', profile=profile)]
+        allocations = {('GPU-zero', 10): 2000}
+        self.assertTrue(lane.group_admission(gpu, profile, jobs, allocations,
+                        max_per_gpu=2, disk_free_gib=100)[0])
+        self.assertFalse(lane.group_admission(gpu, profile, jobs + [dict(jobs[0], pid=11)],
+                         allocations, max_per_gpu=2, disk_free_gib=100)[0])
+        self.assertFalse(lane.group_admission(dict(gpu, free_mib=3000), profile, jobs,
+                         allocations, max_per_gpu=2, disk_free_gib=100)[0])
+
     def test_busy_override_preserves_all_other_resource_checks(self):
         name = 'experiments.osram_meaningful20_round2_20261004.occupied_lane'
         self.assertIsNotNone(importlib.util.find_spec(name))
