@@ -2,7 +2,9 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: implemented; seed66 authorized, GPU6 queue admission pending deployment.
+Status: deployed and QUEUED on biggpu GPU6; training has not started.
+Queue process PID 70857, tmux osram_gap_only_gate_20261005.
+Queued UTC 2026-10-05T03:51:29.421357+00:00; code commit 1ee8ef0.
 
 One-stage from-scratch MOSI, 100 epochs, unchanged cfg84 causal no-JEPA Flat,
 cyclic random missing 0.0–0.7, original per-rate BEST Test-oracle protocol.
@@ -29,3 +31,21 @@ Local default Python has no torch; no dependencies were installed.
 GPU6 only; wait for existing core20 exclusive queue to drain. Do not interrupt it.
 Remote run will save effective config, code/source hashes, reference hashes,
 status, predictions and eight BEST checkpoints. No scores claimed before completion.
+
+Remote root: /data2/yb/remote_experiments/osram_gap_only_evidence_gate_20261005.
+Immutable committed snapshot: code/; live status: runs/STATUS.json; log: train.log.
+Persistent runner waits for core20 DISPATCH.json to have no running/pending tasks,
+then checks GPU6 UUID and at least 4000MiB free before training automatically.
+
+Command within the remote code snapshot (existing s0 Python):
+
+```bash
+CUDA_VISIBLE_DEVICES=GPU-e4cafb17-818e-216a-b94a-7440063a9153 \
+OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2 \
+GCNET_DATASET_ROOT=/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset \
+/data2/yb/reproduction_workspace/envs/s0/bin/python -u \
+experiments/osram_gap_only_evidence_gate_20261005/run.py \
+--code-commit 1ee8ef0 \
+--output-root /data2/yb/remote_experiments/osram_gap_only_evidence_gate_20261005/runs \
+--wait-core20 /data2/yb/remote_experiments/osram_core20_20261005/runs/DISPATCH.json
+```
