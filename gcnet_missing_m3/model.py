@@ -1955,7 +1955,10 @@ class MissingM3GraphModel(GraphModel):
         if self.osram_decision_correction and predict_missing:
             raise ValueError('decision correction does not support auxiliary prediction')
         features = self._feature_tensor(inputfeats)
-        encoded, latents = self.observed_set(features, availability, umask)
+        if hasattr(self, 'ced_block'):
+            encoded, latents = self.ced_block(self.observed_set, features, availability, umask)
+        else:
+            encoded, latents = self.observed_set(features, availability, umask)
         if hasattr(self, 'core20'):
             encoded, latents = self.core20.prepare(self, encoded, latents, availability, umask, features)
         if self.node_interaction_residual:
@@ -2121,6 +2124,9 @@ class MissingM3GraphModel(GraphModel):
         returned_predictions = internal_predictions if predict_missing else None
         if hasattr(self, 'core20'):
             logits = self.core20.predict(readout_hidden, logits, umask, model=self)
+        if hasattr(self, 'ced_block'):
+            self.osram.last_diagnostics['coalition_evidence_decomposition'] = copy.deepcopy(
+                self.ced_block.last_diagnostics)
         return logits, classification_hidden, latents, returned_predictions
 
     @torch.no_grad()

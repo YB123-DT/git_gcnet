@@ -173,10 +173,28 @@ class TrainConfig:
     simple_regression_predictor: bool = False
     core20_method: str = 'none'
     core20_aux_weight: float = 1.0
+    osram_ced_block: bool = False
 
     def __post_init__(self) -> None:
         from .core20 import validate_config
         validate_config(self)
+        if self.osram_ced_block:
+            incompatible = ('paired_history_views', 'osram_relation_block', 'osram_relation_dual_readout',
+                'osram_decision_correction', 'osram_gap_increment_filter', 'osram_post_grn',
+                'osram_history_query_adapter', 'classification_completion', 'osram_local_skip_gate',
+                'osram_memory_only_adapter', 'osram_history_input_gate', 'osram_local_evidence_gate',
+                'osram_hierarchical_evidence_gate', 'completion_write_to_memory',
+                'local_context_residual', 'node_interaction_residual', 'text_core')
+            if (self.core20_method != 'none' or any(getattr(self, k) for k in incompatible)
+                    or self.backbone_type != 'osram' or self.fusion_type != 'mean'
+                    or self.representation_type != 'slot' or self.osram_bidirectional
+                    or self.osram_forward_slot_reuse or self.osram_readout_fusion != 'flat'
+                    or self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none'
+                    or self.training_objective != 'emotion-only' or self.completion_path != 'none'
+                    or self.train_rate_mode != 'cyclic' or self.readout_type != 'shared'
+                    or self.osram_ablation != 'full' or self.osram_emotion_ablation != 'full'
+                    or not self.disable_unused_aux_modules or self.emotion_loss_mode != 'sample-mean'):
+                raise ValueError('CED requires independent causal mean-encoder cfg84 no-JEPA Flat training')
         if self.osram_meaningful_block != 'none':
             from .meaningful_blocks import MEANINGFUL_METHODS
             if self.osram_meaningful_block not in MEANINGFUL_METHODS:
@@ -2614,6 +2632,7 @@ def train_epoch(
             critic_loss = post_optimizer_step(model, view)
             if critic_loss is not None:
                 core20_critic_losses.append(critic_loss)
+        if config.core20_method != 'none' or config.osram_ced_block:
             resource_path = getattr(model, 'core20_resource_path', None)
             if resource_path is not None and device.type == 'cuda':
                 _write_json(resource_path, {'epoch': epoch + 1, 'batch': batch_index + 1,
@@ -2674,6 +2693,8 @@ def train_epoch(
         }} if config.paired_history_views else {}),
         "loss": float(np.mean(losses)),
         "classification_loss": float(np.mean(cls_losses)),
+        **({'coalition_evidence_decomposition': copy.deepcopy(model.ced_block.last_diagnostics)}
+           if config.osram_ced_block else {}),
         **({'core20': {'method': config.core20_method,
                       'auxiliary_loss': float(np.mean(core20_auxiliary_losses)),
                       'auxiliary_weight': config.core20_aux_weight,
@@ -3286,7 +3307,7 @@ def run_experiment(
     ).to(device)
     from .core20 import attach
     attach(model, config_value)
-    if config_value.core20_method != 'none':
+    if config_value.core20_method != 'none' or config_value.osram_ced_block:
         model.core20_resource_path = output / 'RESOURCE.json'
     text_subspace_hash_before = (
         model.text_subspace_integrity()
@@ -3835,6 +3856,7 @@ def run_experiment(
         "osram_decision_correction": config_value.osram_decision_correction,
         "osram_readout_candidate": config_value.osram_readout_candidate,
         "osram_meaningful_block": config_value.osram_meaningful_block,
+        "osram_ced_block": config_value.osram_ced_block,
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
         **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
@@ -4027,6 +4049,7 @@ def build_parser() -> argparse.ArgumentParser:
     from .core20 import METHODS, CONTROLS, TRANSFER_METHODS
     parser.add_argument('--core20-method', choices=('none',) + METHODS + CONTROLS + TRANSFER_METHODS, default='none')
     parser.add_argument('--core20-aux-weight', type=float, default=1.0)
+    parser.add_argument('--osram-ced-block', action='store_true', default=False)
     parser.add_argument(
         "--postgraph-sequence-mode",
         choices=("independent", "shared-bilstm"),
@@ -4279,6 +4302,7 @@ def main(argv=None) -> None:
         emotion_loss_mode=args.emotion_loss_mode,
         core20_method=args.core20_method,
         core20_aux_weight=args.core20_aux_weight,
+        osram_ced_block=args.osram_ced_block,
         group_dro_eta=args.group_dro_eta,
         graph_message_calibration=args.graph_message_calibration,
         graph_second_layer=args.graph_second_layer,

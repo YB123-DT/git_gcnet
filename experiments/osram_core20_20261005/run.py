@@ -18,6 +18,7 @@ from experiments.osram_meaningful20_20261003.run import EXPECTED, FORBIDDEN
 from gcnet_missing_m3.core20 import METHODS, CONTROLS, TRANSFER_METHODS
 
 LABEL = 'INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle screening; NOT A FORMAL PAPER RESULT'
+EXTRA_EXPERIMENTS = ('CED',)
 # Fixed BEFORE training. These are transfer coefficients, not published optimal
 # recipes. Raw-feature generative ELBO sums 2560 coordinates (C11); .001 keeps
 # its explicit likelihood objective from being silently averaged into a new loss.
@@ -47,7 +48,7 @@ def now():
 
 def candidate_config(reference, method, *, seed=66):
     from gcnet_missing_m3.train_gcnet import TrainConfig
-    if method not in METHODS + CONTROLS + TRANSFER_METHODS:
+    if method not in METHODS + CONTROLS + TRANSFER_METHODS + EXTRA_EXPERIMENTS:
         raise ValueError('unsupported method')
     for key, value in EXPECTED.items():
         if reference.get(key) != value:
@@ -65,6 +66,8 @@ def candidate_config(reference, method, *, seed=66):
     baseline = asdict(TrainConfig(**reference))
     delta = dict(core20_method=method, core20_aux_weight=AUX_WEIGHTS.get(method, 1.),
                  **CHANGED.get(method, {}))
+    if method == 'CED':
+        delta = {'osram_ced_block': True}
     config = TrainConfig(**dict(baseline, **delta))
     return config, {key: {'baseline': baseline[key], 'candidate': value}
                     for key, value in asdict(config).items() if baseline[key] != value}
@@ -78,15 +81,18 @@ def verify_snapshot(root):
     return snapshot
 
 
-def main():
+def main(fixed_method=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--method', choices=METHODS + CONTROLS + TRANSFER_METHODS, required=True)
+    parser.add_argument('--method', choices=METHODS + CONTROLS + TRANSFER_METHODS + EXTRA_EXPERIMENTS,
+                        required=fixed_method is None, default=fixed_method)
     parser.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     parser.add_argument('--reference', type=Path, required=True)
     parser.add_argument('--data-manifest', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--gpu-uuid', required=True)
     args = parser.parse_args()
+    if fixed_method is not None and args.method != fixed_method:
+        parser.error('this entry point is fixed to ' + fixed_method)
     source = Path(__file__).resolve().parents[2]
     if os.environ.get('CUDA_VISIBLE_DEVICES') != args.gpu_uuid:
         raise ValueError('must bind the exact healthy host GPU UUID')

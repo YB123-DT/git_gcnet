@@ -208,6 +208,12 @@ class Core20(nn.Module):
 
 
 def attach(model, config):
+    if getattr(config, 'osram_ced_block', False):
+        from .coalition_mobius import CoalitionMobiusBlock
+        with torch.random.fork_rng(devices=[]):
+            model.ced_block = CoalitionMobiusBlock(config.latent_dim)
+        model.ced_block.to(next(model.parameters()).device)
+        return
     if config.core20_method == 'none':
         return
     validate_config(config)
