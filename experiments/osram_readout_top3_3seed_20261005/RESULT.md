@@ -27,4 +27,16 @@ predictions, masks, configuration, snapshot hashes and full last_training.pt.
 SUMMARY.json is generated automatically once all six children finish, with
 failed/missing runs explicitly retained and no substitution or automatic retry.
 
-Status: prepared, launch verification pending. Multiseed results pending.
+Status: all six runs started on GPU6, original seed66 retained. Dispatcher PID
+1984684, tmux `osram_readout_top3_3seed_20261005`. Launcher commit d14781b;
+original model commits remain unchanged. Launch PID/status copy in LAUNCH.json.
+
+| Method | Seed67 PID | Seed68 PID |
+|---|---:|---:|
+| XCiT-XCA |1985897|2043931|
+| Nested GNN |2072790|2100965|
+| Neural Production |2130521|2144888|
+
+GPU6 had 17,765 MiB free after all six admissions. XCA67/68 completed8/6 epochs,
+Nested67/68 completed3/2, Production67 completed1 at launch inspection;
+Production68 was initializing. No traceback found. Multiseed results pending.
