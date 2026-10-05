@@ -1,12 +1,37 @@
 # Coalition Evidence Decomposition (CED)
 
-INTERNAL DIAGNOSTIC ONLY — running seed66 per-rate BEST Test-oracle screening.
+INTERNAL DIAGNOSTIC ONLY — completed seed66 per-rate BEST Test-oracle screening.
 No performance improvement claim before completion.
+
+## Completed result
+
+Finished 2026-10-05 10:08:53 UTC; exit0, outputs_verified=true, history100.
+All eight BEST checkpoints and prediction files retained. Same-seed baseline
+and CED evaluation mask hashes match at every rate. No new inference or training
+was run to obtain this comparison.
+
+| Missing rate | Flat seed66 W-F1 (%) | CED W-F1 (%) | Delta (pp) |
+|---|---:|---:|---:|
+| .0 | 88.205 | 86.698 | -1.507 |
+| .1 | 86.507 | 85.088 | -1.419 |
+| .2 | 83.187 | 82.667 | -0.520 |
+| .3 | 80.763 | 80.890 | +0.128 |
+| .4 | 80.827 | 80.123 | -0.704 |
+| .5 | 77.494 | 75.823 | -1.671 |
+| .6 | 75.790 | 73.774 | -2.015 |
+| .7 | 75.773 | 73.939 | -1.834 |
+| 8-rate mean | 81.068 | 79.875 | -1.193 |
+| High (.5/.6/.7) | 76.352 | 74.512 | -1.840 |
+
+Seven of eight rates declined. This direct three-slot current-node replacement
+does not improve this seed66 screen; the larger high-missing decrease is an
+observed result, not proof of a specific failure mechanism. No automatic
+multi-seed expansion, threshold search or further diagnostic inference.
 
 Started 2026-10-05 09:37 UTC from immutable code f6e6de3 on biggpu GPU6.
 PID 2808863, tmux `osram_ced_seed66_20261005`. Real optimizer step verified
 (epoch1/batch1/steps1), peak allocated 1163.58 MiB, reserved1284 MiB.
-Per-rate scores remain pending. Launch metadata is in LAUNCH.json.
+Historical launch metadata is in LAUNCH.json; completed scores are above.
 
 ## Verified implementation
 
@@ -17,7 +42,7 @@ quality reviews passed. No separate GPU smoke or new dependency.
 
 Measured actual cfg84 parameters: baseline 13,509,793; CED 13,907,879;
 added 398,086. Diagnostics stored in epoch history describe the last training
-batch, not an epoch-wide aggregate. Performance results remain pending.
+batch, not an epoch-wide aggregate.
 
 ## User-defined mechanism
 
