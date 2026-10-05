@@ -25,7 +25,7 @@ def main():
     source = Path(__file__).resolve().parents[2]
     if args.seal_commit:
         snapshot = json.loads((source / 'SNAPSHOT.json').read_text())
-        snapshot['original_model_commit'] = snapshot['code_commit']
+        snapshot.setdefault('original_model_commit', snapshot['code_commit'])
         snapshot['code_commit'] = args.seal_commit
         for name in ('experiments/osram_core20_20261005/run.py', 'experiments/osram_core20_20261005/multiseed.py'):
             snapshot['source_sha256'][name] = sha(source / name)
@@ -55,13 +55,13 @@ def main():
         original_reserve = 0
         for r in original_active:
             resource = args.original_runs / r['method'] / 'RESOURCE.json'
-            original_resource = args.original_runs / row['method'] / 'RESOURCE.json'
-            peak = json.loads(resource.read_text())['peak_reserved_mib'] if resource.exists() else json.loads(original_resource.read_text())['peak_reserved_mib']
+            peak = json.loads(resource.read_text())['peak_reserved_mib'] if resource.exists() else 2000
             original_reserve += int(peak * 1.2 + 512)
         own_reserve = 0
         for _, (_, _, row) in jobs.items():
             resource = args.root / row['method'] / f"seed_{row['seed']}" / 'RESOURCE.json'
-            peak = json.loads(resource.read_text())['peak_reserved_mib'] if resource.exists() else 2000
+            original_resource = args.original_runs / row['method'] / 'RESOURCE.json'
+            peak = json.loads(resource.read_text())['peak_reserved_mib'] if resource.exists() else json.loads(original_resource.read_text())['peak_reserved_mib']
             own_reserve += max(3000, int(peak * 1.2 + 512))
         if not any(row['method'] == 'C08' for _, _, row in jobs.values()):
             for row in rows:
