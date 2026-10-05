@@ -75,7 +75,24 @@ last-layer151,043; dim32=65,667; dim128=432,387; depth1=134,145;
 depth2=146,690; groups1=158,339; groups4=158,723. Parameter count alone is
 not compute cost; final metrics also retain full-model count.
 
-Status: implementation/verification complete; launching next, no new score claimed.
+Status: six training processes started from sealed code0b9b36b; four pending,
+automatically admitted when sweep slots free. Dispatcher PID3935712 in tmux
+osram_nested_sweep_20261005. No completed new score claimed.
+
+| Host GPU | Method | PID |
+|---|---|---:|
+|0|nested_ab_plain_gin|3944064|
+|0|nested_ab_no_markers|3969985|
+|1|nested_ab_no_head_edges|4011457|
+|1|nested_ab_last_layer|4085244|
+|6|nested_dim32|4135716|
+|6|nested_dim128|4186549|
+
+Pending:depth1/depth2/groups1/groups4. LAUNCH.json is the actual dispatcher
+state copied at launch, not live status; remote DISPATCH.json is authoritative.
+Early plain/no-markers logs show actual optimizer epochs with jepa=0. Other
+jobs are loading or training, not additional smoke tests. Do not interpret early
+epoch scores as selected final results.
 Dispatcher publishes DISPATCH.json plus SUMMARY.json after each admission,
 including status for all ten configurations, completed per-rate W-F1,
 mean8/high, parameters and peak allocated memory. Launch evidence will be
