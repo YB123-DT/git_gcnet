@@ -25,7 +25,29 @@ headroom (3GiB initial reservation). C08 runs singly after the original batch
 queue and the confirmation light runs drain, with 18GiB admission reservation.
 No original process is stopped; failed jobs are recorded, not blindly relaunched.
 
-Status: implementation complete; deployment pending. Final analysis should show
+Status: deployed; persistent GPU6 dispatcher running, PID3701922.
+First admitted job C20 seed67 PID3708408 at 2026-10-05T04:50:40.039271+00:00.
+Other jobs automatically fill measured capacity; C08 remains heavy/exclusive.
+Source wrapper commit e69f2c1; original model commit00522bd. Snapshot seal verified
+all source hashes, with only the two orchestration scripts differing.
+Remote root /data2/yb/remote_experiments/osram_core20_top3_3seed_20261005;
+tmux osram_core20_top3_3seed_20261005; live runs/DISPATCH.json and dispatcher.log.
+Each run is under runs/{method}/seed_{seed}/ with train.log and PROVENANCE.json.
+
+Launch within the immutable code snapshot:
+
+```bash
+GCNET_DATASET_ROOT=/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset \
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
+/data2/yb/reproduction_workspace/envs/s0/bin/python -u \
+-m experiments.osram_core20_20261005.multiseed \
+--root /data2/yb/remote_experiments/osram_core20_top3_3seed_20261005/runs \
+--reference-root /data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full \
+--data-manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json \
+--original-runs /data2/yb/remote_experiments/osram_core20_20261005/runs
+```
+
+Final analysis should show
 all three seed-matched deltas vs Flat, mean/sample SD, eight per-rate means and
 high-missing means. Do not replace missing runs with best single-seed scores.
 No significance or formal validation-selected performance claim.
