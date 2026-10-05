@@ -70,4 +70,9 @@ After all three finish, SUMMARY.json includes per-rate/per-seed scores and
 matched old Nested/Flat, sample SD, mean8/high. Failed/missing runs are retained
 without blind retry or silently averaging only successful seeds.
 
-Status: implementation verified; launch pending. No performance result yet.
+Status: all three started on biggpu GPU6 from sealed code227dfe2;
+dispatcher PID2658634, tmux osram_nested_rootaware_20261005.
+seed66 PID2663369 completed2 epochs; seed67 PID2684453 completed1 epoch;
+seed68 PID2747902 loaded data at launch inspection. No traceback found.
+LAUNCH.json records actual commands, source, GPU UUID and PIDs. No final
+performance result yet; launch/early epochs are not evidence of improvement.
