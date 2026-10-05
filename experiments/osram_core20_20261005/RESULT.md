@@ -5,6 +5,14 @@ INTERNAL DIAGNOSTIC ONLY
 Implementation status: 20 mechanisms and two necessary controls implemented.
 Performance status: NOT YET AVAILABLE. A passing correctness test is not a gain.
 
+2026-10-05 launch: source00522bd deployed to biggpu; GPU6 only.
+Eleven actual training processes confirmed by optimizer-step RESOURCE.json:
+C01/C02/C03/C04/C05/C07/C10/C11/C12/C13/C14. Remaining9 methods and2 controls
+queued; max11 concurrent, high-resource methods admitted separately. No extra
+GPU smoke. Launch evidence/commands/PIDs in LAUNCH.json. This records startup,
+not completed100-epoch runs. Live dispatcher/logs/checkpoints:
+/data2/yb/remote_experiments/osram_core20_20261005/.
+
 Starting implementation commit: 073984d; actual branch:
 feature/osram-uniform-forced-text. Historical Flat training commit is not known
 from its original provenance; do not claim 073984d trained the reference.
