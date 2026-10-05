@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 from .meaningful_blocks_common import HeadTokenizer, active_groups, safe_mask
-from .meaningful_new40_registry import NEW40_FAMILIES, NEW40_VARIANTS
+from .meaningful_new40_registry import NEW40_FAMILIES, NEW40_VARIANTS, NESTED_SWEEP
 
 
 def zero_linear(in_features, out_features):
@@ -44,6 +44,9 @@ class TokenAdapter(nn.Module):
 
 
 def build_new40(method, latent_dim=256, num_heads=8, value_dim=64):
+    if method in NESTED_SWEEP:
+        module = importlib.import_module('.nested_sweep', __package__)
+        return module.build(method, latent_dim, num_heads, value_dim)
     if method in NEW40_VARIANTS:
         module = importlib.import_module('.meaningful_new40_structure', __package__)
         return module.build(method, latent_dim, num_heads, value_dim)

@@ -54,4 +54,16 @@ NEW40_FAMILIES = {
 }
 NEW40_METHODS = tuple(method for methods in NEW40_FAMILIES.values() for method in methods)
 # Pooling variants are comparisons, not additional independent catalog methods.
-NEW40_VARIANTS = ('nested_gnn_rootaware_evidence',)
+NESTED_SWEEP = {
+    'nested_ab_plain_gin': {'plain_gin': True},
+    'nested_ab_no_markers': {'markers': False},
+    'nested_ab_no_head_edges': {'head_edges': False},
+    'nested_ab_last_layer': {'last_layer': True},
+    'nested_dim32': {'dim': 32},
+    'nested_dim128': {'dim': 128},
+    'nested_depth1': {'depth': 1},
+    'nested_depth2': {'depth': 2},
+    'nested_groups1': {'groups': 1},
+    'nested_groups4': {'groups': 4},
+}
+NEW40_VARIANTS = ('nested_gnn_rootaware_evidence',) + tuple(NESTED_SWEEP)
