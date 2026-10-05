@@ -27,7 +27,8 @@ predictions, masks, configuration, snapshot hashes and full last_training.pt.
 SUMMARY.json is generated automatically once all six children finish, with
 failed/missing runs explicitly retained and no substitution or automatic retry.
 
-Status: all six runs started on GPU6, original seed66 retained. Dispatcher PID
+Status: all six runs completed100 epochs, exit0 and outputs_verified=true.
+Original seed66 retained. Dispatcher PID
 1984684, tmux `osram_readout_top3_3seed_20261005`. Launcher commit d14781b;
 original model commits remain unchanged. Launch PID/status copy in LAUNCH.json.
 
@@ -39,4 +40,22 @@ original model commits remain unchanged. Launch PID/status copy in LAUNCH.json.
 
 GPU6 had 17,765 MiB free after all six admissions. XCA67/68 completed8/6 epochs,
 Nested67/68 completed3/2, Production67 completed1 at launch inspection;
-Production68 was initializing. No traceback found. Multiseed results pending.
+Production68 was initializing at that earlier inspection. No traceback found.
+
+## Completed three-seed confirmation
+
+W-F1 (%), equal seed weights; per-rate BEST Test-oracle INTERNAL DIAGNOSTIC ONLY.
+SUMMARY.json includes every seed/rate and all six process outcomes.
+
+| Method | seed66 mean8 | seed67 mean8 | seed68 mean8 | Mean8 | High mean | Delta mean8 vs Flat |
+|---|---:|---:|---:|---:|---:|---:|
+| Original Flat |81.068|80.556|80.053|80.559|75.594|0|
+| XCiT-XCA |81.042|80.037|79.561|80.213|75.365|-0.346|
+| Nested GNN |80.992|80.851|79.624|80.489|75.252|-0.070|
+| Neural Production |80.981|80.540|79.855|80.459|75.558|-0.100|
+
+Nested high per-seed:76.077/75.497/74.181. Nested is closest on mean8 among
+these three, but high mean remains0.342pp below Flat. Its mean8 gains at seed67
+do not repeat at66/68. No method establishes an overall improvement. All eight
+BEST checkpoints per new run are retained, with full training recovery states.
+No additional training, tuning or diagnostic inference authorized by this report.
