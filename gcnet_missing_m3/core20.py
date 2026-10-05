@@ -11,6 +11,7 @@ from torch.nn import functional as F
 
 METHODS = tuple(f'C{i:02d}' for i in range(1, 21))
 CONTROLS = ('C17-binary-control', 'C20-mean-control')
+TRANSFER_METHODS = ('R02', 'R03', 'R12', 'R18')
 MODALITIES = ('audio', 'text', 'visual')
 
 
@@ -18,7 +19,7 @@ def validate_config(config):
     method = config.core20_method
     if method == 'none':
         return
-    if method not in METHODS + CONTROLS:
+    if method not in METHODS + CONTROLS + TRANSFER_METHODS:
         raise ValueError('unknown core20_method')
     forbidden = ('paired_history_views', 'osram_relation_block', 'osram_relation_dual_readout',
                  'osram_decision_correction', 'osram_gap_increment_filter', 'osram_post_grn',
@@ -59,6 +60,10 @@ class Core20(nn.Module):
         self.prototype_distances = None
         self.gradient_diagnostics = {}
         dim, out = config.latent_dim, config.osram_output_dim
+        if self.method == 'R18':
+            from .r18_lupi import PrivilegedNoise
+            self.privileged_noise = PrivilegedNoise(sum(model.observed_set.dimensions), out)
+            self.complete_features = None
         if self.method == 'C03':
             from .core20_representation import VQVAEValues
             # Register on OSRAM where projected Values become available.
@@ -86,6 +91,12 @@ class Core20(nn.Module):
         if self.method in ('C01', 'C02', 'C04'):
             from .core20_storage import build
             model.osram.core20_memory = build(self.method, **common)
+        elif self.method == 'R02':
+            from .r02_delta_product import DeltaProductStorage
+            model.osram.core20_memory = DeltaProductStorage(config, model.osram)
+        elif self.method == 'R03':
+            from .r03_mesa import MesaStorage
+            model.osram.core20_memory = MesaStorage(config, model.osram)
         elif self.method in ('C05', 'C06', 'C07', 'C08'):
             from .core20_dynamics import build
             model.osram.core20_memory = build(self.method, **common)
@@ -126,7 +137,14 @@ class Core20(nn.Module):
             encoded[valid] = encoder.fusion(fused[valid])
         return encoded, latents
 
-    def predict(self, hidden, original_logits, umask):
+    def predict(self, hidden, original_logits, umask, model=None):
+        if self.method == 'R12':
+            self.ranking_hidden = hidden
+        if self.method == 'R18':
+            noisy, self.auxiliary_loss = self.privileged_noise(
+                hidden, self.complete_features, umask.T.bool())
+            self.complete_features = None
+            return model.smax_fc(noisy) if self.training else original_logits
         if self.method == 'C12':
             logits, self.task_parameters = self.head(hidden, umask)
             return logits
@@ -152,6 +170,14 @@ class Core20(nn.Module):
             else:
                 full_loss = self.head.loss(logits[valid], self.prototype_distances, labels.long())
         aux = self.auxiliary_loss
+        if self.method == 'R12':
+            from .r12_rnc import rnc_loss
+            features = self.ranking_hidden[valid]
+            labels = view['labels'].T[valid]
+            if features.shape[0] > 128:
+                indices = torch.randperm(features.shape[0], device=features.device)[:128]
+                features, labels = features[indices], labels[indices]
+            aux = aux + rnc_loss(features, labels, temperature=2.0)
         for name in ('core20_memory', 'core20_value', 'core20_readout'):
             module = getattr(model.osram, name, None)
             if module is not None:

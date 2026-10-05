@@ -15,13 +15,14 @@ import sys
 from datetime import datetime, timezone
 
 from experiments.osram_meaningful20_20261003.run import EXPECTED, FORBIDDEN
-from gcnet_missing_m3.core20 import METHODS, CONTROLS
+from gcnet_missing_m3.core20 import METHODS, CONTROLS, TRANSFER_METHODS
 
 LABEL = 'INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle screening; NOT A FORMAL PAPER RESULT'
 # Fixed BEFORE training. These are transfer coefficients, not published optimal
 # recipes. Raw-feature generative ELBO sums 2560 coordinates (C11); .001 keeps
 # its explicit likelihood objective from being silently averaged into a new loss.
 AUX_WEIGHTS = {'C02': .1, 'C03': 1., 'C11': .001, 'C14': 1., 'C15': .1, 'C16': .1, 'C19': 1.}
+AUX_WEIGHTS.update(R12=.1, R18=.001)
 CHANGED = {'C18': {'emotion_loss_mode': 'pattern-groupdro-author'},
            'C17': {'mosi_task_mode': 'binary'},
            'C17-binary-control': {'mosi_task_mode': 'binary'}}
@@ -46,7 +47,7 @@ def now():
 
 def candidate_config(reference, method, *, seed=66):
     from gcnet_missing_m3.train_gcnet import TrainConfig
-    if method not in METHODS + CONTROLS:
+    if method not in METHODS + CONTROLS + TRANSFER_METHODS:
         raise ValueError('unsupported method')
     for key, value in EXPECTED.items():
         if reference.get(key) != value:
@@ -79,7 +80,7 @@ def verify_snapshot(root):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--method', choices=METHODS + CONTROLS, required=True)
+    parser.add_argument('--method', choices=METHODS + CONTROLS + TRANSFER_METHODS, required=True)
     parser.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     parser.add_argument('--reference', type=Path, required=True)
     parser.add_argument('--data-manifest', type=Path, required=True)

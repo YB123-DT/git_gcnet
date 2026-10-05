@@ -2120,7 +2120,7 @@ class MissingM3GraphModel(GraphModel):
             )
         returned_predictions = internal_predictions if predict_missing else None
         if hasattr(self, 'core20'):
-            logits = self.core20.predict(readout_hidden, logits, umask)
+            logits = self.core20.predict(readout_hidden, logits, umask, model=self)
         return logits, classification_hidden, latents, returned_predictions
 
     @torch.no_grad()

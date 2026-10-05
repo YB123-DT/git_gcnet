@@ -2337,6 +2337,9 @@ def train_epoch(
             if config.train_rate_mode == "all" and train_jepa and teacher is None:
                 with torch.no_grad():
                     teacher = model.encode_teacher_targets([view["complete"]])
+            if config.core20_method == 'R18':
+                # Privileged TRAIN data never enters encoder, query or memory.
+                model.core20.complete_features = view['complete']
             logits, hidden, _, predictions = model(
                 [view["incomplete"]],
                 view["availability"],
@@ -4021,8 +4024,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="mse",
     )
     parser.add_argument("--task-smooth-l1-beta", type=float, default=1.0)
-    from .core20 import METHODS, CONTROLS
-    parser.add_argument('--core20-method', choices=('none',) + METHODS + CONTROLS, default='none')
+    from .core20 import METHODS, CONTROLS, TRANSFER_METHODS
+    parser.add_argument('--core20-method', choices=('none',) + METHODS + CONTROLS + TRANSFER_METHODS, default='none')
     parser.add_argument('--core20-aux-weight', type=float, default=1.0)
     parser.add_argument(
         "--postgraph-sequence-mode",
