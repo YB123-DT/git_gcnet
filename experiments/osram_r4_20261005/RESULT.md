@@ -63,3 +63,34 @@ Per-method runner: `python -m experiments.osram_core20_20261005.run --method
 R02 --reference FLAT_SEED66_CONFIG --data-manifest DATA_MANIFEST --output
 METHOD_OUTPUT --gpu-uuid GPU-e4cafb17-818e-216a-b94a-7440063a9153`.
 The same command applies to R03/R12/R18. No automatic multi-seed expansion.
+
+## Completed seed66 results
+
+All four completed100 epochs; PROVENANCE status=complete and
+outputs_verified=true. All eight evaluation mask hashes match the same-seed
+Flat reference. Eight BEST checkpoints, predictions and last_training.pt were
+verified by the runner. These are per-rate Test-oracle INTERNAL DIAGNOSTIC ONLY.
+
+| Model | 8-rate W-F1 (%) | Delta vs Flat (pp) | High .5/.6/.7 (%) | Delta vs Flat (pp) |
+|---|---:|---:|---:|---:|
+| Flat | 81.068095 | 0 | 76.352251 | 0 |
+| R02 DeltaProduct | 80.055542 | -1.012553 | 75.406129 | -0.946122 |
+| R03 Mesa | 79.154218 | -1.913878 | 73.801077 | -2.551174 |
+| R12 RNC | 80.843431 | -0.224664 | 75.751701 | -0.600550 |
+| R18 LUPI | 79.929794 | -1.138301 | 75.774138 | -0.578112 |
+
+| Missing rate | Flat | R02 | R03 | R12 | R18 |
+|---|---:|---:|---:|---:|---:|
+| .0 | 88.205138 | 87.110941 | 87.622930 | 88.140169 | 86.227042 |
+| .1 | 86.506580 | 85.763455 | 85.160417 | 86.637300 | 84.533087 |
+| .2 | 83.186756 | 82.325487 | 81.698247 | 83.098765 | 82.200823 |
+| .3 | 80.762955 | 80.717952 | 79.444444 | 80.949703 | 80.008452 |
+| .4 | 80.826582 | 78.308113 | 77.904470 | 80.666412 | 79.146533 |
+| .5 | 77.494019 | 76.177758 | 75.006585 | 76.593235 | 76.299249 |
+| .6 | 75.789556 | 74.336359 | 72.992142 | 75.146341 | 75.395018 |
+| .7 | 75.773178 | 75.704270 | 73.404504 | 75.515526 | 75.628148 |
+
+No candidate improved either aggregate. R12 is closest to Flat overall, but
+its high-missing mean is lower. Single-seed negative screening does not establish
+a general failure of the source methods; it rejects these fixed transfers as
+evidence of an improvement here. No automatic multi-seed expansion or new sweep.
