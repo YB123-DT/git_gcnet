@@ -40,3 +40,36 @@ OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 \
 
 Launch-time process evidence will be recorded in LAUNCH.json; this is not a
 completed-result report. All outputs remain remote, not in Git.
+
+## Completed three-seed confirmation
+
+All seeds completed100 epochs, PROVENANCE status=complete and
+outputs_verified=true. Each seed's eight evaluation mask hashes match its
+same-seed Flat reference. Seed66 was reused, not retrained.
+
+| Seed | Flat 8-rate | R12 8-rate | Delta(pp) | Flat high | R12 high | Delta(pp) |
+|---|---:|---:|---:|---:|---:|---:|
+| 66 | 81.068095 | 80.843431 | -0.224664 | 76.352251 | 75.751701 | -0.600550 |
+| 67 | 80.555789 | 79.711848 | -0.843941 | 75.989519 | 75.420321 | -0.569198 |
+| 68 | 80.053259 | 79.559527 | -0.493732 | 74.439816 | 74.203730 | -0.236086 |
+| Mean | 80.559048 | 80.038269 | -0.520779 | 75.593862 | 75.125251 | -0.468611 |
+
+Scores are W-F1 percentages; high=.5/.6/.7. Per-rate BEST Test-oracle,
+INTERNAL DIAGNOSTIC ONLY, not validation-selected formal paper results.
+
+| Missing rate | R12 seed66 | R12 seed67 | R12 seed68 |
+|---|---:|---:|---:|
+| .0 | 88.140169 | 86.988104 | 87.473699 |
+| .1 | 86.637300 | 85.169398 | 84.645829 |
+| .2 | 83.098765 | 83.365396 | 82.177230 |
+| .3 | 80.949703 | 80.299510 | 80.310250 |
+| .4 | 80.666412 | 75.611412 | 79.258014 |
+| .5 | 76.593235 | 75.592466 | 77.652841 |
+| .6 | 75.146341 | 75.522156 | 76.321549 |
+| .7 | 75.515526 | 75.146341 | 68.636801 |
+
+The fixed transfer loses both aggregates in all three seeds. It also does not
+satisfy the user's structural-Block requirement: it changes only a training
+objective. Stop this route; no further RNC sweep, seeds or attempt to relabel a
+loss as an architectural Block. This conclusion concerns this implemented
+transfer, not a general impossibility of regression contrastive learning.
