@@ -123,7 +123,8 @@ class TrainingState:
         self._canonical(rate, reference)
         self.references[rate] = reference
 
-    def commit_epoch(self, *, next_epoch, history, selection_state, schedule_state=None):
+    def commit_epoch(self, *, next_epoch, history, selection_state, schedule_state=None,
+                     auxiliary_state=None):
         self._bound()
         if not isinstance(next_epoch, int) or next_epoch < 1:
             raise ValueError('next_epoch must be the completed epoch count')
@@ -141,6 +142,7 @@ class TrainingState:
             'next_epoch': next_epoch, 'history': copy.deepcopy(history),
             'selection_state': copy.deepcopy(selection_state),
             'schedule_state': copy.deepcopy(schedule_state),
+            'auxiliary_state': _cpu(auxiliary_state),
             'best_references': copy.deepcopy(self.references),
             'rng': {'python': random.getstate(), 'numpy': np.random.get_state(),
                     'torch': torch.get_rng_state(),
@@ -194,5 +196,7 @@ class TrainingState:
             if not torch.cuda.is_available() or len(rng['cuda']) != torch.cuda.device_count():
                 raise ValueError('CUDA RNG device count mismatch')
             torch.cuda.set_rng_state_all(rng['cuda'])
-        return {key: copy.deepcopy(state[key]) for key in
-                ('next_epoch', 'history', 'selection_state', 'schedule_state')}
+        result = {key: copy.deepcopy(state[key]) for key in
+                  ('next_epoch', 'history', 'selection_state', 'schedule_state')}
+        result['auxiliary_state'] = _cpu(state.get('auxiliary_state'))
+        return result

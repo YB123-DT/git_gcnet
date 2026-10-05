@@ -1390,6 +1390,14 @@ class OSRAMBackbone(nn.Module):
         write_completion=None,
         post_write_observer=None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, list[float]]]:
+        if hasattr(self, 'core20_memory'):
+            if reverse or any(x is not None for x in (retention_diagnostics, write_completion, post_write_observer)):
+                raise ValueError('core20 memory requires an independent observed-only forward scan')
+            strength = 0. if self.osram_gap_read == 'raw' else self.gap_residual_strength
+            def address_residual(k, q):
+                return q - strength * (q - self._address_residual(k, q))
+            return self.core20_memory.scan(keys, values, queries, availability, valid,
+                                           address_residual=address_residual)
         length, batch = availability.shape[:2]
         dtype = queries.dtype
         memory = queries.new_zeros(
@@ -1525,6 +1533,7 @@ class OSRAMBackbone(nn.Module):
         post_write_observer=None,
         context_read_residual=None,
         modality_embeddings: torch.Tensor | None = None,
+        core20_reconstruction_targets=None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Condition reads/local features separately from real-observation writes.
 
@@ -1564,9 +1573,14 @@ class OSRAMBackbone(nn.Module):
             read_node=read_node, write_node=write_node,
         )
         if self.history_query_adapter:
+            if hasattr(self, 'core20_value'):
+                raise ValueError('core20 does not combine query adapters with VQ')
             if write_completion is not None:
                 raise ValueError("history query adapter requires observed-only writes")
             queries = self._adapt_history_queries(queries, availability, valid)
+        if hasattr(self, 'core20_value'):
+            values, self.core20_value.auxiliary_loss = self.core20_value.transform_values(
+                values, availability, valid, reconstruction_targets=core20_reconstruction_targets)
         base_forward, gap_forward, diag_forward = self._scan(
             keys, values, queries, availability, valid, reverse=False,
             retention_diagnostics=(memory_retention_diagnostics
@@ -1620,7 +1634,9 @@ class OSRAMBackbone(nn.Module):
             local_input = read_node + residual
         local = local_input + self.local_path(local_input)
         local = local * valid.unsqueeze(-1).to(local.dtype)
-        if self.osram_decision_correction:
+        if hasattr(self, 'core20_readout'):
+            hidden = self.core20_readout(local, emotion_base, emotion_gap, availability, umask)
+        elif self.osram_decision_correction:
             forward_dim = self.num_heads * self.value_dim
             local = torch.where(valid[..., None], local, torch.zeros_like(local))
             history = valid & (valid.long().cumsum(0) > 1)
@@ -1784,6 +1800,16 @@ class OSRAMBackbone(nn.Module):
                 hidden = self.emotion_norm(
                     self.local_skip(local) + self.emotion_adapter(emotion_input)
                 )
+        if getattr(self, 'core20_collect_multilevel', False):
+            # ONE trajectory, three final task exits, no second mask/view.
+            safe_gap = torch.where((valid[..., None] & ~availability.bool())[..., None], emotion_gap, 0.)
+            base_input = torch.cat((local, emotion_base, torch.zeros_like(safe_gap).flatten(2)), -1)
+            local_input = torch.cat((local, torch.zeros_like(emotion_base), torch.zeros_like(safe_gap).flatten(2)), -1)
+            skip = self.local_skip(local)
+            self.core20_multilevel_hidden = {
+                'local': self.emotion_norm(skip + self.emotion_adapter(local_input)),
+                'base': self.emotion_norm(skip + self.emotion_adapter(base_input)),
+            }
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
         elif self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none' or self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:

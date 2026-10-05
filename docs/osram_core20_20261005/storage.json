@@ -1,0 +1,112 @@
+{
+  "scope": "OSRAM sequence-storage backend replacement; preserve original Local/Flat/task head in integration",
+  "date": "2026-10-05",
+  "implementation": "gcnet_missing_m3/core20_storage.py",
+  "interface": "build(C01|C02|C04, num_heads=8, key_dim=64, value_dim=64, latent_dim=256); scan(keys, values, queries, availability, valid, address_residual=...) -> base, gap, diagnostics",
+  "common_contract": [
+    "Fresh state on every scan; strictly history-only read before current observed-only write",
+    "Missing/padded key/value entries sanitized with torch.where before mappings and numerical operations",
+    "Padding outputs zero and preserves clocks, memory, controller and read-head state",
+    "Four independently queried reads: one base and three target-specific Gap reads, Gap returned only for missing targets",
+    "Optional original OSRAM address residual applied to Gap query against current observed keys",
+    "rho/eta/cosine report query projection geometry only; no reliability or empirical performance claim"
+  ],
+  "C01": {
+    "method": "Differentiable Neural Computer",
+    "status": "implemented_storage_core",
+    "paper_url": "https://doi.org/10.1038/nature20101",
+    "method_fulltext_inspected": "https://gwern.net/doc/reinforcement-learning/model-free/2016-graves.pdf (Methods: dynamic allocation, write weighting, temporal linkage, read weighting)",
+    "author_repository": "https://github.com/google-deepmind/dnc",
+    "commit": "f5981c66ac6fe27978014c314c4aba39f1962ee3",
+    "source_files": {
+      "dnc/access.py": "sha256:01c67f0abef848814d55f434a60a6b80fe142143a55009c4b72a3c31ec5d9bd2",
+      "dnc/addressing.py": "sha256:93724850d83580fe73268ccfeccde034aeff829660c182518f872af099de234f"
+    },
+    "preserved_core": [
+      "Usage increase from detached previous write weighting and retention product from learned free gates and previous read weightings",
+      "Ascending-usage allocation with exclusive prefix product and differentiable scatter back to original locations",
+      "Learned allocation/write gates mixing allocated and cosine-content addresses",
+      "Learned erase vector and write vector with erase-then-add memory update",
+      "Precedence recurrence and directed temporal link recurrence with exactly zero diagonal",
+      "Learned backward/forward/content read-mode simplex, cosine content lookup, and recurrent read weights",
+      "GRU controller receives current observed pooled K/V and previous read words"
+    ],
+    "adaptations": [
+      "One independent memory per supplied OSRAM head; 16 locations, word width K+V, four read heads",
+      "Observed modalities pooled once per utterance; supplied K/V concatenation serves write content key; controller emits erase/write vectors and gates",
+      "Read keys, strengths and modes generated from each supplied target query rather than a joint original controller interface",
+      "Content strengths follow the paper's 1+softplus lower bound; pinned author addressing.py uses softplus without the +1",
+      "Original author access writes then reads; this adapter reads previous memory/link before writing to satisfy the explicit causal OSRAM contract",
+      "No observation freezes writer/controller/freeing state; valid read queries may still traverse existing temporal links"
+    ],
+    "not_claimed": "Exact reproduction of the original task controller architecture, data, hyperparameters or published performance"
+  },
+  "C02": {
+    "method": "Compressive Transformer memory",
+    "status": "implemented_storage_core",
+    "paper_url": "https://arxiv.org/abs/1911.05507",
+    "method_fulltext_inspected": "https://arxiv.org/html/1911.05507v1 (Section 3, Algorithms 1 and 2)",
+    "author_repository": "https://github.com/google-deepmind/sonnet/tree/v1",
+    "commit": "cd5b5fa48e15e4d020f744968f5209949ebe750f",
+    "source_files": {
+      "sonnet/python/modules/nets/transformer.py": "sha256:37655ab7ce034d5b5f94595a8f549406bc73b309dd6bf7978161a7378039da56"
+    },
+    "source_symbols": ["CompressiveTransformer", "ConvCompressor._build", "MultiheadAttention._build", "rel_shift"],
+    "preserved_core": [
+      "Separate bounded exact FIFO and long compressed FIFO queried jointly",
+      "Old exact observations compressed by bias-free stride-2 kernel-2 learned convolution",
+      "Incomplete compression group retained as exact readable pending entries",
+      "Four evicted observations yield two compressed tokens per supervised chunk, preserving query-dependent reconstruction and nonzero compressor-key supervision",
+      "Actual attention-reconstruction MSE: stopped-gradient content attention on old observations versus content attention on their compressed replacement",
+      "Compression input and auxiliary queries detached; auxiliary loss trains compressor without shaping the upstream representations to be compressible",
+      "Relative sinusoidal query-position term with learned content/position biases and position-key map; compressed entries use their original event-center positions"
+    ],
+    "defaults": {"exact_fifo": 8, "compressed_fifo": 16, "compression_rate": 2, "compression_chunk": 4},
+    "adaptations": [
+      "Already projected supplied OSRAM K/V concatenation is the activation being compressed; one storage layer rather than replacing the entire Transformer tower",
+      "One observed modality is one FIFO event, in fixed audio/text/visual order; missing modalities and padding produce no event",
+      "Attention consumes supplied projected queries/keys/values directly; auxiliary attention has no relative positional term, as in Algorithm 2",
+      "A shared relative-key map encodes explicit event distances for both memory stores; author Sonnet uses separate memory-type relative-key maps and a batched relative shift",
+      "Scalar auxiliary_loss is averaged over actual compression events; integration must add it to the optimization objective",
+      "Memory coefficients and task reads remain differentiable within a conversation; compressor inputs detach as in author ConvCompressor"
+    ],
+    "not_claimed": "Full original multilayer Transformer-XL tower or original language-model hyperparameters/performance"
+  },
+  "C04": {
+    "method": "HiPPO-LegS orthogonal online history projection",
+    "status": "implemented_storage_core",
+    "paper_url": "https://arxiv.org/abs/2008.07669",
+    "method_fulltext_inspected": "https://arxiv.org/html/2008.07669 (Sections 2 and 3, LegS recurrence and bilinear discretization)",
+    "author_repository": "https://github.com/HazyResearch/hippo-code",
+    "commit": "201148256bd2b71cb07668dc00075420cfd4c567",
+    "source_files": {
+      "model/hippo.py": "sha256:72939f755ed846f0a82b9df09820998d0d5fed45a4b8ff9d49a76bca9b31a69a",
+      "model/op.py": "sha256:b399cf3bb51349a0ee2d025a726d20de73861ab4c8795af21bf603d03b0d554f"
+    },
+    "preserved_core": [
+      "Normalized scaled Legendre A: diagonal -(n+1), lower off-diagonal -sqrt((2n+1)(2k+1)); B_n=sqrt(2n+1)",
+      "Observed-step t uses A/t and B/t; author bilinear recurrence (I-A/(2t))^-1[(I+A/(2t))c+(B/t)u]",
+      "Online polynomial coefficients for each projected key/value feature, modality and supplied head",
+      "Fixed orthogonal projection dynamics rather than a learned generic recurrent gate"
+    ],
+    "adaptations": [
+      "Independent observed-event clocks per modality, frozen on absence/padding; no imputed zeros or elapsed-time decay",
+      "Learned identity-initialized feature maps precede the fixed HiPPO projection",
+      "Read contracts query-key coefficients and value coefficients across polynomial order, a Parseval history-correlation read on projected functions, averaged over nonempty modality histories",
+      "Projection order min(16,max(2,latent_dim/num_heads)); dense Torch solve computes the author bilinear discretization dynamically without fixed maximum sequence length"
+    ],
+    "not_claimed": "Original HiPPO-RNN task architecture, exact infinite-order history recovery, or empirical superiority"
+  },
+  "verification": {
+    "environment": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python",
+    "command": "OMP_NUM_THREADS=1 /home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest discover -s tests -p test_core20_storage.py",
+    "test_file": "tests/test_core20_storage.py",
+    "coverage": ["3-backend shape/first-read-zero", "strict current/future-write causality", "padding identity by compacted sequence equivalence", "inactive NaN isolation", "finite input gradients and actual optimizer parameter update", "DNC allocation/freeing/directed link algebra", "HiPPO order-one bilinear recurrence", "actual positive C02 supervision, compressor gradient, and no auxiliary gradient to inputs/queries"],
+    "red_before_implementation": "unittest import failed because core20_storage module did not exist",
+    "tests_passed": 5,
+    "backend_subcases": 3,
+    "gpu_smoke": "not run, as instructed",
+    "training": "not run, as instructed",
+    "integration": "owned by root; storage-only checks do not claim end-to-end validation"
+  }
+}

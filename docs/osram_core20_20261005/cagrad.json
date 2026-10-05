@@ -1,0 +1,51 @@
+{
+  "candidate": "C20",
+  "method": "CAGrad",
+  "status": "implemented_and_cpu_unit_verified",
+  "paper": {
+    "title": "Conflict-Averse Gradient Descent for Multi-task Learning",
+    "arxiv": "2110.14048v2",
+    "url": "https://arxiv.org/html/2110.14048v2",
+    "mapping": "Section 3.1, Eq. (3), Dual Objective and Algorithm 1; alpha here is paper c, not learning rate"
+  },
+  "author_source": {
+    "repository": "https://github.com/Cranial-XIX/CAGrad",
+    "commit": "dc3d48152b6196945cfd56144879b9d42353b095",
+    "path": "nyuv2/utils.py",
+    "symbol": "multi_task_mgd_trainer.cagrad",
+    "url": "https://github.com/Cranial-XIX/CAGrad/blob/dc3d48152b6196945cfd56144879b9d42353b095/nyuv2/utils.py",
+    "raw_url": "https://raw.githubusercontent.com/Cranial-XIX/CAGrad/dc3d48152b6196945cfd56144879b9d42353b095/nyuv2/utils.py",
+    "sha256": "caa8832ed145ce4c3f2e7b18fe711158e6ebe6f7ba093a058201262ff36a0293"
+  },
+  "implementation": {
+    "path": "gcnet_missing_m3/core20_cagrad.py",
+    "api": "conflict_averse_direction(grads[P,T], alpha=0.4, rescale=1) -> (direction[P], diagnostics)",
+    "dual": "min_{w >= 0, sum(w)=1} w^T A b + alpha*||G b||*sqrt(w^T A w); A=G^T G, b=ones(T)/T",
+    "direction": "d = G b + alpha*||G b||*(G w)/||G w||; zero weighted gradient contributes zero correction",
+    "rescale": {"0": "d", "1": "d/(1+alpha^2)", "2": "d/(1+alpha)"},
+    "solver": "Installed scipy 1.15.3, SLSQP with analytic subgradient; no dependency installation",
+    "default_maxiter": 200,
+    "default_ftol": 1e-12,
+    "convergence_tol": 1e-6,
+    "optimality": "Reject unsuccessful solve, nonfinite weights/direction, simplex infeasibility, normalized KKT residual or primal-dual gap above threshold",
+    "numerical_changes_from_author": [
+      "Generalize the three-task shape to arbitrary T",
+      "Use float64 CPU and common entry-scale normalization, which preserves the exact dual minimizer",
+      "Solve unsmoothed Algorithm 1 objective instead of author additive 1e-8 stabilizers; explicit zero-mean/alpha-zero cases",
+      "Supply analytic derivative, explicit tolerance, solver status and optimality checks instead of accepting res.x unconditionally"
+    ],
+    "shared_parameters": "Only gradients of parameters participating in all original Local/Base/Full objectives enter this shared solve; root integration owns task creation and parameter partition",
+    "nonshared_parameters": "Use gradient of the equal-weight mean task loss, with zero for unused tasks; no CAGrad correction",
+    "author_sum_loss_convention": "The supervised author's overwrite_grad multiplies the returned direction by three to match its sum-loss convention. This helper and the OSRAM equal-weight control use the paper mean-loss convention, so do not multiply the direction by task count",
+    "optimizer": "Assign existing parameter .grad, then existing clipping and Adam; no optimizer replacement",
+    "scientific_scope": "Optimization update only; does not change memory, create new scientific tasks or authorize training"
+  },
+  "verification": {
+    "python": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python",
+    "command": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest discover -s tests -p test_core20_cagrad.py -v",
+    "result": "8 unittest cases passed (including parametrized subtests); git diff --check passed",
+    "tests": "Independent primal max-min ball solve; aligned and alpha-zero limits; zero/mean-zero and zero task gradients; scale/task-order invariance; finite gradients and existing Adam update; rejection of failed and falsely successful nonoptimal solves",
+    "random_cpu_probe": {"seed": 20, "solves": 200, "shape": [8, 3], "failures": 0, "maximum_normalized_kkt_or_gap": 3.2485457626447373e-7},
+    "not_tested": ["Full trainer integration is owned by parent agent", "CUDA and formal training performance"]
+  }
+}

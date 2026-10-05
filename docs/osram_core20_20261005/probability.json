@@ -1,0 +1,122 @@
+{
+  "scope": "C09-C12 source-grounded feature-space adaptations; no training or performance claim",
+  "implementation": "gcnet_missing_m3/core20_probability.py",
+  "tests": "tests/test_core20_probability.py",
+  "source_access_date": "2026-10-05",
+  "methods": [
+    {
+      "id": "C09",
+      "name": "Recurrent Kalman Network",
+      "paper": "https://arxiv.org/pdf/1905.07357",
+      "method_sections": "2.1-2.4; Appendix covariance prediction equations 10-12",
+      "author_repo": "https://github.com/ALRhub/rkn_share",
+      "commit": "7cb29e1c57307a87729fd5e20ca60a22f5798da5",
+      "source_file": "rkn_cell/RKNCell.py",
+      "source_sha256": "15aa0b3a05cf5949313e144f7d8acd82e93f626756e0cf045a6492e588b91a01",
+      "preserved": [
+        "Observable upper and recurrent lower state, with upper/lower/side covariance vectors",
+        "Softmax mixture of 15 learned banded transition bases, bandwidth 3",
+        "Locally linear prior propagation plus learned positive diagonal process noise",
+        "Encoded normalized Gaussian observations with learned positive variance",
+        "Kalman upper and lower gains and covariance conditioning"
+      ],
+      "adaptations": [
+        "Observed key/value slots become feature-space Gaussian observations per OSRAM head",
+        "Independent available observations combine in information form before conditioning",
+        "Queries read the predicted prior before current-observation assimilation",
+        "Query-conditioned linear feature decoder replaces the source task decoder",
+        "No task uncertainty calibration claim; source latent filtering core retained"
+      ],
+      "insertion": "replaces recurrent memory backend, rather than filtering an existing OSRAM read",
+      "status": "implemented_core_cpu_verified"
+    },
+    {
+      "id": "C10",
+      "name": "Particle Filter Recurrent Neural Network (PF-GRU)",
+      "paper": "https://arxiv.org/pdf/1905.12885",
+      "method_sections": "Particle Filter Extension to RNNs; stochastic memory, weight update, soft-resampling equations 1-3",
+      "author_repo": "https://github.com/Yusufma03/pfrnns",
+      "author_identity": "Xiao Ma; paper footnote links this repository",
+      "commit": "0a76d52a857f06d4128bbc7601c616d714b25734",
+      "source_file": "pfrnns.py",
+      "source_sha256": "f75ae023aba6f08de308b49a206741a8f3bb2bc2c2bffe7e7bd3caf82cf39812",
+      "preserved": [
+        "16 persistent particles per conversation and head, shared learned PF-GRU parameters",
+        "Reparameterized Gaussian transition noise and reset/update gates",
+        "Learned observation scores accumulate in normalized log weights",
+        "Soft proposal q=0.5*w+0.5/K, sampled ancestors, normalized importance correction w/q",
+        "Weighted particle mean drives memory reads"
+      ],
+      "adaptations": [
+        "Observed key/value slots supply controls and observations after history read",
+        "No observations: autonomous transition, no observation weight update or resampling",
+        "LayerNorm over each particle feature vector replaces author BatchNorm1d(K) to prevent cross-conversation statistics",
+        "Task objective remains host prediction loss; optional source per-particle auxiliary ELBO is not implemented",
+        "The source PF-GRU core is retained, not a claim of the author's full best-performing training recipe"
+      ],
+      "insertion": "replaces recurrent memory backend, rather than post-read gating",
+      "status": "implemented_core_cpu_verified"
+    },
+    {
+      "id": "C11",
+      "name": "Multimodal Mixture-of-Experts VAE",
+      "paper": "https://arxiv.org/pdf/1911.03393",
+      "method_sections": "3 Methods; joint generative model, mixture posterior, stratified objective equations 1-3",
+      "author_repo": "https://github.com/iffsid/mmvae",
+      "commit": "54398d75c144e9b6c06ef5c33a0ee9a162638b7d",
+      "source_file": "src/objectives.py",
+      "source_sha256": "f7e9dc71cb2b1e140dd94d9fa7de68245f7d01b1d9764cb80d95747fb863b2d1",
+      "preserved": [
+        "Separate unimodal posterior encoders and trained likelihood decoders reconstructing original observed modality features, with modality-specific output dimensions",
+        "Uniform mixture over available posterior experts, with missing expert weight exactly zero",
+        "Stratified K=1 mixture ELBO: all available conditional likelihoods plus log prior minus log mixture posterior",
+        "Reparameterized training samples and differentiable mixture density, including the full variational generative objective"
+      ],
+      "adaptations": [
+        "Gaussian distributions model original observed continuous modality features; posterior encoders consume learned feature latents, and decoder targets are original inputs rather than those trainable latents",
+        "K=1 is the complete ELBO case; multi-sample IWAE and DReG estimators are not claimed",
+        "Available subsets supply both inference experts and likelihood targets; unavailable targets are never accessed",
+        "Task representation is the deterministic mixture posterior mean during both training and inference; stochastic samples serve the complete generative ELBO auxiliary objective",
+        "Evaluation skips the generative objective and likelihood decoders entirely; no reconstruction targets are required, and no generated feature is written into observed memory"
+      ],
+      "integration_requirement": "Construct MMVAE(latent_dim, reconstruction_dims={audio:adim,text:tdim,visual:vdim}), supply original raw observed features as reconstruction_targets during training, and add returned generative_loss to the objective. Retaining only representation or reconstructing learned posterior inputs would not implement this full generative transfer.",
+      "status": "implemented_core_cpu_verified"
+    },
+    {
+      "id": "C12",
+      "name": "Natural Posterior Network (normal regression)",
+      "paper": "https://arxiv.org/pdf/2105.04471",
+      "method_sections": "3.2 input-dependent conjugate update, normalized flow density; Bayesian loss and Table 1 normal-gamma algebra",
+      "author_repo": "https://github.com/borchero/natural-posterior-network",
+      "commit": "c1174b8d6d484179d42724dfe20b513fe5569aee",
+      "source_files": [
+        {"path": "natpn/distributions/normal.py", "sha256": "35181df3cb1d60536f8393e666f9566f4ec05a7d20cc63bebc5c6fb84d23d877"},
+        {"path": "natpn/nn/loss.py", "sha256": "4d87d72bbd800fd698b9fe8886f334c0b21c8c02be9731222734d1a1dcfce930"},
+        {"path": "natpn/nn/flow/transforms/radial.py", "sha256": "517e5e832ebb3bc2a5db3e12316b2607a72408c2c4c8f3c0ace3415ca130c286"}
+      ],
+      "preserved": [
+        "Per-input latent encoder and normalized radial-flow density with exact Jacobian",
+        "Normal likelihood parameters supply expected sufficient statistics",
+        "Density-scaled evidence and normal certainty budget; source gradient-preserving evidence clamp",
+        "NormalGamma prior mean 0, scale 10, evidence 1 and conjugate parameter update",
+        "Student-t posterior predictive mean, degrees of freedom and scale",
+        "Task loss is expected Normal NLL minus posterior entropy; flow gradients arise through evidence"
+      ],
+      "adaptations": [
+        "Host 1600-dimensional hidden feature encoder, 16-dimensional latent space and four radial flow layers",
+        "Posterior entropy weight fixed to 1e-5; host must record this objective and head change",
+        "No batch normalization, density caches, test-batch adaptation or gold targets in forward"
+      ],
+      "integration_requirement": "Replace task head and task loss with returned posterior and Bayesian loss; MSE-only training must not be labeled NatPN. Keep matched head/objective control in experiment record.",
+      "status": "implemented_core_cpu_verified"
+    }
+  ],
+  "verification": {
+    "interpreter": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python",
+    "pytest": "Unavailable in this interpreter; dependency-free direct test-function runner used without installing packages",
+    "command": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python -c 'import runpy; torch=__import__(\"torch\"); torch.set_num_threads(1); suite=runpy.run_path(\"tests/test_core20_probability.py\"); [(print(name), function()) for name,function in suite.items() if name.startswith(\"test_\")]; print(\"PASS\")'",
+    "checks": ["six test functions; both memory backends exercised", "finite forward and backward", "state reset per scan and read-before-write", "unavailable and padded NaN masking", "zero padded output and zero observed Gap", "conversation independence with common PF random draws", "dense Kalman conditioning identity", "soft-resampling importance correction", "MMVAE ELBO decomposition and trained encoder/decoder gradients", "MMVAE original-target gradients, missing-target NaN invariance, changed target affects likelihood but not representation", "MMVAE all-missing training zero objective and target-free evaluation skips likelihood decoders", "NatPN conjugate algebra and nonzero density-model gradient"],
+    "result": "PASS",
+    "not_tested": ["GPU execution", "formal training", "performance improvement", "host integration (owned by root agent)"]
+  }
+}

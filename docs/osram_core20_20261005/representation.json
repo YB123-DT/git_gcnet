@@ -1,0 +1,104 @@
+{
+  "scope": "C03, C15, C19 representation lane only; no full core20 completion claim",
+  "implementation": "gcnet_missing_m3/core20_representation.py",
+  "tests": "tests/test_core20_representation.py",
+  "verification": {
+    "command": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest tests.test_core20_representation -v",
+    "result": "7 bounded CPU tests passed; no formal training, GPU run, or performance claim"
+  },
+  "items": [
+    {
+      "id": "C03",
+      "method": "Neural Discrete Representation Learning / VQ-VAE",
+      "status": "implemented_feature_transfer",
+      "paper": "https://arxiv.org/html/1711.00937v2",
+      "method_sections": "3.1 discrete nearest-code posterior; 3.2 learning; Eq. (3) three-part objective",
+      "author_repository": "https://github.com/google-deepmind/sonnet",
+      "source_commit": "8e7158b2beb8c8269b1b322601214083afc5607f",
+      "source_file": "https://github.com/google-deepmind/sonnet/blob/8e7158b2beb8c8269b1b322601214083afc5607f/sonnet/src/nets/vqvae.py",
+      "source_symbols": ["VectorQuantizer.__call__", "VectorQuantizer.quantize"],
+      "core_preserved": [
+        "argmin squared Euclidean codebook lookup",
+        "straight-through estimator into existing Value encoder",
+        "optimizer-updated codebook loss against stopped encoder outputs",
+        "commitment loss beta=0.25 against stopped embeddings",
+        "learned decoder reconstructs original observed fixed raw modality input features with MSE"
+      ],
+      "adaptations": [
+        "existing projected per-head Values are encoder outputs, instead of an image/audio convolutional encoder",
+        "three modality-specific codebooks and MLP reconstruction decoders; decoder input concatenates all quantized heads and output matches original modality feature dimension",
+        "only valid observed entries are indexed before quantization and loss; missing/padding writes remain zero",
+        "returns quantized Values before memory write; decoder outputs are only auxiliary reconstruction and do not fill missing modalities",
+        "true original raw reconstruction targets and reconstruction dimensions are mandatory; trainable Value/latent reconstruction fallback is rejected",
+        "no learned generative prior because this is a representation transfer, not generation"
+      ],
+      "not_changed": ["queries", "keys", "current Local"],
+      "checks": ["nearest-code exact match", "raw-target three-part objective algebra", "constant encoder cannot zero original raw reconstruction", "poisoned missing mask", "finite gradients", "codebook and decoder updates", "detached raw targets", "missing target rejected", "all missing zero"]
+    },
+    {
+      "id": "C15",
+      "method": "FactorCL-SUP",
+      "status": "implemented_supervised_feature_transfer_conditional_protocol_fidelity",
+      "paper": "https://arxiv.org/html/2306.05268v1",
+      "method_sections": "3.1 supervised factorized shared/unique lower and upper objectives; 3.3 training; author FactorCLSUP",
+      "author_repository": "https://github.com/pliang279/FactorCL",
+      "source_commit": "0f9f7403b3764ba9faf9ee3247358bdd719f688c",
+      "source_files": [
+        "https://github.com/pliang279/FactorCL/blob/0f9f7403b3764ba9faf9ee3247358bdd719f688c/multibench_model.py",
+        "https://github.com/pliang279/FactorCL/blob/0f9f7403b3764ba9faf9ee3247358bdd719f688c/critic_objectives.py"
+      ],
+      "source_symbols": ["FactorCLSUP.forward", "FactorCLSUP.learning_loss", "FactorCLSUP.get_embedding", "InfoNCECritic", "CLUBInfoNCECritic"],
+      "core_preserved": [
+        "five distinct projection branches per modality: shared lower, unique upper, task lower, unique conditional lower, shared conditional upper",
+        "concatenated-pair MLP critics over all joint/marginal batch pairs",
+        "maximize InfoNCE lower bounds for cross modality, modality/task, conditional cross modality information",
+        "minimize NCE-CLUB upper bounds for unconditional and task-conditional cross modality information",
+        "NCE-CLUB fitting maximizes InfoNCE on detached features; representation upper loss freezes critic parameters",
+        "all five branches retained by concatenation and trained output projection"
+      ],
+      "adaptations": [
+        "supervised variant chosen, therefore no unverifiable semantic augmentation assumption is needed for pretrained features",
+        "three modality pairs rather than two input modalities, with the exact six signed author loss terms repeated per pair",
+        "continuous gold sentiment used as scalar task and conditioning variable, instead of class ID and conditional class one-hot",
+        "training objective uses original complete train latents; inference consumes only observed masked latents and no labels",
+        "five source branches concatenated and linearly adapted to existing 256 dimensional modality interface",
+        "default training_loss combines representation and critic fitting scalars with disjoint gradients but simultaneous optimizer updates"
+      ],
+      "conditional_limitation": "Pinned author train_sup_mosi steps representation/non-CLUB optimizers first, recomputes features, then steps CLUB critics. Exact source update ordering requires main optimizer training_loss(include_critic_fit=False), followed by a separate critic optimizer critic_learning_loss on recomputed complete latents. Combined scalar default is an explicit simultaneous-update adaptation. Appended scalar conditioning follows the author practical appended-one-hot estimator but does not establish exact conditional negative sampling or theoretical bounds for continuous sentiment. Neither MI estimation nor CPU tests establish improved task performance.",
+      "remaining_risk": "All-pairs concatenated critics scale quadratically in valid utterance count; formal training memory and throughput have not been measured.",
+      "checks": ["label-free forward", "poisoned mask", "all objective branches receive finite gradients", "critic/representation/task/output parameter updates", "NCE-CLUB algebra", "six signed source terms per pair", "critic fitting cannot update features"]
+    },
+    {
+      "id": "C19",
+      "method": "Fishr",
+      "status": "implemented_regression_availability_domain_transfer",
+      "paper": "https://arxiv.org/html/2109.02934v3",
+      "method_sections": "3.1 gradient variance matching; Remark 3.1 classifier-only scope; 4.2 implementation; Appendix D.3 EMA",
+      "author_repository": "https://github.com/alexrame/fishr",
+      "source_commit": "7b8fdf1e0b15226ded9b58efd37698e74e616ab7",
+      "source_files": [
+        "https://github.com/alexrame/fishr/blob/7b8fdf1e0b15226ded9b58efd37698e74e616ab7/domainbed/algorithms.py",
+        "https://github.com/alexrame/fishr/blob/7b8fdf1e0b15226ded9b58efd37698e74e616ab7/domainbed/lib/misc.py"
+      ],
+      "source_symbols": ["Fishr._get_grads", "Fishr._get_grads_var_per_domain", "Fishr._compute_distance_grads_var", "MovingAverage.update", "l2_between_dicts"],
+      "core_preserved": [
+        "actual unreduced per-example loss gradients over every predictor-head parameter with create_graph=True",
+        "population centered coordinate-wise variance as author implementation (paper Eq. (2) displays sample normalization instead)",
+        "EMA history per group detached from prior iterations and serialized in module buffers",
+        "author oneminusema_correction: updated EMA divided by 1-ema at every step, not 1-ema**t",
+        "coordinate mean squared variance distance to equal-weight group mean, then equal-weight mean across present groups"
+      ],
+      "adaptations": [
+        "pure PyTorch autograd.grad replaces BackPACK BatchGrad without installing a dependency",
+        "the existing regression MSE remains the task loss; fixed lambda multiplies this separate penalty in trainer",
+        "domains are observed modality availability bit codes 0..7 instead of dataset domains; negative IDs exclude padding",
+        "singleton groups have population variance zero; absent groups do not advance their EMA",
+        "only training updates EMA buffers; eval computation leaves state unchanged",
+        "source annealing schedule and optimizer reset omitted under requested fixed-lambda protocol"
+      ],
+      "integration_requirement": "Pass all trainable original predictor-head parameters only. Do not substitute gradients of mean loss or a narrower arbitrary final-weight subset.",
+      "remaining_risk": "Per-example autograd is exact but scales linearly in sample count and may be slower than author BackPACK; formal training throughput has not been measured.",
+      "checks": ["hand-calculated weight+bias variance algebra", "second-step EMA correction algebra", "finite second-order head/features gradients", "head optimizer update", "state_dict roundtrip", "eval state unchanged", "absent/empty/singleton groups"]
+    }
+  ]
+}

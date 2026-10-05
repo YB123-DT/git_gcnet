@@ -170,8 +170,12 @@ class TrainConfig:
     uniform_forced_text_probability: float = 0.25
     disable_unused_aux_modules: bool = False
     simple_regression_predictor: bool = False
+    core20_method: str = 'none'
+    core20_aux_weight: float = 1.0
 
     def __post_init__(self) -> None:
+        from .core20 import validate_config
+        validate_config(self)
         if self.osram_meaningful_block != 'none':
             from .meaningful_blocks import MEANINGFUL_METHODS
             if self.osram_meaningful_block not in MEANINGFUL_METHODS:
@@ -285,8 +289,8 @@ class TrainConfig:
         object.__setattr__(self, "train_missing_rates", normalized_train_rates)
         if self.target_space not in {"all-modalities", "full-text", "predictable-subspace"}:
             raise ValueError("unsupported target_space")
-        if self.emotion_loss_mode not in {"sample-mean", "pattern-balanced", "pattern-groupdro"}:
-            raise ValueError("emotion_loss_mode must be sample-mean, pattern-balanced, or pattern-groupdro")
+        if self.emotion_loss_mode not in {"sample-mean", "pattern-balanced", "pattern-groupdro", "pattern-groupdro-author"}:
+            raise ValueError("unsupported emotion_loss_mode")
         if not math.isfinite(float(self.group_dro_eta)) or float(self.group_dro_eta) < 0:
             raise ValueError("group_dro_eta must be finite and nonnegative")
         forced_text_probability = float(self.uniform_forced_text_probability)
@@ -1646,7 +1650,7 @@ def _emotion_loss(
             ),
             {},
         )
-    if mode not in {"pattern-balanced", "pattern-groupdro"}:
+    if mode not in {"pattern-balanced", "pattern-groupdro", "pattern-groupdro-author"}:
         raise ValueError("unsupported emotion_loss_mode: {}".format(mode))
     group_ids, group_losses = _pattern_group_losses(
         dataset,
@@ -1674,7 +1678,25 @@ def _emotion_loss(
     active_indices = torch.tensor(
         [pattern_id - 1 for pattern_id in group_ids],
         dtype=torch.long,
+        device=group_dro_weights.device,
     )
+    if mode == "pattern-groupdro-author":
+        # Author LossComputer: update all group probabilities before computing
+        # robust loss. Absent groups have zero loss, not zero probability mass.
+        # Log-space arithmetic is equivalent without the old loss clipping.
+        with torch.no_grad():
+            if not bool(torch.isfinite(group_dro_weights).all()) or bool((group_dro_weights < 0).any()) or not bool(group_dro_weights.sum() > 0):
+                raise ValueError('Group DRO probabilities must be finite, nonnegative and nonempty')
+            if not math.isfinite(group_dro_eta) or group_dro_eta < 0:
+                raise ValueError('Group DRO eta must be finite and nonnegative')
+            full_loss = torch.zeros_like(group_dro_weights)
+            full_loss[active_indices] = stacked.detach().to(group_dro_weights)
+            if not bool(torch.isfinite(full_loss).all()):
+                raise ValueError('Group DRO losses must be finite')
+            group_dro_weights.copy_(torch.softmax(group_dro_weights.log() + group_dro_eta * full_loss, 0))
+        loss = (group_dro_weights[active_indices].to(stacked) * stacked).sum()
+        return loss, {str(group_id): float(value.detach().cpu())
+                      for group_id, value in zip(group_ids, group_losses)}
     with torch.no_grad():
         active_weights = group_dro_weights[active_indices]
         normalized = active_weights / active_weights.sum().clamp_min(1e-12)
@@ -2150,6 +2172,8 @@ def train_epoch(
     local_evidence_gate_totals = {}
     hierarchical_evidence_gate_totals = {}
     local_evidence_regularizers = []
+    core20_auxiliary_losses = []
+    core20_critic_losses = []
     losses: list[float] = []
     cls_losses: list[float] = []
     relation_base_losses: list[float] = []
@@ -2527,6 +2551,11 @@ def train_epoch(
                 gate_penalty = _evidence_gate_penalty(model, config)
                 loss = loss + config.osram_local_evidence_gate_reg_weight * gate_penalty
                 local_evidence_regularizers.append(float(gate_penalty.detach()))
+            if config.core20_method != 'none':
+                loss = model.core20.loss(model, config, view, logits, loss,
+                    lambda exit_logits: _task_loss(config.dataset, exit_logits, view['labels'],
+                        view['umask'], config.mosi_task_mode, config.task_regression_loss, config.task_smooth_l1_beta))
+                core20_auxiliary_losses.append(float(model.core20.last_auxiliary_loss))
             if not bool(torch.isfinite(loss.detach())):
                 raise ValueError("training loss must be finite")
             has_supervision = not (
@@ -2537,7 +2566,11 @@ def train_epoch(
                 if config.train_rate_mode == "all":
                     (loss / len(MISSING_RATES)).backward()
                 else:
-                    loss.backward()
+                    if config.core20_method == 'C20':
+                        from .core20 import cagrad_backward
+                        cagrad_backward(model.core20.multilevel_losses, model)
+                    else:
+                        loss.backward()
                 batch_has_backward = True
             predicted, expected, _ = _collect_predictions(
                 config.dataset,
@@ -2570,6 +2603,17 @@ def train_epoch(
                 config.gradient_clip_norm,
             )
         optimizer.step()
+        if config.core20_method != 'none':
+            from .core20 import post_optimizer_step
+            critic_loss = post_optimizer_step(model, view)
+            if critic_loss is not None:
+                core20_critic_losses.append(critic_loss)
+            resource_path = getattr(model, 'core20_resource_path', None)
+            if resource_path is not None and device.type == 'cuda':
+                _write_json(resource_path, {'epoch': epoch + 1, 'batch': batch_index + 1,
+                    'peak_reserved_mib': torch.cuda.max_memory_reserved() / 2**20,
+                    'peak_allocated_mib': torch.cuda.max_memory_allocated() / 2**20,
+                    'optimizer_steps': optimizer_steps + 1})
         optimizer_steps += 1
         if (train_jepa or train_state or train_write_state or train_future_state) and config.teacher_mode == "ema":
             model.update_teacher(config.ema_tau)
@@ -2624,6 +2668,13 @@ def train_epoch(
         }} if config.paired_history_views else {}),
         "loss": float(np.mean(losses)),
         "classification_loss": float(np.mean(cls_losses)),
+        **({'core20': {'method': config.core20_method,
+                      'auxiliary_loss': float(np.mean(core20_auxiliary_losses)),
+                      'auxiliary_weight': config.core20_aux_weight,
+                      'critic_fitting_loss': float(np.mean(core20_critic_losses)) if core20_critic_losses else None,
+                      'phase': getattr(model.core20, 'phase', None),
+                      'gradient_diagnostics': model.core20.gradient_diagnostics}}
+           if config.core20_method != 'none' else {}),
         **({'relation_dual_readout': {
             'base_task_loss': float(np.mean(relation_base_losses)),
             'full_task_loss': float(np.mean(relation_full_losses)),
@@ -2751,7 +2802,7 @@ def train_epoch(
                 str(pattern_id): float(group_dro_weights[index])
                 for index, pattern_id in enumerate(_OBSERVED_PATTERN_IDS)
             }
-        } if config.emotion_loss_mode == "pattern-groupdro" and group_dro_weights is not None else {}),
+        } if config.emotion_loss_mode in {"pattern-groupdro", "pattern-groupdro-author"} and group_dro_weights is not None else {}),
     }
 
 
@@ -2978,6 +3029,31 @@ def evaluate_rate(
     return metrics, artifacts
 
 
+@torch.no_grad()
+def _project_core20_prototypes(model, loader, schedules, epoch, dimensions, device):
+    """Push to actual TRAIN utterances, never validation/test exemplars."""
+    was_training = model.training
+    devices = [device.index if device.index is not None else torch.cuda.current_device()] if device.type == 'cuda' else []
+    model.eval()
+    def batches():
+        rate_schedule = BalancedBatchRateSchedule()
+        for index, raw in enumerate(loader):
+            data = _move_batch(raw, device)
+            view = _prepare_view(data, schedules[rate_schedule.rate_for(epoch, index)], epoch, dimensions)
+            _, hidden, _, _ = model([view['incomplete']], view['availability'], view['qmask'],
+                                   view['umask'], view['lengths'])
+            valid = view['umask'].T.bool() & view['labels'].T.ne(0)
+            if not bool(valid.any()):
+                continue
+            identifiers = [f"{view['conversation_ids'][b]}:{t}" for t, b in valid.nonzero().tolist()]
+            yield hidden[valid], view['labels'].T[valid].gt(0).long(), identifiers
+    try:
+        with torch.random.fork_rng(devices=devices):
+            return model.core20.head.project_train_exemplars(batches(), split='train')
+    finally:
+        model.train(was_training)
+
+
 def run_experiment(
     config_value: TrainConfig,
     audio_root: str,
@@ -2991,7 +3067,7 @@ def run_experiment(
         config_value.checkpoint_selection != 'test-oracle-per-rate'
         or config_value.training_objective != 'emotion-only'
         or config_value.train_rate_mode != 'cyclic'
-        or config_value.emotion_loss_mode != 'sample-mean'
+        or config_value.emotion_loss_mode not in ('sample-mean', 'pattern-groupdro-author')
     ):
         raise ValueError('Complete-state recovery currently supports the fixed cfg84 screening protocol only')
     if config_value.osram_history_query_adapter and (
@@ -3201,6 +3277,10 @@ def run_experiment(
         disable_unused_aux_modules=config_value.disable_unused_aux_modules,
         simple_regression_predictor=config_value.simple_regression_predictor,
     ).to(device)
+    from .core20 import attach
+    attach(model, config_value)
+    if config_value.core20_method != 'none':
+        model.core20_resource_path = output / 'RESOURCE.json'
     text_subspace_hash_before = (
         model.text_subspace_integrity()
         if config_value.target_space == "predictable-subspace" else None
@@ -3282,6 +3362,8 @@ def run_experiment(
     optimizer_groups, optimizer_group_provenance = _optimizer_parameter_groups(
         model, config_value
     )
+    from .core20 import prepare_optimizers
+    optimizer_groups = prepare_optimizers(model, config_value, optimizer_groups)
     optimizer_cls = torch.optim.AdamW if config_value.optimizer == "adamw" else torch.optim.Adam
     optimizer = optimizer_cls(
         optimizer_groups,
@@ -3296,7 +3378,7 @@ def run_experiment(
     test_schedules = _schedules(config_value, "test")
     group_dro_weights = (
         torch.ones(len(_OBSERVED_PATTERN_IDS), dtype=torch.float64)
-        if config_value.emotion_loss_mode == "pattern-groupdro"
+        if config_value.emotion_loss_mode in {"pattern-groupdro", "pattern-groupdro-author"}
         else None
     )
     history: list[Dict[str, object]] = []
@@ -3334,6 +3416,13 @@ def run_experiment(
         training_state.schedule_identity = schedule_identity
         restored = training_state.bind(model,optimizer).restore()
         if restored is not None:
+            from .core20 import restore_auxiliary
+            restore_auxiliary(model, restored.get('auxiliary_state') or {})
+            if group_dro_weights is not None:
+                auxiliary = restored.get('auxiliary_state') or {}
+                if 'group_dro_weights' not in auxiliary:
+                    raise ValueError('Group DRO continuation requires saved adversarial probabilities')
+                group_dro_weights.copy_(auxiliary['group_dro_weights'])
             start_epoch = restored['next_epoch']
             history = restored['history']
             selected_epoch_by_rate = restored['selection_state']['epochs']
@@ -3345,6 +3434,8 @@ def run_experiment(
             if start_epoch > config_value.epochs:
                 raise ValueError('Recovery progress exceeds configured training length')
     for epoch in range(start_epoch, config_value.epochs):
+        from .core20 import prototype_phase
+        prototype_phase(model, epoch)
         _apply_epoch_learning_rate(optimizer, config_value, epoch)
         sampler = getattr(train_loader, "sampler", None)
         if sampler is not None and hasattr(sampler, "set_epoch"):
@@ -3360,6 +3451,9 @@ def run_experiment(
             device,
             group_dro_weights,
         )
+        if config_value.core20_method == 'C17' and (epoch + 1) % 10 == 0:
+            train_metrics['core20']['prototype_projection'] = _project_core20_prototypes(
+                model, train_loader, train_schedules, epoch, dimensions, device)
         if jepa_pretraining:
             history.append({"epoch": epoch + 1, "train": train_metrics})
             _write_json(output / "history.json", history)
@@ -3480,11 +3574,13 @@ def run_experiment(
                     else:
                         training_state.save_best(epoch=epoch+1,rate=rate_key,checkpoint=selected_checkpoint)
             if training_state is not None:
+                from .core20 import auxiliary_state
                 training_state.commit_epoch(
                     next_epoch=epoch+1,history=history,
                     selection_state={'epochs':selected_epoch_by_rate,'scores':selected_score_by_rate,
                                      'weighted_f1':selected_weighted_f1_by_rate,'accuracy':selected_accuracy_by_rate},
-                    schedule_state={'next_epoch':epoch+1})
+                    schedule_state={'next_epoch':epoch+1},
+                    auxiliary_state=auxiliary_state(model, group_dro_weights))
             continue
         if best_score is None:
             raise RuntimeError("emotion checkpoint score was not initialized")
@@ -3920,6 +4016,9 @@ def build_parser() -> argparse.ArgumentParser:
         default="mse",
     )
     parser.add_argument("--task-smooth-l1-beta", type=float, default=1.0)
+    from .core20 import METHODS, CONTROLS
+    parser.add_argument('--core20-method', choices=('none',) + METHODS + CONTROLS, default='none')
+    parser.add_argument('--core20-aux-weight', type=float, default=1.0)
     parser.add_argument(
         "--postgraph-sequence-mode",
         choices=("independent", "shared-bilstm"),
@@ -3932,7 +4031,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--emotion-loss-mode",
-        choices=("sample-mean", "pattern-balanced", "pattern-groupdro"),
+        choices=("sample-mean", "pattern-balanced", "pattern-groupdro", "pattern-groupdro-author"),
         default="sample-mean",
     )
     parser.add_argument("--group-dro-eta", type=float, default=0.1)
@@ -4169,6 +4268,8 @@ def main(argv=None) -> None:
         postgraph_sequence_mode=args.postgraph_sequence_mode,
         jepa_rate_weighting=args.jepa_rate_weighting,
         emotion_loss_mode=args.emotion_loss_mode,
+        core20_method=args.core20_method,
+        core20_aux_weight=args.core20_aux_weight,
         group_dro_eta=args.group_dro_eta,
         graph_message_calibration=args.graph_message_calibration,
         graph_second_layer=args.graph_second_layer,

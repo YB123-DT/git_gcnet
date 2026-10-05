@@ -1,0 +1,82 @@
+{
+  "scope": "C13 C14 C16 C17 inference mechanisms",
+  "status": "implemented_cpu_verified; no training or performance claim",
+  "implementation": "gcnet_missing_m3/core20_inference.py",
+  "verification": {
+    "command": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest discover -s tests -p test_core20_inference.py -v",
+    "result": "8 tests passed",
+    "checks": ["causal prefix independence", "inactive Gap/padding NaN sanitation", "zero-history memory sanitation", "DEQ implicit derivative versus 100-step double precision unroll", "explicit nonconvergence failure", "ACT forced remainder and ponder gradients", "NRI categorical posterior and typed decoder gradients", "TRAIN-only same-class nearest exemplar projection"]
+  },
+  "methods": [
+    {
+      "id": "C13",
+      "paper": "Deep Equilibrium Models, NeurIPS 2019",
+      "paper_url": "https://arxiv.org/html/1909.01377",
+      "paper_sections_read": "3.1.1 forward root finding; 3.1.2 implicit gradient; 3.1.3 adjoint linear solve",
+      "author_repo": "https://github.com/locuslab/deq",
+      "commit": "1fb7059d6d89bb26d16da80ab9489dcc73fc5472",
+      "core_url": "https://raw.githubusercontent.com/locuslab/deq/1fb7059d6d89bb26d16da80ab9489dcc73fc5472/DEQ-Sequence/models/deq_transformer.py",
+      "core_sha256": "c82c7f181b66a012abf9717840a94f42d28bac090f9277000473186df6a211ce",
+      "author_core_read": "weight-shared transform; no-grad forward solver; backward_hook solves J_f^T v + upstream gradient",
+      "implementation": "DEQReadout",
+      "preserved": "Converged input-injected equilibrium and implicit differentiation through adjoint equation; forward iterations are not in autograd graph; per-row residual/convergence/iteration diagnostics, including backward diagnostics after backward",
+      "adaptation": "Contractive dense tanh cell replaces author's transformer/trellis cell. Frobenius bound <=0.8 guarantees contraction. Convergence-controlled Picard replaces Broyden; paper explicitly permits any convergent black-box solver. Width equals supplied latent_dim, default 256; output is learned projection of equilibrium, not scalar-gated residual.",
+      "failure_policy": "Raise RuntimeError on unresolved forward or backward convergence; never silently report finite unroll as equilibrium",
+      "limitations": "Does not reproduce original language modeling architecture, checkpoint, dataset, pretraining or performance; no claim of Broyden implementation"
+    },
+    {
+      "id": "C14",
+      "paper": "Universal Transformers, ICLR 2019",
+      "paper_url": "https://arxiv.org/html/1807.03819",
+      "paper_sections_read": "2 recurrent shared attention/transition; 2.2 dynamic halting; Appendix C per-position ACT equations",
+      "author_repo": "https://github.com/tensorflow/tensor2tensor",
+      "commit": "bafdc1b67730430d38d6ab802cbd51f9d053ba2e",
+      "core_url": "https://raw.githubusercontent.com/tensorflow/tensor2tensor/bafdc1b67730430d38d6ab802cbd51f9d053ba2e/tensor2tensor/models/research/universal_transformer_util.py",
+      "core_sha256": "f1a17f8662c3a520ab496b8fcd3fe475ecba3be844310b066962b69ed9ada136",
+      "author_core_read": "universal_transformer_act: shared recurrent attention+FFN, position/step preprocessing, halting probabilities, updates, remainders, accumulated option",
+      "implementation": "UniversalACTReadout",
+      "preserved": "One shared self-attention and FFN cell repeated across depth; sinusoidal position and step timing; position-specific sigmoid halting, remaining mass, weighted accumulated output, updates/remainder diagnostics, differentiable ponder_cost = ponder_weight * mean(N+R)",
+      "adaptation": "Causal conversation attention; accumulated ACT option; halted tokens and their attention keys freeze exactly, with no later timing added. Forced remainder at last permitted step normalizes mass to one. Default latent_dim=256 rather than universal arbitrary 64-dimensional residual.",
+      "trainer_requirement": "Add module.ponder_cost to TRAIN loss. It already includes ponder_weight=0.01 by default.",
+      "limitations": "No machine translation encoder-decoder reproduction; recurrent weights are shared but autograd retains finite ACT iterations; no accuracy/generalization claims"
+    },
+    {
+      "id": "C16",
+      "paper": "Neural Relational Inference for Interacting Systems, ICML 2018",
+      "paper_url": "https://arxiv.org/html/1802.04687",
+      "paper_sections_read": "3.1 encoder node-edge-node factor graph; 3.2 categorical sampling; 3.3 typed decoder; 3.6 variational training",
+      "author_repo": "https://github.com/ethanfetaya/NRI",
+      "commit": "e63fcb0144bca60eb1cffed9a94489de928d6c23",
+      "core_url": "https://raw.githubusercontent.com/ethanfetaya/NRI/e63fcb0144bca60eb1cffed9a94489de928d6c23/modules.py",
+      "core_sha256": "b132abbeb08e5649a12f9d31ec206bd262bbadc9e50761014e4e6e1e757532dc",
+      "author_core_read": "MLPEncoder node2edge/edge2node factor graph and posterior logits; MLPDecoder separate message networks for edge categories, skip_first no-edge, receiver aggregation and residual dynamics prediction",
+      "implementation": "NRIReadout",
+      "preserved": "Amortized categorical latent edges, node-edge-node factor encoder, hard straight-through Gumbel sampling in TRAIN, posterior expectation in EVAL, explicit type-zero no-edge, distinct message network per nonzero edge category, interaction decoder, next-utterance generative feature prediction plus uniform-prior categorical KL",
+      "adaptation": "Nodes are actual current/past utterance representations with variable prefix length, not five fixed Base/Gap roles. Graph candidates cover directed distinct utterance pairs. Prefix at t contains only t and earlier nodes. Original persistent multi-object trajectory dynamics becomes utterance succession prediction, so this is a domain adaptation, not an exact NRI reproduction.",
+      "causality": "Future local[t+1].detach() is consulted solely as TRAIN auxiliary prediction target. EVAL prediction loss is zero. Forward hidden[t] and edge posterior at t never depend on future input. Separate no-history singleton decoder has no fabricated edge.",
+      "trainer_requirement": "Add module.auxiliary_loss to TRAIN loss; includes prediction_weight=1 and kl_weight=0.01. Do not treat plain supervised task loss alone as complete NRI objective.",
+      "limitations": "One-step generative objective may suffer degenerate decoders; original multi-step object rollout and physical graph recovery are not reproduced. All-prefix computation is O(L^3) summed pair work and is unbenchmarked on long conversations. No graph truth or interpretability claim. Task feature prediction variance is implicit fixed variance (MSE), not copied physical-unit likelihood scaling. KL is mean categorical KL per edge, then mean over non-singleton conversation prefixes, not the author's per-object normalization."
+    },
+    {
+      "id": "C17",
+      "paper": "This Looks Like That: Deep Learning for Interpretable Image Recognition, NeurIPS 2019",
+      "paper_url": "https://arxiv.org/html/1806.10574",
+      "author_repo": "https://github.com/cfchen-duke/ProtoPNet",
+      "commit": "81bf2b70cb60e4f36e25e8be386eb616b7459321",
+      "core_url": "https://raw.githubusercontent.com/cfchen-duke/ProtoPNet/81bf2b70cb60e4f36e25e8be386eb616b7459321/model.py",
+      "core_sha256": "de9738b9147d023495cd05ed1a5b5a3e9986f14ca900df2156866e29bee2662e",
+      "additional_author_sources_read": [
+        "https://raw.githubusercontent.com/cfchen-duke/ProtoPNet/81bf2b70cb60e4f36e25e8be386eb616b7459321/push.py",
+        "https://raw.githubusercontent.com/cfchen-duke/ProtoPNet/81bf2b70cb60e4f36e25e8be386eb616b7459321/train_and_test.py"
+      ],
+      "author_core_read": "class-specific prototype identity, sigmoid feature head, squared L2 distances, log similarity, bias-free class head; nearest same-class training patch push; CE+0.8 cluster-0.08 separation+1e-4 wrong-class L1",
+      "implementation": "PrototypeClassifier; standalone full classifier/projection API rather than pretending prototypes are a generic regression residual readout",
+      "preserved": "Trainable class-specific prototypes; squared feature distance and logarithmic similarity; class head initialized +1 for same class and -0.5 for others; CE, cluster, separation and wrong-class L1 regularizers; exact nearest same-class TRAIN feature exemplar projection with stable source IDs and atomic missing-class failure",
+      "adaptation": "Each utterance representation is one prototype feature patch instead of an image spatial patch. Input projection uses sigmoid to preserve bounded feature domain. No claim of anatomical/image-part interpretation.",
+      "projection_api": "project_train_exemplars(batches, split='train'), batches yield (input[N,D], labels[N], stable IDs); split other than train rejected. Caller supplies actual TRAIN-only rows under current encoder; provenance is stored in projection_records. Reproject after encoder changes before presenting prototypes as exemplars.",
+      "task_change": "MOSI continuous sentiment MSE is not ProtoPNet's classification task. Run explicit binary sentiment classification and compare against a matched binary baseline. Preserve the established positive/nonpositive label convention and all dataset split rules; original MSE baseline comparisons cannot establish a faithful ProtoPNet result.",
+      "trainer_requirement": "Use classification CE via PrototypeClassifier.loss; implement warm/joint/projection/head schedule and store projection provenance. Root owns trainer integration. Missing projection or regression-only training is incomplete C17, not a faithful prototype experiment.",
+      "limitations": "No TRAIN schedule or real-data projection was executed by this module task; CPU synthetic projection verification is not an experimentally projected trained model"
+    }
+  ]
+}

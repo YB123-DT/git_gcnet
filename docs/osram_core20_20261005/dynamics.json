@@ -1,0 +1,86 @@
+{
+  "scope": "core20 C05-C08 sequence dynamics",
+  "audit_date_utc": "2026-10-05",
+  "implementation": "gcnet_missing_m3/core20_dynamics.py",
+  "tests": "tests/test_core20_dynamics.py",
+  "shared_contract": {
+    "state": "Fresh, independent per-conversation state at every scan. State persists across utterances, never across scans.",
+    "read_write_order": "Read historic state using base and three target-specific queries, then write only currently observed real key/value pairs.",
+    "missing": "torch.where sanitizes missing and padded key/value/query tensors before computation. Missing values are not reconstructed and written back.",
+    "padding": "State identity and exact zero outputs; padding does not advance index-time.",
+    "diagnostics": "audio/text/visual list maps containing rho, eta, cosine of original and residual gap query.",
+    "objective": "No auxiliary_loss property: core mechanisms train through the unchanged outer task objective. TTT reconstruction is an inner state update, not an extra outer task loss.",
+    "cuda": "No fused kernels, CUDA or new dependencies required.",
+    "performance_claim": "No training or performance evaluation was run; functional implementation does not establish improvement."
+  },
+  "methods": [
+    {
+      "id": "C05",
+      "name": "HierarchicalMultiscaleRNN",
+      "status": "implemented_paper_math_author_code_unavailable",
+      "paper": "https://arxiv.org/html/1609.01704v7",
+      "paper_sha256": "f29f9d8e2e23e0b607460f2d09e57126a068d5bfdc2f9b3692fa9d73d115afa4",
+      "method_sections": "3.2 equations 2-7; 3.3 straight-through boundary estimator",
+      "author_code_lead": "https://github.com/junyoung-chung/HMRNN",
+      "author_code_verification": "GitHub repository API and junyoung-chung user repositories API both returned HTTP 404 on audit date. An unofficial TensorFlow implementation nsfinkelstein/hierarchical-rnn was inspected only to assess provenance; it is not claimed as author code.",
+      "author_commit": null,
+      "mechanism": "Three persistent HM-LSTM layers. Own previous boundary triggers FLUSH (cell does not retain old cell); current lower boundary triggers UPDATE; otherwise COPY preserves hidden and cell exactly. Learned hard-sigmoid boundaries use straight-through derivatives. Previous upper hidden enters top-down path only on own FLUSH. Final layer has no effective boundary/top-down connection.",
+      "adaptation": "Concatenated observed A/T/V keys, values and availability per OSRAM head form bottom input. One event is an utterance, not one of five current readout roles. Query-conditioned linear decoder reads concatenated persistent hidden layers before the event write.",
+      "risks": ["Author-code inspection requirement remains unresolved due unavailable lead; paper-math implementation is verified but author-code equivalence must not be claimed.", "Hard boundaries and straight-through gradients introduce estimator bias; no slope annealing schedule is added to the global trainer.", "Layer widths and the output/query adapter differ from character language modelling experiments."]
+    },
+    {
+      "id": "C06",
+      "name": "NeuralCDE",
+      "status": "implemented_reference_math",
+      "paper": "https://arxiv.org/html/2005.08926v2",
+      "method_sections": "3 equations 3-5; 3.5-3.6 observation intensity channels",
+      "author_repository": "https://github.com/patrick-kidger/NeuralCDE",
+      "author_commit": "7e529f58441d719d2ce85f56bdee3208a90d5132",
+      "inspected_core_files": ["experiments/models/metamodel.py", "experiments/models/vector_fields.py", "controldiffeq/cdeint_module.py"],
+      "pinned_core_url": "https://github.com/patrick-kidger/NeuralCDE/blob/7e529f58441d719d2ce85f56bdee3208a90d5132/experiments/models/metamodel.py",
+      "core_sha256": "e0f4ab999f3c48b76c15cfe92996fdfed5c97e7929c889581195efc99e87dba6",
+      "mechanism": "Persistent z solves dz=f_theta(z)dX using a learned matrix-valued tanh vector field and four RK4 substeps per incoming control segment; first observed control initializes z with a learned network. Control includes real forward-filled keys/values, three cumulative observed counts and utterance index-time.",
+      "adaptation": "Causal piecewise-linear interpolation through arrived observations replaces the reference natural cubic spline to prevent future leakage. Each missing modality holds its previously observed control. Entirely unobserved events do not write state. A subsequent real observation includes the intervening valid index-time increment. Read historic z before extending the path.",
+      "activation_checkpoint": "Training with gradients uses torch.utils.checkpoint on each RK4 segment, use_reentrant=False. This preserves the same parameters, dimensions, four substeps and outputs/outer gradients while recomputing vector-field evaluations in backward; evaluation/no_grad runs direct integration. At B32/H8/D32/control388 each field output is 3,178,496 floats, about 12.125 MiB; sixteen outputs per event would otherwise retain about 194 MiB per event before other intermediates. Checkpointing reduces retained segment intermediates but increases backward compute. GPU peak and runtime have not been measured.",
+      "risks": ["Fixed RK4 resolution has discretization error; no adaptive tolerance or adjoint implementation is claimed.", "No physical timestamps are supplied: unit steps are valid utterance index-time only, never elapsed seconds.", "Causal linear/forward-fill control and query decoder differ from author experiment splines and final linear classifier; published benchmark equivalence is not claimed.", "Activation checkpoint trades recomputation for lower saved activation storage; constructor parameter size does not establish safe GPU concurrency."]
+    },
+    {
+      "id": "C07",
+      "name": "RecurrentIndependentMechanisms",
+      "status": "implemented_reference_math",
+      "paper": "https://arxiv.org/html/1909.10893v3",
+      "method_sections": "2.3-2.4 equations 3-8; Appendix C.1",
+      "author_repository": "https://github.com/anirudh9119/RIMs",
+      "author_verification": "Repository README identifies Anirudh Goyal and paper authors, and links their paper and copying/adding scripts.",
+      "author_commit": "aa61773a949c1e3f499d4c05dd77fcd2adbffa19",
+      "inspected_core_files": ["event_based/blocks_core.py", "README.md"],
+      "pinned_core_url": "https://github.com/anirudh9119/RIMs/blob/aa61773a949c1e3f499d4c05dd77fcd2adbffa19/event_based/blocks_core.py",
+      "core_sha256": "92b51bd4682a864372455ca4b6b458a18a41e2509f5346c6d8878ec",
+      "mechanism": "Four persistent independent LSTM mechanisms per OSRAM head, each with separate input and communication maps. Mechanism hidden state queries three real input slots plus an all-zero null input. Lowest null attention selects two active mechanisms. Active mechanisms update their LSTM states and receive residual attention communication from all persistent mechanisms; inactive hidden/cell remain exactly unchanged.",
+      "adaptation": "Real slots are the available modalities at the current utterance. No reuse of historical five-role/current-feature-only RIM readout. Summary decoder queries all persistent mechanism hidden states before the current event update.",
+      "risks": ["Uses one attention head per mechanism instead of the author multihead communication defaults; four mechanisms and two active are fixed architecture choices.", "Inactive forward states are preserved, but gradients through inactive values used in communication are not blocked with the reference custom sparse-gradient operator.", "Top-k mechanism selection is discrete, as in the reference mask; no differentiable top-k replacement is claimed."]
+    },
+    {
+      "id": "C08",
+      "name": "TTT-MLP",
+      "status": "implemented_reference_math",
+      "paper": "https://arxiv.org/html/2407.04620v2",
+      "method_sections": "2.1-2.3 equations 2,4,5; 2.7 residual + layernorm MLP, learnable initial weights and learning rate",
+      "author_repository": "https://github.com/test-time-training/ttt-lm-pytorch",
+      "author_verification": "Paper HTML directly links the repository as its PyTorch codebase; repository README calls it the official model implementation.",
+      "author_commit": "cd831db10c8c9a0f6340f02da5613316a8a92b67",
+      "inspected_core_files": ["ttt.py: TTTMLP.ttt", "ttt.py: ln_fused_l2_bwd", "ttt.py: gelu_bwd"],
+      "pinned_core_url": "https://github.com/test-time-training/ttt-lm-pytorch/blob/cd831db10c8c9a0f6340f02da5613316a8a92b67/ttt.py",
+      "core_sha256": "5386ca299328e0d6ffe7b783b09a462023b02b9a0906cba01d83f482ed5b7484",
+      "mechanism": "Per-conversation/head fast W1,b1,W2,b2 start from learned initial weights, persist across the sequence and take online gradient descent on half squared key-to-real-value reconstruction. f(x)=skip(x)+LayerNorm(GELU(xW1+b1)W2+b2), hidden width 4K. Inner gradients through LayerNorm and tanh-GELU are analytic Torch expressions and remain outer-differentiable. Input-dependent learning rates are learned. Eval/no_grad/inference_mode still perform input-only inner updates without emotion labels.",
+      "adaptation": "OSRAM supplies learned key/query/value views instead of a token projection frontend. Real observed A/T/V pairs are processed in that fixed order. History is queried before all current writes per OSRAM contract, whereas the author TTT token output normally uses its own updated state. For unequal K/V dimensions the residual uses a learned K-to-V projection. Uses online primal mini-batch size one, no dual kernels or language-model backbone.",
+      "risks": ["Sequential inner updates and full outer differentiation cost more than fused/dual TTT; no systems speed claim.", "Observation order is fixed A/T/V within utterance, and read-before-write is a task-specific output timing adaptation.", "Optimization stability and reconstruction usefulness require actual task training; exact gradient verification is not performance evidence."]
+    }
+  ],
+  "verification": {
+    "command": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python -m unittest tests.test_core20_dynamics -v",
+    "result": "8 tests passed, CPU; includes exact checkpoint/direct output and outer-gradient parity",
+    "coverage": ["shared shapes and diagnostics", "missing NaN input and gradient sanitization", "read-before-write and future-prefix causality", "real historical value sensitivity", "fresh scan state and no_grad evaluation equality", "padding state identity including removed interior padding", "target-specific residual callback", "HM COPY UPDATE FLUSH math and straight-through boundaries", "CDE constant-field RK4 exact control increment", "RIM inactive state identity and active communication", "TTT analytic inner gradients versus autograd", "TTT outer gradcheck and inference-mode adaptation"],
+    "not_tested": ["CUDA", "training accuracy", "long-sequence optimization stability", "published experiment reproduction", "C05 unavailable author implementation equivalence"]
+  }
+}

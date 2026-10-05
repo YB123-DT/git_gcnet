@@ -1954,6 +1954,8 @@ class MissingM3GraphModel(GraphModel):
             raise ValueError('decision correction does not support auxiliary prediction')
         features = self._feature_tensor(inputfeats)
         encoded, latents = self.observed_set(features, availability, umask)
+        if hasattr(self, 'core20'):
+            encoded, latents = self.core20.prepare(self, encoded, latents, availability, umask, features)
         if self.node_interaction_residual:
             encoded = encoded + self.node_interaction(
                 latents, availability, umask
@@ -1961,6 +1963,13 @@ class MissingM3GraphModel(GraphModel):
         osram_context = None
         internal_predictions = None
         osram_nodes = {}
+        if hasattr(getattr(self, 'osram', None), 'core20_value'):
+            offsets = 0
+            targets = {}
+            for name, width in zip(MODALITIES, self.observed_set.dimensions):
+                targets[name] = features[..., offsets:offsets + width]
+                offsets += width
+            osram_nodes['core20_reconstruction_targets'] = targets
         self.last_text_core = None
         if self.future_state_jepa and self.training:
             osram_nodes['post_write_observer'] = self.future_state.begin(encoded, umask.T.bool())
@@ -2108,6 +2117,8 @@ class MissingM3GraphModel(GraphModel):
                 umask,
             )
         returned_predictions = internal_predictions if predict_missing else None
+        if hasattr(self, 'core20'):
+            logits = self.core20.predict(readout_hidden, logits, umask)
         return logits, classification_hidden, latents, returned_predictions
 
     @torch.no_grad()
