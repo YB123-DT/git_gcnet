@@ -18,7 +18,7 @@ from experiments.osram_meaningful20_20261003.run import EXPECTED, FORBIDDEN
 from gcnet_missing_m3.core20 import METHODS, CONTROLS, TRANSFER_METHODS
 
 LABEL = 'INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle screening; NOT A FORMAL PAPER RESULT'
-EXTRA_EXPERIMENTS = ('CED',)
+EXTRA_EXPERIMENTS = ('CED', 'NestedRootAware')
 # Fixed BEFORE training. These are transfer coefficients, not published optimal
 # recipes. Raw-feature generative ELBO sums 2560 coordinates (C11); .001 keeps
 # its explicit likelihood objective from being silently averaged into a new loss.
@@ -68,6 +68,8 @@ def candidate_config(reference, method, *, seed=66):
                  **CHANGED.get(method, {}))
     if method == 'CED':
         delta = {'osram_ced_block': True}
+    elif method == 'NestedRootAware':
+        delta = {'osram_meaningful_block': 'nested_gnn_rootaware_evidence'}
     config = TrainConfig(**dict(baseline, **delta))
     return config, {key: {'baseline': baseline[key], 'candidate': value}
                     for key, value in asdict(config).items() if baseline[key] != value}
@@ -140,6 +142,12 @@ def main(fixed_method=None):
         artifacts += [f'predictions_miss_0p{i}.npz' for i in range(8)]
         if any(not (args.output / name).is_file() for name in artifacts):
             raise ValueError('incomplete selected checkpoint/prediction artifacts')
+        if args.method == 'NestedRootAware':
+            from experiments.osram_cfg84_history_query_random_20260928.run import verify_outputs
+            verify_outputs(args.output, args.reference.parent)
+            expected_masks = json.loads((args.reference.parent / 'metrics.json').read_text())['mask_sha256']
+            if metrics['mask_sha256'] != expected_masks:
+                raise ValueError('ordered evaluation mask hashes differ from same-seed Flat')
         verify_snapshot(source)
         provenance.update(status='complete', finished_utc=now(), exit_code=0,
             outputs_verified=True, peak_allocated_mib=torch.cuda.max_memory_allocated() / 2**20,

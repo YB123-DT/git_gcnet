@@ -9,7 +9,7 @@ import torch
 from torch import nn
 
 from .meaningful_blocks_common import safe_mask
-from .meaningful_new40_registry import NEW40_METHODS
+from .meaningful_new40_registry import NEW40_METHODS, NEW40_VARIANTS
 from .meaningful_v3_registry import V3_METHODS
 from .priority40_registry import PRIORITY_INPUT_METHODS
 
@@ -30,6 +30,7 @@ INPUT_FAMILIES = {
     'circuit': ('rat_spn_evidence_circuit',),
     'pair': ('ppgn_pair_composition',),
     'new40': NEW40_METHODS,
+    'new40_variants': NEW40_VARIANTS,
     'v3': V3_METHODS,
     'priority40': PRIORITY_INPUT_METHODS,
 }
@@ -44,6 +45,8 @@ class MeaningfulInputAdapter(nn.Module):
         self.method, self.forward_dim = method, num_heads*value_dim
         for family, names in INPUT_FAMILIES.items():
             if method in names:
+                if family == 'new40_variants':
+                    family = 'new40'
                 module = importlib.import_module('.meaningful_input_'+family,__package__)
                 self.core = getattr(module,'build_'+family)(method,latent_dim,num_heads,value_dim)
                 break

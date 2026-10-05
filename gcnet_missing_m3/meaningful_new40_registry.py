@@ -53,3 +53,5 @@ NEW40_FAMILIES = {
     'retrieval': ('n3_recursive_neighbor_volumes', 'pointcnn_x_transformed_evidence'),
 }
 NEW40_METHODS = tuple(method for methods in NEW40_FAMILIES.values() for method in methods)
+# Pooling variants are comparisons, not additional independent catalog methods.
+NEW40_VARIANTS = ('nested_gnn_rootaware_evidence',)

@@ -321,7 +321,7 @@ class Hodge(nn.Module):
 
 
 class NestedGNN(nn.Module):
-    def __init__(self):
+    def __init__(self, root_aware=False):
         super().__init__()
         self.root_embedding = nn.Embedding(2, 64)
         self.distance = nn.Embedding(2, 64)
@@ -330,6 +330,11 @@ class NestedGNN(nn.Module):
         self.epsilon = nn.Parameter(torch.zeros(3))
         self.pool = mlp(192)
         self.readout = mlp(192)
+        self.root_aware = root_aware
+        if root_aware:
+            # Preserve both common parameters and subsequent adapter RNG draws.
+            with torch.random.fork_rng(devices=[]):
+                self.root_pool = nn.Linear(128, 64)
 
     def forward(self, x, columns, heads):
         a = topology(columns, heads, x.dtype)
@@ -342,7 +347,14 @@ class NestedGNN(nn.Module):
             states = []
             for layer, norm, eps in zip(self.layers, self.norms, self.epsilon):
                 h = norm(layer((1 + eps) * h + induced @ h))
-                states.append(h.mean(1))
+                if self.root_aware:
+                    root_hidden = h[:, marker.bool()].squeeze(1)
+                    nonroot = h[:, ~marker.bool()]
+                    neighbor_hidden = (nonroot.mean(1) if nonroot.shape[1]
+                                       else torch.zeros_like(root_hidden))
+                    states.append(self.root_pool(torch.cat((root_hidden, neighbor_hidden), -1)))
+                else:
+                    states.append(h.mean(1))
             roots.append(self.pool(torch.cat(states, -1)))
         rooted = torch.stack(roots, 1)
         return self.readout(torch.cat((x, rooted, rooted.mean(1, keepdim=True).expand_as(x)), -1))
@@ -462,6 +474,8 @@ def build(method, latent_dim=256, num_heads=8, value_dim=64):
         return RoleAdapter(roles[method](), latent_dim, num_heads, value_dim)
     if method == 'graph_matching_base_gap_pairs':
         return GraphMatching(latent_dim, num_heads, value_dim)
+    if method == 'nested_gnn_rootaware_evidence':
+        return TokenAdapter(NestedGNN(root_aware=True), latent_dim, num_heads, value_dim, dim=64)
     cores = {'matrix_tree_nonprojective_evidence': MatrixTree,
              'diffpool_hierarchical_evidence_graph': DiffPool,
              'cwn_cellular_evidence': Cellular,
