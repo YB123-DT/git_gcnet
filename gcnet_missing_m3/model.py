@@ -1274,6 +1274,7 @@ class MissingM3GraphModel(GraphModel):
         osram_memory_only_adapter=False,
         osram_history_input_gate=False,
         osram_local_evidence_gate=False,
+        osram_local_evidence_gate_gap_only=False,
         osram_hierarchical_evidence_gate=False,
         osram_hierarchical_feature_only=False,
         osram_shift_filter_width=128,
@@ -1774,6 +1775,7 @@ class MissingM3GraphModel(GraphModel):
                 osram_memory_only_adapter=osram_memory_only_adapter,
                 osram_history_input_gate=osram_history_input_gate,
                 osram_local_evidence_gate=osram_local_evidence_gate,
+                osram_local_evidence_gate_gap_only=osram_local_evidence_gate_gap_only,
                 osram_hierarchical_evidence_gate=osram_hierarchical_evidence_gate,
                 osram_hierarchical_feature_only=osram_hierarchical_feature_only,
             )

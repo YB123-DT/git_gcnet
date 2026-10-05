@@ -551,8 +551,9 @@ class HierarchicalEvidenceGate(nn.Module):
 class LocalConditionedEvidenceGate(nn.Module):
     """Identity-initialized scalar modulation of each original Flat evidence."""
 
-    def __init__(self, latent_dim, context_dim):
+    def __init__(self, latent_dim, context_dim, gap_only=False):
         super().__init__()
+        self.gap_only = bool(gap_only)
         self.local_relation = nn.Linear(latent_dim, 128)
         self.memory_relation = nn.Linear(context_dim, 128)
         self.type_embedding = nn.Embedding(4, 8)
@@ -578,10 +579,14 @@ class LocalConditionedEvidenceGate(nn.Module):
                                q.norm(dim=-1, keepdim=True), k.norm(dim=-1, keepdim=True),
                                types, availability.unsqueeze(-2).expand(*evidence.shape[:-1], 3)), -1)
         raw = 1. + .2 * torch.tanh(self.output(torch.nn.functional.elu(self.input(condition))).squeeze(-1))
+        penalty_active = active
+        if self.gap_only:
+            raw = torch.cat((torch.ones_like(raw[..., :1]), raw[..., 1:]), -1)
+            penalty_active = torch.cat((torch.zeros_like(active[..., :1]), active[..., 1:]), -1)
         gates = torch.where(active, raw, 0.)
-        penalty = torch.where(active, (raw-1.).square(), 0.)
-        self.regularization = penalty.sum() / active.sum().clamp_min(1)
-        self.regularization_l1 = torch.where(active, (raw-1.).abs(), 0.).sum() / active.sum().clamp_min(1)
+        penalty = torch.where(penalty_active, (raw-1.).square(), 0.)
+        self.regularization = penalty.sum() / penalty_active.sum().clamp_min(1)
+        self.regularization_l1 = torch.where(penalty_active, (raw-1.).abs(), 0.).sum() / penalty_active.sum().clamp_min(1)
         with torch.no_grad():
             self.last_diagnostics = {'active_count': int(active.sum()),
                                      'regularization': float(self.regularization.detach())}
@@ -832,6 +837,7 @@ class OSRAMBackbone(nn.Module):
         osram_memory_only_adapter: bool = False,
         osram_history_input_gate: bool = False,
         osram_local_evidence_gate: bool = False,
+        osram_local_evidence_gate_gap_only: bool = False,
         osram_hierarchical_evidence_gate: bool = False,
         osram_hierarchical_feature_only: bool = False,
         osram_shift_filter_width: int = 128,
@@ -905,6 +911,8 @@ class OSRAMBackbone(nn.Module):
             raise ValueError('local-skip gate requires causal Flat without other adaptations')
         self.osram_history_input_gate = bool(osram_history_input_gate)
         self.osram_local_evidence_gate = bool(osram_local_evidence_gate)
+        if osram_local_evidence_gate_gap_only and not self.osram_local_evidence_gate:
+            raise ValueError('Gap-only requires local evidence gate')
         self.osram_hierarchical_evidence_gate = bool(osram_hierarchical_evidence_gate)
         if osram_hierarchical_feature_only and not self.osram_hierarchical_evidence_gate:
             raise ValueError('hierarchical feature-only requires hierarchical-evidence gate')
@@ -1100,7 +1108,8 @@ class OSRAMBackbone(nn.Module):
                     self.latent_dim, self.context_dim, feature_only=osram_hierarchical_feature_only)
         if self.osram_local_evidence_gate:
             with torch.random.fork_rng(devices=[]):
-                self.local_evidence_gate = LocalConditionedEvidenceGate(self.latent_dim, self.context_dim)
+                self.local_evidence_gate = LocalConditionedEvidenceGate(
+                    self.latent_dim, self.context_dim, gap_only=osram_local_evidence_gate_gap_only)
         if self.osram_local_skip_gate:
             with torch.random.fork_rng(devices=[]):
                 self.local_skip_gate = HistoryInputGate(self.latent_dim, self.context_dim)

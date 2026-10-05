@@ -152,6 +152,7 @@ class TrainConfig:
     osram_memory_only_adapter: bool = False
     osram_history_input_gate: bool = False
     osram_local_evidence_gate: bool = False
+    osram_local_evidence_gate_gap_only: bool = False
     osram_hierarchical_evidence_gate: bool = False
     osram_hierarchical_feature_only: bool = False
     osram_local_evidence_gate_reg_weight: float = 0.001
@@ -430,6 +431,8 @@ class TrainConfig:
                     or self.initial_backbone_checkpoint is not None
                     or self.jepa_rate_weighting != "uniform"):
                 raise ValueError("complete-state requires causal flat OSRAM without completion or legacy transfer, and uniform loss weighting")
+        if self.osram_local_evidence_gate_gap_only and not self.osram_local_evidence_gate:
+            raise ValueError('Gap-only requires local evidence gate')
         if not math.isfinite(self.osram_local_evidence_gate_reg_weight) or self.osram_local_evidence_gate_reg_weight < 0:
             raise ValueError('local-evidence gate regularization weight must be finite and nonnegative')
         if self.osram_local_evidence_gate_reg_type not in ('l1', 'l2'):
@@ -3263,6 +3266,7 @@ def run_experiment(
         osram_memory_only_adapter=config_value.osram_memory_only_adapter,
         osram_history_input_gate=config_value.osram_history_input_gate,
         osram_local_evidence_gate=config_value.osram_local_evidence_gate,
+        osram_local_evidence_gate_gap_only=config_value.osram_local_evidence_gate_gap_only,
         osram_hierarchical_evidence_gate=config_value.osram_hierarchical_evidence_gate,
         osram_hierarchical_feature_only=config_value.osram_hierarchical_feature_only,
         complete_state_jepa=config_value.training_objective == "complete-state",
@@ -3931,6 +3935,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Independently gate each Flat memory evidence conditioned on Local.')
     parser.add_argument('--osram-local-evidence-gate-reg-weight', '--osram-evidence-gate-reg-weight', type=float, default=.001)
     parser.add_argument('--osram-local-evidence-gate-reg-type', choices=('l1', 'l2'), default='l2')
+    parser.add_argument('--osram-local-evidence-gate-gap-only', action='store_true')
     parser.add_argument(
         "--osram-post-grn", action="store_true",
         help="Add a zero-initialized conditioned GRN after normalized Flat OSRAM readout.",
@@ -4206,6 +4211,7 @@ def main(argv=None) -> None:
         osram_memory_only_adapter=args.osram_memory_only_adapter,
         osram_history_input_gate=args.osram_history_input_gate,
         osram_local_evidence_gate=args.osram_local_evidence_gate,
+        osram_local_evidence_gate_gap_only=args.osram_local_evidence_gate_gap_only,
         osram_hierarchical_evidence_gate=args.osram_hierarchical_evidence_gate,
         osram_hierarchical_feature_only=args.osram_hierarchical_feature_only,
         osram_local_evidence_gate_reg_weight=args.osram_local_evidence_gate_reg_weight,
