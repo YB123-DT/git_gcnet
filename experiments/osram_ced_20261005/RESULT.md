@@ -1,7 +1,12 @@
 # Coalition Evidence Decomposition (CED)
 
-INTERNAL DIAGNOSTIC ONLY — planned seed66 per-rate BEST Test-oracle screening.
+INTERNAL DIAGNOSTIC ONLY — running seed66 per-rate BEST Test-oracle screening.
 No performance improvement claim before completion.
+
+Started 2026-10-05 09:37 UTC from immutable code f6e6de3 on biggpu GPU6.
+PID 2808863, tmux `osram_ced_seed66_20261005`. Real optimizer step verified
+(epoch1/batch1/steps1), peak allocated 1163.58 MiB, reserved1284 MiB.
+Per-rate scores remain pending. Launch metadata is in LAUNCH.json.
 
 ## Verified implementation
 
