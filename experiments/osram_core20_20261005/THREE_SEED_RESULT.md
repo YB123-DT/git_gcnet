@@ -51,3 +51,25 @@ Final analysis should show
 all three seed-matched deltas vs Flat, mean/sample SD, eight per-rate means and
 high-missing means. Do not replace missing runs with best single-seed scores.
 No significance or formal validation-selected performance claim.
+
+## Partial update 2026-10-05 06:04 UTC
+
+| Method | seed | Status | 8-rate W-F1 (%) | High (%) |
+|---|---:|---|---:|---:|
+| C07 |66|complete, reused|80.514|76.257|
+| C07 |67|complete, 100 epochs|80.059|75.720|
+| C07 |68|complete, 100 epochs|79.063|73.977|
+| C07 |3-seed mean|complete|79.879|75.318|
+| Flat |3-seed matched mean|reference|80.559|75.594|
+| C20 |68|complete, 100 epochs|79.821|74.597|
+| C20 |67|failed after 29 recorded epochs|—|—|
+| C08 |67|pending|—|—|
+| C08 |68|pending|—|—|
+
+C20 seed67 failed with RuntimeError: CAGrad simplex solve failed:
+Positive directional derivative for linesearch. No completed three-seed mean
+may be reported for C20. Preserve its full last_training checkpoint; do not
+blindly retry unchanged solver or replace the failed run with a best partial score.
+Solver failure has not yet been diagnosed/repaired in this status update.
+C08 waits for the original queue: C19 still running, 22 recorded epochs.
+Live dispatcher snapshot archived in TOP3_PROGRESS_20261005.json.
