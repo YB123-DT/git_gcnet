@@ -44,15 +44,15 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def candidate_config(reference, method):
+def candidate_config(reference, method, *, seed=66):
     from gcnet_missing_m3.train_gcnet import TrainConfig
     if method not in METHODS + CONTROLS:
         raise ValueError('unsupported method')
     for key, value in EXPECTED.items():
         if reference.get(key) != value:
             raise ValueError(f'baseline protocol mismatch: {key}')
-    if reference.get('seed') != 66:
-        raise ValueError('first core20 screen is seed66 only')
+    if seed not in (66, 67, 68) or reference.get('seed') != seed:
+        raise ValueError('use the exact same-seed Flat reference')
     if any(reference.get(key, False) for key in FORBIDDEN):
         raise ValueError('baseline already contains an intervention')
     for key in ('core20_method', 'osram_meaningful_block', 'osram_readout_candidate'):
@@ -80,6 +80,7 @@ def verify_snapshot(root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--method', choices=METHODS + CONTROLS, required=True)
+    parser.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     parser.add_argument('--reference', type=Path, required=True)
     parser.add_argument('--data-manifest', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
@@ -97,7 +98,7 @@ def main():
         if sha(path) != digest:
             raise ValueError('data hash mismatch: ' + path)
     reference = json.loads(args.reference.read_text())
-    config, delta = candidate_config(reference, args.method)
+    config, delta = candidate_config(reference, args.method, seed=args.seed)
     args.output.mkdir(parents=True, exist_ok=True)
     lock = (args.output / 'RUN.lock').open('a+')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -107,7 +108,7 @@ def main():
         if prior.get('status') == 'complete':
             print('already complete', flush=True)
             return
-    provenance = dict(status='running', label=LABEL, method=args.method, seed=66,
+    provenance = dict(status='running', label=LABEL, method=args.method, seed=args.seed,
         started_utc=now(), pid=os.getpid(), server=socket.gethostname(), gpu_uuid=args.gpu_uuid,
         code_commit=snapshot['code_commit'], snapshot_sha256=sha(source / 'SNAPSHOT.json'),
         reference=str(args.reference), reference_config_sha256=sha(args.reference),
