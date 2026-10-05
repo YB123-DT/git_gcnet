@@ -2,9 +2,11 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: deployed and QUEUED on biggpu GPU6; training has not started.
-Queue process PID 70857, tmux osram_gap_only_gate_20261005.
-Queued UTC 2026-10-05T03:51:29.421357+00:00; code commit 1ee8ef0.
+Status: TRAINING on biggpu GPU6, directly concurrent with C08 as requested.
+Training PID 498366, tmux osram_gap_only_gate_direct_20261005.
+Started UTC 2026-10-05T03:54:51.513033+00:00; code commit 1ee8ef0.
+Original queued process 70857 was terminated before training or seed output
+creation; no checkpoint was removed. Only the scheduling wait was dropped.
 
 One-stage from-scratch MOSI, 100 epochs, unchanged cfg84 causal no-JEPA Flat,
 cyclic random missing 0.0–0.7, original per-rate BEST Test-oracle protocol.
@@ -28,14 +30,16 @@ Gap values for identical weights. No new GPU smoke or parameter sweep.
 Verified on biggpu CPU with the existing s0 environment: 2 tests passed (2.99s).
 Local default Python has no torch; no dependencies were installed.
 
-GPU6 only; wait for existing core20 exclusive queue to drain. Do not interrupt it.
+GPU6 only; direct concurrent launch supersedes the original wait instruction.
+Existing C08 was not interrupted. Admission free memory 18213MiB; after model
+startup total GPU6 memory used 16022MiB / free 16473MiB (shared measurements).
 Remote run will save effective config, code/source hashes, reference hashes,
 status, predictions and eight BEST checkpoints. No scores claimed before completion.
 
 Remote root: /data2/yb/remote_experiments/osram_gap_only_evidence_gate_20261005.
-Immutable committed snapshot: code/; live status: runs/STATUS.json; log: train.log.
-Persistent runner waits for core20 DISPATCH.json to have no running/pending tasks,
-then checks GPU6 UUID and at least 4000MiB free before training automatically.
+Immutable committed snapshot: code/; live status: runs/STATUS.json;
+current log: train_direct.log; original queue log: train.log.
+Persistent runner checks GPU6 UUID and at least 4000MiB free before training.
 
 Command within the remote code snapshot (existing s0 Python):
 
@@ -46,6 +50,5 @@ GCNET_DATASET_ROOT=/data2/yb/paper/GCNet_repro_cmumosi_10seed_20260819/dataset \
 /data2/yb/reproduction_workspace/envs/s0/bin/python -u \
 experiments/osram_gap_only_evidence_gate_20261005/run.py \
 --code-commit 1ee8ef0 \
---output-root /data2/yb/remote_experiments/osram_gap_only_evidence_gate_20261005/runs \
---wait-core20 /data2/yb/remote_experiments/osram_core20_20261005/runs/DISPATCH.json
+--output-root /data2/yb/remote_experiments/osram_gap_only_evidence_gate_20261005/runs
 ```
