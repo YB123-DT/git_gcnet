@@ -3,7 +3,40 @@
 INTERNAL DIAGNOSTIC ONLY
 
 Implementation status: 20 mechanisms and two necessary controls implemented.
-Performance status: NOT YET AVAILABLE. A passing correctness test is not a gain.
+Performance status: PARTIAL RESULTS AVAILABLE. Correctness is not a gain.
+
+## Progress at 2026-10-05T03:37:01.331820+00:00
+
+Completed16 configurations (14 methods +2 controls), all100epochs with verified
+selected artifacts. Active: C06 78/100. Pending: C08, C09, C15, C16, C19.
+No completed method exceeds original Flat mean8 or high-missing mean.
+BEST-per-rate W-F1 percentages below; deltas are percentage points against
+historical regression Flat seed66 (81.068095 /76.352251). C17 requires binary
+control; C20 requires three-exit mean control. See PROGRESS_20261005.json.
+
+| Configuration | mean8 | high | mean8 delta vs Flat |
+| --- | ---: | ---: | ---: |
+| C20 | 80.646 | 75.884 | -0.423 |
+| C20-mean-control | 80.632 | 75.505 | -0.436 |
+| C07 | 80.514 | 76.257 | -0.554 |
+| C05 | 80.013 | 75.430 | -1.056 |
+| C11 | 79.928 | 75.187 | -1.140 |
+| C17-binary-control | 79.619 | 74.863 | -1.449 |
+| C13 | 79.579 | 74.296 | -1.489 |
+| C04 | 79.494 | 74.897 | -1.574 |
+| C02 | 79.401 | 74.220 | -1.667 |
+| C12 | 79.245 | 74.645 | -1.823 |
+| C01 | 79.018 | 73.901 | -2.050 |
+| C14 | 78.481 | 73.481 | -2.587 |
+| C10 | 78.242 | 72.889 | -2.826 |
+| C03 | 59.397 | 59.411 | -21.672 |
+| C17 | 53.915 | 54.255 | -27.153 |
+| C18 | 50.828 | 53.414 | -30.241 |
+
+C20 versus matched mean-control: +0.014pp mean8, not a demonstrated robust gain.
+Single seed, Test-oracle INTERNAL DIAGNOSTIC ONLY; no significance claim or
+automatic multi-seed promotion. Low C03/C17/C18 scores are retained, not hidden
+or presumed code failures without a separate diagnosis.
 
 2026-10-05 launch: source00522bd deployed to biggpu; GPU6 only.
 Eleven actual training processes confirmed by optimizer-step RESOURCE.json:
