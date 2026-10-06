@@ -80,6 +80,22 @@ GPU3/6 remaining capacity automatically admits pending Four/Six folds;
 seed66 MOSEI old source and completed Six seed66 remain untouched.
 Status: running/initial data loading. No new three-seed aggregate claimed.
 
+## MOSEI three seeds complete
+
+All three MOSEI seeds66/67/68 complete100epochs with verified outputs.
+Per-rate BEST Test-oracle weighted F1, not final-epoch/single-epoch average:
+
+|Seed|8-rate W-F1 (%)|High-missing W-F1 (%)|
+|---|---:|---:|
+|66|83.880953|81.322609|
+|67|83.876906|81.732793|
+|68|83.772477|81.566440|
+|Mean|83.843445|81.540614|
+
+At this status check, additional27-task queue has20complete/4running/3pending,
+no reported error. IEMOCAP three-seed full fivefold summaries remain pending.
+All values INTERNAL DIAGNOSTIC ONLY. No statistical improvement claim.
+
 User requested Nested on MOSEI and IEMOCAP. Use the original
 `nested_gnn_rooted_evidence` (Local single node, eight Memory head nodes per
 active evidence, 64d, three GIN layers), not Local8/root-aware variants.
