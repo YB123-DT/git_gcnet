@@ -34,6 +34,19 @@ def tasks():
             [('CMUMOSEI', [1]), ('IEMOCAPSix', range(1, 6))] for f in folds]
 
 
+def additional_tasks():
+    # Previously authorized seed66 Six/MOSEI must never be dispatched again.
+    rows = [dict(dataset='CMUMOSEI', seed=s, fold=1) for s in (67, 68)]
+    rows += [dict(dataset=d, seed=s, fold=f) for f in range(1, 6)
+             for d, seeds in [('IEMOCAPFour', (66, 67, 68)), ('IEMOCAPSix', (67, 68))]
+             for s in seeds]
+    return rows
+
+
+def output_dir(task):
+    return ROOT / task['dataset'] / f'seed_{task["seed"]}/fold_{task["fold"]}'
+
+
 def configuration(reference, task):
     for key, expected in dict(REQUIRED, **task).items():
         if reference.get(key) != expected:
@@ -74,8 +87,9 @@ def now():
 
 def reference_dir(task):
     if task['dataset'] == 'CMUMOSEI':
-        return REMOTE / 'osram_mosei_cfg84_nojepa_20260919/seed_66'
-    return REMOTE / f'osram_iemocap_cfg84_nojepa_5session_20260919/iemocap6/seed_66/fold_{task["fold"]}'
+        return REMOTE / f'osram_mosei_cfg84_nojepa_20260919/seed_{task["seed"]}'
+    classes = {'IEMOCAPFour': 4, 'IEMOCAPSix': 6}[task['dataset']]
+    return REMOTE / f'osram_iemocap_cfg84_nojepa_5session_20260919/iemocap{classes}/seed_{task["seed"]}/fold_{task["fold"]}'
 
 
 def data_description(dataset):
@@ -124,11 +138,14 @@ def gpu_info(index):
     raise ValueError('GPU missing')
 
 
-def train(task, gpu, uuid):
+def train(task, gpu, uuid, *, inputs_path=None):
     source = Path(__file__).resolve().parents[2]
     from experiments.osram_core20_20261005.run import verify_snapshot
     snapshot = verify_snapshot(source)
-    inputs = read(ROOT / 'INPUTS.json')
+    inputs_path = Path(inputs_path) if inputs_path is not None else ROOT / 'INPUTS.json'
+    inputs = read(inputs_path)
+    if task not in inputs['tasks']:
+        raise ValueError('task not in pinned authorization manifest')
     data = inputs['data'][task['dataset']]
     ref = reference_dir(task)
     for name, digest in inputs['references'][str(ref)].items():
@@ -145,12 +162,12 @@ def train(task, gpu, uuid):
     import torch
     torch.set_num_threads(1)
     cfg = TrainConfig(**configuration(read(ref / 'config.json'), task))
-    output = ROOT / task['dataset'] / f'seed_66/fold_{task["fold"]}'
+    output = output_dir(task)
     output.mkdir(parents=True, exist_ok=False)
     record = dict(label=LABEL, status='running', task=task, server=socket.gethostname(),
                   gpu_index=gpu, gpu_uuid=uuid, pid=os.getpid(), started_utc=now(),
                   source=str(source), code_commit=snapshot['code_commit'],
-                  snapshot_sha256=sha(source / 'SNAPSHOT.json'), inputs_sha256=sha(ROOT / 'INPUTS.json'),
+                  snapshot_sha256=sha(source / 'SNAPSHOT.json'), inputs_sha256=sha(inputs_path),
                   reference=str(ref), reference_selection_metric=read(ref / 'metrics.json').get('selection_metric'),
                   configuration_delta={'osram_meaningful_block': METHOD}, config=asdict(cfg),
                   python=sys.version)

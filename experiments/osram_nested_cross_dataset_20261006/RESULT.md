@@ -37,6 +37,41 @@ NOT macro F1. Both metrics use the same selected checkpoints as the W-F1
 report; historical Flat selection_metric remains unrecorded, so the same
 non-identical-selection caveat applies. INTERNAL DIAGNOSTIC ONLY.
 
+## Authorized three-seed extension: Four, Six, MOSEI
+
+User explicitly requests all three datasets and permits GPU3 in addition
+to GPU6. Finite27 NEW runs: IEMOCAPFour seeds66/67/68 x5folds (15),
+IEMOCAPSix seeds67/68 x5folds (10), MOSEI seeds67/68 x1split (2).
+Existing Six seed66 fivefolds and ongoing MOSEI seed66 are reused, never
+dispatched again. Total requested completed sets:15Four+15Six+3MOSEI.
+
+Model is unchanged old Nested, not Local8/root-aware. Each run copies exact
+dataset/class/seed/fold Flat config and changes only the Nested switch.
+Four-class label/split pickle is separately hashed; actual same feature roots
+are reused.100epochs, random cyclic0.0–0.7, task-only loss and original
+optimizer/lr/batch retained. IEMOCAP selects per-rate Accuracy, MOSEI W-F1;
+all selected checkpoints/predictions and recovery states retained.
+
+New INPUTS_3SEED.json pins all27 references and data without overwriting
+INPUTS.json or seed66 archives. Multi-seed changes only runner paths/dispatch;
+old immutable source33ded09 keeps serving the currently running seed66 run.
+GPU whitelist=[3,6], maximum3 NEW jobs per card,8000MiB admission reservation
+per job (including CPU-loading children whose VRAM is not yet visible).
+Live free GPU3~32GiB, GPU6~14GiB at initial check; recheck each launch.
+No use of GPU4, no killing unrelated jobs, no protocol alteration to fit VRAM.
+Failure halts new admissions and drains current jobs; no blind retry.
+
+Five runner tests pass: legacy seed66 task scope/only-switch behavior,
+invalid protocols, exactly27 new tasks without duplicates, class/seed-specific
+reference and output paths. Existing model checks reused; no new GPU smoke.
+
+Commands from new sealed source:
+```text
+python -m experiments.osram_nested_cross_dataset_20261006.multi_seed --prepare
+python -u -m experiments.osram_nested_cross_dataset_20261006.multi_seed
+```
+Persistent queue: QUEUE_3SEED.json. Status: preparing deployment.
+
 User requested Nested on MOSEI and IEMOCAP. Use the original
 `nested_gnn_rooted_evidence` (Local single node, eight Memory head nodes per
 active evidence, 64d, three GIN layers), not Local8/root-aware variants.

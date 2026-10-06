@@ -31,6 +31,22 @@ class CrossDatasetProtocolTests(unittest.TestCase):
             with self.subTest(update=update), self.assertRaises(ValueError):
                 mod.configuration(dict(old, **update), mod.tasks()[0])
 
+    def test_three_seed_scope_has_27_new_runs_and_no_seed66_duplicates(self):
+        mod = self.module()
+        rows = mod.additional_tasks()
+        self.assertEqual(len(rows), 27)
+        self.assertEqual(len({(r['dataset'], r['seed'], r['fold']) for r in rows}), 27)
+        self.assertEqual(sum(r['dataset'] == 'IEMOCAPFour' for r in rows), 15)
+        self.assertEqual(sum(r['dataset'] == 'IEMOCAPSix' for r in rows), 10)
+        self.assertEqual(sum(r['dataset'] == 'CMUMOSEI' for r in rows), 2)
+        self.assertTrue(all(r['seed'] in (67, 68) for r in rows if r['dataset'] != 'IEMOCAPFour'))
+
+    def test_reference_and_output_paths_use_exact_seed_and_classes(self):
+        mod = self.module()
+        task = dict(dataset='IEMOCAPFour', seed=68, fold=4)
+        self.assertTrue(str(mod.reference_dir(task)).endswith('iemocap4/seed_68/fold_4'))
+        self.assertTrue(str(mod.output_dir(task)).endswith('IEMOCAPFour/seed_68/fold_4'))
+
 
 if __name__ == '__main__':
     unittest.main()
