@@ -2,6 +2,20 @@
 
 INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT.
 
+## Historical six-class Flat numerical comparison
+
+Same seed66 and five held-out sessions; historical metrics archived under
+raw/Flat_IEMOCAPSix_seed66. Historical per-rate Test-oracle metrics omit
+selection_metric, whereas current Nested explicitly selects by accuracy.
+This is a numerical comparison, NOT a proven identical-selection ablation.
+Do not attribute the entire difference to the Nested module alone.
+
+|Summary (%)|Historical Flat|Nested|Nested minus Flat (pp)|
+|---|---:|---:|---:|
+|8-rate W-F1|61.104636|60.431700|-0.672935|
+|High-missing W-F1|59.001275|58.227977|-0.773298|
+|8-rate Accuracy|61.377635|60.878719|-0.498916|
+
 User requested Nested on MOSEI and IEMOCAP. Use the original
 `nested_gnn_rooted_evidence` (Local single node, eight Memory head nodes per
 active evidence, 64d, three GIN layers), not Local8/root-aware variants.
