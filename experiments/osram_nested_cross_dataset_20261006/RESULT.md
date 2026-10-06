@@ -70,7 +70,15 @@ Commands from new sealed source:
 python -m experiments.osram_nested_cross_dataset_20261006.multi_seed --prepare
 python -u -m experiments.osram_nested_cross_dataset_20261006.multi_seed
 ```
-Persistent queue: QUEUE_3SEED.json. Status: preparing deployment.
+Persistent queue: QUEUE_3SEED.json. Deployment verified: source644ee14
+sealed/pushed; INPUTS_3SEED.json created, all27 exact-reference configs and
+four-/six-class label hashes checked. Remote five runner tests passed.
+Coordinator PID137772, tmux nested_three_seed_20261006. Initial launch snapshot:
+MOSEI seed67 PID137890 GPU3; MOSEI seed68 PID137900 GPU6;25pending.
+LAUNCH_3SEED.json records exact commands/UUIDs and full27-task scope.
+GPU3/6 remaining capacity automatically admits pending Four/Six folds;
+seed66 MOSEI old source and completed Six seed66 remain untouched.
+Status: running/initial data loading. No new three-seed aggregate claimed.
 
 User requested Nested on MOSEI and IEMOCAP. Use the original
 `nested_gnn_rooted_evidence` (Local single node, eight Memory head nodes per
