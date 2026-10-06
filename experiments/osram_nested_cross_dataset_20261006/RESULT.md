@@ -16,6 +16,27 @@ Do not attribute the entire difference to the Nested module alone.
 |High-missing W-F1|59.001275|58.227977|-0.773298|
 |8-rate Accuracy|61.377635|60.878719|-0.498916|
 
+## ACC and UA audit from existing predictions
+
+No new training/inference. `acc_ua.py` reads80 existing prediction files
+(2models x5folds x8rates), verifies equal labels/availability order and
+recomputed ACC equals each selected metrics.json Accuracy. UA is mean recall
+across all six classes; class supports and prediction hashes saved in
+ACC_UA_SUMMARY.json. Two unit tests distinguish UA from imbalanced ACC and
+reject absent/invalid classes. All actual folds include all six classes.
+
+|Summary (%)|Historical Flat|Nested|Nested minus Flat (pp)|
+|---|---:|---:|---:|
+|8-rate ACC|61.377635|60.878719|-0.498916|
+|8-rate UA|60.267962|59.402902|-0.865060|
+|High-missing ACC|59.243860|58.776130|-0.467730|
+|High-missing UA|57.967122|57.339395|-0.627727|
+
+Five-fold equal-weight aggregation, not pooled prediction metrics. UA is
+NOT macro F1. Both metrics use the same selected checkpoints as the W-F1
+report; historical Flat selection_metric remains unrecorded, so the same
+non-identical-selection caveat applies. INTERNAL DIAGNOSTIC ONLY.
+
 User requested Nested on MOSEI and IEMOCAP. Use the original
 `nested_gnn_rooted_evidence` (Local single node, eight Memory head nodes per
 active evidence, 64d, three GIN layers), not Local8/root-aware variants.
