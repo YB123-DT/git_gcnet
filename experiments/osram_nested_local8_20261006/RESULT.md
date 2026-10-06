@@ -72,4 +72,28 @@ Live check confirmed training process and epoch007/100, with jepa=0.0000.
 This is a progress snapshot, not a final score or completion claim.
 Dispatcher will retain the completed summary; no automatic multi-seed expansion.
 
-Status: running. No completed Local8 score claimed.
+## Completed results: seed66
+
+Completed100epochs, exit_code=0, dispatcher status complete at
+2026-10-06T00:38:25 UTC. SUMMARY.json preserves unrounded metrics and paths.
+Per-rate BEST Test-oracle W-F1 (%), not validation-selected paper results:
+
+| Missing rate | Flat | Old Nested Local1 | Nested Local8 |
+| --- | ---: | ---: | ---: |
+|0.0|88.205|88.078|87.120|
+|0.1|86.507|86.358|86.641|
+|0.2|83.187|83.735|82.348|
+|0.3|80.763|80.523|80.571|
+|0.4|80.827|81.012|79.359|
+|0.5|77.494|77.675|76.896|
+|0.6|75.790|75.032|74.792|
+|0.7|75.773|75.525|74.345|
+|8-rate mean|81.068|80.992|80.259|
+|High-missing mean|76.352|76.077|75.345|
+
+Local8 minus old Nested: mean8 -0.733040pp, high -0.732705pp.
+Local8 minus Flat: mean8 -0.808988pp, high -1.007727pp.
+The Local split did not improve this single-seed screen. No automatic
+multi-seed expansion, no claim of a proven mechanism explaining the decrease.
+
+Status: complete. INTERNAL DIAGNOSTIC ONLY.
