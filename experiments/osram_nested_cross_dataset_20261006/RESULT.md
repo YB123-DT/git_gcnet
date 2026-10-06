@@ -90,3 +90,41 @@ coordinator3001326 is stopped (T), not its training child. Exact transferred
 folds=[4,5]; LAUNCH_PARALLEL_IEMOCAP.json preserves commands and source hash.
 Coordinator code5503065 pushed; all training continues from33ded09.
 No new scores claimed; GPU5 MOSEI left untouched.
+
+## Completed IEMOCAP six-class results
+
+All five folds seed66 completed100epochs; all PROVENANCE records report
+complete and outputs_verified=True. Eight BEST checkpoint paths per fold
+are present. Metrics/history/config/provenance archived under raw/.
+This experiment DID NOT train IEMOCAPFour. Historical Flat four-class
+outputs exist separately and are not Nested four-class results.
+
+Per-rate Test-oracle selected by Accuracy, then report W-F1 at those SAME
+checkpoints. Five folds equal-weight mean, then rates equal-weight mean;
+not pooled out-of-fold F1, not a three-seed result, not final-epoch metrics.
+
+|Missing rate|W-F1 (%)|Accuracy (%)|
+|---|---:|---:|
+|0.0|63.389|63.751|
+|0.1|62.458|62.902|
+|0.2|61.069|61.688|
+|0.3|61.885|62.022|
+|0.4|59.969|60.339|
+|0.5|59.557|60.196|
+|0.6|57.603|58.059|
+|0.7|57.524|58.073|
+|8-rate mean|60.432|60.879|
+|High missing (.5/.6/.7)|58.228|58.776|
+
+|Fold|8-rate W-F1 (%)|High-missing W-F1 (%)|
+|---|---:|---:|
+|1|60.082|57.047|
+|2|63.168|61.616|
+|3|57.293|55.375|
+|4|58.395|56.362|
+|5|63.221|60.740|
+
+No random-seed variance/significance claim; folds are held-out sessions,
+not independent random-seed replications. No mechanism claim or improvement
+claim over historical Flat, whose selection_metric is unrecorded.
+INTERNAL DIAGNOSTIC ONLY; NOT A FORMAL PAPER RESULT.
