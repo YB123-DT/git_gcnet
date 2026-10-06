@@ -20,7 +20,8 @@ utterance/padding/inactive Gap protections unchanged.
   masks final verification; docs/runtime config with no extra task loss.
 - [x] Focused CPU tests including actual task3updates and old regression,
   read-only spec+quality review. No GPU smoke/new dependencies.
-- [ ] Scoped Lore commit/push; immutable git archive; live healthyGPU6-only
+- [x] Scoped Lore commit/push; immutable git archive; live healthyGPU6-only
   admission (GPU4 forbidden), durable process launch; verify PID and epoch.
-- [ ] Save launch evidence. Retain all8BEST/predictions/full last_training.
+- [x] Save launch evidence. Runner configured to retain all8BEST/predictions/full last_training;
+  completion and final scores remain pending.
   No auto multi-seed or hyperparameter sweep. Reuse old Nested and Flat66.

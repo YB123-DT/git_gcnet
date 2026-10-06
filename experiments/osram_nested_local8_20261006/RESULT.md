@@ -59,4 +59,17 @@ Parameter counts: Flat13,509,793; old Nested13,669,028; Local8=13,669,476.
 Adapter159,683 versus old159,235 (+448). Shared GIN core58,627 unchanged.
 More graph nodes may increase compute despite similar parameter counts.
 
-Status: implementation/checks complete; preparing launch. No new score claimed.
+## Launch evidence
+
+Code commit fa8f991, pushed and archived before launch. Sealed source:
+`/data2/yb/remote_experiments/osram_nested_local8_20261006/source_fa8f991`.
+Started 2026-10-06T00:17:27 UTC on biggpu host GPU6, UUID
+`GPU-e4cafb17-818e-216a-b94a-7440063a9153`; free18305MiB at admission.
+Dispatcher PID2568749; training PID2568919. Persistent tmux session:
+`osram_nested_local8_20261006`. Full command and paths in LAUNCH.json.
+Log: `/data2/yb/remote_experiments/osram_nested_local8_20261006/seed_66/train.log`.
+Live check confirmed training process and epoch007/100, with jepa=0.0000.
+This is a progress snapshot, not a final score or completion claim.
+Dispatcher will retain the completed summary; no automatic multi-seed expansion.
+
+Status: running. No completed Local8 score claimed.
