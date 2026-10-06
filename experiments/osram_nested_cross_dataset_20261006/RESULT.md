@@ -83,3 +83,10 @@ seed,100epoch budget, batch size, losses and checkpoint policy are unchanged.
 Two scheduling tests passed after failing on the absent module; no GPU smoke.
 Failed handoff before dispatch resumes original coordinator; after dispatch
 requires reconciliation rather than silently creating duplicate jobs.
+
+Parallel launch verified: coordinator3554889, new fold4 PID3554897,
+new fold5 PID3555082. Original fold3 PID3394998 remains running. Old queue
+coordinator3001326 is stopped (T), not its training child. Exact transferred
+folds=[4,5]; LAUNCH_PARALLEL_IEMOCAP.json preserves commands and source hash.
+Coordinator code5503065 pushed; all training continues from33ded09.
+No new scores claimed; GPU5 MOSEI left untouched.
