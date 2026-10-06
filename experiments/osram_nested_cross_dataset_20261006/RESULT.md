@@ -49,4 +49,22 @@ switch changes, invalid protocol/fold/rates/interventions rejected.
 Tests first failed on absent runner, then passed. No repeated model smoke:
 the unchanged old Nested model already has regression-test evidence.
 
-Status: preparing launch. No new scores available.
+## Launch snapshot
+
+Source commit33ded09 (pushed), sealed archive:
+`/data2/yb/remote_experiments/osram_nested_cross_dataset_20261006/source_33ded09`.
+INPUTS.json prepared successfully with both datasets and six reference folds.
+Remote s0 environment also passed all three runner tests.
+Started2026-10-06T01:31:36 UTC:
+
+| Lane | Host GPU | Queue PID | First child PID | tmux session |
+| --- | ---: | ---: | ---: | --- |
+|MOSEI|5|3001323|3001353|nested_mosei_20261006|
+|IEMOCAP six-class|6|3001326|3001355|nested_iemocap_20261006|
+
+LAUNCH_MOSEI.json and LAUNCH_IEMOCAP.json preserve exact commands/UUIDs/paths.
+Live checks confirm both child PIDs; IEMOCAP logs show feature loading.
+This records successful process launch, not epoch completion or final scores.
+IEMOCAP remaining folds are queued in the same persistent process.
+
+Status: running (initial data loading). No new scores available.
