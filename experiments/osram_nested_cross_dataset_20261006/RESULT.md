@@ -68,3 +68,18 @@ This records successful process launch, not epoch completion or final scores.
 IEMOCAP remaining folds are queued in the same persistent process.
 
 Status: running (initial data loading). No new scores available.
+
+## GPU6 parallel scheduling update
+
+User authorized placing remaining IEMOCAP folds on GPU6 concurrently.
+At resource check: GPU6 free27231MiB; active fold3 used5260MiB; /data2 free249GiB.
+fold1/2 completed; fold3 remains untouched. Transfer undispatched folds only.
+`parallel_remaining.py` verifies and suspends only the old coordinator, rereads
+its queue to avoid races, starts fresh pending folds from source_33ded09,
+and monitors all folds. The paused coordinator is retired only after its
+existing training child finishes. No training child is signalled/restarted.
+Admission rechecks GPU6 UUID/free memory before each launch. Model, data,
+seed,100epoch budget, batch size, losses and checkpoint policy are unchanged.
+Two scheduling tests passed after failing on the absent module; no GPU smoke.
+Failed handoff before dispatch resumes original coordinator; after dispatch
+requires reconciliation rather than silently creating duplicate jobs.
