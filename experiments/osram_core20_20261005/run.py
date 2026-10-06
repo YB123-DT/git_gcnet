@@ -19,7 +19,7 @@ from gcnet_missing_m3.core20 import METHODS, CONTROLS, TRANSFER_METHODS
 from gcnet_missing_m3.nested_sweep import NESTED_SWEEP
 
 LABEL = 'INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle screening; NOT A FORMAL PAPER RESULT'
-EXTRA_EXPERIMENTS = ('CED', 'NestedRootAware') + tuple(NESTED_SWEEP)
+EXTRA_EXPERIMENTS = ('CED', 'NestedRootAware', 'nested_local8_evidence') + tuple(NESTED_SWEEP)
 # Fixed BEFORE training. These are transfer coefficients, not published optimal
 # recipes. Raw-feature generative ELBO sums 2560 coordinates (C11); .001 keeps
 # its explicit likelihood objective from being silently averaged into a new loss.
@@ -71,7 +71,7 @@ def candidate_config(reference, method, *, seed=66):
         delta = {'osram_ced_block': True}
     elif method == 'NestedRootAware':
         delta = {'osram_meaningful_block': 'nested_gnn_rootaware_evidence'}
-    elif method in NESTED_SWEEP:
+    elif method in NESTED_SWEEP or method == 'nested_local8_evidence':
         delta = {'osram_meaningful_block': method}
     config = TrainConfig(**dict(baseline, **delta))
     return config, {key: {'baseline': baseline[key], 'candidate': value}
@@ -145,7 +145,7 @@ def main(fixed_method=None):
         artifacts += [f'predictions_miss_0p{i}.npz' for i in range(8)]
         if any(not (args.output / name).is_file() for name in artifacts):
             raise ValueError('incomplete selected checkpoint/prediction artifacts')
-        if args.method == 'NestedRootAware' or args.method in NESTED_SWEEP:
+        if args.method == 'NestedRootAware' or args.method in NESTED_SWEEP or args.method == 'nested_local8_evidence':
             from experiments.osram_cfg84_history_query_random_20260928.run import verify_outputs
             verify_outputs(args.output, args.reference.parent)
             expected_masks = json.loads((args.reference.parent / 'metrics.json').read_text())['mask_sha256']

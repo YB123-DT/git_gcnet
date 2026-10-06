@@ -44,6 +44,9 @@ class TokenAdapter(nn.Module):
 
 
 def build_new40(method, latent_dim=256, num_heads=8, value_dim=64):
+    if method == 'nested_local8_evidence':
+        module = importlib.import_module('.nested_local8', __package__)
+        return module.build(method, latent_dim, num_heads, value_dim)
     if method in NESTED_SWEEP:
         module = importlib.import_module('.nested_sweep', __package__)
         return module.build(method, latent_dim, num_heads, value_dim)
