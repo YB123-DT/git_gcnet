@@ -38,3 +38,5 @@ cd /data2/yb/remote_experiments/osram_nested_diagnostics_20261007/source
 `DIAGNOSTIC_SUMMARY.json`、`RESULT.md`：自动更新，未齐全时不生成三种子完整均值。
 
 本目录的代码是独立评测，不修改生产训练代码。正常重放、mask/labels、source predictions、模型权重不变、inactive/padding安全是提交运行前后的必要检查，测试通过不等于性能有效。
+
+首次启动（代码1910381）在任何模型推理前遇到 frozen TrainConfig 的 device 赋值错误。队列已停止，失败日志保留；修正为 dataclasses.replace 并加入冻结配置回归测试，远程12项CPU测试通过。修复后运行使用独立 `attempt2/` 根目录与新代码快照，原checkpoint/预测不变。调度器在失败后停止补位，防止同一未修复错误重复提交。

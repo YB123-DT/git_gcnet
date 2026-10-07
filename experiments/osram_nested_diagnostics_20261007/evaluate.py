@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from dataclasses import replace
 import hashlib
 import inspect
 import json
@@ -21,6 +22,11 @@ sys.path.insert(0, str(ROOT))
 VARIANTS = ('full', 'local_only', 'local_base', 'gap_off', 'base_off', 'no_local')
 PATTERNS = {'A': (1, 0, 0), 'T': (0, 1, 0), 'V': (0, 0, 1),
             'AT': (1, 1, 0), 'AV': (1, 0, 1), 'TV': (0, 1, 1), 'ATV': (1, 1, 1)}
+
+
+def config_for_device(config, device):
+    """TrainConfig is frozen: device overrides must create a new instance."""
+    return replace(config, device=str(device))
 
 
 def safe_cosine(x, y):
@@ -308,7 +314,7 @@ def main():
             raise ValueError('Source is not the finalized causal old Nested no-JEPA model')
         torch.set_num_threads(2)
         device = torch.device(args.device)
-        config.device = str(device)
+        config = config_for_device(config, device)
         folder = 'IEMOCAP' if config.dataset.startswith('IEMOCAP') else config.dataset
         feature_root = args.dataset_root / folder / 'features'
         roots = [str(feature_root / name) for name in ('wav2vec-large-c-UTT', 'deberta-large-4-UTT', 'manet_UTT')]

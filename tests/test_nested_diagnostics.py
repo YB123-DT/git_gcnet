@@ -65,6 +65,14 @@ class NestedDiagnosticTests(unittest.TestCase):
         self.assertIsNotNone(self.runner)
         self.assertTrue(torch.isnan(self.runner.safe_cosine(torch.zeros(2), torch.ones(2))))
 
+    def test_frozen_training_config_device_is_replaced(self):
+        from gcnet_missing_m3.train_gcnet import TrainConfig
+        config = TrainConfig(device='cuda')
+        updated = self.runner.config_for_device(config, 'cpu')
+        self.assertEqual(updated.device, 'cpu')
+        self.assertEqual(config.device, 'cuda')
+        self.assertEqual(updated.seed, config.seed)
+
     def test_real_nested_excludes_ablated_heads(self):
         from gcnet_missing_m3.meaningful_input import MeaningfulInputAdapter
         self.assertIsNotNone(self.runner)

@@ -138,9 +138,12 @@ def dispatch():
             summary = subprocess.run([sys.executable, '-m', 'experiments.osram_nested_diagnostics_20261007.summarize',
                                       '--root', str(OUTPUT)], cwd=code_root, check=False)
             state['last_summary_exit_code'] = summary.returncode
+        failed = any(r['status'] == 'failed' for r in state['tasks'])
+        if failed and not active:
+            break
         resources = gpu_info()
         for row in state['tasks']:
-            if row['status'] != 'planned' or len(active) >= MAX_CONCURRENT:
+            if failed or row['status'] != 'planned' or len(active) >= MAX_CONCURRENT:
                 continue
             required = 18000 if row['dataset'] == 'CMUMOSEI' else 6500
             device = next((i for i in GPUS if resources[i]['free'] >= required), None)
@@ -177,5 +180,7 @@ def dispatch():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verify-sources', action='store_true')
+    parser.add_argument('--output-root', type=Path, default=OUTPUT)
     args = parser.parse_args()
+    OUTPUT = args.output_root
     verify_sources() if args.verify_sources else dispatch()
