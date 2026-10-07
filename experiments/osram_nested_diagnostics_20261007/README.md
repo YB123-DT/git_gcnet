@@ -27,9 +27,10 @@ MOSI/MOSEI 按源任务非零标签与 prediction>0 计算 W-F1/ACC；IEMOCAP使
 所属服务器biggpu；物理GPU6白名单，最多2组并发，MOSEI准入18000MiB，其余6500MiB，不改batch。GPU4禁止。source目录在首次正式启动后不修改。
 
 ```bash
-cd /data2/yb/remote_experiments/osram_nested_diagnostics_20261007/source
-/data2/yb/reproduction_workspace/envs/s0/bin/python -m experiments.osram_nested_diagnostics_20261007.dispatch --verify-sources
-/data2/yb/reproduction_workspace/envs/s0/bin/python -u -m experiments.osram_nested_diagnostics_20261007.dispatch
+cd /data2/yb/remote_experiments/osram_nested_diagnostics_20261007/attempt2/source
+# SOURCES.json 已从初次36源核对复用；如新建另一根目录才运行 --verify-sources。
+/data2/yb/reproduction_workspace/envs/s0/bin/python -u -m experiments.osram_nested_diagnostics_20261007.dispatch \
+  --output-root /data2/yb/remote_experiments/osram_nested_diagnostics_20261007/attempt2
 ```
 
 `SOURCES.json`：36源run配置、metrics、288checkpoint、288原预测SHA256。
@@ -40,3 +41,5 @@ cd /data2/yb/remote_experiments/osram_nested_diagnostics_20261007/source
 本目录的代码是独立评测，不修改生产训练代码。正常重放、mask/labels、source predictions、模型权重不变、inactive/padding安全是提交运行前后的必要检查，测试通过不等于性能有效。
 
 首次启动（代码1910381）在任何模型推理前遇到 frozen TrainConfig 的 device 赋值错误。队列已停止，失败日志保留；修正为 dataclasses.replace 并加入冻结配置回归测试，远程12项CPU测试通过。修复后运行使用独立 `attempt2/` 根目录与新代码快照，原checkpoint/预测不变。调度器在失败后停止补位，防止同一未修复错误重复提交。
+
+已启动队列不能再次执行上述启动命令；检查 `DISPATCH.json` / tmux `osram_nested_diag_attempt2_20261007`。当前运行代码557c925，后续本地报告更新不改变远程快照。
