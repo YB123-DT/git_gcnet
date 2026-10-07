@@ -1,5 +1,8 @@
 # Incomplete three-seed IEMOCAP snapshot
 
+SUPERSEDED: all folds/seeds now complete. See RESULT.md FINAL section and
+THREE_SEED_SUMMARY.json. This file preserves historical partial progress only.
+
 INTERNAL DIAGNOSTIC ONLY. Not a full five-fold aggregate.
 Queue at inspection:20complete,4running,3pending; no reported error.
 Metrics are per-rate Accuracy-selected BEST checkpoint results, not the

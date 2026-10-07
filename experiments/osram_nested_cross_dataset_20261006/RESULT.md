@@ -96,6 +96,55 @@ At this status check, additional27-task queue has20complete/4running/3pending,
 no reported error. IEMOCAP three-seed full fivefold summaries remain pending.
 All values INTERNAL DIAGNOSTIC ONLY. No statistical improvement claim.
 
+## FINAL: all three datasets / three seeds complete
+
+Additional queue27/27 complete, no reported error. Including reused Six
+seed66 and MOSEI seed66, all33 requested runs are complete: Four15folds,
+Six15folds,MOSEI3splits. Each run100epochs, expected class/dataset/seed/fold
+and old-Nested switch verified. Eight BEST paths and full recovery checkpoint
+present per run. All264 saved prediction hashes match recorded provenance;
+IEMOCAP ACC recomputed from predictions agrees with selected metrics.
+No new inference/training. Current partial-snapshot report is superseded.
+
+Aggregation: equal folds within seed, equal eight rates, equal three seeds.
+SD is sample standard deviation across THREE seed summaries (not15folds).
+UA is class recall mean, not macro-F1; no UA reported for MOSEI regression.
+Use per-rate BEST (IEMOCAP Accuracy selection; MOSEI W-F1 selection), not
+last epoch or a single shared-best epoch. INTERNAL DIAGNOSTIC ONLY.
+
+|Dataset|8-rate W-F1 (%)|8-rate ACC (%)|8-rate UA (%)|
+|---|---:|---:|---:|
+|IEMOCAPFour|78.933 ±0.474|79.054 ±0.412|79.477 ±0.399|
+|IEMOCAPSix|61.069 ±0.562|61.469 ±0.512|60.119 ±0.621|
+|CMUMOSEI|83.843 ±0.061|83.995 ±0.090|not reported|
+
+|Dataset|High-missing W-F1 (%)|High-missing ACC (%)|High-missing UA (%)|
+|---|---:|---:|---:|
+|IEMOCAPFour|76.863 ±0.484|77.002 ±0.400|77.355 ±0.458|
+|IEMOCAPSix|58.822 ±0.515|59.316 ±0.474|57.890 ±0.491|
+|CMUMOSEI|81.541 ±0.206|81.777 ±0.258|not reported|
+
+|Dataset|Seed|8-rate W-F1 (%)|8-rate ACC (%)|
+|---|---:|---:|---:|
+|Four|66|79.384|79.453|
+|Four|67|78.438|78.631|
+|Four|68|78.976|79.078|
+|Six|66|60.432|60.879|
+|Six|67|61.493|61.793|
+|Six|68|61.284|61.735|
+|MOSEI|66|83.881|83.988|
+|MOSEI|67|83.877|84.088|
+|MOSEI|68|83.772|83.909|
+
+THREE_SEED_SUMMARY.json stores full per-seed/per-fold/per-rate scores and
+provenance/metrics/history hashes. COMPLETION_3SEED.json records terminal
+queue. Raw metrics/config/provenance archived for all33 runs. Full histories,
+checkpoints and predictions remain on biggpu. summarize_three_seed.py
+reproduces the audit using saved artifacts. Training commits33ded09/644ee14
+differ in launch/report code only, not model/trainer modules.
+No formal validation-selected/generalization or statistical improvement claim.
+Status: this finite three-dataset/three-seed experiment batch COMPLETE.
+
 User requested Nested on MOSEI and IEMOCAP. Use the original
 `nested_gnn_rooted_evidence` (Local single node, eight Memory head nodes per
 active evidence, 64d, three GIN layers), not Local8/root-aware variants.
