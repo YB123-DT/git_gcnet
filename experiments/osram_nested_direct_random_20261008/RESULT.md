@@ -29,3 +29,30 @@ Status: running, launched 2026-10-08 10:41 UTC. Snapshot commit2d2de17;
 tmux nested_direct_random_20261008, dispatcher PID3296507, training PID3296670.
 Training log seed_66/train.log confirms loaded feature dimensions512/1024/1024.
 DISPATCH.json and PROVENANCE.json track completion. No performance claim yet.
+
+## Completed result
+
+100 epochs completed, exit0 and outputs_verified=true; all recorded artifact
+SHA256 hashes rechecked. Existing per-rate BEST retained; no new inference.
+
+|Metric|Eight-rate|High (.5/.6/.7)|
+|---|---:|---:|
+|ACC|80.221|74.848|
+|W-F1|80.177|74.800|
+
+|Rate|ACC|W-F1|
+|---|---:|---:|
+|0.0|88.110|88.126|
+|0.1|86.890|86.877|
+|0.2|82.165|82.054|
+|0.3|80.793|80.680|
+|0.4|79.268|79.278|
+|0.5|74.695|74.695|
+|0.6|75.000|74.918|
+|0.7|74.848|74.787|
+
+Random decoder initialization recovers +2.861910pp mean8 W-F1 and +3.488359pp
+high W-F1 over direct-zero. Still -0.815229pp mean8 and -1.277021pp high versus
+original residual Nested. Initialization affected this run materially, but does
+not explain the entire residual/direct gap. One seed only; no general mechanism
+or statistical significance claim.
