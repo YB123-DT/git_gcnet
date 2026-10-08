@@ -23,10 +23,14 @@ CPU verification passed: exact shared parameter initialization and RNG,
 output-addition identity, inactive/padding/NaN masking, finite gradients and
 actual core parameter update. No additional training smoke run.
 
-Launched 2026-10-08 09:54 UTC on biggpu GPU6, UUID
-GPU-e4cafb17-818e-216a-b94a-7440063a9153. Sealed code b31d284,
-tmux nested_direct_20261008, dispatcher PID3064394, training PID3064648.
-Remote root: /data2/yb/remote_experiments/osram_nested_direct_20261008.
+Initial launch failed before training: restricted source archive omitted root
+config.py (ModuleNotFoundError). Original logs retained. Corrected deployment
+uses a full tracked git archive and passed trainer import verification.
+
+Relaunched 2026-10-08 09:55 UTC on biggpu GPU6, UUID
+GPU-e4cafb17-818e-216a-b94a-7440063a9153. Sealed code fee9828,
+tmux nested_direct_attempt2_20261008, dispatcher PID3071477, training PID3071774.
+Remote root: /data2/yb/remote_experiments/osram_nested_direct_20261008/attempt2.
 DISPATCH.json tracks terminal status; seed_66/train.log is the training log.
 On completion SUMMARY.json compares existing Flat/residual Nested with direct.
 Status: running; no completed performance result yet.
