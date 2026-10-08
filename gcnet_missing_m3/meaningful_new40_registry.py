@@ -64,6 +64,7 @@ NESTED_SWEEP = {
     'nested_depth1': {'depth': 1},
     'nested_depth2': {'depth': 2},
     'nested_groups1': {'groups': 1},
+    'nested_groups1_dim512': {'groups': 1, 'dim': 512},
     'nested_groups4': {'groups': 4},
 }
 NEW40_VARIANTS = ('nested_gnn_rootaware_evidence', 'nested_gnn_direct_evidence',
