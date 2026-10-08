@@ -19,4 +19,14 @@ Entry: python -m experiments.osram_nested_direct_20261008.dispatch --root
 /data2/yb/remote_experiments/osram_nested_direct_20261008 --data-manifest
 /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json
 
-Status: implementation complete; launch pending verification.
+CPU verification passed: exact shared parameter initialization and RNG,
+output-addition identity, inactive/padding/NaN masking, finite gradients and
+actual core parameter update. No additional training smoke run.
+
+Launched 2026-10-08 09:54 UTC on biggpu GPU6, UUID
+GPU-e4cafb17-818e-216a-b94a-7440063a9153. Sealed code b31d284,
+tmux nested_direct_20261008, dispatcher PID3064394, training PID3064648.
+Remote root: /data2/yb/remote_experiments/osram_nested_direct_20261008.
+DISPATCH.json tracks terminal status; seed_66/train.log is the training log.
+On completion SUMMARY.json compares existing Flat/residual Nested with direct.
+Status: running; no completed performance result yet.
