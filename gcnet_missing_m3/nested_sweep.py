@@ -11,15 +11,16 @@ from .meaningful_input_new40 import TokenAdapter
 from .meaningful_new40_registry import NESTED_SWEEP
 
 
-def _mlp(inputs, dim):
-    return nn.Sequential(nn.Linear(inputs, dim), nn.Tanh(), nn.Linear(dim, dim))
+def _mlp(inputs, dim, hidden_dim=None):
+    hidden_dim = dim if hidden_dim is None else hidden_dim
+    return nn.Sequential(nn.Linear(inputs, hidden_dim), nn.Tanh(), nn.Linear(hidden_dim, dim))
 
 
 class NestedSweepGNN(nn.Module):
     """Original rooted mean pooling, with one explicit experimental switch."""
 
     def __init__(self, dim=64, depth=3, markers=True, head_edges=True,
-                 last_layer=False, plain_gin=False):
+                 last_layer=False, plain_gin=False, mlp_hidden=None):
         super().__init__()
         if dim < 1 or depth < 1:
             raise ValueError('Nested dimension and depth must be positive')
@@ -28,11 +29,11 @@ class NestedSweepGNN(nn.Module):
         if markers and not plain_gin:
             self.root_embedding = nn.Embedding(2, dim)
             self.distance = nn.Embedding(2, dim)
-        self.layers = nn.ModuleList([_mlp(dim, dim) for _ in range(depth)])
+        self.layers = nn.ModuleList([_mlp(dim, dim, mlp_hidden) for _ in range(depth)])
         self.norms = nn.ModuleList([nn.LayerNorm(dim) for _ in range(depth)])
         self.epsilon = nn.Parameter(torch.zeros(depth))
-        self.pool = _mlp(dim if last_layer else depth * dim, dim)
-        self.readout = _mlp(3 * dim, dim)
+        self.pool = _mlp(dim if last_layer else depth * dim, dim, mlp_hidden)
+        self.readout = _mlp(3 * dim, dim, mlp_hidden)
 
     def adjacency(self, columns, heads, dtype):
         role = torch.where(columns == 0, -1, (columns - 1) // heads)

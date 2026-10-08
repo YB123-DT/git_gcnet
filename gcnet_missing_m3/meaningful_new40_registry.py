@@ -61,6 +61,7 @@ NESTED_SWEEP = {
     'nested_ab_last_layer': {'last_layer': True},
     'nested_dim32': {'dim': 32},
     'nested_dim128': {'dim': 128},
+    'nested_mlp256': {'mlp_hidden': 256},
     'nested_depth1': {'depth': 1},
     'nested_depth2': {'depth': 2},
     'nested_groups1': {'groups': 1},
