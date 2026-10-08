@@ -24,4 +24,13 @@ Command: python -m experiments.osram_nested_groups1_dim512_20261008.dispatch
 --root RUN_ROOT --data-manifest
 /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json
 
-Status: awaiting bounded verification/deployment.
+Measured module parameters: original8x64=159235; prior1x64=158339;
+new1x512=4472579. Corresponding full model count expected17982372.
+CPU checks passed: grouping/interface dimensions, zero-initialized identity,
+inactive/padding/NaN masks, finite gradients and actual core update.
+Trainer import checked in the sealed complete source archive.
+
+Status: running. Launched2026-10-08 10:58 UTC, snapshot2aac302;
+tmux nested_groups1_dim512_20261008, dispatcher PID3369959, training PID3370206.
+GPU6 had23779MiB free at admission. Existing random-decoder experiment retained.
+Live DISPATCH.json/seed_66/train.log record progress; no completed score yet.
