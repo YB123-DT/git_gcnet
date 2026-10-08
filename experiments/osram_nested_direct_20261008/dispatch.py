@@ -19,6 +19,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--root', type=Path, required=True)
     p.add_argument('--data-manifest', type=Path, required=True)
+    p.add_argument('--method', choices=('nested_gnn_direct_evidence', 'nested_gnn_direct_random_evidence'),
+                   default='nested_gnn_direct_evidence')
     args = p.parse_args()
     root = args.root.resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -28,7 +30,7 @@ def main():
         raise FileExistsError('Inspect prior process/outputs; do not duplicate or silently resume')
     source = Path(__file__).resolve().parents[2]
     state = dict(label=LABEL, status='pending', dispatcher_pid=os.getpid(), source=str(source),
-                 seed=66, method='nested_gnn_direct_evidence', gpu=6, gpu_uuid=GPU)
+                 seed=66, method=args.method, gpu=6, gpu_uuid=GPU)
     while True:
         raw = subprocess.check_output(['nvidia-smi', '--id=6',
              '--query-gpu=index,uuid,memory.free', '--format=csv,noheader,nounits'], text=True)

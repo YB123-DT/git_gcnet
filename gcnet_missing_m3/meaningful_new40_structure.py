@@ -478,6 +478,9 @@ def build(method, latent_dim=256, num_heads=8, value_dim=64):
         return TokenAdapter(NestedGNN(root_aware=True), latent_dim, num_heads, value_dim, dim=64)
     if method == 'nested_gnn_direct_evidence':
         return TokenAdapter(NestedGNN(), latent_dim, num_heads, value_dim, dim=64, residual=False)
+    if method == 'nested_gnn_direct_random_evidence':
+        return TokenAdapter(NestedGNN(), latent_dim, num_heads, value_dim, dim=64,
+                            residual=False, zero_decoder=False)
     cores = {'matrix_tree_nonprojective_evidence': MatrixTree,
              'diffpool_hierarchical_evidence_graph': DiffPool,
              'cwn_cellular_evidence': Cellular,

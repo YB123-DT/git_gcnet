@@ -17,15 +17,17 @@ def zero_linear(in_features, out_features):
 
 class TokenAdapter(nn.Module):
     """Pack real active heads, call one distinct core, decode raw-slot deltas."""
-    def __init__(self, core, latent_dim=256, num_heads=8, value_dim=64, dim=64, residual=True):
+    def __init__(self, core, latent_dim=256, num_heads=8, value_dim=64, dim=64, residual=True,
+                 zero_decoder=True):
         super().__init__()
         self.residual = residual
         self.num_heads, self.value_dim = num_heads, value_dim
         self.tokenizer = HeadTokenizer(latent_dim, num_heads, value_dim, dim=dim,
                                        shared_projection=False, normalize=True)
         self.core = core
-        self.local_decoder = zero_linear(dim, latent_dim)
-        self.memory_decoders = nn.ModuleList([zero_linear(dim, value_dim)
+        decoder = zero_linear if zero_decoder else nn.Linear
+        self.local_decoder = decoder(dim, latent_dim)
+        self.memory_decoders = nn.ModuleList([decoder(dim, value_dim)
                                              for _ in range(num_heads)])
 
     def forward(self, local, evidence, active, availability):
