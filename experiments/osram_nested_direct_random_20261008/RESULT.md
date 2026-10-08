@@ -21,4 +21,11 @@ Command: python -m experiments.osram_nested_direct_20261008.dispatch
 --method nested_gnn_direct_random_evidence --root RUN_ROOT
 --data-manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json
 
-Status: pending remote checks and launch; no performance claim.
+CPU checks passed: decoder-only initialization difference, unchanged RNG and
+other parameters, nonzero initial output, inactive/padding/NaN masks, finite
+first-step gradient and actual core update. Trainer import verified.
+
+Status: running, launched 2026-10-08 10:41 UTC. Snapshot commit2d2de17;
+tmux nested_direct_random_20261008, dispatcher PID3296507, training PID3296670.
+Training log seed_66/train.log confirms loaded feature dimensions512/1024/1024.
+DISPATCH.json and PROVENANCE.json track completion. No performance claim yet.
