@@ -17,8 +17,9 @@ def zero_linear(in_features, out_features):
 
 class TokenAdapter(nn.Module):
     """Pack real active heads, call one distinct core, decode raw-slot deltas."""
-    def __init__(self, core, latent_dim=256, num_heads=8, value_dim=64, dim=64):
+    def __init__(self, core, latent_dim=256, num_heads=8, value_dim=64, dim=64, residual=True):
         super().__init__()
+        self.residual = residual
         self.num_heads, self.value_dim = num_heads, value_dim
         self.tokenizer = HeadTokenizer(latent_dim, num_heads, value_dim, dim=dim,
                                        shared_projection=False, normalize=True)
@@ -39,6 +40,8 @@ class TokenAdapter(nn.Module):
         memory = result[:, 1:].reshape(-1, 4, self.num_heads, result.shape[-1])
         delta_memory = torch.stack([decoder(memory[:, :, h])
                                    for h, decoder in enumerate(self.memory_decoders)], 2).flatten(2)
+        if not self.residual:
+            return delta_local.to(local.dtype), safe_mask(delta_memory.to(evidence.dtype), active)
         return local + delta_local.to(local.dtype), safe_mask(
             evidence + delta_memory.to(evidence.dtype), active)
 
