@@ -21,4 +21,13 @@ Server biggpu GPU6 only. Root:
 Command: python -m experiments.osram_nested_mlp256_20261008.dispatch --root
 RUN_ROOT --data-manifest
 /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json
-Status: pending remote checks/launch.
+Module parameters: old159235; wider332227 (+172992, 2.086x).
+Full model expected13842020 parameters. Remote CPU checks passed: unchanged
+default parameters/RNG, fixed node width/heads, zero-initialized identity,
+safe inactive/padding/NaN masks, finite gradients and actual core updates.
+Trainer import passed in the full sealed source archive.
+
+Status: running. Launched2026-10-08 14:20 UTC on GPU6 with26727MiB free;
+source commitc3000dd. tmux nested_mlp256_20261008, dispatcher PID2914,
+training PID3345. DISPATCH.json and seed_66/train.log track live progress.
+No completed performance claim yet.
