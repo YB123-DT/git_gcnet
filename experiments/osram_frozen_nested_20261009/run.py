@@ -133,12 +133,23 @@ def main():
         flat = _build_model(base_config, dims).to(device)
         flat.load_state_dict(state['model'], strict=True)
         flat_metrics, flat_pred = evaluate(flat, 'test', True)
+        parity_errors = {}
         for rate in initial:
             for key in initial_pred[rate]:
-                assert np.array_equal(initial_pred[rate][key], flat_pred[rate][key]), (rate, key)
+                if key == 'predictions':
+                    a, b = initial_pred[rate][key], flat_pred[rate][key]
+                    parity_errors[rate] = float(np.max(np.abs(a - b)))
+                    np.testing.assert_allclose(a, b, rtol=1e-6, atol=1e-6)
+                    assert np.array_equal(a > 0, b > 0), 'zero-init changed polarity'
+                else:
+                    assert np.array_equal(initial_pred[rate][key], flat_pred[rate][key]), (rate, key)
+            assert initial[rate]['weighted_f1'] == flat_metrics[rate]['weighted_f1']
             assert initial[rate]['mask_sha256'] == flat_metrics[rate]['mask_sha256']
             np.savez_compressed(out / f'flat_miss_{rate}.npz', **flat_pred[rate])
-        del flat, state, flat_pred
+        reference_metrics = json.loads((args.reference.parent / 'metrics.json').read_text())
+        assert abs(flat_metrics['0.7']['weighted_f1'] - reference_metrics['test']['0.7']['weighted_f1']) < 1e-10
+        initial, initial_pred = flat_metrics, flat_pred
+        del flat, state
         best, _ = evaluate(model, 'validation')
         best_score, best_epoch = summary(best)['mean_8rate'], 0
         initial_nested = {k: v.detach().cpu().clone() for k, v in model.osram.meaningful_block.state_dict().items()}
@@ -154,9 +165,10 @@ def main():
             tmp.replace(out / name)
         save('best.pt', 0)
         write(out / 'INITIAL.json', dict(test=initial, test_summary=summary(initial), validation=best,
-                                        zero_init_exact_parity=True))
+            zero_init_polarity_and_wf1_exact=True, zero_init_max_abs_error=parity_errors,
+            zero_init_tolerance=dict(rtol=1e-6, atol=1e-6)))
         write(out / 'PROVENANCE.json', provenance)
-        print('INITIAL ' + json.dumps(summary(initial)) + ' zero-init exact parity PASS', flush=True)
+        print('INITIAL ' + json.dumps(summary(initial)) + ' zero-init numerical/polarity parity PASS', flush=True)
         # Builders/parity evaluation do not determine training RNG.
         set_random_seed(66)
         for epoch in range(c.epochs):

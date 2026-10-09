@@ -2,7 +2,7 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: bounded CPU verification passed; launch pending.
+Status: bounded CPU verification passed; first launch stopped before training by bitwise CUDA parity assertion. Corrected verification retry pending.
 
 - MOSI seed66, one fixed original large Flat `best_miss_0p7.pt` (source selected by Test-oracle).
 - All eight rates use that same parent; the historical 81.068 per-rate checkpoint mixture is NOT this baseline.
@@ -11,8 +11,9 @@ Status: bounded CPU verification passed; launch pending.
 - Original Nested corrects Local/Base/Gap inputs to the retained original Flat; no graph enlargement or extra loss.
 - Stage2: 100 epochs, Adam .001, weight decay .00001, batch32, seed66, original cyclic random missing schedule/task loss.
 - Selection: one epoch by equal mean of eight **validation** W-F1 values. Epoch0 included, strict improvement (earliest tie). No test evaluation during training.
-- Tests: identical eight-rate Flat vs zero-init Nested predictions; CPU pretrained-parent gradient/update/freeze/padding check.
-- CPU verification passed on biggpu: exact pretrained-parent output parity, three finite update steps, Nested changes, all original state unchanged, padding zero. Eight-rate CUDA parity is a mandatory launch-time assertion.
+- CPU verification passed on biggpu: exact pretrained-parent output parity, three finite update steps, Nested changes, all original state unchanged, padding zero.
+- CUDA diagnosis: first-batch Local Skip/adapter/norm inputs and outputs exactly equal; whole-rate predictions differ at most 2.3841858e-7 at rate0, zero polarity changes, identical W-F1. This is numerical-scale discrepancy, not evidence of a learned change. Full eight-rate launch check uses atol/rtol 1e-6, records maximum errors and requires EXACT labels/masks/polarity/W-F1. No model math changed for this fix.
+- Baseline artifacts are saved from the actual Flat model, not substituted with zero-init Nested outputs. Source .7 W-F1 must reproduce original saved metrics.
 - Baseline test is measured once; selected Nested is tested after training, with identical labels/order/masks and corrections/harms recorded.
 - Checkpoints: `best.pt`, `last.pt` contain Nested + optimizer/RNG and immutable parent reference/hash. No automatic resume implementation; these are not self-contained full models.
 
