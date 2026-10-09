@@ -39,4 +39,9 @@ parity, rule weights update with finite gradients, inactive NaN exclusion,
 padding evidence zero; old Local variant RNG/parameter parity test passed.
 Local syntax compilation and git diff whitespace checks passed.
 Initial check failed as expected because the new variant did not exist.
-Status: verified; launch pending. No result yet.
+Status: RUNNING, no final result yet.
+Source snapshot: 1bc4c36. Started 2026-10-09T03:11:12.599102+00:00.
+biggpu physical GPU5, UUID as above; free 11671 MiB at admission.
+tmux nps_local_w256_20261009; dispatcher PID3460071; training PID3460257.
+Independent source/config/output, original small run not stopped or modified.
+Log: root/seed_66/train.log; state: root/DISPATCH.json.
