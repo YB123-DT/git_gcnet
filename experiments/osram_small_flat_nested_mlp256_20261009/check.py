@@ -7,15 +7,19 @@ from gcnet_missing_m3.osram import OSRAMBackbone
 
 torch.set_num_threads(1)
 reference = json.load(open(sys.argv[1]))
-config, delta = candidate_config(reference, 'small_flat_nested_mlp256')
+width = int(sys.argv[2]) if len(sys.argv) > 2 else 256
+assert width in (256, 512)
+method = f'nested_mlp{width}'
+config, delta = candidate_config(reference, f'small_flat_{method}')
 assert set(delta) == {'osram_adapter_hidden_dim', 'osram_meaningful_block'}
 assert config.osram_adapter_hidden_dim == 256 and config.osram_output_dim == 1600
-assert config.osram_meaningful_block == 'nested_mlp256'
+assert config.osram_meaningful_block == method
 net = OSRAMBackbone(latent_dim=256, output_dim=1600, num_heads=8,
     key_dim=64, value_dim=64, bidirectional=False, dropout=0., write_step=.6,
-    osram_adapter_hidden_dim=256, osram_meaningful_block='nested_mlp256')
+    osram_adapter_hidden_dim=256, osram_meaningful_block=method)
 assert sum(p.numel() for p in net.emotion_adapter.parameters()) == 1534272
-assert sum(p.numel() for p in net.meaningful_block.parameters()) == 332227
+assert sum(p.numel() for p in net.meaningful_block.parameters()) == 159235 + (width-64)*901
+assert all(layer[0].out_features == width for layer in net.meaningful_block.core.core.layers)
 node = torch.randn(2, 2, 256)
 latents = {m: torch.randn_like(node) for m in ('audio', 'text', 'visual')}
 av = torch.tensor([[[1,1,1],[1,0,1]], [[1,0,0],[0,0,0]]])
