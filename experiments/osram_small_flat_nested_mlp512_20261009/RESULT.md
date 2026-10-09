@@ -13,7 +13,7 @@ and predictions plus last_training.pt. No new seeds or additional widths.
 | Nested MLP hidden | Module parameters | Whole model with small Flat |
 |---|---:|---:|
 |64, completed control|159235|5668196|
-|256, separately running|332227|5841188|
+|256, completed comparison|332227|5841188|
 |512, this run|562883|6071844|
 
 Expected counts follow the unchanged architecture; the composition check
@@ -44,8 +44,18 @@ Existing8048MiB free-memory and26GiB free-disk admission unchanged; do not
 kill unrelated processes or alter batch to fit. CPU composition check passed:
 config delta, adapter1534272/module562883 counts, output1600, finite gradients,
 GIN weights updated over three steps, padding output zero. Syntax/diff checks
-passed. Status RUNNING, no final performance claim.
+passed. Status COMPLETED, 100/100 epochs, exit0, finished2026-10-09T08:25:21 UTC. All20 recorded artifact hashes verified.
 Snapshot975e484; start2026-10-09T07:34:33.694506+00:00. GPU5 admission8779MiB free.
 tmux small_flat_nested_mlp512_20261009; dispatcher375273, training375362.
 Live PID and effective config verified: adapter256, nested_mlp512, output1600,
-seed66, epochs100. The separate256 experiment is unchanged and remains running.
+seed66, epochs100. The separate256 experiment was unchanged and also completed.
+
+## Final result
+
+Mean8 W-F1 **79.883996%**; high(.5/.6/.7) **74.474365%**.
+Versus small Flat+original Nested (80.362122/75.899420): **−0.478126/−1.425055 pp**.
+Versus completed internal MLP256 (80.033360/74.698169): **−0.149364/−0.223804 pp**.
+Recovered from the epoch60 partial best79.273/73.913 but did not surpass either narrower Nested setting.
+Per-rate W-F1 .0–.7 (%): 87.398347, 85.534979, 81.658279, 79.996875, 81.060394, 75.400484, 73.325924, 74.696686.
+Measured whole-model parameters6,071,844. Raw final metrics: `COMPLETED_METRICS.json`.
+Single-seed Test-oracle internal diagnostic; no automatic expansion. This is from-scratch joint training with small Flat, not the frozen-parent validation-selected experiment. No additional inference or training in this result review.

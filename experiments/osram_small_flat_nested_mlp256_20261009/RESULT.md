@@ -54,8 +54,23 @@ width and selected original graph variant; measured adapter1534272 and graph
 actual GIN weight update. Existing core semantic tests/results reused. Syntax
 and diff checks pass. Initial config check rejected the unregistered method,
 then passed with the new explicit mapping. No model implementation changed.
-Status RUNNING. Source snapshot ee805ee; start2026-10-09T07:26:35.175721+00:00.
+Status COMPLETED, 100/100 epochs, exit0, finished2026-10-09T08:18:42 UTC. All20 recorded artifact hashes verified. Source snapshot ee805ee; start2026-10-09T07:26:35.175721+00:00.
 GPU5 had11645MiB free at admission. tmux small_flat_nested_mlp256_20261009;
 dispatcher PID345788, training PID345870. Process existence and effective
 RAW_CONFIG verified: adapter256, nested_mlp256, output1600, seed66, epochs100.
-Independent root/seed_66/train.log and root/DISPATCH.json. No final scores yet.
+Independent root/seed_66/train.log and root/DISPATCH.json.
+
+## Final comparison (seed66; per-rate Test-oracle)
+
+| Small Flat configuration | Mean8 W-F1 (%) | High W-F1 (%) |
+|---|---:|---:|
+| No Nested |79.529424|74.421931|
+| Original Nested, internal MLP64 |80.362122|75.899420|
+| Nested internal MLP256 |80.033360|74.698169|
+| Nested internal MLP512 |79.883996|74.474365|
+
+256 versus original Nested: −0.328763 mean8 / −1.201251 high percentage points.
+No improvement after the previously reported epoch75 best. Still above small Flat alone, but widening did not improve the original Nested combination. Do not mix with the frozen-large-Flat/validation-selected experiment.
+
+Per-rate W-F1 for .0 through .7 (%): 86.794626, 85.737423, 82.827562, 80.446354, 80.366405, 75.548719, 74.151641, 74.394147.
+Measured whole-model parameters: 5,841,188. Raw final metrics archived in `COMPLETED_METRICS.json`. No retraining or new inference during result review; single-seed evidence only.
