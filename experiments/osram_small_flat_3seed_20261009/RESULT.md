@@ -42,3 +42,16 @@ python -m experiments.osram_nps_local_20261009.dispatch \
 
 Repeat seed68; Nested counterparts use methodsmall_flat_nested and GPU3 UUIDGPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a. No checkpoint loading: these are new from-scratch confirmations, not resumptions.
 Final report must show all three seeds, per-rate ACC/W-F1, mean8/high, mean and sample SD, and paired Nested-minus-small / small-Nested-minus-large differences. Do not claim equal performance solely because a three-seed significance test is nonsignificant. No final conclusion yet.
+
+## Progress snapshot: 2026-10-09 11:30:50 UTC
+
+Read-only check of existing history and dispatcher records; no new training or inference launched. Values are per-rate best-so-far W-F1, not last-epoch scores. High means rates .5/.6/.7. Incomplete runs cannot establish the final three-seed comparison.
+
+| Model | Seed | Epoch | Status | Mean8 (%) | High (%) |
+|---|---:|---:|---|---:|---:|
+|Flat256|67|100|complete|79.104786|74.263409|
+|Flat256|68|96|running, live PID|78.855453|73.293013|
+|Flat256+Nested64|67|66|running, live PID|77.880283|72.912848|
+|Flat256+Nested64|68|63|running, live PID|79.091517|73.408020|
+
+At this snapshot seed67 Nested trails the completed small Flat by1.224503pp; seed68 Nested leads the still-running small Flat by0.236064pp. These are unequal-epoch interim comparisons, not final effects. No consistent multi-seed benefit is established yet.
