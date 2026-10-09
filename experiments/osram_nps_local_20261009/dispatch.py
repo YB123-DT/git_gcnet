@@ -19,7 +19,12 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--root', type=Path, required=True)
     p.add_argument('--data-manifest', type=Path, required=True)
+    p.add_argument('--gpu-index', type=int, default=6)
+    p.add_argument('--gpu-uuid', default=GPU)
     args = p.parse_args()
+    if args.gpu_index not in (0, 1, 2, 3, 5, 6, 7):
+        raise ValueError('Only healthy host GPU indices allowed; GPU4 forbidden')
+    gpu = args.gpu_uuid
     root = args.root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     lock = (root / 'DISPATCH.lock').open('a')
@@ -28,13 +33,13 @@ def main():
         raise FileExistsError('Inspect prior process/outputs; do not duplicate or silently resume')
     source = Path(__file__).resolve().parents[2]
     state = dict(label=LABEL, status='pending', dispatcher_pid=os.getpid(), source=str(source),
-                 seed=66, method='neural_production_local', gpu=6, gpu_uuid=GPU)
+                 seed=66, method='neural_production_local', gpu=args.gpu_index, gpu_uuid=gpu)
     while True:
-        raw = subprocess.check_output(['nvidia-smi', '--id=6',
+        raw = subprocess.check_output(['nvidia-smi', '--id=' + str(args.gpu_index),
              '--query-gpu=index,uuid,memory.free', '--format=csv,noheader,nounits'], text=True)
         index, identifier, free = [v.strip() for v in raw.split(',')]
-        if index != '6' or identifier != GPU:
-            raise ValueError('Healthy GPU6 UUID mismatch; GPU4 forbidden')
+        if int(index) != args.gpu_index or identifier != gpu:
+            raise ValueError('Healthy GPU UUID mismatch; GPU4 forbidden')
         write(root / 'DISPATCH.json', state)
         if float(free) >= 8048 and shutil.disk_usage(root).free / 2**30 >= 26:
             break
@@ -43,11 +48,11 @@ def main():
     output.mkdir(exist_ok=False)
     command = [sys.executable, '-u', '-m', 'experiments.osram_core20_20261005.run',
                '--method', state['method'], '--seed', '66', '--reference', str(REFERENCE / 'config.json'),
-               '--data-manifest', str(args.data_manifest), '--output', str(output), '--gpu-uuid', GPU]
+               '--data-manifest', str(args.data_manifest), '--output', str(output), '--gpu-uuid', gpu]
     log = output / 'train.log'
     with log.open('x') as stream:
         child = subprocess.Popen(command, cwd=source, stdout=stream, stderr=subprocess.STDOUT,
-            env=dict(os.environ, CUDA_VISIBLE_DEVICES=GPU,
+            env=dict(os.environ, CUDA_VISIBLE_DEVICES=gpu,
                      GCNET_DATASET_ROOT=read(args.data_manifest)['dataset_root'],
                      OMP_NUM_THREADS='2', MKL_NUM_THREADS='2', OPENBLAS_NUM_THREADS='2'))
         state.update(status='running', pid=child.pid, command=command, output=str(output),
