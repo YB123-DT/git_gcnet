@@ -1288,6 +1288,7 @@ class MissingM3GraphModel(GraphModel):
         osram_decision_correction=False,
         osram_readout_candidate='none',
         osram_meaningful_block='none',
+        osram_adapter_hidden_dim=0,
     ) -> None:
         if osram_meaningful_block != 'none':
             from .meaningful_blocks import MEANINGFUL_METHODS
@@ -1766,6 +1767,7 @@ class MissingM3GraphModel(GraphModel):
                 osram_decision_correction=osram_decision_correction,
                 osram_readout_candidate=osram_readout_candidate,
                 osram_meaningful_block=osram_meaningful_block,
+                osram_adapter_hidden_dim=osram_adapter_hidden_dim,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,

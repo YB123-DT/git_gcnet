@@ -851,8 +851,15 @@ class OSRAMBackbone(nn.Module):
         osram_decision_correction: bool = False,
         osram_readout_candidate: str = 'none',
         osram_meaningful_block: str = 'none',
+        osram_adapter_hidden_dim: int = 0,
     ) -> None:
         super().__init__()
+        if type(osram_adapter_hidden_dim) is not int or osram_adapter_hidden_dim < 0:
+            raise ValueError('osram_adapter_hidden_dim must be a nonnegative integer')
+        if osram_adapter_hidden_dim and (
+            osram_readout_fusion != 'flat' or osram_memory_only_adapter or osram_decision_correction
+        ):
+            raise ValueError('adapter width requires the original Flat adapter path')
         self.osram_meaningful_block = osram_meaningful_block
         self.meaningful_input_mode = False
         if osram_meaningful_block != 'none':
@@ -1045,6 +1052,19 @@ class OSRAMBackbone(nn.Module):
         # while still giving the contextual branch a real gradient.
         nn.init.zeros_(self.emotion_adapter[-1].weight)
         nn.init.zeros_(self.emotion_adapter[-1].bias)
+
+        # Consume legacy initialization first so all other modules retain their
+        # original parameters/RNG. Only the adapter hidden width changes.
+        if osram_adapter_hidden_dim and osram_adapter_hidden_dim != self.output_dim:
+            with torch.random.fork_rng(devices=[]):
+                self.emotion_adapter = nn.Sequential(
+                    nn.LayerNorm(self.latent_dim + 4 * self.context_dim),
+                    nn.Linear(self.latent_dim + 4 * self.context_dim, osram_adapter_hidden_dim),
+                    nn.GELU(), nn.Dropout(dropout),
+                    nn.Linear(osram_adapter_hidden_dim, self.output_dim),
+                )
+                nn.init.zeros_(self.emotion_adapter[-1].weight)
+                nn.init.zeros_(self.emotion_adapter[-1].bias)
 
         if self.osram_decision_correction:
             # Preserve legacy state keys and initialization; these replaced

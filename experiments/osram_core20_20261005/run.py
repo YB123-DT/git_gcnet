@@ -19,6 +19,11 @@ from gcnet_missing_m3.core20 import METHODS, CONTROLS, TRANSFER_METHODS
 from gcnet_missing_m3.nested_sweep import NESTED_SWEEP
 
 LABEL = 'INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle screening; NOT A FORMAL PAPER RESULT'
+SMALL_FLAT_EXPERIMENTS = {
+    'small_flat': 'none',
+    'small_flat_nps': 'conditional_new_07_neural_production',
+    'small_flat_nested': 'nested_gnn_rooted_evidence',
+}
 EXTRA_EXPERIMENTS = ('CED', 'NestedRootAware', 'nested_local8_evidence', 'nested_gnn_direct_evidence', 'nested_gnn_direct_random_evidence', 'neural_production_local', 'neural_production_local_w256') + tuple(NESTED_SWEEP)
 # Fixed BEFORE training. These are transfer coefficients, not published optimal
 # recipes. Raw-feature generative ELBO sums 2560 coordinates (C11); .001 keeps
@@ -49,7 +54,7 @@ def now():
 
 def candidate_config(reference, method, *, seed=66):
     from gcnet_missing_m3.train_gcnet import TrainConfig
-    if method not in METHODS + CONTROLS + TRANSFER_METHODS + EXTRA_EXPERIMENTS:
+    if method not in METHODS + CONTROLS + TRANSFER_METHODS + EXTRA_EXPERIMENTS + tuple(SMALL_FLAT_EXPERIMENTS):
         raise ValueError('unsupported method')
     for key, value in EXPECTED.items():
         if reference.get(key) != value:
@@ -67,7 +72,12 @@ def candidate_config(reference, method, *, seed=66):
     baseline = asdict(TrainConfig(**reference))
     delta = dict(core20_method=method, core20_aux_weight=AUX_WEIGHTS.get(method, 1.),
                  **CHANGED.get(method, {}))
-    if method == 'CED':
+    if method in SMALL_FLAT_EXPERIMENTS:
+        if reference.get('osram_adapter_hidden_dim', 0) != 0:
+            raise ValueError('small adapter comparison requires the legacy reference')
+        delta = {'osram_adapter_hidden_dim': 256,
+                 'osram_meaningful_block': SMALL_FLAT_EXPERIMENTS[method]}
+    elif method == 'CED':
         delta = {'osram_ced_block': True}
     elif method == 'NestedRootAware':
         delta = {'osram_meaningful_block': 'nested_gnn_rootaware_evidence'}
@@ -88,7 +98,7 @@ def verify_snapshot(root):
 
 def main(fixed_method=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--method', choices=METHODS + CONTROLS + TRANSFER_METHODS + EXTRA_EXPERIMENTS,
+    parser.add_argument('--method', choices=METHODS + CONTROLS + TRANSFER_METHODS + EXTRA_EXPERIMENTS + tuple(SMALL_FLAT_EXPERIMENTS),
                         required=fixed_method is None, default=fixed_method)
     parser.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     parser.add_argument('--reference', type=Path, required=True)
@@ -145,7 +155,7 @@ def main(fixed_method=None):
         artifacts += [f'predictions_miss_0p{i}.npz' for i in range(8)]
         if any(not (args.output / name).is_file() for name in artifacts):
             raise ValueError('incomplete selected checkpoint/prediction artifacts')
-        if args.method == 'NestedRootAware' or args.method in NESTED_SWEEP or args.method in ('nested_local8_evidence', 'nested_gnn_direct_evidence', 'nested_gnn_direct_random_evidence', 'neural_production_local', 'neural_production_local_w256'):
+        if args.method in SMALL_FLAT_EXPERIMENTS or args.method == 'NestedRootAware' or args.method in NESTED_SWEEP or args.method in ('nested_local8_evidence', 'nested_gnn_direct_evidence', 'nested_gnn_direct_random_evidence', 'neural_production_local', 'neural_production_local_w256'):
             from experiments.osram_cfg84_history_query_random_20260928.run import verify_outputs
             verify_outputs(args.output, args.reference.parent)
             expected_masks = json.loads((args.reference.parent / 'metrics.json').read_text())['mask_sha256']

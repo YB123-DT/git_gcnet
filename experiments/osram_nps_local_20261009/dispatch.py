@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 
-from experiments.osram_core20_20261005.run import LABEL, now, write
+from experiments.osram_core20_20261005.run import LABEL, now, write, SMALL_FLAT_EXPERIMENTS
 from experiments.osram_nested_sweep_20261005.dispatch import scores, REFERENCE
 from experiments.osram_readout_top3_3seed_20261005.dispatch import read, ORIGINALS
 
@@ -21,7 +21,7 @@ def main():
     p.add_argument('--data-manifest', type=Path, required=True)
     p.add_argument('--gpu-index', type=int, default=6)
     p.add_argument('--gpu-uuid', default=GPU)
-    p.add_argument('--method', choices=('neural_production_local', 'neural_production_local_w256'),
+    p.add_argument('--method', choices=('neural_production_local', 'neural_production_local_w256') + tuple(SMALL_FLAT_EXPERIMENTS),
                    default='neural_production_local')
     args = p.parse_args()
     if args.gpu_index not in (0, 1, 2, 3, 5, 6, 7):
@@ -69,7 +69,9 @@ def main():
     comparisons = {}
     if state['status'] == 'complete':
         for name, path in (('flat', REFERENCE),
-                           ('old_nps', ORIGINALS['conditional_new_07_neural_production']), ('nps_local', output)):
+                           ('old_nps', ORIGINALS['conditional_new_07_neural_production']),
+                           ('old_nested', ORIGINALS['nested_gnn_rooted_evidence']),
+                           (state['method'], output)):
             try:
                 comparisons[name] = dict(status='available', output=str(path), **scores(path))
             except (OSError, ValueError, KeyError) as error:

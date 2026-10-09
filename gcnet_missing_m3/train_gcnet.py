@@ -112,6 +112,7 @@ class TrainConfig:
     pretrained_learning_rate: float | None = None
     backbone_type: str = "gcnet"
     osram_output_dim: int = 500
+    osram_adapter_hidden_dim: int = 0
     osram_num_heads: int = 4
     osram_key_dim: int = 32
     osram_value_dim: int = 32
@@ -176,6 +177,14 @@ class TrainConfig:
     osram_ced_block: bool = False
 
     def __post_init__(self) -> None:
+        if type(self.osram_adapter_hidden_dim) is not int or self.osram_adapter_hidden_dim < 0:
+            raise ValueError('osram_adapter_hidden_dim must be a nonnegative integer')
+        if self.osram_adapter_hidden_dim and (
+            self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
+            or self.osram_memory_only_adapter or self.osram_decision_correction
+            or self.core20_method != 'none'
+        ):
+            raise ValueError('adapter width requires the original OSRAM Flat path')
         from .core20 import validate_config
         validate_config(self)
         if self.osram_ced_block:
@@ -3255,6 +3264,7 @@ def run_experiment(
         postgraph_bilstm_ablation=config_value.postgraph_bilstm_ablation,
         backbone_type=config_value.backbone_type,
         osram_output_dim=config_value.osram_output_dim,
+        osram_adapter_hidden_dim=config_value.osram_adapter_hidden_dim,
         osram_num_heads=config_value.osram_num_heads,
         osram_key_dim=config_value.osram_key_dim,
         osram_value_dim=config_value.osram_value_dim,
@@ -3871,6 +3881,7 @@ def run_experiment(
             {
                 "latent_dim": config_value.latent_dim,
                 "output_dim": config_value.osram_output_dim,
+                "adapter_hidden_dim": config_value.osram_adapter_hidden_dim or config_value.osram_output_dim,
                 "num_heads": config_value.osram_num_heads,
                 "key_dim": config_value.osram_key_dim,
                 "value_dim": config_value.osram_value_dim,
@@ -4147,6 +4158,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="gcnet",
     )
     parser.add_argument("--osram-output-dim", type=int, default=500)
+    parser.add_argument("--osram-adapter-hidden-dim", type=int, default=0,
+                        help="Flat adapter hidden width; 0 preserves legacy output_dim width")
     parser.add_argument("--osram-num-heads", type=int, default=4)
     parser.add_argument("--osram-key-dim", type=int, default=32)
     parser.add_argument("--osram-value-dim", type=int, default=32)
@@ -4314,6 +4327,7 @@ def main(argv=None) -> None:
         pretrained_learning_rate=args.pretrained_lr,
         backbone_type=args.backbone_type,
         osram_output_dim=args.osram_output_dim,
+        osram_adapter_hidden_dim=args.osram_adapter_hidden_dim,
         osram_num_heads=args.osram_num_heads,
         osram_key_dim=args.osram_key_dim,
         osram_value_dim=args.osram_value_dim,
