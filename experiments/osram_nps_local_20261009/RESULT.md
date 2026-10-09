@@ -44,3 +44,27 @@ tmux nps_local_gpu5_20261009; dispatcher3198586, training3198751.
 Started2026-10-09 02:25 UTC. Status RUNNING supersedes GPU6 queue above.
 Launch adds --gpu-index5 --gpu-uuid GPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62.
 GPU4 remains forbidden. Existing GPU5 jobs untouched; timing is shared-load.
+
+## Completed seed66 result (2026-10-09)
+
+Status COMPLETE supersedes RUNNING above: 100 epochs, exit_code=0,
+outputs_verified=true; all 20 recorded artifact SHA256 hashes rechecked.
+Eight BEST checkpoints and predictions plus last_training.pt retained remotely.
+Equal mean across rates; ACC uses each W-F1-selected epoch, not separate ACC selection.
+
+| Missing rate | BEST epoch | ACC (%) | W-F1 (%) |
+|---|---:|---:|---:|
+| 0.0 | 57 | 87.652439 | 87.681724 |
+| 0.1 | 56 | 85.518293 | 85.491887 |
+| 0.2 | 78 | 83.079268 | 82.997018 |
+| 0.3 | 97 | 80.030488 | 80.125701 |
+| 0.4 | 72 | 80.182927 | 80.303357 |
+| 0.5 | 67 | 77.134146 | 76.837980 |
+| 0.6 | 44 | 75.914634 | 75.031773 |
+| 0.7 | 90 | 75.000000 | 75.072884 |
+
+8-rate ACC 80.564024; W-F1 80.442790; high-missing W-F1 75.647545.
+Compared with old NPS (Base/Gap correction only), W-F1 changes:
+8-rate -0.538497 pp; high missing -0.827692 pp. This seed does not support
+adding Local correction. No causal mechanism inferred from this one run.
+INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle, not a formal paper result.
