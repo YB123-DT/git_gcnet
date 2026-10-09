@@ -2,7 +2,17 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: CPU configuration/composition checks passed; launch pending.
+Status: RUNNING, all10 jobs simultaneously alive and all have completed at least one epoch. Sealed code snapshot `910a3dc`; batch PID834917; tmux `medium_flat_nested_20261009`. Launch record `LAUNCH.json`.
+
+| Width | GPU2 plain PID | GPU3 Nested PID | Epochs at launch verification (plain/Nested) |
+|---|---:|---:|---:|
+|384|835943|835936|13/10|
+|512|837305|837302|9/7|
+|768|838678|838674|7/5|
+|1024|840882|840883|2/1|
+|1280|843635|843666|1/1|
+
+Verified all10 live training PIDs, effective RAW_CONFIG widths, original Nested/none presence, seed66,100epochs and unchanged regression task. No completed performance results yet. Five per card, not serial completion; only initial admission was staggered.
 
 User requests increasing Flat (not to original1600) with original Nested MLP64.
 User subsequently requests GPU2/3, five simultaneous runs per GPU. Fixed ten configurations: adapter hidden384/512/768/1024/1280, each paired without/with original `nested_gnn_rooted_evidence`.
