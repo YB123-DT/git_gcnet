@@ -2,7 +2,7 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: implementation and limited real-checkpoint verification complete; full eight-rate diagnostics preparing. This is not an OSRAM retraining run.
+Status: full eight-rate diagnostics running on biggpu since2026-10-09 12:13:52UTC. This is not an OSRAM retraining run. Source snapshot `f2f5d0f`, persistent tmux `frozen_memory_audit_20261009`; coordinator PID1479857, GPU2 low-rate shard PID1480063, GPU3 high-rate shard PID1480064. Exact commands/logs/UUIDs preserved in LAUNCH.json.
 
 User override: no validation fitting, evaluation or selection. Train-only probe gradients, Test-MSE-selected probe checkpoints. Both backbone and probes have used test selection. Results cannot establish independent generalization, natural-language causation, or the semantic identity of a latent direction.
 
@@ -17,9 +17,10 @@ User override: no validation fitting, evaluation or selection. Train-only probe 
 
 ## Verification
 
-- Unit tests cover cache shape/identity/finiteness/first-turn and inactive Gap safety, donor constraints, causal targets, test-label gradient isolation, frozen paired scans, deterministic one-bit interventions, strict past-only masks and count matching.
+- 21 unit tests plus4subtests passed, covering cache shape/identity/finiteness/first-turn and inactive Gap safety, donor constraints, causal targets, test-label gradient isolation, frozen paired scans, deterministic one-bit interventions, strict past-only masks and count matching.
 - Real checkpoint check at rate .7 passed:686 utterances/656 nonneutral; ACC75.914634%, W-F1 **75.773178%**, identical original metric. Original checkpoint SHA256 `1cc1c155c57c36879db60c6b63b668951ed679de6809e96e45bd2117d48dce68`; frozen model hash unchanged.
 - Small check:12 miniature head fits (2epochs, one probe seed),9 paired interventions; maximum same-current Local absolute difference `9.5367431640625e-07`, within1e-5 numerical tolerance. These miniature heads are NOT performance results. Check artifacts: `/data2/yb/remote_experiments/frozen-memory-check-GvpYlz/check_output`.
+- Formal launch verified both first-rate extraction phases: original W-F1 at .0=88.205138%, at .4=80.826582%, each exact metric parity on656 nonneutral test utterances. Probe fitting underway; no final diagnostic conclusion yet.
 
 ## Full run
 
