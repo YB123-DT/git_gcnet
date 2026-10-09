@@ -2,16 +2,36 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: RUNNING, verified epoch2/100 on 2026-10-09. First launch stopped before training by bitwise CUDA parity assertion; corrected verification retry passed all eight rates.
+Status: COMPLETED, 100/100 epochs, exit code 0. First launch stopped before training by bitwise CUDA parity assertion; corrected verification retry passed all eight rates.
 
-Source snapshot: `fced0fd`; dispatcher PID564489; training PID564639; tmux `frozen_nested_retry_20261009`; started 2026-10-09T08:24:01 UTC. Epoch1/2 frozen-state checks passed. No post-training test score yet.
+Source snapshot: `fced0fd`; dispatcher PID564489; training PID564639; tmux `frozen_nested_retry_20261009`; ran 2026-10-09T08:24:01–08:34:57 UTC. All 100 frozen-state checks passed. All 23 recorded artifact hashes verified. Validation selected epoch93 (mean8 W-F1 76.753633%); no test-driven epoch selection in Stage2.
 
 Actual same-parent baseline (one `.7` source evaluated at all eight rates):
 
 | Model | Mean8 W-F1 (%) | High .5/.6/.7 (%) |
 |---|---:|---:|
 | Fixed seed66 `.7` original large Flat | 79.540135 | 75.768636 |
-| Frozen Flat + Nested, validation-selected | pending | pending |
+| Frozen Flat + Nested, validation-selected | 79.353094 | 74.533054 |
+| Difference (percentage points) | −0.187041 | −1.235582 |
+
+## Paired test results
+
+W-F1 in percent; same fixed source, samples, masks and threshold. Corrections/harms exclude neutral labels; N=656 at each rate.
+
+| Missing rate | Fixed Flat | + Nested | Delta (pp) | Corrections | Harms |
+|---|---:|---:|---:|---:|---:|
+| .0 | 85.078 | 85.954 | +0.876 | 25 | 21 |
+| .1 | 82.682 | 85.366 | +2.684 | 37 | 22 |
+| .2 | 81.876 | 81.927 | +0.051 | 31 | 33 |
+| .3 | 80.473 | 79.349 | −1.124 | 28 | 38 |
+| .4 | 78.907 | 78.630 | −0.277 | 33 | 37 |
+| .5 | 77.041 | 75.139 | −1.902 | 27 | 42 |
+| .6 | 74.492 | 74.380 | −0.112 | 33 | 36 |
+| .7 | 75.773 | 74.080 | −1.693 | 24 | 37 |
+
+This fixed-parent run does not show an overall benefit. Improvements occur mainly at .0/.1; all .3–.7 rates decline. At high missing, 84 corrections versus 115 harms across rate evaluations (not unique utterances). Main-path parameter drift cannot explain this run because the original state was unchanged throughout. This does NOT prove that Nested contains no useful information or that every freezing/training configuration must fail; only one parent, seed and validation-selected checkpoint were tested. It does not justify automatic capacity expansion or multi-seed training.
+
+Archived evidence: `COMPLETED_METRICS.json`, `COMPLETED_PROVENANCE.json`. No training, extra inference or threshold search performed during this result review.
 
 Zero-init CUDA maximum absolute prediction difference across eight rates: 4.7683716e-7; all signs/W-F1/labels/masks exactly equal. Historical source `.7` score reproduced. This baseline is not the historical per-rate-selected 81.068 score.
 
@@ -36,4 +56,4 @@ Run from sealed source:
 python -m experiments.osram_frozen_nested_20261009.dispatch --root /data2/yb/remote_experiments/osram_frozen_nested_20261009_retry
 ```
 
-Report `seed_66/metrics.json`: same-parent baseline/Nested per-rate W-F1 and ACC, mean8/high, validation-selected epoch, paired corrections/harms. No performance claim before completion.
+Report `seed_66/metrics.json`: same-parent baseline/Nested per-rate W-F1 and ACC, mean8/high, validation-selected epoch, paired corrections/harms. These results remain internal diagnostics because the source checkpoint was Test-oracle selected.
