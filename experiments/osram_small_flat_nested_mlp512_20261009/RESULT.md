@@ -44,4 +44,8 @@ Existing8048MiB free-memory and26GiB free-disk admission unchanged; do not
 kill unrelated processes or alter batch to fit. CPU composition check passed:
 config delta, adapter1534272/module562883 counts, output1600, finite gradients,
 GIN weights updated over three steps, padding output zero. Syntax/diff checks
-passed. Launch pending; no final performance claim.
+passed. Status RUNNING, no final performance claim.
+Snapshot975e484; start2026-10-09T07:34:33.694506+00:00. GPU5 admission8779MiB free.
+tmux small_flat_nested_mlp512_20261009; dispatcher375273, training375362.
+Live PID and effective config verified: adapter256, nested_mlp512, output1600,
+seed66, epochs100. The separate256 experiment is unchanged and remains running.
