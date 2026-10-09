@@ -321,14 +321,14 @@ def straight_through_argmax(logits):
 
 
 class NeuralProduction(nn.Module):
-    def __init__(self):
+    def __init__(self, rule_hidden=96):
         super().__init__()
         self.rules = nn.Parameter(torch.randn(4, 64) / 8)
         self.primary_key = nn.Linear(64, 64)
         self.context_query = nn.Linear(128, 64)
         self.context_key = nn.Linear(64, 64)
-        self.rule_mlps = nn.ModuleList([nn.Sequential(nn.Linear(128, 96), nn.ReLU(),
-                                                     nn.Linear(96, 64)) for _ in range(4)])
+        self.rule_mlps = nn.ModuleList([nn.Sequential(nn.Linear(128, rule_hidden), nn.ReLU(),
+                                                     nn.Linear(rule_hidden, 64)) for _ in range(4)])
 
     def step(self, variables):
         batch, count, _ = variables.shape

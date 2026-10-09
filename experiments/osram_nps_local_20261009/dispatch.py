@@ -21,6 +21,8 @@ def main():
     p.add_argument('--data-manifest', type=Path, required=True)
     p.add_argument('--gpu-index', type=int, default=6)
     p.add_argument('--gpu-uuid', default=GPU)
+    p.add_argument('--method', choices=('neural_production_local', 'neural_production_local_w256'),
+                   default='neural_production_local')
     args = p.parse_args()
     if args.gpu_index not in (0, 1, 2, 3, 5, 6, 7):
         raise ValueError('Only healthy host GPU indices allowed; GPU4 forbidden')
@@ -33,7 +35,7 @@ def main():
         raise FileExistsError('Inspect prior process/outputs; do not duplicate or silently resume')
     source = Path(__file__).resolve().parents[2]
     state = dict(label=LABEL, status='pending', dispatcher_pid=os.getpid(), source=str(source),
-                 seed=66, method='neural_production_local', gpu=args.gpu_index, gpu_uuid=gpu)
+                 seed=66, method=args.method, gpu=args.gpu_index, gpu_uuid=gpu)
     while True:
         raw = subprocess.check_output(['nvidia-smi', '--id=' + str(args.gpu_index),
              '--query-gpu=index,uuid,memory.free', '--format=csv,noheader,nounits'], text=True)
