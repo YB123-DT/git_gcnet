@@ -71,4 +71,19 @@ adapter/module updates for all three arms; padding stays zero. Trainer config
 delta is only width (plus selected block), and constructed task head stays1x1600.
 Measured whole-model parameters: small_flat5508961, small_flat_nps5684129,
 small_flat_nested5668196. Syntax compilation and diff whitespace checks pass.
-Status: verified, launch pending; no new scores yet.
+## Launch record
+
+Status RUNNING; source snapshot a70c38d, all three on biggpu physical GPU5
+(UUID above). No unrelated task stopped; admission checked separately and
+starts staggered. Training process existence and RAW_CONFIG verified for all
+three: hidden256/output1600, correct original block, seed66/epochs100.
+
+| Method | Dispatcher PID | Training PID | Start UTC 2026-10-09 | Free MiB at admission |
+|---|---:|---:|---|---:|
+| small_flat |3943261|3943786|05:06:56|11885|
+| small_flat_nps |3945844|3946154|05:07:28|10367|
+| small_flat_nested |3947696|3948176|05:07:46|8645|
+
+tmux session names: METHOD_20261009. First two confirmed epoch logs; Nested
+loaded feature dimensions at initial check. Final scores and artifact checks
+pending. Runtime is shared-load, not a controlled throughput benchmark.
