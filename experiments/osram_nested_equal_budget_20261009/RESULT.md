@@ -2,7 +2,7 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: RUNNING; verified first completed epoch and live training PID. User explicitly authorized implementation/training after DESIGN.md. Source snapshot `a3e4a9b`; start2026-10-09T10:49:09.094495 UTC; dispatcher PID1153498, training PID1153996; tmux `nested_equal_budget_20261009`. GPU3 free32495MiB at admission. Effective RAW_CONFIG verified: Flat256, nested_dim704, seed66/100epochs, original regression/MSE and emotion-only. Final scores pending.
+Status: COMPLETED,100/100epochs, exit0, outputs_verified; all20 artifact hashes verified. Finished2026-10-09T11:09:52.287622 UTC. User explicitly authorized implementation/training after DESIGN.md. Source snapshot `a3e4a9b`; start2026-10-09T10:49:09.094495 UTC; dispatcher PID1153498, training PID1153996; tmux `nested_equal_budget_20261009`. GPU3 free32495MiB at admission. Effective RAW_CONFIG verified: Flat256, nested_dim704, seed66/100epochs, original regression/MSE and emotion-only. Formal run peak allocated8600.162MiB. Archived final metrics and provenance accompany this report.
 
 One run only: MOSI seed66,100epochs, original cyclic random missing0–.7, emotion-only regression/MSE, Adam .001, weight decay1e-5, batch32, per-rate BEST Test-oracle matching the preceding capacity series. No freezing, new loss, completion, JEPA, mask or task-head changes. Baselines reused, not retrained.
 
@@ -13,7 +13,27 @@ Flat4352->256->1600; Nested704-state,704-hidden MLPs,3GIN layers, original roote
 | Original large Flat |13509793|81.068095|76.352251|
 | Flat256 only |5508961|79.529424|74.421931|
 | Flat256+Nested64 |5668196|80.362122|75.899420|
-| Flat256+Nested704 |13560676|pending|pending|
+| Flat256+Nested704 |13560676|78.151615|72.358131|
+
+## Final result
+
+Versus Flat256+Nested64: −2.210507 mean8 and −3.541289 high-missing percentage points.
+Versus original large Flat: −2.916480 mean8 and −3.994120 high-missing points.
+Versus Flat256 without Nested: −1.377809 mean8 and −2.063801 high-missing points.
+
+| Missing rate | W-F1 (%) | Selected epoch |
+|---|---:|---:|
+|.0|87.466491|76|
+|.1|85.093554|76|
+|.2|80.666412|45|
+|.3|78.502824|38|
+|.4|76.409246|62|
+|.5|72.913428|78|
+|.6|71.871904|78|
+|.7|72.289060|45|
+
+This near-equal parameter-budget allocation did not recover large Flat performance and worsened both aggregate metrics relative to the small original Nested. It is a negative result for this particular width/training configuration, not proof that all larger graphs or parameter reallocations must fail. No causal explanation (overfitting/oversmoothing/optimization) is established by these aggregate scores. No further capacity or seed runs automatically launched.
+All values use the specified seed66 per-rate Test-oracle internal protocol; no new inference or training in final result inspection.
 
 New Nested module8051715 parameters; total measured by constructing the actual model. +50883 (+0.377%) versus original large Flat, not exact equality. Equal parameter budget is not equal FLOPs or activation memory. Graph-internal initialization differs with dimensions; common backbone/Flat state and outer seed scheme retained.
 
