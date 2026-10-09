@@ -1,7 +1,8 @@
 """Ten conditional computation cores; all state lasts one readout only.
 
 Paper-to-readout adaptations are specified in osram_new40_conditional_cards.json.
-No latent coordinate is interpreted as physical time. Local is never modified.
+No latent coordinate is interpreted as physical time. Original variants retain
+Local; the explicit NPS Local-output variant adds a Local adapter residual.
 NPS deliberately uses deterministic straight-through argmax, including training,
 instead of Gumbel noise to preserve the surrounding cfg84 RNG protocol.
 """
@@ -51,7 +52,7 @@ class VectorReadout(nn.Module):
 
 
 class TokenReadout(nn.Module):
-    def __init__(self, core, latent_dim, num_heads, value_dim):
+    def __init__(self, core, latent_dim, num_heads, value_dim, local_correction=False):
         super().__init__()
         self.num_heads = num_heads
         self.tokenizer = HeadTokenizer(latent_dim, num_heads, value_dim,
@@ -59,6 +60,9 @@ class TokenReadout(nn.Module):
         self.core = core
         self.bridges = nn.ModuleList([zero_linear(64, value_dim)
                                       for _ in range(num_heads)])
+        if local_correction:
+            with torch.random.fork_rng(devices=[]):
+                self.local_bridge = zero_linear(64, latent_dim)
 
     def forward(self, local, evidence, active, availability):
         tokens, mask = self.tokenizer(local, evidence, active)
@@ -68,6 +72,8 @@ class TokenReadout(nn.Module):
         values = result[:, 1:].reshape(-1, 4, self.num_heads, 64)
         delta = torch.stack([head(values[:, :, h])
                              for h, head in enumerate(self.bridges)], 2).flatten(2)
+        if hasattr(self, 'local_bridge'):
+            local = local + safe_mask(self.local_bridge(result[:, 0]), active.any(-1))
         return local, safe_mask(safe_mask(evidence, active) + delta, active)
 
 

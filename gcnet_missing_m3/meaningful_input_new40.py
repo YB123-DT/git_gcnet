@@ -49,6 +49,10 @@ class TokenAdapter(nn.Module):
 
 
 def build_new40(method, latent_dim=256, num_heads=8, value_dim=64):
+    if method == 'neural_production_local':
+        from .meaningful_new40_conditional import NeuralProduction, TokenReadout
+        return TokenReadout(NeuralProduction(), latent_dim, num_heads, value_dim,
+                            local_correction=True)
     if method == 'nested_local8_evidence':
         module = importlib.import_module('.nested_local8', __package__)
         return module.build(method, latent_dim, num_heads, value_dim)
