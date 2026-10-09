@@ -1,0 +1,81 @@
+{
+  "status": "complete",
+  "started_utc": "2026-10-09T15:59:01.656079+00:00",
+  "pid": 2620879,
+  "source": "/data2/yb/remote_experiments/osram_frozen_residual_20261009/source",
+  "snapshot": {
+    "code_commit": "e982f96",
+    "source_repository": "YB123-DT/git_gcnet",
+    "branch": "feature/osram-uniform-forced-text",
+    "scope": "frozen residual experiment plus original audit probe utilities",
+    "baseline_and_probe_artifacts": "/data2/yb/remote_experiments/osram_frozen_memory_audit_20261009",
+    "device": "cpu",
+    "threads_per_process": 2
+  },
+  "device": "cpu",
+  "threads_per_process": 2,
+  "runs": [
+    {
+      "name": "low",
+      "pid": 2620882,
+      "command": [
+        "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+        "-u",
+        "-m",
+        "experiments.osram_frozen_residual_20261009.run",
+        "--audit-root",
+        "/data2/yb/remote_experiments/osram_frozen_memory_audit_20261009",
+        "--output",
+        "/data2/yb/remote_experiments/osram_frozen_residual_20261009/runs/low",
+        "--device",
+        "cpu",
+        "--epochs",
+        "100",
+        "--seeds",
+        "66",
+        "67",
+        "68",
+        "--rates",
+        "0.0",
+        "0.1",
+        "0.2",
+        "0.3"
+      ],
+      "output": "/data2/yb/remote_experiments/osram_frozen_residual_20261009/runs/low",
+      "log": "/data2/yb/remote_experiments/osram_frozen_residual_20261009/low.log",
+      "exit_code": 0
+    },
+    {
+      "name": "high",
+      "pid": 2620883,
+      "command": [
+        "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+        "-u",
+        "-m",
+        "experiments.osram_frozen_residual_20261009.run",
+        "--audit-root",
+        "/data2/yb/remote_experiments/osram_frozen_memory_audit_20261009",
+        "--output",
+        "/data2/yb/remote_experiments/osram_frozen_residual_20261009/runs/high",
+        "--device",
+        "cpu",
+        "--epochs",
+        "100",
+        "--seeds",
+        "66",
+        "67",
+        "68",
+        "--rates",
+        "0.4",
+        "0.5",
+        "0.6",
+        "0.7"
+      ],
+      "output": "/data2/yb/remote_experiments/osram_frozen_residual_20261009/runs/high",
+      "log": "/data2/yb/remote_experiments/osram_frozen_residual_20261009/high.log",
+      "exit_code": 0
+    }
+  ],
+  "analysis_exit_code": 0,
+  "finished_utc": "2026-10-09T16:04:28.208096+00:00"
+}
