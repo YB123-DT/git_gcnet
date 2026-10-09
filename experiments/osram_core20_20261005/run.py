@@ -26,6 +26,14 @@ SMALL_FLAT_EXPERIMENTS = {
     'small_flat_nested_mlp256': 'nested_mlp256',
     'small_flat_nested_mlp512': 'nested_mlp512',
 }
+FLAT_WIDTH_OVERRIDES = {
+    f'flat{width}{suffix}': width
+    for width in (384, 512, 768, 1024, 1280) for suffix in ('', '_nested')
+}
+SMALL_FLAT_EXPERIMENTS.update({
+    method: 'nested_gnn_rooted_evidence' if method.endswith('_nested') else 'none'
+    for method in FLAT_WIDTH_OVERRIDES
+})
 EXTRA_EXPERIMENTS = ('CED', 'NestedRootAware', 'nested_local8_evidence', 'nested_gnn_direct_evidence', 'nested_gnn_direct_random_evidence', 'neural_production_local', 'neural_production_local_w256') + tuple(NESTED_SWEEP)
 # Fixed BEFORE training. These are transfer coefficients, not published optimal
 # recipes. Raw-feature generative ELBO sums 2560 coordinates (C11); .001 keeps
@@ -77,7 +85,7 @@ def candidate_config(reference, method, *, seed=66):
     if method in SMALL_FLAT_EXPERIMENTS:
         if reference.get('osram_adapter_hidden_dim', 0) != 0:
             raise ValueError('small adapter comparison requires the legacy reference')
-        delta = {'osram_adapter_hidden_dim': 256,
+        delta = {'osram_adapter_hidden_dim': FLAT_WIDTH_OVERRIDES.get(method, 256),
                  'osram_meaningful_block': SMALL_FLAT_EXPERIMENTS[method]}
     elif method == 'CED':
         delta = {'osram_ced_block': True}
