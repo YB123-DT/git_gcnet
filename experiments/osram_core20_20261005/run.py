@@ -23,6 +23,7 @@ SMALL_FLAT_EXPERIMENTS = {
     'small_flat': 'none',
     'small_flat_nps': 'conditional_new_07_neural_production',
     'small_flat_nested': 'nested_gnn_rooted_evidence',
+    'small_flat_nested_mlp256': 'nested_mlp256',
 }
 EXTRA_EXPERIMENTS = ('CED', 'NestedRootAware', 'nested_local8_evidence', 'nested_gnn_direct_evidence', 'nested_gnn_direct_random_evidence', 'neural_production_local', 'neural_production_local_w256') + tuple(NESTED_SWEEP)
 # Fixed BEFORE training. These are transfer coefficients, not published optimal
