@@ -20,4 +20,13 @@ Server biggpu GPU6 only. Root:
 /data2/yb/remote_experiments/osram_nps_local_20261009
 Command: python -m experiments.osram_nps_local_20261009.dispatch --root RUN_ROOT
 --data-manifest /data2/yb/remote_experiments/osram_meaningful20_round2_20261004/DATA.json
-Status: pending remote verification and launch.
+Verification passed remotely: old175168 parameters, new191808 (+16640).
+All common parameters and RNG match; zero-init outputs exactly match old NPS;
+Local bridge learns under task-like gradient, gradients finite and masks safe.
+Trainer import checked. Sealed source6b33729 deployed and pushed.
+
+Status: QUEUED, not training yet. Persistent tmux nps_local_20261009 and
+dispatcher PID3184101 verified alive. GPU6 free4499MiB, below the unchanged
+8048MiB admission threshold. Dispatcher automatically starts this single
+seed66/100epoch run when GPU6 and disk admission pass. No duplicate launch,
+no unrelated task stopped. Live status: remote DISPATCH.json; dispatcher.log.
