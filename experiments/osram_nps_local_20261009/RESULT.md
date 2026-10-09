@@ -30,3 +30,17 @@ dispatcher PID3184101 verified alive. GPU6 free4499MiB, below the unchanged
 8048MiB admission threshold. Dispatcher automatically starts this single
 seed66/100epoch run when GPU6 and disk admission pass. No duplicate launch,
 no unrelated task stopped. Live status: remote DISPATCH.json; dispatcher.log.
+
+## Authorized alternate GPU launch
+
+User subsequently authorized other GPUs. Old pending dispatcher3184101 was
+stopped only after verifying status=pending and no child processes. Old
+DISPATCH.json retained as cancelled_before_training; no training was killed.
+
+Current root: /data2/yb/remote_experiments/osram_nps_local_20261009/alternate_gpu5
+GPU5 UUID GPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62, free13603MiB at launch.
+Same server/config/seed/data; module/trainer unchanged. Snapshot3f47531;
+tmux nps_local_gpu5_20261009; dispatcher3198586, training3198751.
+Started2026-10-09 02:25 UTC. Status RUNNING supersedes GPU6 queue above.
+Launch adds --gpu-index5 --gpu-uuid GPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62.
+GPU4 remains forbidden. Existing GPU5 jobs untouched; timing is shared-load.
