@@ -2,7 +2,18 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: preparing four missing runs; no additional architecture or seed beyond66/67/68.
+Status: four missing runs launched on biggpu, 2026-10-09 UTC; no additional architecture or seed beyond66/67/68. Results pending.
+
+Sealed training source: commit `2d8c089`, remote `source/SNAPSHOT.json`. Persistent tmux sessions and independent dispatcher locks protect these runs from SSH disconnects and duplicate starts.
+
+| Method | Seed | Host GPU | Training PID | tmux session |
+|---|---:|---:|---:|---|
+|small_flat|67|2|1260208|confirm_small_flat_67|
+|small_flat|68|2|1262548|confirm_small_flat_68|
+|small_flat_nested|67|3|1260440|confirm_small_flat_nested_67|
+|small_flat_nested|68|3|1262555|confirm_small_flat_nested_68|
+
+Each run root stores `DISPATCH.json` with the exact command, GPU UUID, source, PID, start time and log location. Each seed directory stores effective configuration, progress, checkpoints and predictions. Initial live-process checks passed; final scores are not yet available.
 
 User approved the three-way confirmation, not further capacity search. Reuse completed large Flat seeds66/67/68 and small Flat / small Flat+original Nested seed66. Train only small_flat and small_flat_nested at seeds67/68,100epochs each. Flat hidden256, output1600; Nested nodes64/MLP64,3layers, original heads/topology. One-stage joint training, original MOSI regression/MSE, Adam .001/weight-decay1e-5/batch32, cyclic random missing0–.7, per-rate BEST Test-oracle to match the existing series. No frozen training, JEPA, completion, auxiliary loss or wider graph.
 
