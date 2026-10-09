@@ -54,4 +54,8 @@ width and selected original graph variant; measured adapter1534272 and graph
 actual GIN weight update. Existing core semantic tests/results reused. Syntax
 and diff checks pass. Initial config check rejected the unregistered method,
 then passed with the new explicit mapping. No model implementation changed.
-Status: verified, launch pending; no final scores yet.
+Status RUNNING. Source snapshot ee805ee; start2026-10-09T07:26:35.175721+00:00.
+GPU5 had11645MiB free at admission. tmux small_flat_nested_mlp256_20261009;
+dispatcher PID345788, training PID345870. Process existence and effective
+RAW_CONFIG verified: adapter256, nested_mlp256, output1600, seed66, epochs100.
+Independent root/seed_66/train.log and root/DISPATCH.json. No final scores yet.
