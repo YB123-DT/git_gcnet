@@ -2,6 +2,8 @@
 
 Approved user request: implement and run one MOSI seed66/100epoch comparison. Execute inline in the current dedicated worktree, preserving unrelated edits.
 
+Execution record: all five implementation/launch steps below completed. Red test rejected missing method; CPU and actual-batch CUDA checks passed; code a3e4a9b sealed and launched onGPU3; first formal epoch and effective config verified. Only completion of100epoch training and final artifact analysis remain pending. Checklist below retains the original plan text.
+
 - [ ] Add `check.py`: first require `candidate_config(reference,'small_flat_nested_dim704')`, assert only adapter256 and Nested name change; then assert full model13560676 and module8051715 parameters, zero-init equality, padding/inactive Gap/first-turn behavior, finite updates. Run before registration and observe unsupported method.
 - [ ] Register `nested_dim704: {'dim':704}` in `meaningful_new40_registry.py`; add `small_flat_nested_dim704: nested_dim704` to existing small-Flat runner mapping. Forward existing adapter width through the reusable exact-model builder so the count check uses the actual requested width. No new graph math.
 - [ ] CPU check on existing remote temporary source; then one actual maximum-valid-utterance train batch using original task/mask preparation at epoch7 and paired evaluation on healthyGPU3. Record peak CUDA memory; do not alter batch/loss/protocol.

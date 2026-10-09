@@ -2,7 +2,7 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: implemented and verified; formal run launch pending. User explicitly authorized implementation/training after DESIGN.md.
+Status: RUNNING; verified first completed epoch and live training PID. User explicitly authorized implementation/training after DESIGN.md. Source snapshot `a3e4a9b`; start2026-10-09T10:49:09.094495 UTC; dispatcher PID1153498, training PID1153996; tmux `nested_equal_budget_20261009`. GPU3 free32495MiB at admission. Effective RAW_CONFIG verified: Flat256, nested_dim704, seed66/100epochs, original regression/MSE and emotion-only. Final scores pending.
 
 One run only: MOSI seed66,100epochs, original cyclic random missing0–.7, emotion-only regression/MSE, Adam .001, weight decay1e-5, batch32, per-rate BEST Test-oracle matching the preceding capacity series. No freezing, new loss, completion, JEPA, mask or task-head changes. Baselines reused, not retrained.
 

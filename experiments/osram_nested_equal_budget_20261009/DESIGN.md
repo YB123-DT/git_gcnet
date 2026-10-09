@@ -1,6 +1,6 @@
 # Near-equal parameter budget: small Flat and wider-state Nested
 
-Status: DESIGN ONLY. No model implementation changes, registration or training launched.
+Status: design approved and implemented after user's subsequent "做吧". Verification and live launch are recorded in RESULT.md; the original budget rationale below is retained.
 INTERNAL DIAGNOSTIC ONLY for historical source scores. Counts are not performance results.
 
 User approved exploring Flat256 while moving the original large Flat parameter budget into Nested. Keep the original mechanism, not just a very wide MLP returning64-dimensional states. The latest scope is to determine a concrete configuration before launch.
