@@ -87,3 +87,42 @@ three: hidden256/output1600, correct original block, seed66/epochs100.
 tmux session names: METHOD_20261009. First two confirmed epoch logs; Nested
 loaded feature dimensions at initial check. Final scores and artifact checks
 pending. Runtime is shared-load, not a controlled throughput benchmark.
+
+## Completed results
+
+All three completed100 epochs, exit_code0 and outputs_verified=true.
+All60 artifact hashes rechecked (20 per run); final metrics match per-rate
+maxima in histories. Checkpoints/predictions/recovery states retained remotely.
+Status COMPLETE supersedes launch status. No new inference or training here.
+ACC is measured at each W-F1-selected checkpoint, not independently maximized.
+
+| Method | Mean8 ACC | Mean8 W-F1 | High ACC | High W-F1 |
+|---|---:|---:|---:|---:|
+| small_flat | 79.477896 | 79.529424 | 74.339431 | 74.421931 |
+| small_flat_nps | 79.668445 | 79.634828 | 75.203252 | 75.167625 |
+| small_flat_nested | 80.392530 | 80.362122 | 75.965447 | 75.899420 |
+
+| Rate | Small Flat W-F1 | +NPS W-F1 | +Nested W-F1 |
+|---|---:|---:|---:|
+| 0.0 | 86.913219 | 87.548393 | 87.309898 |
+| 0.1 | 85.223858 | 85.812521 | 85.632318 |
+| 0.2 | 81.202994 | 80.920785 | 81.771578 |
+| 0.3 | 80.098687 | 78.985934 | 81.279595 |
+| 0.4 | 79.530839 | 78.308113 | 79.205330 |
+| 0.5 | 75.139443 | 75.463217 | 76.805827 |
+| 0.6 | 74.131600 | 74.364335 | 75.150216 |
+| 0.7 | 73.994751 | 75.675323 | 75.742217 |
+
+Interpretation (seed66 only):
+- Shrinking Flat loses1.538671pp mean8 and1.930320pp high versus large Flat.
+- NPS adds0.105404pp mean8 and0.745693pp high versus small Flat.
+- Nested adds0.832699pp mean8 and1.477489pp high versus small Flat.
+- Small Flat+Nested remains0.705973pp mean8 and0.452831pp high below large Flat;
+  versus large Flat+Nested, it is0.630025pp mean8 and0.177809pp high lower.
+- This supports partial recovery of lost performance under this reduced-capacity
+  setting, NOT an overall improvement or proof that large Flat suppresses modules.
+  A single seed does not establish stable interactions or significance.
+- Do not automatically launch new widths or more seeds. Completed result JSON
+  records all per-rate ACC/W-F1, selected epochs, source and process outcomes.
+
+INTERNAL DIAGNOSTIC ONLY; no formal paper claim.
