@@ -19,6 +19,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--root', type=Path, required=True)
     p.add_argument('--data-manifest', type=Path, required=True)
+    p.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     p.add_argument('--gpu-index', type=int, default=6)
     p.add_argument('--gpu-uuid', default=GPU)
     p.add_argument('--method', choices=('neural_production_local', 'neural_production_local_w256') + tuple(SMALL_FLAT_EXPERIMENTS),
@@ -34,8 +35,9 @@ def main():
     if (root / 'DISPATCH.json').exists():
         raise FileExistsError('Inspect prior process/outputs; do not duplicate or silently resume')
     source = Path(__file__).resolve().parents[2]
+    reference = REFERENCE.parent / f'seed_{args.seed}'
     state = dict(label=LABEL, status='pending', dispatcher_pid=os.getpid(), source=str(source),
-                 seed=66, method=args.method, gpu=args.gpu_index, gpu_uuid=gpu)
+                 seed=args.seed, method=args.method, gpu=args.gpu_index, gpu_uuid=gpu)
     while True:
         raw = subprocess.check_output(['nvidia-smi', '--id=' + str(args.gpu_index),
              '--query-gpu=index,uuid,memory.free', '--format=csv,noheader,nounits'], text=True)
@@ -47,10 +49,10 @@ def main():
         if float(free) >= minimum_free and shutil.disk_usage(root).free / 2**30 >= 26:
             break
         time.sleep(15)
-    output = root / 'seed_66'
+    output = root / f'seed_{args.seed}'
     output.mkdir(exist_ok=False)
     command = [sys.executable, '-u', '-m', 'experiments.osram_core20_20261005.run',
-               '--method', state['method'], '--seed', '66', '--reference', str(REFERENCE / 'config.json'),
+               '--method', state['method'], '--seed', str(args.seed), '--reference', str(reference / 'config.json'),
                '--data-manifest', str(args.data_manifest), '--output', str(output), '--gpu-uuid', gpu]
     log = output / 'train.log'
     with log.open('x') as stream:
@@ -69,10 +71,11 @@ def main():
     write(root / 'DISPATCH.json', state)
     comparisons = {}
     if state['status'] == 'complete':
-        for name, path in (('flat', REFERENCE),
-                           ('old_nps', ORIGINALS['conditional_new_07_neural_production']),
-                           ('old_nested', ORIGINALS['nested_gnn_rooted_evidence']),
-                           (state['method'], output)):
+        references = [('flat', reference), (state['method'], output)]
+        if args.seed == 66:
+            references += [('old_nps', ORIGINALS['conditional_new_07_neural_production']),
+                           ('old_nested', ORIGINALS['nested_gnn_rooted_evidence'])]
+        for name, path in references:
             try:
                 comparisons[name] = dict(status='available', output=str(path), **scores(path))
             except (OSError, ValueError, KeyError) as error:
