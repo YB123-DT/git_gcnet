@@ -43,7 +43,8 @@ def main():
         if int(index) != args.gpu_index or identifier != gpu:
             raise ValueError('Healthy GPU UUID mismatch; GPU4 forbidden')
         write(root / 'DISPATCH.json', state)
-        if float(free) >= 8048 and shutil.disk_usage(root).free / 2**30 >= 26:
+        minimum_free = 12000 if args.method == 'small_flat_nested_dim704' else 8048
+        if float(free) >= minimum_free and shutil.disk_usage(root).free / 2**30 >= 26:
             break
         time.sleep(15)
     output = root / 'seed_66'

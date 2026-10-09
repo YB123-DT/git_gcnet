@@ -25,6 +25,7 @@ SMALL_FLAT_EXPERIMENTS = {
     'small_flat_nested': 'nested_gnn_rooted_evidence',
     'small_flat_nested_mlp256': 'nested_mlp256',
     'small_flat_nested_mlp512': 'nested_mlp512',
+    'small_flat_nested_dim704': 'nested_dim704',
 }
 FLAT_WIDTH_OVERRIDES = {
     f'flat{width}{suffix}': width

@@ -78,6 +78,7 @@ def _build_model(config, dimensions):
         postgraph_bilstm_ablation=config.postgraph_bilstm_ablation,
         backbone_type=config.backbone_type,
         osram_output_dim=config.osram_output_dim,
+        osram_adapter_hidden_dim=getattr(config, 'osram_adapter_hidden_dim', 0),
         osram_num_heads=config.osram_num_heads,
         osram_key_dim=config.osram_key_dim,
         osram_value_dim=config.osram_value_dim,
