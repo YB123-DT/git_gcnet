@@ -45,3 +45,38 @@ biggpu physical GPU5, UUID as above; free 11671 MiB at admission.
 tmux nps_local_w256_20261009; dispatcher PID3460071; training PID3460257.
 Independent source/config/output, original small run not stopped or modified.
 Log: root/seed_66/train.log; state: root/DISPATCH.json.
+
+## Completed seed66 result
+
+Status COMPLETE supersedes RUNNING: 100/100 epochs, exit_code=0,
+outputs_verified=true. Rechecked all 20 recorded artifact SHA256 hashes.
+Eight per-rate BEST checkpoints/predictions and last_training.pt retained.
+No new inference or retraining for this summary. ACC is measured at the
+W-F1-selected checkpoint for each rate, not separately selected on ACC.
+
+| Missing rate | BEST epoch | ACC (%) | W-F1 (%) |
+|---|---:|---:|---:|
+| 0.0 | 59 | 87.195122 | 87.195122 |
+| 0.1 | 61 | 85.823171 | 85.851310 |
+| 0.2 | 59 | 82.317073 | 82.385532 |
+| 0.3 | 62 | 80.487805 | 80.468065 |
+| 0.4 | 57 | 80.182927 | 80.052647 |
+| 0.5 | 80 | 75.914634 | 76.048976 |
+| 0.6 | 62 | 76.067073 | 76.083976 |
+| 0.7 | 57 | 74.847561 | 74.654761 |
+
+Equal-rate mean ACC/W-F1: 80.354421 / 80.342549.
+High-missing (.5/.6/.7) mean ACC/W-F1: 75.609756 / 75.595904.
+
+| Seed66 version | Mean8 W-F1 | High W-F1 |
+|---|---:|---:|
+| Original NPS, Base/Gap correction only | 80.981287 | 76.475237 |
+| NPS plus Local correction, rule width96 | 80.442790 | 75.647545 |
+| NPS plus Local correction, rule width256 | 80.342549 | 75.595904 |
+
+W256 minus W96: -0.100242 pp mean8, -0.051641 pp high.
+W256 minus original NPS: -0.638738 pp mean8, -0.879333 pp high.
+This single-seed comparison provides no gain from the tested width increase;
+it does not establish that all larger NPS variants are ineffective. Do not
+automatically expand to more seeds or capacity settings. No mechanism claim.
+INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle, not a formal paper result.
