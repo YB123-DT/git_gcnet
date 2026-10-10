@@ -32,5 +32,5 @@ tests/test_history_text_context.py. No edits to model/trainer.
 - [x] Commit/push isolated implementation; deploy over sealed prior audit source
       through a separate diagnostic package, not edits to shared running source.
 - [x] Start persistent biggpu healthy GPU7 job with independent outputs and status.
-- [ ] Preserve all per-target predictions/identities and code/checkpoint hashes;
+- [x] Preserve all per-target predictions/identities and code/checkpoint hashes;
       collect final report after all eight rates complete.
