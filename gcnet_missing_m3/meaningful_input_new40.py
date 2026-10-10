@@ -54,6 +54,10 @@ class TokenAdapter(nn.Module):
 
 
 def build_new40(method, latent_dim=256, num_heads=8, value_dim=64):
+    if method == 'neural_production_direct':
+        from .meaningful_new40_conditional import NeuralProduction, TokenReadout
+        return TokenReadout(NeuralProduction(), latent_dim, num_heads, value_dim,
+                            residual=False, zero_decoder=False)
     if method in ('nested_gnn_gap_residual_gate', 'nested_gnn_gap_t_residual_gate'):
         from .meaningful_new40_structure import NestedGNN
         from .nested_gap_gate import NestedGapResidualGate

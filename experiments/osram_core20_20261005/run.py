@@ -37,6 +37,10 @@ SMALL_FLAT_EXPERIMENTS.update({
 })
 EXTRA_EXPERIMENTS = ('CED', 'NestedRootAware', 'nested_local8_evidence', 'nested_gnn_direct_evidence', 'nested_gnn_direct_random_evidence', 'neural_production_local', 'neural_production_local_w256', 'nested_gnn_gap_residual_gate', 'nested_gnn_gap_t_residual_gate') + tuple(NESTED_SWEEP)
 # Fixed BEFORE training. These are transfer coefficients, not published optimal
+DIRECT_EVIDENCE_EXPERIMENTS = ('m28_xcit_xca_direct', 'neural_production_direct')
+EXTRA_EXPERIMENTS += DIRECT_EVIDENCE_EXPERIMENTS
+
+# Direct variants preserve Flat/Memory/task loss and only transform its inputs.
 # recipes. Raw-feature generative ELBO sums 2560 coordinates (C11); .001 keeps
 # its explicit likelihood objective from being silently averaged into a new loss.
 AUX_WEIGHTS = {'C02': .1, 'C03': 1., 'C11': .001, 'C14': 1., 'C15': .1, 'C16': .1, 'C19': 1.}
@@ -88,6 +92,8 @@ def candidate_config(reference, method, *, seed=66):
             raise ValueError('small adapter comparison requires the legacy reference')
         delta = {'osram_adapter_hidden_dim': FLAT_WIDTH_OVERRIDES.get(method, 256),
                  'osram_meaningful_block': SMALL_FLAT_EXPERIMENTS[method]}
+    elif method in DIRECT_EVIDENCE_EXPERIMENTS:
+        delta = {'osram_meaningful_block': method}
     elif method == 'CED':
         delta = {'osram_ced_block': True}
     elif method == 'NestedRootAware':
@@ -168,7 +174,7 @@ def main(fixed_method=None):
         artifacts += [f'predictions_miss_0p{i}.npz' for i in range(8)]
         if any(not (args.output / name).is_file() for name in artifacts):
             raise ValueError('incomplete selected checkpoint/prediction artifacts')
-        if args.method in SMALL_FLAT_EXPERIMENTS or args.method == 'NestedRootAware' or args.method in NESTED_SWEEP or args.method in ('nested_local8_evidence', 'nested_gnn_direct_evidence', 'nested_gnn_direct_random_evidence', 'neural_production_local', 'neural_production_local_w256', 'nested_gnn_gap_residual_gate', 'nested_gnn_gap_t_residual_gate'):
+        if args.method in DIRECT_EVIDENCE_EXPERIMENTS or args.method in SMALL_FLAT_EXPERIMENTS or args.method == 'NestedRootAware' or args.method in NESTED_SWEEP or args.method in ('nested_local8_evidence', 'nested_gnn_direct_evidence', 'nested_gnn_direct_random_evidence', 'neural_production_local', 'neural_production_local_w256', 'nested_gnn_gap_residual_gate', 'nested_gnn_gap_t_residual_gate'):
             from experiments.osram_cfg84_history_query_random_20260928.run import verify_outputs
             verify_outputs(args.output, args.reference.parent)
             expected_masks = json.loads((args.reference.parent / 'metrics.json').read_text())['mask_sha256']

@@ -11,6 +11,8 @@ PRIORITY_FAMILIES = {
     'mixers': ('m31_mlp_mixer', 'm32_gmlp_sgu', 'm33_fnet', 'm34_convnext_grn', 'm35_dynamixer'),
 }
 PRIORITY_INPUT_METHODS = ('m11_film', 'm13_mmtm')
+# Placement controls do not inflate the historical forty-method catalog.
+PRIORITY_INPUT_VARIANTS = ('m28_xcit_xca_direct',)
 PRIORITY_NORM_METHODS = ('m30_dyt',)
 PRIORITY_RESIDUAL_METHODS = tuple(sorted(name for names in PRIORITY_FAMILIES.values()
     for name in names if name not in PRIORITY_INPUT_METHODS))

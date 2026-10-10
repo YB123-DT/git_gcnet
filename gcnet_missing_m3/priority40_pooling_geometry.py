@@ -245,14 +245,20 @@ class XCiTXCA(_Readout):
         self.temperature = nn.Parameter(torch.ones(4, 1, 1))
         self.output = nn.Linear(dim, dim)
 
-    def pool_roles(self, x, mask):
+    def encode_roles(self, x, mask):
+        """Retain safe per-role outputs before the legacy mean readout."""
+        mask = mask.bool()
+        x = safe_mask(x, mask)
         b = x.shape[0]
         qkv = safe_mask(self.qkv(x), mask).reshape(b, 5, 3, 4, self.dim//4)
         q, k, v = qkv.permute(2, 0, 3, 4, 1).unbind(0)
         q, k = F.normalize(q, dim=-1, eps=1e-6), F.normalize(k, dim=-1, eps=1e-6)
         attention = ((q @ k.transpose(-1, -2))*self.temperature).softmax(-1)
         updated = (attention @ v).permute(0, 3, 1, 2).reshape(b, 5, self.dim)
-        return _mean(safe_mask(self.output(updated), mask), mask)
+        return safe_mask(self.output(updated), mask)
+
+    def pool_roles(self, x, mask):
+        return _mean(self.encode_roles(x, mask), mask)
 
 
 class SetNorm(_Readout):

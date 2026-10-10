@@ -52,13 +52,16 @@ class VectorReadout(nn.Module):
 
 
 class TokenReadout(nn.Module):
-    def __init__(self, core, latent_dim, num_heads, value_dim, local_correction=False):
+    def __init__(self, core, latent_dim, num_heads, value_dim, local_correction=False,
+                 residual=True, zero_decoder=True):
         super().__init__()
         self.num_heads = num_heads
+        self.residual = residual
         self.tokenizer = HeadTokenizer(latent_dim, num_heads, value_dim,
                                        dim=64, normalize=True)
         self.core = core
-        self.bridges = nn.ModuleList([zero_linear(64, value_dim)
+        decoder = zero_linear if zero_decoder else nn.Linear
+        self.bridges = nn.ModuleList([decoder(64, value_dim)
                                       for _ in range(num_heads)])
         if local_correction:
             with torch.random.fork_rng(devices=[]):
@@ -74,6 +77,8 @@ class TokenReadout(nn.Module):
                              for h, head in enumerate(self.bridges)], 2).flatten(2)
         if hasattr(self, 'local_bridge'):
             local = local + safe_mask(self.local_bridge(result[:, 0]), active.any(-1))
+        if not self.residual:
+            return local, safe_mask(delta, active)
         return local, safe_mask(safe_mask(evidence, active) + delta, active)
 
 
