@@ -43,3 +43,14 @@ Post-recovery verification: Flat committed history84, Nested61. Replayed Flat82
 and Nested60 printed train/test/loss values match interrupted logs at logged
 precision. Both advanced past their interruption points, confirming actual
 training restoration rather than just live initialization processes.
+
+## Next live check: Flat118 / Nested87
+
+Flat original100 completed with verified outputs:8-rate79.931940%, high74.941902%.
+Its continuation is live, saved history118,19 LR traces (epoch119 already entered).
+Cumulative provisional8-rate79.951281%, high74.983571%; new-only101–118
+per-rate maxima mean79.400361%, high74.526179%. Do not claim final150 performance.
+
+Nested original100 is live with87 saved epochs: provisional8-rate79.715014%,
+high74.855673%. Its continuation has not started. Both current PIDs alive; no new
+failure recorded. Budgets remain unequal; final paired conclusion pending.
