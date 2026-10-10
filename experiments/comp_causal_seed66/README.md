@@ -43,4 +43,4 @@ Each worker receives a physical GPU index followed by one or more missing rates:
 experiments/comp_causal_seed66/run_seed66_worker.sh 3 0.0 0.4
 ```
 
-Every rate has an isolated directory, `run.log`, `run_manifest.txt`, official result text, and runtime-generated log tree. The worker skips a setting only when its result contains `Folder avg:`.
+Every rate has an isolated directory, `run.log`, `run_manifest.txt`, official result text, and runtime-generated log tree. Formal launch requires a clean repository. The worker skips a completed setting only when its manifest matches the current commit, upstream source, seed, rate, training budget, dimensions, and features; otherwise it stops instead of silently accepting stale output.

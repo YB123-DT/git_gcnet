@@ -16,16 +16,42 @@ if [[ "$#" -eq 0 ]]; then
 fi
 
 OUTPUT_BASE="${WORKSPACE}/05_reproduction/runs/ComP_causal/seed66/CMUMOSI"
+REPOSITORY_COMMIT="$(git -C "${REPOSITORY}" rev-parse HEAD)"
+
+if [[ -n "$(git -C "${REPOSITORY}" status --porcelain --untracked-files=normal)" ]]; then
+  echo "Refusing formal launch from a dirty repository: ${REPOSITORY}" >&2
+  exit 3
+fi
+
+manifest_matches() {
+  local manifest="$1"
+  local mask_rate="$2"
+  [[ -f "${manifest}" ]] \
+    && rg -Fxq "repository_commit=${REPOSITORY_COMMIT}" "${manifest}" \
+    && rg -Fxq "upstream_comp_commit=28192d3a5683543d7383e40898f9a98d1f114a08" "${manifest}" \
+    && rg -Fxq "seed=66" "${manifest}" \
+    && rg -Fxq "mask_rate=${mask_rate}" "${manifest}" \
+    && rg -Fxq "epochs=300" "${manifest}" \
+    && rg -Fxq "stage_epoch=150" "${manifest}" \
+    && rg -Fxq "batch_size=32" "${manifest}" \
+    && rg -Fxq "hidden=256" "${manifest}" \
+    && rg -Fxq "features=wav2vec-large-c-UTT,deberta-large-4-UTT,manet_UTT" "${manifest}"
+}
 
 run_one() {
   local mask_rate="$1"
   local run_dir="${OUTPUT_BASE}/mr_${mask_rate}"
   local result_file="${run_dir}/CMUMOSI-${mask_rate}.txt"
+  local manifest="${run_dir}/run_manifest.txt"
 
   mkdir -p "${run_dir}"
   if [[ -f "${result_file}" ]] && rg -q "Folder avg:" "${result_file}"; then
-    echo "[skip] CMUMOSI seed=66 mask_rate=${mask_rate} already complete"
-    return 0
+    if manifest_matches "${manifest}" "${mask_rate}"; then
+      echo "[skip] CMUMOSI seed=66 mask_rate=${mask_rate} already complete with matching provenance"
+      return 0
+    fi
+    echo "Refusing to reuse completed result with mismatched provenance: ${run_dir}" >&2
+    return 4
   fi
   if [[ -f "${result_file}" ]]; then
     local stamp
@@ -34,7 +60,7 @@ run_one() {
   fi
 
   printf '%s\n' \
-    "repository_commit=$(git -C "${REPOSITORY}" rev-parse HEAD)" \
+    "repository_commit=${REPOSITORY_COMMIT}" \
     "upstream_comp_commit=28192d3a5683543d7383e40898f9a98d1f114a08" \
     "hostname=$(hostname)" \
     "host_gpu=${GPU}" \
@@ -42,7 +68,10 @@ run_one() {
     "mask_rate=${mask_rate}" \
     "epochs=300" \
     "stage_epoch=150" \
-    > "${run_dir}/run_manifest.txt"
+    "batch_size=32" \
+    "hidden=256" \
+    "features=wav2vec-large-c-UTT,deberta-large-4-UTT,manet_UTT" \
+    > "${manifest}"
 
   echo "[start] CMUMOSI seed=66 mask_rate=${mask_rate} host_gpu=${GPU}"
   (
