@@ -54,13 +54,15 @@ class TokenAdapter(nn.Module):
 
 
 def build_new40(method, latent_dim=256, num_heads=8, value_dim=64):
-    if method == 'nested_gnn_gap_residual_gate':
+    if method in ('nested_gnn_gap_residual_gate', 'nested_gnn_gap_t_residual_gate'):
         from .meaningful_new40_structure import NestedGNN
         from .nested_gap_gate import NestedGapResidualGate
         adapter = TokenAdapter(NestedGNN(), latent_dim, num_heads, value_dim, dim=64)
         # All original parameters and downstream random draws remain unchanged.
         with torch.random.fork_rng(devices=[]):
-            adapter.gap_residual_gate = NestedGapResidualGate(latent_dim, num_heads * value_dim)
+            selected = (1,) if method == 'nested_gnn_gap_t_residual_gate' else (0, 1, 2)
+            adapter.gap_residual_gate = NestedGapResidualGate(
+                latent_dim, num_heads * value_dim, gated_modalities=selected)
         return adapter
     if method in ('neural_production_local', 'neural_production_local_w256'):
         from .meaningful_new40_conditional import NeuralProduction, TokenReadout
