@@ -1,6 +1,6 @@
 """Budget-only continuation of original Nested using its historical source."""
 import argparse
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 import fcntl
 import hashlib
@@ -60,7 +60,7 @@ def main():
     assert cfg.osram_meaningful_block == 'nested_gnn_rooted_evidence'
     assert cfg.training_objective == 'emotion-only'
     before = asdict(cfg)
-    cfg.epochs = 150
+    cfg = replace(cfg, epochs=150)
     assert {k for k in before if before[k] != asdict(cfg)[k]} == {'epochs'}
     state = torch.load(args.original / 'last_training.pt', map_location='cpu', weights_only=False)
     assert state['next_epoch'] == 100 and len(state['history']) == 100
