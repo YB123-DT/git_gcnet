@@ -3,8 +3,11 @@
 INTERNAL DIAGNOSTIC ONLY
 
 User authorized the Gap-T-only experiment after the completed all-Gap Gate run.
-No score is available at implementation time; actual launch status belongs in
-LAUNCH.json and each remote PROVENANCE.json.
+Status: all three runs launched and live onGPU7. Launch observation: seed66
+4/100epochs, seeds67/68 2/100. Actual nonzero Gate updates verified in seed66's
+epoch4 recovery checkpoint. Effective configs differ from each original Nested
+only by the method name. No final score is available; current launch evidence
+belongs in LAUNCH.json and each remote PROVENANCE.json.
 
 ```
 Gap-A_out = original Gap-A + Nested delta Gap-A
