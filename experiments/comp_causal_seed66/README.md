@@ -43,4 +43,10 @@ Each worker receives a physical GPU index followed by one or more missing rates:
 experiments/comp_causal_seed66/run_seed66_worker.sh 3 0.0 0.4
 ```
 
+The default seed is 66. Set `COMP_SEED` for a matched replication without changing any other setting:
+
+```bash
+COMP_SEED=67 experiments/comp_causal_seed66/run_seed66_worker.sh 3 0.0 0.4
+```
+
 Every rate has an isolated directory, `run.log`, `run_manifest.txt`, official result text, and runtime-generated log tree. Formal launch requires a clean repository. The worker skips a completed setting only when its manifest matches the current commit, upstream source, seed, rate, training budget, dimensions, and features; otherwise it stops instead of silently accepting stale output.

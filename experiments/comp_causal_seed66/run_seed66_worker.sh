@@ -9,13 +9,14 @@ CONDA_BIN="/home/yangbin/miniconda3/bin/conda"
 ENV_NAME="comp-repro"
 GPU="${1:?host GPU index is required}"
 shift
+SEED="${COMP_SEED:-66}"
 
 if [[ "$#" -eq 0 ]]; then
   echo "At least one mask rate is required" >&2
   exit 2
 fi
 
-OUTPUT_BASE="${WORKSPACE}/05_reproduction/runs/ComP_causal/seed66/CMUMOSI"
+OUTPUT_BASE="${WORKSPACE}/05_reproduction/runs/ComP_causal/seed${SEED}/CMUMOSI"
 REPOSITORY_COMMIT="$(git -C "${REPOSITORY}" rev-parse HEAD)"
 
 if [[ -n "$(git -C "${REPOSITORY}" status --porcelain --untracked-files=normal)" ]]; then
@@ -29,7 +30,7 @@ manifest_matches() {
   [[ -f "${manifest}" ]] \
     && rg -Fxq "repository_commit=${REPOSITORY_COMMIT}" "${manifest}" \
     && rg -Fxq "upstream_comp_commit=28192d3a5683543d7383e40898f9a98d1f114a08" "${manifest}" \
-    && rg -Fxq "seed=66" "${manifest}" \
+    && rg -Fxq "seed=${SEED}" "${manifest}" \
     && rg -Fxq "mask_rate=${mask_rate}" "${manifest}" \
     && rg -Fxq "epochs=300" "${manifest}" \
     && rg -Fxq "stage_epoch=150" "${manifest}" \
@@ -47,7 +48,7 @@ run_one() {
   mkdir -p "${run_dir}"
   if [[ -f "${result_file}" ]] && rg -q "Folder avg:" "${result_file}"; then
     if manifest_matches "${manifest}" "${mask_rate}"; then
-      echo "[skip] CMUMOSI seed=66 mask_rate=${mask_rate} already complete with matching provenance"
+      echo "[skip] CMUMOSI seed=${SEED} mask_rate=${mask_rate} already complete with matching provenance"
       return 0
     fi
     echo "Refusing to reuse completed result with mismatched provenance: ${run_dir}" >&2
@@ -64,7 +65,7 @@ run_one() {
     "upstream_comp_commit=28192d3a5683543d7383e40898f9a98d1f114a08" \
     "hostname=$(hostname)" \
     "host_gpu=${GPU}" \
-    "seed=66" \
+    "seed=${SEED}" \
     "mask_rate=${mask_rate}" \
     "epochs=300" \
     "stage_epoch=150" \
@@ -73,7 +74,7 @@ run_one() {
     "features=wav2vec-large-c-UTT,deberta-large-4-UTT,manet_UTT" \
     > "${manifest}"
 
-  echo "[start] CMUMOSI seed=66 mask_rate=${mask_rate} host_gpu=${GPU}"
+  echo "[start] CMUMOSI seed=${SEED} mask_rate=${mask_rate} host_gpu=${GPU}"
   (
     cd "${run_dir}"
     env PYTHONDONTWRITEBYTECODE=1 \
@@ -85,17 +86,17 @@ run_one() {
         --audio-feature=wav2vec-large-c-UTT \
         --text-feature=deberta-large-4-UTT \
         --video-feature=manet_UTT \
-        --seed=66 --batch-size=32 --epochs=300 --lr=0.0001 \
+        --seed="${SEED}" --batch-size=32 --epochs=300 --lr=0.0001 \
         --hidden=256 --depth=4 --num_heads=2 --drop_rate=0.5 \
         --attn_drop_rate=0.0 --stage_epoch=150 --gpu=0 \
         --mask_rate="${mask_rate}" --lbd=0.3 \
         > run.log 2>&1
   )
-  echo "[done] CMUMOSI seed=66 mask_rate=${mask_rate}"
+  echo "[done] CMUMOSI seed=${SEED} mask_rate=${mask_rate}"
 }
 
 for mask_rate in "$@"; do
   run_one "${mask_rate}"
 done
 
-echo "[complete] CMUMOSI seed=66 assigned mask rates: $*"
+echo "[complete] CMUMOSI seed=${SEED} assigned mask rates: $*"
