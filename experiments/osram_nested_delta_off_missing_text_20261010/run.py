@@ -123,9 +123,11 @@ def main():
                 max_error = max(max_error, float((on[valid]-replay[valid]).abs().max()))
                 assert max_error <= 1e-5, 'Full readout replay differs'
                 assert torch.isfinite(off).all() and not off[~valid].count_nonzero()
-                predictions.extend(on[valid].cpu().tolist())
-                labels.extend(view['labels'].T[valid].cpu().tolist())
-                masks.extend(view['availability'][valid].cpu().tolist())
+                # Original _collect_predictions archives conversation-major arrays.
+                batch_valid = view['umask'].bool()
+                predictions.extend(on.T[batch_valid].cpu().tolist())
+                labels.extend(view['labels'][batch_valid].cpu().tolist())
+                masks.extend(view['availability'].transpose(0,1)[batch_valid].cpu().tolist())
                 for t, b in valid.nonzero().cpu().tolist():
                     av = view['availability'][t,b].cpu().tolist()
                     r = dict(seed=66, rate=rate, conversation=str(view['conversation_ids'][b]),
