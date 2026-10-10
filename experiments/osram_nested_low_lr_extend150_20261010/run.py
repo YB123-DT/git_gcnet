@@ -85,7 +85,7 @@ def main():
     torch.set_num_threads(1)
     original_cfg = trainer.TrainConfig(**prior['effective_config'])
     assert configs_equal(asdict(original_cfg), prior['effective_config']), 'Historical defaults changed'
-    assert original_cfg.seed in (66,67,68) and original_cfg.osram_meaningful_block in ('none','nested_gnn_rooted_evidence')
+    assert original_cfg.seed in (65,66,67,68) and original_cfg.osram_meaningful_block in ('none','nested_gnn_rooted_evidence')
     assert original_cfg.training_objective == 'emotion-only'
     cfg = continued_config(original_cfg, args.lr)
     assert {k for k in asdict(cfg) if asdict(cfg)[k] != asdict(original_cfg)[k]} == {'epochs','learning_rate'}

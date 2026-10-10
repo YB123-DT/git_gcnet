@@ -22,11 +22,11 @@ def sha(path):
     return digest.hexdigest()
 
 
-def select_config(cfg, model, schedule):
+def select_config(cfg, model, schedule, seed=None):
     """Preserve every historical setting except the explicit experimental axes."""
     if model not in ('flat', 'nested') or schedule not in ('constant', 'cosine'):
         raise ValueError('Unknown model or schedule')
-    return replace(cfg, lr_schedule=schedule, osram_meaningful_block=(
+    return replace(cfg, seed=cfg.seed if seed is None else seed, lr_schedule=schedule, osram_meaningful_block=(
         'none' if model == 'flat' else 'nested_gnn_rooted_evidence'))
 
 
@@ -40,6 +40,7 @@ def main():
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--wrapper-commit', required=True)
     parser.add_argument('--lr-schedule', choices=('constant', 'cosine'), default='constant')
+    parser.add_argument('--seed', type=int, choices=(65,66), default=66)
     args = parser.parse_args()
     assert os.environ.get('CUDA_VISIBLE_DEVICES') == args.gpu_uuid
     gpu_rows = subprocess.check_output(['nvidia-smi','--query-gpu=index,uuid','--format=csv,noheader'],text=True)
@@ -68,7 +69,7 @@ def main():
     assert cfg.training_objective=='emotion-only' and cfg.train_rate_mode=='cyclic'
     assert cfg.emotion_loss_mode=='sample-mean' and cfg.task_regression_loss=='mse'
     assert cfg.osram_readout_fusion=='flat' and cfg.gradient_clip_norm==1.
-    cfg=select_config(cfg,args.model,args.lr_schedule)
+    cfg=select_config(cfg,args.model,args.lr_schedule,seed=args.seed)
     identity=dict(source=old['identity']['source'], data=sha(args.data_manifest),
                   config=hashlib.sha256(json.dumps(asdict(cfg),sort_keys=True).encode()).hexdigest(),
                   monitor=sha(Path(__file__).with_name('monitor.py')),wrapper=sha(Path(__file__)))
@@ -104,7 +105,7 @@ def main():
             torch.nn.utils.clip_grad_norm_=original_clip
     trainer.train_epoch=observed_train
     provenance=dict(status='running',label='INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle',
-        model=args.model,seed=66,pid=os.getpid(),started_utc=datetime.now(timezone.utc).isoformat(),
+        model=args.model,seed=cfg.seed,pid=os.getpid(),started_utc=datetime.now(timezone.utc).isoformat(),
         source=str(args.source),historical_commit=old['code_commit'],wrapper_commit=args.wrapper_commit,
         identity=identity,gpu_uuid=args.gpu_uuid,effective_config=asdict(cfg),
         monitor_only=True,from_scratch=True,resumed=(args.output/'last_training.pt').exists())
@@ -116,7 +117,8 @@ def main():
         history=json.loads((args.output/'history.json').read_text())
         assert len(history)==100
         reference=json.loads((args.reference/'metrics.json').read_text())
-        assert metrics['mask_sha256']==reference['mask_sha256']
+        if cfg.seed == 66:
+            assert metrics['mask_sha256']==reference['mask_sha256']
         for i,row in enumerate(history,1):
             saved=json.loads((args.output/'gradients'/f'epoch_{i:03d}.json').read_text())
             assert len(saved)==row['train']['optimizer_steps']
