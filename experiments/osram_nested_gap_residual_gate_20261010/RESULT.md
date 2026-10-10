@@ -2,8 +2,9 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: implementation and CPU correctness checks completed. No formal training
-started; no W-F1 result is claimed. Baseline code: `288ab18`, original
+Status: implementation and CPU correctness checks completed. After user launch
+authorization, three-seed training started; see `LAUNCH.json` and `TRAINING.md`.
+No completed W-F1 result is claimed. Baseline code: `288ab18`, original
 `nested_gnn_rooted_evidence`, not the root-aware, Local8, replacement or small-Flat
 variants. This change introduces a separately selectable implementation.
 
@@ -108,6 +109,7 @@ predates the Gate change. Its four existing additional entries are `nested_dim70
 `nested_mlp256`, `nested_mlp512`, `nested_groups1_dim512`. That unrelated test/catalog
 was not edited. The existing environment emits a `pynvml` deprecation warning.
 
-Remaining verification gaps: no GPU execution, complete real-checkpoint prediction
-replay, formal training or performance measurement for this new variant. No expected
+Remaining verification gaps: no complete real-checkpoint prediction replay,
+finished formal training or performance measurement for this new variant. Actual
+GPU training and nonzero Gate updates are verified in the launch record. No expected
 W-F1 gain is asserted from the preceding gradient/prediction diagnostics.
