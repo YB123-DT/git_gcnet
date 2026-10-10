@@ -3,11 +3,44 @@
 INTERNAL DIAGNOSTIC ONLY
 
 User authorized the Gap-T-only experiment after the completed all-Gap Gate run.
-Status: all three runs launched and live onGPU7. Launch observation: seed66
-4/100epochs, seeds67/68 2/100. Actual nonzero Gate updates verified in seed66's
-epoch4 recovery checkpoint. Effective configs differ from each original Nested
-only by the method name. No final score is available; current launch evidence
-belongs in LAUNCH.json and each remote PROVENANCE.json.
+Status: complete. All three seeds completed 100 epochs on GPU7; remote processes
+exited and final metrics/provenance are present. Each provenance confirms all 20
+required artifacts verified. Effective configs differ from each original Nested
+only by the method name. LAUNCH.json and RUNNING_STATUS.json retain historical
+interim observations; final results are in SUMMARY.json and the cached metrics.
+
+## Final W-F1 (%)
+
+| Seed | Original Nested 8-rate | Gap-T Gate 8-rate | Delta pp | Original high | Gate high | Delta pp |
+|---|---:|---:|---:|---:|---:|---:|
+| 66 | 80.992 | 80.470 | -0.522 | 76.077 | 75.510 | -0.567 |
+| 67 | 80.851 | 80.600 | -0.251 | 75.497 | 75.474 | -0.023 |
+| 68 | 79.624 | 79.220 | -0.404 | 74.181 | 73.616 | -0.565 |
+| Mean | 80.489 | 80.096 | -0.392 | 75.252 | 74.867 | -0.385 |
+
+High means rates .5/.6/.7. All three seeds decline in the eight-rate mean versus
+their corresponding original Nested. This experiment does not support retaining
+the T-only Gate for performance. It does not isolate a causal Gate mechanism:
+joint training may also change the backbone and readout.
+
+| Missing rate | Seed66 | Seed67 | Seed68 |
+|---|---:|---:|---:|
+| .0 | 87.772 | 88.564 | 86.783 |
+| .1 | 85.827 | 86.565 | 84.645 |
+| .2 | 82.553 | 85.081 | 81.272 |
+| .3 | 80.181 | 81.036 | 81.165 |
+| .4 | 80.894 | 77.129 | 79.045 |
+| .5 | 75.729 | 75.756 | 76.947 |
+| .6 | 75.723 | 75.160 | 75.150 |
+| .7 | 75.078 | 75.506 | 68.752 |
+
+Compared with completed all-Gap Gate (80.225 / 75.449), T-only declines by
+0.129 / 0.582 pp. Compared with original Flat (80.559 / 75.594), T-only declines
+by 0.463 / 0.727 pp. All values use per-rate Test-oracle selection and are
+INTERNAL DIAGNOSTIC ONLY, not formal paper results. No additional training or
+inference was performed to summarize these results. Source commit: bbad58a.
+
+Recompute: `python experiments/osram_nested_gap_t_residual_gate_20261010/summarize.py`.
 
 ```
 Gap-A_out = original Gap-A + Nested delta Gap-A
