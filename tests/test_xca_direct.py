@@ -110,8 +110,11 @@ def test_direct_full_models_retain_original_skip_and_parameter_initialization():
             seen['local'] = inputs[0].detach().clone()
         def skip(module, inputs):
             seen['skip'] = inputs[0].detach().clone()
+        def head(module, inputs):
+            seen['hidden'] = inputs[0].detach().clone()
         h1=model.osram.meaningful_block.register_forward_pre_hook(pre)
         h2=model.osram.local_skip.register_forward_pre_hook(skip)
+        h3=model.smax_fc.register_forward_pre_hook(head)
         x = torch.randn(3,2,12)
         u = torch.tensor([[1.,1.,1.],[1.,0.,0.]])
         av = torch.tensor([[[1.,0.,1.],[1.,1.,1.]]]*3)
@@ -119,6 +122,9 @@ def test_direct_full_models_retain_original_skip_and_parameter_initialization():
         try:
             pred=model([x],av,torch.zeros(2,3,dtype=torch.long),u,[3,1],predict_missing=False)[0]
         finally:
-            h1.remove(); h2.remove()
+            h1.remove(); h2.remove(); h3.remove()
         assert torch.equal(seen['local'],seen['skip'])
-        assert torch.isfinite(pred).all() and not pred[~u.T.bool()].count_nonzero()
+        assert torch.isfinite(pred).all() and not seen['hidden'][~u.T.bool()].count_nonzero()
+        # Original task head has bias: padded logits equal bias, and task loss
+        # excludes them with umask. Do not change the original head to force zero.
+        assert torch.equal(pred[~u.T.bool()],model.smax_fc.bias.expand_as(pred[~u.T.bool()]))
