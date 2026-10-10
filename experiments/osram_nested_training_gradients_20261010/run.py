@@ -22,6 +22,14 @@ def sha(path):
     return digest.hexdigest()
 
 
+def select_config(cfg, model, schedule):
+    """Preserve every historical setting except the explicit experimental axes."""
+    if model not in ('flat', 'nested') or schedule not in ('constant', 'cosine'):
+        raise ValueError('Unknown model or schedule')
+    return replace(cfg, lr_schedule=schedule, osram_meaningful_block=(
+        'none' if model == 'flat' else 'nested_gnn_rooted_evidence'))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model', choices=('flat','nested'), required=True)
@@ -31,6 +39,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--wrapper-commit', required=True)
+    parser.add_argument('--lr-schedule', choices=('constant', 'cosine'), default='constant')
     args = parser.parse_args()
     assert os.environ.get('CUDA_VISIBLE_DEVICES') == args.gpu_uuid
     gpu_rows = subprocess.check_output(['nvidia-smi','--query-gpu=index,uuid','--format=csv,noheader'],text=True)
@@ -59,8 +68,7 @@ def main():
     assert cfg.training_objective=='emotion-only' and cfg.train_rate_mode=='cyclic'
     assert cfg.emotion_loss_mode=='sample-mean' and cfg.task_regression_loss=='mse'
     assert cfg.osram_readout_fusion=='flat' and cfg.gradient_clip_norm==1.
-    if args.model=='nested':
-        cfg=replace(cfg,osram_meaningful_block='nested_gnn_rooted_evidence')
+    cfg=select_config(cfg,args.model,args.lr_schedule)
     identity=dict(source=old['identity']['source'], data=sha(args.data_manifest),
                   config=hashlib.sha256(json.dumps(asdict(cfg),sort_keys=True).encode()).hexdigest(),
                   monitor=sha(Path(__file__).with_name('monitor.py')),wrapper=sha(Path(__file__)))
@@ -77,6 +85,9 @@ def main():
     def observed_train(*positional,**keywords):
         bound=signature.bind(*positional,**keywords).arguments
         model,epoch=bound['model'],bound['epoch']
+        if args.lr_schedule == 'cosine':
+            _json(args.output/'learning_rates'/f'epoch_{epoch+1:03d}.json',
+                  dict(epoch=epoch+1, rates=[float(g['lr']) for g in bound['optimizer'].param_groups]))
         monitor.start_epoch(model,epoch,bound['config'])
         original_clip=torch.nn.utils.clip_grad_norm_
         def observed_clip(parameters,max_norm,*clip_args,**clip_kwargs):
@@ -109,6 +120,10 @@ def main():
         for i,row in enumerate(history,1):
             saved=json.loads((args.output/'gradients'/f'epoch_{i:03d}.json').read_text())
             assert len(saved)==row['train']['optimizer_steps']
+        if args.lr_schedule == 'cosine':
+            trace=[json.loads((args.output/'learning_rates'/f'epoch_{i:03d}.json').read_text()) for i in range(1,101)]
+            assert len(trace)==100 and trace[0]['rates']==[.0002]*3 and trace[4]['rates']==[.001]*3
+            assert trace[-1]['rates']==[0.]*3
         artifacts=['config.json','metrics.json','history.json','last_training.pt']
         artifacts += [f'best_miss_0p{i}.pt' for i in range(8)]
         artifacts += [f'predictions_miss_0p{i}.npz' for i in range(8)]
@@ -117,6 +132,8 @@ def main():
             finished_utc=datetime.now(timezone.utc).isoformat(),
             artifact_sha256={name:sha(args.output/name) for name in artifacts},
             gradient_sha256={f'epoch_{i:03d}.json':sha(args.output/'gradients'/f'epoch_{i:03d}.json') for i in range(1,101)})
+        if args.lr_schedule == 'cosine':
+            provenance['learning_rate_sha256']={f'epoch_{i:03d}.json':sha(args.output/'learning_rates'/f'epoch_{i:03d}.json') for i in range(1,101)}
     except BaseException as error:
         provenance.update(status='failed',exit_code=1,error=repr(error))
         raise
