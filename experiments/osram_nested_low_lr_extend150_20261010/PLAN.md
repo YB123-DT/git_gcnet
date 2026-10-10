@@ -23,3 +23,15 @@ Verification: config differs only in epochs/LR; optimizer moments/RNG/model
 preserved by state transformation; live real restored first epochLR1e-4; final
 history prefix matches original100, exactly150epochs,50LRrecords and all artifacts.
 Launch two persistent jobs on healthy biggpu GPU7 after resource check.
+
+## Authorized extension: Nested seeds67/68
+
+Latest user requests multi-seed comparison. Add ONLY Nested67/68 from original
+constant100 states at osram_readout_top3_3seed_20261005/runs/nested_gnn_rooted_evidence.
+Same complete-state resume, epochs101–150 at1e-4. Seed66 lowerLR run already
+completed; never rerun it. Historical Flat67/68 have no full recovery state, so
+do not label a weight-only restart as equivalent continuation or create new
+Flat trainings without separate authorization. Keep existing seed66 run source
+copy immutable; new child source copy permits older provenance field names but
+retains strict source/data/checkpoint/config checks. Final three-seed report
+compares Nested100 to Nested cumulative150 and101–150-only per seed.

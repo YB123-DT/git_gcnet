@@ -79,7 +79,8 @@ def main():
     from gcnet_missing_m3.training_resume import TrainingState, _atomic, _json
     torch.set_num_threads(1)
     original_cfg = trainer.TrainConfig(**prior['effective_config'])
-    assert original_cfg.seed == 66 and original_cfg.osram_meaningful_block in ('none','nested_gnn_rooted_evidence')
+    assert asdict(original_cfg) == prior['effective_config'], 'Historical defaults changed'
+    assert original_cfg.seed in (66,67,68) and original_cfg.osram_meaningful_block in ('none','nested_gnn_rooted_evidence')
     assert original_cfg.training_objective == 'emotion-only'
     cfg = continued_config(original_cfg, args.lr)
     assert {k for k in asdict(cfg) if asdict(cfg)[k] != asdict(original_cfg)[k]} == {'epochs','learning_rate'}
@@ -95,11 +96,11 @@ def main():
     shutil.copy2(args.original/'metrics.json', args.output/'ORIGINAL_100_METRICS.json')
     _atomic(args.output/'last_training.pt', lambda handle: torch.save(state, handle))
     record = dict(status='running', label='INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle',
-                  model=prior['model'], seed=66, pid=os.getpid(),
+                  model=prior.get('model', 'nested' if cfg.osram_meaningful_block != 'none' else 'flat'), seed=cfg.seed, pid=os.getpid(),
                   started_utc=datetime.now(timezone.utc).isoformat(),
                   original=str(args.original), original_last_sha256=original_sha,
                   original_identity=prior['identity'], identity=identity,
-                  historical_source=str(args.historical_source), historical_commit=prior['historical_commit'],
+                  historical_source=str(args.historical_source), historical_commit=prior.get('historical_commit',prior.get('code_commit')),
                   wrapper_commit=args.wrapper_commit, wrapper_sha256=sha(Path(__file__)), gpu_uuid=args.gpu_uuid,
                   effective_config=asdict(cfg), configuration_delta={'epochs':[100,150], 'learning_rate':[.001,args.lr]},
                   original_optimizer_lrs=old_lrs, original_optimizer_steps=original_steps,

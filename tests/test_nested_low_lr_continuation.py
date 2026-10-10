@@ -24,6 +24,13 @@ def test_only_epochs_and_learning_rate_change():
     assert actual == dict(raw, epochs=150, learning_rate=.0001)
 
 
+def test_other_seed_is_preserved_in_continued_config():
+    raw = json.loads((ROOT/'experiments/osram_nested_training_gradients_20261010/nested_FINAL_PROVENANCE.json').read_text())['effective_config']
+    raw['seed'] = 67
+    cfg = make_dataclass('Config', [(key, object) for key in raw])(**raw)
+    assert asdict(function('continued_config')(cfg, .0001)) == dict(raw, epochs=150, learning_rate=.0001)
+
+
 def test_full_state_retained_except_optimizer_learning_rate():
     state = dict(next_epoch=100, history=[{'epoch': i} for i in range(1,101)],
                  optimizer={'state': {0: {'step': 200, 'exp_avg': [1.,2.], 'exp_avg_sq': [3.,4.]}},
