@@ -64,3 +64,15 @@ Nested102 (3 LR traces, epoch103 entered). Cumulative provisional8-rate/high:
 Flat80.009566/74.983571%, Nested79.805028/74.867331%.
 New-only per-rate maxima: Flat79.564152/74.611626%, Nested77.834254/72.071762%.
 Still unfinished and unequal budgets; no final150 comparison or failure claim.
+
+## Next live check: Flat complete150 / Nested121
+
+Flat150 complete with verified outputs,150 history entries and50 LR traces.
+Final cumulative8-rate80.017680%, high75.005207%; original10079.931940/74.941902%.
+Only rates0.4/0.5 BEST refreshed at epochs123/145; new-only101–1508-rate79.572266%,
+high74.633262%. Thus seed65 Flat DID improve slightly, unlike seed66.
+Final metrics and provenance archived alongside this record.
+
+Nested continuation live with121 saved epochs and22 LR traces (epoch122 entered).
+Provisional cumulative8-rate79.860908%, high74.939616%; new-only101–121 maxima
+79.592747/74.447748%. Still not final paired150 results;29 epochs remain.
