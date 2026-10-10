@@ -54,3 +54,13 @@ per-rate maxima mean79.400361%, high74.526179%. Do not claim final150 performanc
 Nested original100 is live with87 saved epochs: provisional8-rate79.715014%,
 high74.855673%. Its continuation has not started. Both current PIDs alive; no new
 failure recorded. Budgets remain unequal; final paired conclusion pending.
+
+## Next live check: Flat142 / Nested102
+
+Both original100 stages complete with verified outputs. Original1008-rate/high:
+Flat79.931940/74.941902%, Nested79.768669/74.867331%.
+Both continuation PIDs alive. Flat saved142epochs (43 LR traces, epoch143 entered),
+Nested102 (3 LR traces, epoch103 entered). Cumulative provisional8-rate/high:
+Flat80.009566/74.983571%, Nested79.805028/74.867331%.
+New-only per-rate maxima: Flat79.564152/74.611626%, Nested77.834254/72.071762%.
+Still unfinished and unequal budgets; no final150 comparison or failure claim.
