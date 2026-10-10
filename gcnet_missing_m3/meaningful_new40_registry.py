@@ -71,4 +71,5 @@ NESTED_SWEEP = {
     'nested_groups4': {'groups': 4},
 }
 NEW40_VARIANTS = ('nested_gnn_rootaware_evidence', 'nested_gnn_direct_evidence',
+                  'nested_gnn_gap_residual_gate',
                   'nested_gnn_direct_random_evidence', 'neural_production_local', 'neural_production_local_w256') + tuple(NESTED_SWEEP) + ('nested_local8_evidence',)

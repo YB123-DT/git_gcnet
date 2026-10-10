@@ -90,4 +90,10 @@ class MeaningfulInputAdapter(nn.Module):
                 'history_count':int(history.sum()),'valid_count':int(valid.sum()),
                 'input_change_norm':float(norms.mean()) if norms.numel() else 0.,
             }
+            gap_gate = getattr(self.core, 'gap_residual_gate', None)
+            if gap_gate is not None:
+                self.last_diagnostics['gap_residual_gate'] = (
+                    gap_gate.last_diagnostics if bool(history.any()) else
+                    {name: {'active_count': 0, 'gate_mean': 0., 'residual_norm': 0.,
+                            'gated_residual_norm': 0.} for name in ('A', 'T', 'V')})
         return new_local.contiguous(),new_base,new_gap

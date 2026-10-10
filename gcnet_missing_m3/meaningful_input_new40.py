@@ -42,6 +42,11 @@ class TokenAdapter(nn.Module):
         memory = result[:, 1:].reshape(-1, 4, self.num_heads, result.shape[-1])
         delta_memory = torch.stack([decoder(memory[:, :, h])
                                    for h, decoder in enumerate(self.memory_decoders)], 2).flatten(2)
+        gap_gate = getattr(self, 'gap_residual_gate', None)
+        if gap_gate is not None:
+            gated_gap = gap_gate(local, evidence[:, 1:], delta_memory[:, 1:],
+                                 active[:, 1:], availability)
+            delta_memory = torch.cat((delta_memory[:, :1], gated_gap), 1)
         if not self.residual:
             return delta_local.to(local.dtype), safe_mask(delta_memory.to(evidence.dtype), active)
         return local + delta_local.to(local.dtype), safe_mask(
@@ -49,6 +54,14 @@ class TokenAdapter(nn.Module):
 
 
 def build_new40(method, latent_dim=256, num_heads=8, value_dim=64):
+    if method == 'nested_gnn_gap_residual_gate':
+        from .meaningful_new40_structure import NestedGNN
+        from .nested_gap_gate import NestedGapResidualGate
+        adapter = TokenAdapter(NestedGNN(), latent_dim, num_heads, value_dim, dim=64)
+        # All original parameters and downstream random draws remain unchanged.
+        with torch.random.fork_rng(devices=[]):
+            adapter.gap_residual_gate = NestedGapResidualGate(latent_dim, num_heads * value_dim)
+        return adapter
     if method in ('neural_production_local', 'neural_production_local_w256'):
         from .meaningful_new40_conditional import NeuralProduction, TokenReadout
         width = 256 if method.endswith('_w256') else 96
