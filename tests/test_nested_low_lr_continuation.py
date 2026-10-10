@@ -12,7 +12,7 @@ def function(name):
     assert path.exists(), 'Low-LR continuation wrapper missing'
     definitions = [n for n in ast.parse(path.read_text()).body if isinstance(n, ast.FunctionDef) and n.name == name]
     assert len(definitions) == 1
-    namespace = {'replace': replace}
+    namespace = {'replace': replace, 'json': json}
     exec(compile(ast.Module(body=definitions, type_ignores=[]), str(path), 'exec'), namespace)
     return namespace[name]
 
@@ -29,6 +29,12 @@ def test_other_seed_is_preserved_in_continued_config():
     raw['seed'] = 67
     cfg = make_dataclass('Config', [(key, object) for key in raw])(**raw)
     assert asdict(function('continued_config')(cfg, .0001)) == dict(raw, epochs=150, learning_rate=.0001)
+
+
+def test_json_config_lists_and_tuples_are_equivalent_but_values_are_not():
+    equal = function('configs_equal')
+    assert equal({'train_missing_rates': (0., .1, .2)}, {'train_missing_rates': [0., .1, .2]})
+    assert not equal({'train_missing_rates': (0., .1, .2)}, {'train_missing_rates': [0., .1, .3]})
 
 
 def test_full_state_retained_except_optimizer_learning_rate():

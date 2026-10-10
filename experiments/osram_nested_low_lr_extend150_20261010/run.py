@@ -42,6 +42,11 @@ def lower_optimizer_lr(state, lr):
     return old
 
 
+def configs_equal(left, right):
+    """Compare effective configurations in their persisted JSON representation."""
+    return json.dumps(left, sort_keys=True) == json.dumps(right, sort_keys=True)
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--original', type=Path, required=True)
@@ -79,7 +84,7 @@ def main():
     from gcnet_missing_m3.training_resume import TrainingState, _atomic, _json
     torch.set_num_threads(1)
     original_cfg = trainer.TrainConfig(**prior['effective_config'])
-    assert asdict(original_cfg) == prior['effective_config'], 'Historical defaults changed'
+    assert configs_equal(asdict(original_cfg), prior['effective_config']), 'Historical defaults changed'
     assert original_cfg.seed in (66,67,68) and original_cfg.osram_meaningful_block in ('none','nested_gnn_rooted_evidence')
     assert original_cfg.training_objective == 'emotion-only'
     cfg = continued_config(original_cfg, args.lr)
