@@ -22,10 +22,10 @@ effective config, actual per-groupLR each epoch,8 BEST and full recovery state.
 
 Implementation files: variant.py (random factory/group split/warmup), run.py
 (sealed-source execution/provenance), tests/test_nested_local_lr_warmup_random.py.
-- [ ] Write3 minimal regression tests, run RED, implement policy, run GREEN.
-- [ ] Run original monitored-mask/interface regression coverage without new GPU smoke.
-- [ ] Commit/push; copy immutable runner/policy to remote; check GPU7 resources.
-- [ ] Launch one persistent job; verify random decoder norms, disjoint4 optimizer
+- [x] Write3 minimal regression tests, run RED, implement policy, run GREEN.
+- [x] Run original monitored-mask/interface regression coverage without new GPU smoke.
+- [x] Commit/push; copy immutable runner/policy to remote; check GPU7 resources.
+- [x] Launch one persistent job; verify random decoder norms, disjoint4 optimizer
       groups, actual epoch1 Nested1e-4 and other groups1e-3; log provenance.
 - [ ] At completion compare original Flat/Nested seed66 under same100epoch budget,
       report per-rate8-rate/high means. Do not automatically expand seeds/search.
