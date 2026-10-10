@@ -26,11 +26,11 @@ Implementation: diagnostic.py pure planning/mask/stat functions; run.py existing
 loader/capture wrappers with frozen strict checkpoint loading; tests in
 tests/test_history_text_context.py. No edits to model/trainer.
 
-- [ ] RED pure mask/selection/contribution tests.
-- [ ] Implement four masks and validate no empty masks, unchanged current/future.
-- [ ] GREEN tests; real checkpoint check of baseline parity and same-current Local.
-- [ ] Commit/push isolated implementation; deploy over sealed prior audit source
+- [x] RED pure mask/selection/contribution tests.
+- [x] Implement four masks and validate no empty masks, unchanged current/future.
+- [x] GREEN tests; real checkpoint check of baseline parity and same-current Local.
+- [x] Commit/push isolated implementation; deploy over sealed prior audit source
       through a separate diagnostic package, not edits to shared running source.
-- [ ] Run persistent biggpu healthy GPU7 job with independent outputs and status.
+- [x] Start persistent biggpu healthy GPU7 job with independent outputs and status.
 - [ ] Preserve all per-target predictions/identities and code/checkpoint hashes;
       collect final report after all eight rates complete.
