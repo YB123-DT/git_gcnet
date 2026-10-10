@@ -2,9 +2,10 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: implementation and CPU correctness checks completed. After user launch
-authorization, three-seed training started; see `LAUNCH.json` and `TRAINING.md`.
-No completed W-F1 result is claimed. Baseline code: `288ab18`, original
+Status: all three authorized runs completed100 epochs. Source commit `1db4bda`.
+`LAUNCH.json` is the historical startup snapshot, not current live status.
+Completion provenance, selected metrics and `SUMMARY.json` record the final results.
+Baseline code used in implementation checks: `288ab18`, original
 `nested_gnn_rooted_evidence`, not the root-aware, Local8, replacement or small-Flat
 variants. This change introduces a separately selectable implementation.
 
@@ -109,7 +110,62 @@ predates the Gate change. Its four existing additional entries are `nested_dim70
 `nested_mlp256`, `nested_mlp512`, `nested_groups1_dim512`. That unrelated test/catalog
 was not edited. The existing environment emits a `pynvml` deprecation warning.
 
-Remaining verification gaps: no complete real-checkpoint prediction replay,
-finished formal training or performance measurement for this new variant. Actual
-GPU training and nonzero Gate updates are verified in the launch record. No expected
-W-F1 gain is asserted from the preceding gradient/prediction diagnostics.
+## Completed three-seed results
+
+All three runs completed100 epochs on biggpu GPU7. Every runner verified all eight
+BEST checkpoints and selected prediction files,100-row training history, complete
+recovery checkpoint, original evaluation mask equivalence and source snapshot
+integrity. All20 expected artifacts per run have hashes in completion provenance.
+Effective configuration was compared to each same-seed original Nested; only the
+method name differs. Original Nested and Flat were not retrained.
+
+Scores below use per-rate BEST checkpoints under the inherited Test-oracle
+selection. Each seed's eight selected W-F1 scores are equally averaged; high
+missing is the equal average of .5/.6/.7. Differences are percentage points.
+
+| Seed | Original Nested eight-rate | Gate eight-rate | Difference | Original Nested high | Gate high | Difference |
+|---|---:|---:|---:|---:|---:|---:|
+| 66 | 80.992 | 80.651 | −0.341 | 76.077 | 76.025 | −0.052 |
+| 67 | 80.851 | 80.356 | −0.494 | 75.497 | 76.081 | +0.584 |
+| 68 | 79.624 | 79.669 | +0.045 | 74.181 | 74.241 | +0.060 |
+| Mean | 80.489 | 80.225 | −0.264 | 75.252 | 75.449 | +0.197 |
+
+| Missing rate | Original Nested W-F1 | Gate W-F1 | Difference |
+|---|---:|---:|---:|
+| .0 | 88.114 | 87.654 | −0.459 |
+| .1 | 85.925 | 85.681 | −0.244 |
+| .2 | 84.456 | 83.364 | −1.092 |
+| .3 | 80.760 | 80.653 | −0.108 |
+| .4 | 78.900 | 78.101 | −0.799 |
+| .5 | 76.843 | 76.793 | −0.051 |
+| .6 | 75.780 | 76.112 | +0.332 |
+| .7 | 73.132 | 73.443 | +0.311 |
+
+The original three-seed Flat reference remains80.559 eight-rate /75.594 high.
+The Gate version is therefore also lower than Flat by0.334 /0.145 pp respectively.
+These are internal results, not paper claims or evidence of statistical significance.
+
+The Gate variant does not improve overall W-F1. High-missing gain is modest and
+primarily from seed67, not consistent across all three seeds. Lower missing-rate
+scores decline, including .0 where no Gap is active: joint training can change
+the shared backbone/Flat even when the new branch is inactive at inference.
+This observation does not isolate the causal reason for the performance change.
+No extra ablation, inference, threshold scan or additional training was performed
+to produce this summary; no further expansion is automatically started.
+
+Completed UTC: seed66 2026-10-10 03:03:51, seed67 03:04:21, seed68 03:05:14.
+Final full-model/trainable parameter count:13,758,427. The added Gate remains89,399
+parameters. Runtime Gate diagnostics exist in the module, but the existing Flat
+trainer does not serialize them into selected per-rate metrics; no selected
+checkpoint Gate-distribution claim is made. Nonzero updates were directly verified
+in the epoch6 recovery checkpoint at launch.
+
+Recalculate without training/inference:
+
+```bash
+python experiments/osram_nested_gap_residual_gate_20261010/summarize.py
+```
+
+Remaining verification gaps: no separate Gate-off intervention, new no-Text subset
+comparison, causal attribution or statistical significance assessment for these new
+checkpoints. Reported W-F1 comes from completed original-protocol evaluation.
