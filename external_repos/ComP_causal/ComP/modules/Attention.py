@@ -110,12 +110,17 @@ class Attention(nn.Module):
         q = q * self.scale
         attn = (q.float() @ k.float().transpose(-2, -1))  # [B, heads, s, s]
 
-        if mask is not None:
+        if mask is None:
+            key_mask = torch.ones(B, seq_len, dtype=torch.bool, device=x.device)
+        else:
             mask = mask.bool()
             mask = {'a':mask[:, :seq_len], 't':mask[:, seq_len:2*seq_len], 'v':mask[:, 2*seq_len:3*seq_len]}
-            mask = mask[mask_modality]
-            attn = self.attn_drop(attn.masked_fill(~mask[:, None, None, :], float("-inf")).softmax(dim=-1).type_as(x))
-            attn = torch.where(torch.isnan(attn), torch.full_like(attn, 0), attn)
+            key_mask = mask[mask_modality]
+
+        causal_mask = torch.ones(seq_len, seq_len, dtype=torch.bool, device=x.device).tril()
+        valid_keys = key_mask[:, None, None, :] & causal_mask[None, None, :, :]
+        attn = self.attn_drop(attn.masked_fill(~valid_keys, float("-inf")).softmax(dim=-1).type_as(x))
+        attn = torch.where(torch.isnan(attn), torch.full_like(attn, 0), attn)
 
         x_out = (attn @ v).transpose(1, 2).reshape(B, seq_len, C)
         x_out = x_out + self.mlp(x_out)

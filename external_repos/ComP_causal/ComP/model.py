@@ -30,22 +30,47 @@ class PromptFormer(nn.Module):
         self.proj_d = Mlp(in_features=D_e, hidden_features=prompt_dim, out_features=prompt_dim, drop=args.drop_rate)
 
         self.proj_prompt = nn.Linear(D_e, prompt_dim)
+
+    def _prefix_prototypes(self, x):
+        """Evaluate proj_n on every prefix while sharing its original parameters."""
+        # x: [batch, seqlen, dim], fc1.weight: [n_proto, seqlen]
+        contributions = (
+            x.transpose(1, 2).unsqueeze(2)
+            * self.proj_n.fc1.weight.unsqueeze(0).unsqueeze(0)
+        )  # [batch, dim, n_proto, seqlen]
+        hidden = contributions.cumsum(dim=-1).permute(0, 3, 1, 2)
+        if self.proj_n.fc1.bias is not None:
+            hidden = hidden + self.proj_n.fc1.bias
+        hidden = self.proj_n.act(hidden)
+        hidden = self.proj_n.drop(hidden)
+        prototype = self.proj_n.fc2(hidden)
+        prototype = self.proj_n.drop(prototype)
+        return prototype.permute(0, 1, 3, 2)  # [batch, seqlen, n_proto, dim]
+
+    def _prompt_from_prefix_prototypes(self, x, umask, prototype):
+        batch_size, seqlen, _ = x.shape
+        shared_prototype = prototype.permute(1, 0, 2, 3).reshape(
+            seqlen, batch_size * self.n_proto, self.D_e
+        )
+        x_norm = x / torch.norm(x, dim=-1, keepdim=True)
+        prototype_norm = shared_prototype / torch.norm(
+            shared_prototype, dim=-1, keepdim=True
+        )
+        sim = torch.einsum("bsd,snd->bsn", x_norm, prototype_norm)
+
+        # Preserve the upstream query-mask flattening and additive behavior.
+        query_mask = umask.reshape(-1).reshape(batch_size, seqlen)
+        sim = sim + (1 - query_mask).unsqueeze(-1) * -10000.0
+        sim = F.softmax(sim, dim=-1)
+        return torch.einsum("bsn,snd->bsd", sim, shared_prototype)
     
     def forward(self, x, umask):
         """
         x -> [batch, seqlen, dim]
         umask -> [batch, seqlen]
         """
-        batch_size = x.size(0)
-        prototype = self.proj_n(x.permute(0,2,1)).permute(0,2,1) # [batch, n_proto, dim]
-        sim = calc_cosine_similarity(x, prototype) # [batch*seqlen, n_proto]
-        prototype = prototype.reshape(-1, self.D_e) # [batch*n_proto, dim]
-        mask = umask.view(-1).unsqueeze(1).repeat(1,self.n_proto*batch_size) # [batch*seqlen, n_proto]
-        mask = (1 - mask) * -10000.0
-        sim = sim + mask
-        sim = F.softmax(sim,dim=1)
-        prompt = sim @ prototype # [batch, seqlen, dim]
-        prompt = prompt.reshape(batch_size, -1, self.D_e) # [batch, seqlen, dim]
+        prototype = self._prefix_prototypes(x)
+        prompt = self._prompt_from_prefix_prototypes(x, umask, prototype)
 
         prompt = self.proj_d(prompt) # [batch, seqlen, prompt_dim]
         res = self.proj_prompt(x)
@@ -65,21 +90,28 @@ class PromptFormer_2(nn.Module):
         self.proj_n = Mlp(in_features=sqlen, hidden_features=n_proto, out_features=n_proto, drop=args.drop_rate)
         self.proj_d = Mlp(in_features=D_e, hidden_features=prompt_dim, out_features=prompt_dim, drop=args.drop_rate)
         self.proj_prompt = nn.Linear(D_e, prompt_dim)
+
+    def _prompt_from_prefix_prototypes(self, x, umask, prototype):
+        batch_size, seqlen, _ = x.shape
+        shared_prototype = prototype.permute(1, 0, 2, 3).reshape(
+            seqlen, batch_size * self.n_proto, self.D_e
+        )
+        x_norm = x / torch.norm(x, dim=-1, keepdim=True)
+        prototype_norm = shared_prototype / torch.norm(
+            shared_prototype, dim=-1, keepdim=True
+        )
+        sim = torch.einsum("bsd,snd->bsn", x_norm, prototype_norm)
+        query_mask = umask.reshape(-1).reshape(batch_size, seqlen)
+        sim = sim + (1 - query_mask).unsqueeze(-1) * -10000.0
+        sim = F.softmax(sim, dim=-1)
+        return torch.einsum("bsn,snd->bsd", sim, shared_prototype)
     
     def forward(self, x, umask, prototype):
         """
         x -> [batch, seqlen, dim]
         umask -> [batch, seqlen]
         """
-        batch_size = x.size(0)
-        sim = calc_cosine_similarity(x, prototype) # [batch*seqlen, n_proto]
-        prototype = prototype.reshape(-1, self.D_e) # [batch*n_proto, dim]
-        mask = umask.view(-1).unsqueeze(1).repeat(1,self.n_proto*batch_size) # [batch*seqlen, n_proto]
-        mask = (1 - mask) * -10000.0
-        sim = sim + mask
-        sim = F.softmax(sim,dim=1)
-        prompt = sim @ prototype # [batch, seqlen, dim]
-        prompt = prompt.reshape(batch_size, -1, self.D_e) # [batch, seqlen, dim]
+        prompt = self._prompt_from_prefix_prototypes(x, umask, prototype)
 
         prompt = self.proj_d(prompt) # [batch, seqlen, prompt_dim]
         res = self.proj_prompt(x)
