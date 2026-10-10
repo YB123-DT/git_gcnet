@@ -54,6 +54,13 @@ class TokenAdapter(nn.Module):
 
 
 def build_new40(method, latent_dim=256, num_heads=8, value_dim=64):
+    if method == 'cwn_cellular_direct':
+        from .meaningful_new40_structure import Cellular
+        return TokenAdapter(Cellular(), latent_dim, num_heads, value_dim,
+                            residual=False, zero_decoder=False)
+    if method == 'perceiver_io_direct':
+        from .direct_perceiver import DirectPerceiverInput
+        return DirectPerceiverInput(latent_dim, num_heads, value_dim)
     if method == 'neural_production_direct':
         from .meaningful_new40_conditional import NeuralProduction, TokenReadout
         return TokenReadout(NeuralProduction(), latent_dim, num_heads, value_dim,

@@ -12,7 +12,7 @@ PRIORITY_FAMILIES = {
 }
 PRIORITY_INPUT_METHODS = ('m11_film', 'm13_mmtm')
 # Placement controls do not inflate the historical forty-method catalog.
-PRIORITY_INPUT_VARIANTS = ('m28_xcit_xca_direct',)
+PRIORITY_INPUT_VARIANTS = ('m28_xcit_xca_direct', 'm03_gatv2_direct', 'm05_pna_direct')
 PRIORITY_NORM_METHODS = ('m30_dyt',)
 PRIORITY_RESIDUAL_METHODS = tuple(sorted(name for names in PRIORITY_FAMILIES.values()
     for name in names if name not in PRIORITY_INPUT_METHODS))

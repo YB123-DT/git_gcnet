@@ -6,10 +6,14 @@ from .priority40_common import PriorityFeatureCore
 
 
 class XCADirectInput(nn.Module):
-    """XCA role outputs replace evidence, without original-input additions."""
-    def __init__(self, latent_dim=256, num_heads=8, value_dim=64):
+    """Role outputs replace evidence, without original-input additions."""
+    def __init__(self, latent_dim=256, num_heads=8, value_dim=64,
+                 operator_method='m28_xcit_xca'):
         super().__init__()
-        self.features = PriorityFeatureCore('m28_xcit_xca', latent_dim, num_heads, value_dim)
+        self.features = PriorityFeatureCore(operator_method, latent_dim, num_heads, value_dim)
+        # Direct decoding replaces pooled readout; do not leave unused parameters.
+        if hasattr(self.features.operator, 'readout'):
+            del self.features.operator.readout
         self.local_decoder = nn.Linear(64, latent_dim)
         self.memory_decoder = nn.Linear(64, num_heads * value_dim)
 
@@ -27,5 +31,8 @@ class XCADirectInput(nn.Module):
 def build_priority40(method, latent_dim=256, num_heads=8, value_dim=64):
     if method == 'm28_xcit_xca_direct':
         return XCADirectInput(latent_dim, num_heads, value_dim)
+    if method in ('m03_gatv2_direct', 'm05_pna_direct'):
+        return XCADirectInput(latent_dim, num_heads, value_dim,
+                              operator_method=method.removesuffix('_direct'))
     from .priority40_conditioning import build_input
     return build_input(method, latent_dim=latent_dim, forward_dim=num_heads * value_dim)

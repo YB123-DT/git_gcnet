@@ -36,11 +36,13 @@ SMALL_FLAT_EXPERIMENTS.update({
     for method in FLAT_WIDTH_OVERRIDES
 })
 EXTRA_EXPERIMENTS = ('CED', 'NestedRootAware', 'nested_local8_evidence', 'nested_gnn_direct_evidence', 'nested_gnn_direct_random_evidence', 'neural_production_local', 'neural_production_local_w256', 'nested_gnn_gap_residual_gate', 'nested_gnn_gap_t_residual_gate') + tuple(NESTED_SWEEP)
-# Fixed BEFORE training. These are transfer coefficients, not published optimal
-DIRECT_EVIDENCE_EXPERIMENTS = ('m28_xcit_xca_direct', 'neural_production_direct')
+# Placement experiments retain original Memory, Flat and task loss.
+DIRECT_EVIDENCE_EXPERIMENTS = ('m28_xcit_xca_direct', 'neural_production_direct',
+                             'm03_gatv2_direct', 'm05_pna_direct',
+                             'cwn_cellular_direct', 'perceiver_io_direct')
 EXTRA_EXPERIMENTS += DIRECT_EVIDENCE_EXPERIMENTS
 
-# Direct variants preserve Flat/Memory/task loss and only transform its inputs.
+# Fixed BEFORE training. These are transfer coefficients, not published optimal
 # recipes. Raw-feature generative ELBO sums 2560 coordinates (C11); .001 keeps
 # its explicit likelihood objective from being silently averaged into a new loss.
 AUX_WEIGHTS = {'C02': .1, 'C03': 1., 'C11': .001, 'C14': 1., 'C15': .1, 'C16': .1, 'C19': 1.}

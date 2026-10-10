@@ -153,13 +153,18 @@ class GATv2(_Readout):
         self.attention = nn.Parameter(torch.randn(4, dim // 4) / math.sqrt(dim // 4))
         self.bias = nn.Parameter(torch.zeros(dim))
 
-    def encode(self, x, mask):
+    def encode_roles(self, x, mask):
+        mask = mask.bool()
+        x = safe_mask(x, mask)
         source, target = split_heads(self.source(x), 4), split_heads(self.target(x), 4)
         pairs = F.leaky_relu(target[:, :, :, None] + source[:, :, None, :], 0.2)
         scores = torch.einsum("bhijd,hd->bhij", pairs, self.attention)
         weights = masked_softmax(scores, mask[:, None, None, :])
         updated = safe_mask(join_heads(weights @ source) + self.bias, mask)
-        return self.pool(updated, mask)
+        return updated
+
+    def encode(self, x, mask):
+        return self.pool(self.encode_roles(x, mask), mask)
 
 
 class EdgeConv(_Readout):
@@ -188,7 +193,9 @@ class PNA(_Readout):
         self.update = mlp(13 * dim, dim)
         self.register_buffer("degree_reference", torch.tensor(math.log(6.0)))
 
-    def encode(self, x, mask):
+    def encode_roles(self, x, mask):
+        mask = mask.bool()
+        x = safe_mask(x, mask)
         target, source = x[:, :, None].expand(-1, -1, 5, -1), x[:, None, :].expand(-1, 5, -1, -1)
         edges = mask[:, :, None] & mask[:, None, :]
         messages = safe_mask(self.message(torch.cat((target, source), dim=-1)), edges)
@@ -200,7 +207,10 @@ class PNA(_Readout):
         stats = safe_mask(torch.cat((mean, maximum, minimum, std), dim=-1), mask)
         scale = degree.log1p() / self.degree_reference.to(x.dtype)
         scaled = torch.cat((stats, stats * scale, stats / scale), dim=-1)
-        return self.pool(safe_mask(self.update(torch.cat((x, scaled), dim=-1)), mask), mask)
+        return safe_mask(self.update(torch.cat((x, scaled), dim=-1)), mask)
+
+    def encode(self, x, mask):
+        return self.pool(self.encode_roles(x, mask), mask)
 
 
 class Hopfield(_Readout):
