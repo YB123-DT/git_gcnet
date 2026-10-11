@@ -55,6 +55,14 @@ NEW40_FAMILIES = {
 NEW40_METHODS = tuple(method for methods in NEW40_FAMILIES.values() for method in methods)
 # Pooling variants are comparisons, not additional independent catalog methods.
 NESTED_SWEEP = {
+    # Locked CMU-MOSEI seed66 capacity screen.  These names are dataset-scoped
+    # to keep the six-run authorization distinct from the earlier MOSI sweep.
+    'mosei_nested_dim32': {'dim': 32},
+    'mosei_nested_depth2': {'depth': 2},
+    'mosei_nested_dim32_depth2': {'dim': 32, 'depth': 2},
+    'mosei_nested_mlp128': {'mlp_hidden': 128},
+    'mosei_nested_groups4': {'groups': 4},
+    'mosei_nested_dim32_depth2_mlp64': {'dim': 32, 'depth': 2, 'mlp_hidden': 64},
     'nested_direct_random_mlp128': {'mlp_hidden': 128, 'residual': False, 'zero_decoder': False},
     'nested_direct_random_dim128_mlp256': {'dim': 128, 'mlp_hidden': 256, 'residual': False, 'zero_decoder': False},
     'nested_direct_random_dim128_mlp512': {'dim': 128, 'mlp_hidden': 512, 'residual': False, 'zero_decoder': False},

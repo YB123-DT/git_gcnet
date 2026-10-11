@@ -93,7 +93,7 @@ class NestedSweepTests(unittest.TestCase):
 
     def test_each_ablation_changes_only_its_named_mechanism(self):
         from gcnet_missing_m3.nested_sweep import NESTED_SWEEP, NestedSweepGNN
-        self.assertEqual(tuple(NESTED_SWEEP), METHODS)
+        self.assertTrue(set(METHODS).issubset(NESTED_SWEEP))
         plain = build_new40(METHODS[0]).core
         calls = []
         hook = plain.norms[0].register_forward_hook(lambda *args: calls.append(1))
