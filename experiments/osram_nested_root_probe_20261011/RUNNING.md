@@ -1,5 +1,11 @@
 # Launch provenance
 
+Status: COMPLETED. All144 fixed-epoch probe fits and eight frozen checkpoint
+extractions finished. Final report and compact metrics archived in completed/.
+Flat probe79.654480; Flat+Rooted79.058842; difference−.595638pp. Three probe seeds
+are not three independently trained backbones. No demonstrated incremental
+prediction benefit under this probe setup; not proof information is absent.
+
 INTERNAL DIAGNOSTIC ONLY. Sealed tracked source commit b1be127. No edits to the
 source directory after launch. biggpu GPU7 UUID
 GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e; logical cuda:0. GPU4 forbidden.

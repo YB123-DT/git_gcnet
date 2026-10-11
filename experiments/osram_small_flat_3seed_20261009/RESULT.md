@@ -2,7 +2,24 @@
 
 INTERNAL DIAGNOSTIC ONLY
 
-Status: four missing runs launched on biggpu, 2026-10-09 UTC; no additional architecture or seed beyond66/67/68. Results pending.
+Status: COMPLETE. Final verification2026-10-11: all six small-model runs have100epochs,
+complete provenance and eight BEST checkpoint files. Earlier progress below is historical.
+
+## Final three-seed comparison
+
+|Seed|Flat256 eight-rate|Flat256+Nested64 eight-rate|Delta pp|Flat256 high|+Nested high|
+|---|---:|---:|---:|---:|---:|
+|66|79.529|80.362|+0.833|74.422|75.899|
+|67|79.105|78.104|-1.001|74.263|72.941|
+|68|78.855|79.438|+0.583|73.293|73.649|
+|Mean|79.163|79.301|+0.138|73.993|74.163|
+
+Nested adds159235parameters (5508961→5668196). Mean improvement is small and
+inconsistent across seeds; this is not an equal-capacity control or evidence
+of parity with original large Flat80.559/high75.594. Final new-seed metrics are
+archived in completed/. No new training in this status reconciliation.
+
+## Historical launch and progress records
 
 Sealed training source: commit `2d8c089`, remote `source/SNAPSHOT.json`. Persistent tmux sessions and independent dispatcher locks protect these runs from SSH disconnects and duplicate starts.
 
