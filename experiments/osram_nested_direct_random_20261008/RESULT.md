@@ -75,3 +75,14 @@ There is no single shared BEST epoch: `best_epoch` is null under per-rate select
 
 Range 70–86; arithmetic mean 79.75 epochs (descriptive only, not another
 selected checkpoint). No training or inference performed for this lookup.
+
+## Capacity-coordination audit (2026-10-11)
+
+No completed direct-Nested joint Flat/graph capacity sweep was found in the
+repository run registrations and reports. The direct-zero and direct-random
+runs retain the original Flat hidden1600 and original Nested width64.
+Existing Flat256+Nested64/MLP256/MLP512 and Flat256+Nested704 near-equal-budget
+experiments all retain external evidence residuals; they are NOT direct-input
+capacity tests. See osram_small_flat_nested_mlp256_20261009/RESULT.md and
+osram_nested_equal_budget_20261009/RESULT.md. No new run authorized or launched
+by this read-only audit.
