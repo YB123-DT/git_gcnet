@@ -68,3 +68,20 @@ Rechecked saved selected_epoch_by_rate (rates0.0 through0.7):
 - Flat150: [69,107,70,107,109,70,107,103]. Its 81.119 final aggregate was already attained by epoch109, not epoch150; epochs110–150 provided no further BEST improvement.
 
 Sources: local nested67_FINAL_METRICS.json referenced above and remote runs/CMUMOSI_flat_s67_f1/{stage100,stage150}/metrics.json. “150-epoch result” denotes the completed training budget, not the epoch when the selected checkpoints were obtained. These are eight separately selected per-rate checkpoints from one training trajectory, not a single best epoch.
+
+### Flat67 continuation: which rates improved?
+
+Paired W-F1 from FINAL_SUMMARY.json run CMUMOSI_flat_s67_f1, source100 versus final150. Same evaluation masks; continuation lowers LR from.001 to.0001.
+
+| Rate | BEST through100 | BEST through150 | Delta pp | Selected epoch100→150 |
+|---|---:|---:|---:|---|
+|.0|88.321493|88.321493|0|69→69|
+|.1|86.102755|86.243709|+0.140954|70→107|
+|.2|84.872470|84.872470|0|70→70|
+|.3|80.066539|80.876826|+0.810287|70→107|
+|.4|77.114500|77.537910|+0.423410|72→109|
+|.5|76.693301|76.693301|0|70→70|
+|.6|75.536353|77.030473|+1.494120|87→107|
+|.7|75.738902|77.377755|+1.638854|72→103|
+
+Five rates improve; largest absolute gains are.6 and.7. Mean8 gain+.563453pp; high-missing gain+1.044325pp. No new inference or training for this breakdown.
