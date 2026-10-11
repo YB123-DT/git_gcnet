@@ -854,11 +854,27 @@ class OSRAMBackbone(nn.Module):
         osram_adapter_hidden_dim: int = 0,
         osram_base_first_gap: bool = False,
         osram_counterfactual_readout: str = 'none',
+        osram_history_recency: bool = False,
     ) -> None:
         super().__init__()
         if osram_counterfactual_readout not in ('none', 'marginal', 'coalition'):
             raise ValueError('counterfactual readout must be none, marginal, or coalition')
         self.osram_counterfactual_readout = osram_counterfactual_readout
+        self.osram_history_recency = bool(osram_history_recency)
+        self.last_history_recency = None
+        if self.osram_history_recency and (
+            bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat'
+            or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter
+            or osram_history_input_gate or osram_local_evidence_gate
+            or osram_hierarchical_evidence_gate or osram_hierarchical_feature_only
+            or history_query_adapter or osram_relation_block or osram_relation_dual_readout
+            or osram_gap_increment_filter or osram_decision_correction
+            or osram_readout_candidate != 'none' or osram_meaningful_block != 'none'
+            or osram_base_first_gap or osram_adapter_hidden_dim
+            or osram_counterfactual_readout != 'none'
+            or osram_ablation != 'full' or osram_emotion_ablation != 'full'
+        ):
+            raise ValueError('history recency requires the original causal Flat path')
         if self.osram_counterfactual_readout != 'none' and (
             bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat'
             or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter
@@ -1087,6 +1103,17 @@ class OSRAMBackbone(nn.Module):
                     nn.Linear(self.latent_dim + 4 * self.context_dim, osram_adapter_hidden_dim),
                     nn.GELU(), nn.Dropout(dropout),
                     nn.Linear(osram_adapter_hidden_dim, self.output_dim),
+                )
+                nn.init.zeros_(self.emotion_adapter[-1].weight)
+                nn.init.zeros_(self.emotion_adapter[-1].bias)
+
+        if self.osram_history_recency:
+            with torch.random.fork_rng(devices=[]):
+                self.emotion_adapter = nn.Sequential(
+                    nn.LayerNorm(self.latent_dim + 4 * self.context_dim + 6),
+                    nn.Linear(self.latent_dim + 4 * self.context_dim + 6, self.output_dim),
+                    nn.GELU(), nn.Dropout(dropout),
+                    nn.Linear(self.output_dim, self.output_dim),
                 )
                 nn.init.zeros_(self.emotion_adapter[-1].weight)
                 nn.init.zeros_(self.emotion_adapter[-1].bias)
@@ -1872,6 +1899,12 @@ class OSRAMBackbone(nn.Module):
                     ),
                     dim=-1,
                 )
+            if self.osram_history_recency:
+                from .history_recency import strict_past_history_recency
+                history_recency = strict_past_history_recency(
+                    availability, umask).to(device=local.device, dtype=local.dtype)
+                self.last_history_recency = history_recency.detach()
+                emotion_input = torch.cat((emotion_input, history_recency), dim=-1)
             if self.nested_concat_mode:
                 if self.osram_meaningful_block == 'nested_rooted_concat':
                     graph_features = self.meaningful_block(
@@ -1942,7 +1975,7 @@ class OSRAMBackbone(nn.Module):
             }
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none' or self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_counterfactual_readout != 'none' or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+        elif self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none' or self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_counterfactual_readout != 'none' or self.osram_history_recency or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
@@ -2041,6 +2074,13 @@ class OSRAMBackbone(nn.Module):
             diagnostics['readout_candidate'] = self.readout_candidate.last_diagnostics
         if self.osram_counterfactual_readout != 'none':
             diagnostics['counterfactual_readout'] = self.counterfactual_readout.last_diagnostics
+        if self.osram_history_recency and self.last_history_recency is not None:
+            valid_recency = self.last_history_recency[..., 3:][valid]
+            diagnostics['history_recency'] = {
+                'seen_rate': float(self.last_history_recency[..., :3][valid].mean()),
+                'mean_distance': float(valid_recency[valid_recency > 0].mean())
+                if torch.any(valid_recency > 0) else 0.0,
+            }
         self.last_diagnostics = diagnostics
         if self.osram_meaningful_block != 'none':
             diagnostics['meaningful_block'] = self.meaningful_block.last_diagnostics

@@ -1291,6 +1291,7 @@ class MissingM3GraphModel(GraphModel):
         osram_adapter_hidden_dim=0,
         osram_base_first_gap=False,
         osram_counterfactual_readout='none',
+        osram_history_recency=False,
     ) -> None:
         if osram_counterfactual_readout not in ('none', 'marginal', 'coalition'):
             raise ValueError('counterfactual readout must be none, marginal, or coalition')
@@ -1777,6 +1778,7 @@ class MissingM3GraphModel(GraphModel):
                 osram_adapter_hidden_dim=osram_adapter_hidden_dim,
                 osram_base_first_gap=osram_base_first_gap,
                 osram_counterfactual_readout=osram_counterfactual_readout,
+                osram_history_recency=osram_history_recency,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,
