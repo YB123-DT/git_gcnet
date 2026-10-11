@@ -40,12 +40,15 @@ cfg84 reference from seed66 to seed67.
 
 | Seed67 method | miss=.0 | .1 | .2 | .3 | .4 | .5 | .6 | .7 | 8-rate mean | High |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| cfg84 Flat | 88.321 | 86.103 | 84.872 | 80.067 | 77.115 | 76.693 | 75.536 | 75.739 | 80.556 | 75.990 |
+| cfg84 Flat (150 epochs) | 88.321 | 86.244 | 84.872 | 80.877 | 77.538 | 76.693 | 77.030 | 77.378 | 81.119 | 77.034 |
 | Marginal | 87.078 | 85.284 | 83.930 | 80.116 | 76.514 | 75.055 | 76.043 | 76.213 | 80.029 | 75.770 |
 
-Marginal changes seed67 by `-0.527` percentage points on the 8-rate mean and
-`-0.219` on the high-missing mean. Together with seed66 (`-0.300`, `+0.050`),
-the two completed seeds do not show a repeatable aggregate improvement.
+Marginal changes seed67 by `-1.090` percentage points on the 8-rate mean and
+`-1.264` on the high-missing mean. The previously reported `80.556/75.990`
+Flat values were the old 100-epoch reference used to source the training
+configuration, not the completed 150-epoch control; no model rerun was needed
+to correct this comparison. Together with seed66 (`-0.300`, `+0.050`, against
+its available original reference), the completed seeds do not support Marginal.
 
 ## Engineering verification
 

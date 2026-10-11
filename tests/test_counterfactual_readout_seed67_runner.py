@@ -30,3 +30,10 @@ def test_seed67_task_and_schedule_are_fixed():
         id='marginal_seed67', dataset='CMUMOSI', model='marginal', seed=67, fold=1)]
     assert runner().schedule() == ((100, .001), (150, .0001))
 
+
+def test_seed67_summary_uses_the_completed_150_epoch_flat_control():
+    expected = Path(
+        '/home/qinjinghui/yb_gcnet_experiments/osram_complete150_20261011/'
+        'runs/CMUMOSI_flat_s67_f1/stage150/metrics.json')
+    assert runner().FLAT150_METRICS == expected
+

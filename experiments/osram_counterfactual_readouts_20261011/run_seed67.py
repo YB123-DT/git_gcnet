@@ -19,6 +19,9 @@ from experiments.osram_counterfactual_readouts_20261011.run import (
 
 
 REFERENCE = Path('/data2/yb/remote_experiments/osram_mosi_memory_gap_ablation_20260920/full/seed_67')
+FLAT150_METRICS = Path(
+    '/home/qinjinghui/yb_gcnet_experiments/osram_complete150_20261011/'
+    'runs/CMUMOSI_flat_s67_f1/stage150/metrics.json')
 
 
 def specs():
@@ -99,7 +102,7 @@ def prepare(root, commit):
 
 
 def summarize(root):
-    baseline_metrics = read(REFERENCE / 'metrics.json')
+    baseline_metrics = read(FLAT150_METRICS)
     run = root / 'runs/marginal_seed67'
     provenance = read(run / 'PROVENANCE.json')
     if provenance.get('status') != 'complete' or not provenance.get('outputs_verified'):
