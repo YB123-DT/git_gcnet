@@ -58,3 +58,13 @@ Reproduce summary on biggpu:
 ```
 
 No checkpoints are uploaded to Git. No further training was launched by the status/report task.
+
+## Seed67 BEST timing check
+
+Rechecked saved selected_epoch_by_rate (rates0.0 through0.7):
+
+- Nested150: [55,47,47,47,47,47,48,49]. Its 80.851 eight-rate W-F1 was already attained by epoch55; the extension did not improve it.
+- Flat source100: [69,70,70,70,72,70,87,72].
+- Flat150: [69,107,70,107,109,70,107,103]. Its 81.119 final aggregate was already attained by epoch109, not epoch150; epochs110–150 provided no further BEST improvement.
+
+Sources: local nested67_FINAL_METRICS.json referenced above and remote runs/CMUMOSI_flat_s67_f1/{stage100,stage150}/metrics.json. “150-epoch result” denotes the completed training budget, not the epoch when the selected checkpoints were obtained. These are eight separately selected per-rate checkpoints from one training trajectory, not a single best epoch.
