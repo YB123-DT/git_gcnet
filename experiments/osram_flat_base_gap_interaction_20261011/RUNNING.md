@@ -9,3 +9,7 @@
 - No training. Existing capacity runs and Rooted Probe not changed.
 - Local and remote arithmetic/filter tests: 2 passed. Full archive parity and
   frozen state/file hashes checked separately for every missing rate.
+- Completed eight rates, 5488 valid rate/utterance records. Local independent
+  CSV re-computation agrees with remote summaries within 1e-12. Exact Python
+  float equality initially failed for W-F1 differences of about 1e-14 across
+  environments; counts agree exactly. No predictions or metrics were changed.
