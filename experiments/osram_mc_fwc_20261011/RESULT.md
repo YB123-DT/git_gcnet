@@ -1,6 +1,9 @@
-# MC-FWC — pending formal results
+# MC-FWC — cancelled by user
 
-Implementation and verification completed; formal training is running, not finished.
+Implementation and verification completed; formal training was cancelled by user
+on 2026-10-11. Six runs completed; four running jobs were stopped and five queued
+runs cancelled. All existing results, logs and checkpoints are preserved.
+See CANCELLED.json; do not automatically resume this suite.
 No performance gain is established by this report.
 
 - Code: `e9a7949`, based on `c838e14`.

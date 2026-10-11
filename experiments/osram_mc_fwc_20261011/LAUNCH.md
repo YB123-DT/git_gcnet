@@ -1,6 +1,9 @@
 # Formal MOSI launch
 
-Status: running, not a completed performance result.
+Status: cancelled by user on 2026-10-11; see CANCELLED.json. The controller and
+four active training jobs were stopped. Six completed runs and all artifacts
+are preserved; five queued jobs will not launch. Below is the original launch
+record, not authorization to resume.
 
 - Server: `ssh biggpu` (`user22`).
 - Code commit: `e9a7949`, baseline `c838e14`.
