@@ -172,7 +172,9 @@ def summarize(root):
             mean8=sum(scores.values()) / 8,
             high=sum(scores[str(index / 10)] for index in (5, 6, 7)) / 3,
             selected_epoch_by_rate=metrics.get('selected_epoch_by_rate'),
-            mask_sha256=metrics['mask_sha256'], parameters=provenance.get('parameter_count'))
+            mask_sha256=metrics['mask_sha256'],
+            parameters=read(root / f'SMOKE_{mode}.json')['parameters'],
+            smoke_peak_cuda_bytes=read(root / f'SMOKE_{mode}.json')['peak_cuda_bytes'])
         if metrics['mask_sha256'] != baseline_metrics['mask_sha256']:
             raise ValueError(f'{mode} evaluation masks differ from Flat')
     baseline = {key: 100 * value['weighted_f1']
