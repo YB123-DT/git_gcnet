@@ -17,6 +17,18 @@ using PID/start-time identities and verifies terminal completion artifacts.
 Never dispatches the15excluded task IDs. Model wrapper/source_4eed138 unchanged.
 Same resource admission rules and failure handling retained.
 
-Verified handoff_complete, original six child PIDs still alive, two cancelled
-children exited, all15excluded records cancelled_by_user. New eligible6class
-jobs fill GPU3 vacancies. No new training protocol or model changes.
+Initial handoff_complete observed six survivors briefly, but subsequent checks
+found all six interrupted after the old tmux session exited. The earlier
+claim of uninterrupted preservation is therefore superseded: scheduler-only
+termination was insufficient to isolate child lifetime. Two requested4Flat
+children remained cancelled, as did13pending tasks. No result files deleted.
+
+Recovery: pause scope47 controller2167068 (do not terminate its still-live
+6class Flat67 child2167167). New controller2177243 adopts that child and
+restarts only six interrupted tasks from their own full recovery states.
+recover_run.py uses the original manifest and historical sources, restoring
+model,Adam,RNG,mask/sampler and selection identities through TrainingState.
+Uncommitted history tails may roll back to the last atomic checkpoint.
+New children use start_new_session=True, isolating them from tmux teardown.
+Original failed logs and queue snapshots remain preserved. No new training
+protocol or model changes. Verify recovery advancement before claiming restored.
