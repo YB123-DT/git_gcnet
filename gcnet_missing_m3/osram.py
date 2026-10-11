@@ -1435,6 +1435,8 @@ class OSRAMBackbone(nn.Module):
         retention_diagnostics=None,
         write_completion=None,
         post_write_observer=None,
+        write_mask_override=None,
+        write_node_collector=None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, list[float]]]:
         if hasattr(self, 'core20_memory'):
             if reverse or any(x is not None for x in (retention_diagnostics, write_completion, post_write_observer)):
@@ -1532,6 +1534,14 @@ class OSRAMBackbone(nn.Module):
                 )
 
             write_keys, write_values, write_mask = slot_keys, slot_values, availability[time_index]
+            if write_mask_override is not None:
+                write_mask = write_mask_override[time_index]
+            if write_node_collector is not None:
+                # Exclusive write nodes: current Gap addressing used slot_keys
+                # above, NOT these clones. These exact nodes enter block_write,
+                # making source-specific VJPs unambiguous and graph-connected.
+                write_keys, write_values = write_keys.clone(), write_values.clone()
+                write_node_collector[time_index] = (write_keys, write_values)
             if write_completion is not None:
                 write_keys, write_values, write_mask = write_completion(
                     time_index, base_read.reshape(batch,-1).clone(),
@@ -1580,6 +1590,8 @@ class OSRAMBackbone(nn.Module):
         context_read_residual=None,
         modality_embeddings: torch.Tensor | None = None,
         core20_reconstruction_targets=None,
+        write_mask_override: torch.Tensor | None = None,
+        write_node_collector: dict | None = None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Condition reads/local features separately from real-observation writes.
 
@@ -1614,6 +1626,26 @@ class OSRAMBackbone(nn.Module):
         valid = self._validate_inputs(
             node, latents, availability, qmask, umask, seq_lengths
         )
+        if write_mask_override is not None or write_node_collector is not None:
+            if (self.bidirectional or write_completion is not None
+                    or hasattr(self, 'core20_memory') or hasattr(self, 'core20_value')
+                    or read_node is not node or write_node is not node
+                    or context_read_residual is not None or post_write_observer is not None):
+                raise ValueError('Write interventions require plain causal observed-only OSRAM')
+            if write_node_collector is not None and write_node_collector:
+                raise ValueError('Use a fresh empty write node collector for each forward')
+            if write_mask_override is not None:
+                override = write_mask_override
+                if override.shape != availability.shape or override.device != availability.device:
+                    raise ValueError('write_mask_override must match availability shape and device')
+                if not bool(torch.isfinite(override).all()) or not bool(((override == 0) | (override == 1)).all()):
+                    raise ValueError('write_mask_override must be finite and binary')
+                if bool((override > availability).any()):
+                    raise ValueError('write_mask_override cannot add an unobserved modality')
+                if bool(override[~valid].any()):
+                    raise ValueError('write_mask_override must be zero on padding')
+                if bool((override.sum(-1)[valid] < 1).any()):
+                    raise ValueError('write_mask_override must retain at least one observed modality')
         keys, values, queries = self._project_sequence(
             node, latents, availability, qmask,
             read_node=read_node, write_node=write_node,
@@ -1633,6 +1665,9 @@ class OSRAMBackbone(nn.Module):
                                    if collect_memory_retention_diagnostics else None),
             write_completion=write_completion,
             post_write_observer=post_write_observer,
+            **({'write_mask_override': write_mask_override,
+                'write_node_collector': write_node_collector}
+               if write_mask_override is not None or write_node_collector is not None else {}),
         )
         if self.bidirectional:
             base_backward, gap_backward, diag_backward = self._scan(

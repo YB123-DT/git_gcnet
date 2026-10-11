@@ -1951,9 +1951,18 @@ class MissingM3GraphModel(GraphModel):
         seq_lengths,
         predict_missing=False,
         completion_predictions_override=None,
+        write_mask_override=None,
+        write_node_collector=None,
     ):
         self.last_relation_base_logits = None
         self.last_decision_outputs = None
+        if write_mask_override is not None or write_node_collector is not None:
+            if (self.backbone_type != 'osram' or predict_missing
+                    or self.completion_path != 'none' or self.classification_completion
+                    or self.future_state_jepa or self.complete_state_jepa
+                    or self.write_state_completion or hasattr(self, 'core20')
+                    or hasattr(self, 'ced_block') or self.text_core is not None):
+                raise ValueError('Write interventions require no-JEPA observed-only OSRAM')
         if self.osram_decision_correction and predict_missing:
             raise ValueError('decision correction does not support auxiliary prediction')
         features = self._feature_tensor(inputfeats)
@@ -1970,6 +1979,10 @@ class MissingM3GraphModel(GraphModel):
         osram_context = None
         internal_predictions = None
         osram_nodes = {}
+        if write_mask_override is not None:
+            osram_nodes['write_mask_override'] = write_mask_override
+        if write_node_collector is not None:
+            osram_nodes['write_node_collector'] = write_node_collector
         if hasattr(getattr(self, 'osram', None), 'core20_value'):
             offsets = 0
             targets = {}
