@@ -11,7 +11,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from experiments.osram_nested_delta_off_missing_text_20261010.readout import flat_prediction
+from experiments.osram_nested_delta_off_missing_text_20261010.readout import flat_prediction, disable_correction_slot
 from experiments.osram_nested_input_gradient_20261010.compare_missing_text import wf1
 
 
@@ -50,6 +50,7 @@ def main():
     p.add_argument('--source', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--code-commit', required=True)
+    p.add_argument('--per-slot', action='store_true', help='Disable each Nested correction independently')
     args = p.parse_args()
     uuid = 'GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e'
     actual = subprocess.check_output(['nvidia-smi', '--id=7', '--query-gpu=uuid',
@@ -86,6 +87,8 @@ def main():
     model = _build_model(config, tuple(dims)).to(device).eval().requires_grad_(False)
     reference = json.loads((args.source/'metrics.json').read_text())
     rows, table = [], []
+    interventions = ('Local', 'Base', 'Gap-A', 'Gap-T', 'Gap-V') if args.per_slot else ('all',)
+    groups = ('all', 'no_Text', 'A', 'T', 'V', 'AT', 'AV', 'TV', 'ATV') if args.per_slot else ('all', 'no_Text', 'A', 'V', 'AV')
     try:
         for rate in [i/10 for i in range(8)]:
             suffix = f'{rate:.1f}'.replace('.', 'p')
@@ -116,6 +119,9 @@ def main():
                         on = result[0].squeeze(-1)
                         replay = flat_prediction(model, *capture['input'], readout=capture['output'])
                         off = flat_prediction(model, *capture['input'])
+                        slot_predictions = {slot: flat_prediction(model, *capture['input'],
+                            readout=disable_correction_slot(capture['input'], capture['output'], slot))
+                            for slot in interventions} if args.per_slot else {'all': off}
                 finally:
                     h1.remove()
                     h2.remove()
@@ -123,6 +129,8 @@ def main():
                 max_error = max(max_error, float((on[valid]-replay[valid]).abs().max()))
                 assert max_error <= 1e-5, 'Full readout replay differs'
                 assert torch.isfinite(off).all() and not off[~valid].count_nonzero()
+                for prediction in slot_predictions.values():
+                    assert torch.isfinite(prediction).all() and not prediction[~valid].count_nonzero()
                 # Original _collect_predictions archives conversation-major arrays.
                 batch_valid = view['umask'].bool()
                 predictions.extend(on.T[batch_valid].cpu().tolist())
@@ -133,20 +141,23 @@ def main():
                     r = dict(seed=66, rate=rate, conversation=str(view['conversation_ids'][b]),
                              utterance=t, pattern=''.join(n for n,a in zip('ATV', av) if a),
                              label=float(view['labels'][b,t]), on=float(on[t,b]), off=float(off[t,b]))
-                    current.append(r)
+                    for slot, prediction in slot_predictions.items():
+                        value = float(prediction[t,b])
+                        current.append(dict(r, off=value, **({'intervention': slot} if args.per_slot else {})))
             archive = np.load(args.source/f'predictions_miss_{suffix}.npz')
             assert np.array_equal(np.asarray(labels), archive['labels'])
             assert np.array_equal(np.asarray(masks), archive['availability'])
             archive_error = float(abs(np.asarray(predictions)-archive['predictions'].reshape(-1)).max())
             assert archive_error <= 1e-5, 'Original prediction archive mismatch'
-            full = summary(current)
+            full = summary([r for r in current if not args.per_slot or r['intervention'] == interventions[0]])
             assert abs(full['on_wf1']/100-reference['selected_weighted_f1_by_rate'][str(rate)]) < 1e-10
             assert before == state_hash(model) and file_hash == sha(checkpoint)
             assert all(not x.requires_grad and x.grad is None for x in model.parameters())
-            for group in ('all', 'no_Text', 'A', 'V', 'AV'):
-                selected = [r for r in current if group == 'all' or
-                            (group == 'no_Text' and 'T' not in r['pattern']) or r['pattern'] == group]
-                table.append(dict(rate=rate, group=group, **summary(selected)))
+            for slot in interventions:
+                for group in groups:
+                    selected = [r for r in current if (not args.per_slot or r['intervention'] == slot) and
+                                (group == 'all' or (group == 'no_Text' and 'T' not in r['pattern']) or r['pattern'] == group)]
+                    table.append(dict(rate=rate, group=group, **({'intervention': slot} if args.per_slot else {}), **summary(selected)))
             record = dict(rate=rate, epoch=epoch, checkpoint=str(checkpoint),
                           checkpoint_sha256=file_hash, state_sha256=before,
                           frozen_unchanged=True, on_replay_max_abs=max_error,
@@ -157,11 +168,11 @@ def main():
             dump(args.output/'STATUS.json', state)
             print(json.dumps(dict(record, full=full)), flush=True)
         macro = []
-        for group in ('all', 'no_Text', 'A', 'V', 'AV'):
+        for slot, group in [(s,g) for s in interventions for g in groups]:
             for rates in ('nonempty_rates', 'high_missing'):
-                selected = [r for r in table if r['group'] == group and r['on_wf1'] is not None
+                selected = [r for r in table if r['group'] == group and (not args.per_slot or r['intervention'] == slot) and r['on_wf1'] is not None
                             and (rates != 'high_missing' or r['rate'] >= .5)]
-                macro.append(dict(group=group, rates=rates, groups=len(selected),
+                macro.append(dict(group=group, rates=rates, groups=len(selected), **({'intervention': slot} if args.per_slot else {}),
                     **{k:statistics.mean(r[k] for r in selected) if selected else None
                        for k in ('on_wf1','off_wf1','delta_pp','flip_percent','mean_abs_shift')},
                     corrections=sum(r['corrections'] for r in selected),

@@ -2,6 +2,21 @@
 import torch
 
 
+def disable_correction_slot(raw, corrected, slot):
+    """Remove one external Nested correction, never the original evidence."""
+    assert slot in ('Local', 'Base', 'Gap-A', 'Gap-T', 'Gap-V')
+    local, base, gap = corrected
+    if slot == 'Local':
+        local = raw[0]
+    elif slot == 'Base':
+        base = raw[1]
+    else:
+        gap = gap.clone()
+        index = ('Gap-A', 'Gap-T', 'Gap-V').index(slot)
+        gap[:, :, index] = raw[2][:, :, index]
+    return local, base, gap
+
+
 def flat_prediction(model, local, base, gap, availability, umask, readout=None):
     valid = umask.T.bool().unsqueeze(-1)
     original_local = torch.where(valid, local, 0.)
