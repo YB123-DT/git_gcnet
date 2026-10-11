@@ -33,6 +33,13 @@ Marginal selected epochs by rate were `89/66/65/93/75/70/64/70`. Coalition
 selected `62/131/84/71/67/62/67/79`; only Coalition miss=.1 selected an epoch
 after 100. Evaluation-mask hashes match the Flat reference at all eight rates.
 
+## Marginal seed67 follow-up
+
+Status: running. The follow-up uses the same 150-epoch schedule and changes only
+the seed-specific cfg84 reference from seed66 to seed67. It runs from immutable
+source commit `7d5c345` on biggpu GPU0 as PID `4026922`; results are not yet
+available.
+
 ## Engineering verification
 
 Remote targeted suite: 231 passed. One unrelated legacy positional-configuration
