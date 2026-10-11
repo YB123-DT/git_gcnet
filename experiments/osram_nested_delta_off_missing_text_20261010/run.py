@@ -8,6 +8,7 @@ from pathlib import Path
 import statistics
 import subprocess
 import sys
+from itertools import combinations
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -51,7 +52,10 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--code-commit', required=True)
     p.add_argument('--per-slot', action='store_true', help='Disable each Nested correction independently')
+    p.add_argument('--all-subsets', action='store_true', help='All 31 nonempty correction-OFF subsets')
     args = p.parse_args()
+    if args.all_subsets:
+        args.per_slot = True
     uuid = 'GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e'
     actual = subprocess.check_output(['nvidia-smi', '--id=7', '--query-gpu=uuid',
                                      '--format=csv,noheader'], text=True).strip()
@@ -88,6 +92,9 @@ def main():
     reference = json.loads((args.source/'metrics.json').read_text())
     rows, table = [], []
     interventions = ('Local', 'Base', 'Gap-A', 'Gap-T', 'Gap-V') if args.per_slot else ('all',)
+    if args.all_subsets:
+        interventions = tuple('+'.join(items) for size in range(1,6)
+                              for items in combinations(interventions, size))
     groups = ('all', 'no_Text', 'A', 'T', 'V', 'AT', 'AV', 'TV', 'ATV') if args.per_slot else ('all', 'no_Text', 'A', 'V', 'AV')
     try:
         for rate in [i/10 for i in range(8)]:

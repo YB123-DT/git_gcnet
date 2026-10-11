@@ -4,6 +4,10 @@ import torch
 
 def disable_correction_slot(raw, corrected, slot):
     """Remove one external Nested correction, never the original evidence."""
+    if '+' in slot:
+        for item in slot.split('+'):
+            corrected = disable_correction_slot(raw, corrected, item)
+        return corrected
     assert slot in ('Local', 'Base', 'Gap-A', 'Gap-T', 'Gap-V')
     local, base, gap = corrected
     if slot == 'Local':
