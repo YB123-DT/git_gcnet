@@ -2,8 +2,32 @@
 
 INTERNAL DIAGNOSTIC ONLY — per-rate BEST Test-oracle.
 
-Implementation/verification complete; formal performance pending. Approved budget:
-MOSI seed66 only,150epochs. No sweep, other seeds or MC-FWC restart.
+Implementation, verification and the approved formal run are complete. Approved
+budget: MOSI seed66 only,150epochs. No sweep, other seeds or MC-FWC restart.
+
+## Result
+
+| Missing rate | W-F1 (%) | Selected epoch |
+|---:|---:|---:|
+|0.0|87.004|75|
+|0.1|85.237|59|
+|0.2|83.113|59|
+|0.3|81.443|59|
+|0.4|78.343|81|
+|0.5|76.231|59|
+|0.6|74.267|61|
+|0.7|74.289|61|
+
+| Aggregate | Base-first Gap-correction | Matched Flat-150 | Delta |
+|---|---:|---:|---:|
+|8-rate mean|79.991|81.068|-1.077|
+|High missing (.5/.6/.7)|74.929|76.352|-1.423|
+
+All eight selected epochs are at or before epoch81. The additional epochs
+101--150 did not improve any per-rate Test-oracle checkpoint. This seed66 result
+does not support expanding Base-first Gap-correction to more seeds: it is below
+the matched Flat reference on both aggregate criteria. This is an internal
+Test-oracle screening result, not a formal held-out performance claim.
 
 ## Exact computation
 
@@ -76,8 +100,11 @@ historical reference reused, not retrained. Both old and new use per-rate select
 Features/labels and snapshot files are hashed in MANIFEST.json. GPU1 UUID verified;
 GPU4 prohibited and GPU7 receives no new jobs. Training saves stage100/stage150,
 full last_training.pt, eight best_miss checkpoints and predictions, history,
-learning-rate trace and PROVENANCE.json. SUMMARY.json is written only after150
-and original mask-hash checks complete. Existing cancelled experiments unaffected.
+learning-rate trace and PROVENANCE.json. SUMMARY.json was written after150 epochs
+and the original mask-hash checks completed. The run was recovered once from its
+full epoch45 state after an immediately withdrawn cancellation instruction;
+epoch history and optimizer/RNG state continued rather than restarting. Existing
+unrelated experiments were unaffected.
 
 Entry: `python -m experiments.osram_base_first_gap_20261011.run --root ROOT --prepare --commit COMMIT`,
 then from sealed snapshot with GPU1 UUID set,

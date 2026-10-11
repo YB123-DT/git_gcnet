@@ -1,10 +1,10 @@
 # Formal launch record
 
-Status: running; not a final result.
+Status: complete; outputs verified.
 
 - Server: biggpu (`user22`), host GPU1.
 - GPU UUID: `GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049`.
-- Current PID: `3701395`.
+- Final training PID: `3701395` (exited normally after completion).
 - Code commit / immutable source: `98d6f9e`,
   `/home/qinjinghui/yb_gcnet_experiments/osram_base_first_gap_20261011/source_98d6f9e`.
 - Output: `/home/qinjinghui/yb_gcnet_experiments/osram_base_first_gap_20261011/formal_98d6f9e`.
