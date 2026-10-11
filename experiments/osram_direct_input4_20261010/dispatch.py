@@ -13,15 +13,16 @@ from experiments.osram_core20_20261005.run import LABEL, now, write
 from experiments.osram_nested_sweep_20261005.dispatch import scores
 
 GPU = 'GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e'
+GPU_INDEX = 7
 METHODS = ('m03_gatv2_direct', 'm05_pna_direct', 'cwn_cellular_direct', 'perceiver_io_direct')
 
 
 def available(running):
-    raw=subprocess.check_output(['nvidia-smi','--id=7',
+    raw=subprocess.check_output(['nvidia-smi',f'--id={GPU_INDEX}',
         '--query-gpu=index,uuid,memory.free','--format=csv,noheader,nounits'],text=True)
     index,identifier,free=[s.strip() for s in raw.split(',')]
-    if index!='7' or identifier!=GPU:
-        raise ValueError('Explicit healthy GPU7 whitelist mismatch; GPU4 forbidden')
+    if GPU_INDEX==4 or index!=str(GPU_INDEX) or identifier!=GPU:
+        raise ValueError('Explicit healthy GPU whitelist mismatch; GPU4 forbidden')
     raw=subprocess.check_output(['nvidia-smi','--query-compute-apps=pid,used_gpu_memory',
                                  '--format=csv,noheader,nounits'],text=True)
     used={int(line.split(',')[0]):float(line.split(',')[1]) for line in raw.splitlines()
@@ -50,7 +51,7 @@ def main():
         raise FileExistsError('Inspect prior processes and full recovery checkpoints first')
     source=Path(__file__).resolve().parents[2]
     state=dict(label=LABEL,status='running',pid=os.getpid(),source=str(source),
-               gpu=7,gpu_uuid=GPU,seed=66,concurrency=2,started_utc=now(),
+               gpu=GPU_INDEX,gpu_uuid=GPU,seed=66,concurrency=2,started_utc=now(),
                runs=[dict(method=m,status='pending') for m in METHODS])
     write(root/'DISPATCH.json',state)
     data=json.loads(args.data_manifest.read_text())

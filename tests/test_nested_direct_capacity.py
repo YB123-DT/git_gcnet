@@ -9,13 +9,15 @@ def test_config_changes_only_method():
     from pathlib import Path
     from experiments.osram_core20_20261005.run import candidate_config
     ref=json.loads((Path(__file__).resolve().parents[1]/'experiments/osram_core20_20261005/REFERENCE_CONFIG.json').read_text())
-    for suffix in ('mlp256','mlp512','dim128','dim256'):
+    for suffix in ('mlp256','mlp512','dim128','dim256','mlp128','dim128_mlp256','dim128_mlp512','dim256_mlp512'):
         cfg,delta=candidate_config(ref,'nested_direct_random_'+suffix)
         assert set(delta)=={'osram_meaningful_block'}
         assert cfg.epochs==100 and cfg.osram_output_dim==1600
 
-@pytest.mark.parametrize('suffix,dim,hidden', [('mlp256',64,256),('mlp512',64,512),('dim128',128,128),('dim256',256,256)])
+@pytest.mark.parametrize('suffix,dim,hidden', [('mlp256',64,256),('mlp512',64,512),('dim128',128,128),('dim256',256,256),
+    ('mlp128',64,128),('dim128_mlp256',128,256),('dim128_mlp512',128,512),('dim256_mlp512',256,512)])
 def test_direct_capacity(suffix,dim,hidden):
+    torch.set_num_threads(1)
     name='nested_direct_random_'+suffix
     assert name in NESTED_SWEEP
     model=build(name)
