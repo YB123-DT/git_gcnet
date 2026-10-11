@@ -861,6 +861,10 @@ class OSRAMBackbone(nn.Module):
         ):
             raise ValueError('adapter width requires the original Flat adapter path')
         self.osram_meaningful_block = osram_meaningful_block
+        self.nested_concat_mode = osram_meaningful_block in (
+            'nested_rooted_concat', 'nested_concat_capacity_control')
+        if self.nested_concat_mode and osram_adapter_hidden_dim:
+            raise ValueError('Nested concat defines its adapter width; do not override it')
         self.meaningful_input_mode = False
         if osram_meaningful_block != 'none':
             from .meaningful_blocks import MEANINGFUL_METHODS
@@ -1146,7 +1150,20 @@ class OSRAMBackbone(nn.Module):
             from .meaningful_blocks import MeaningfulReadoutResidual
             from .meaningful_input import MeaningfulInputAdapter
             with torch.random.fork_rng(devices=[]):
-                if self.osram_meaningful_block == 'm30_dyt':
+                if self.nested_concat_mode:
+                    from .nested_concat import NestedRootedConcat, ConcatCapacityControl, capacity_control_width
+                    concat = self.osram_meaningful_block == 'nested_rooted_concat'
+                    width = self.output_dim if concat else capacity_control_width(
+                        self.latent_dim, self.context_dim, self.output_dim)
+                    self.meaningful_block = (NestedRootedConcat(self.latent_dim, self.num_heads, self.value_dim)
+                                             if concat else ConcatCapacityControl(width))
+                    inputs = self.latent_dim + 4 * self.context_dim + (320 if concat else 0)
+                    self.emotion_adapter = nn.Sequential(
+                        nn.LayerNorm(inputs), nn.Linear(inputs, width), nn.GELU(),
+                        nn.Dropout(dropout), nn.Linear(width, self.output_dim))
+                    nn.init.zeros_(self.emotion_adapter[-1].weight)
+                    nn.init.zeros_(self.emotion_adapter[-1].bias)
+                elif self.osram_meaningful_block == 'm30_dyt':
                     from .priority40_common import DynamicTanh, NormalizationOnlyReadout
                     original_norm = self.emotion_adapter[0]
                     self.emotion_adapter[0] = DynamicTanh(original_norm.normalized_shape[0])
@@ -1782,7 +1799,13 @@ class OSRAMBackbone(nn.Module):
                     ),
                     dim=-1,
                 )
-            if self.meaningful_input_mode:
+            if self.nested_concat_mode:
+                if self.osram_meaningful_block == 'nested_rooted_concat':
+                    graph_features = self.meaningful_block(
+                        local, emotion_base, emotion_gap, availability, umask)
+                    emotion_input = torch.cat((emotion_input, graph_features), -1)
+                hidden = self.emotion_norm(self.local_skip(local) + self.emotion_adapter(emotion_input))
+            elif self.meaningful_input_mode:
                 hidden = self.emotion_norm(self.local_skip(local) + self.emotion_adapter(emotion_input))
             elif self.osram_meaningful_block != 'none':
                 flat_anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)

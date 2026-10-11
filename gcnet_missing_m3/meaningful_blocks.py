@@ -15,7 +15,9 @@ FAMILIES = {
     'feature_reasoning': ('tabnet','node'),
 }
 ROUND1_METHODS = tuple(name for names in FAMILIES.values() for name in names)
-MEANINGFUL_METHODS = ROUND1_METHODS + INPUT_METHODS + PRIORITY_RESIDUAL_METHODS + PRIORITY_NORM_METHODS
+MEANINGFUL_METHODS = (ROUND1_METHODS + INPUT_METHODS + PRIORITY_RESIDUAL_METHODS
+                      + PRIORITY_NORM_METHODS
+                      + ('nested_rooted_concat', 'nested_concat_capacity_control'))
 
 
 def build_core(method, latent_dim, num_heads, value_dim):
