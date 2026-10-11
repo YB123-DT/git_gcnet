@@ -56,3 +56,22 @@ high W-F1 over direct-zero. Still -0.815229pp mean8 and -1.277021pp high versus
 original residual Nested. Initialization affected this run materially, but does
 not explain the entire residual/direct gap. One seed only; no general mechanism
 or statistical significance claim.
+
+## Per-rate BEST epochs (verified 2026-10-11)
+
+Read from remote `seed_66/metrics.json`, `selected_epoch_by_rate`.
+There is no single shared BEST epoch: `best_epoch` is null under per-rate selection.
+
+|Missing rate|BEST epoch|
+|---|---:|
+|0.0|70|
+|0.1|70|
+|0.2|83|
+|0.3|83|
+|0.4|86|
+|0.5|85|
+|0.6|83|
+|0.7|78|
+
+Range 70–86; arithmetic mean 79.75 epochs (descriptive only, not another
+selected checkpoint). No training or inference performed for this lookup.
