@@ -113,6 +113,7 @@ class TrainConfig:
     backbone_type: str = "gcnet"
     osram_output_dim: int = 500
     osram_adapter_hidden_dim: int = 0
+    osram_base_first_gap: bool = False
     osram_num_heads: int = 4
     osram_key_dim: int = 32
     osram_value_dim: int = 32
@@ -177,6 +178,9 @@ class TrainConfig:
     osram_ced_block: bool = False
 
     def __post_init__(self) -> None:
+        if self.osram_base_first_gap:
+            from .base_first_gap import validate_base_first_gap
+            validate_base_first_gap(vars(self))
         if type(self.osram_adapter_hidden_dim) is not int or self.osram_adapter_hidden_dim < 0:
             raise ValueError('osram_adapter_hidden_dim must be a nonnegative integer')
         if self.osram_adapter_hidden_dim and (
@@ -3265,6 +3269,7 @@ def run_experiment(
         backbone_type=config_value.backbone_type,
         osram_output_dim=config_value.osram_output_dim,
         osram_adapter_hidden_dim=config_value.osram_adapter_hidden_dim,
+        osram_base_first_gap=config_value.osram_base_first_gap,
         osram_num_heads=config_value.osram_num_heads,
         osram_key_dim=config_value.osram_key_dim,
         osram_value_dim=config_value.osram_value_dim,
@@ -3867,6 +3872,7 @@ def run_experiment(
         "osram_readout_candidate": config_value.osram_readout_candidate,
         "osram_meaningful_block": config_value.osram_meaningful_block,
         "osram_ced_block": config_value.osram_ced_block,
+        **({"osram_base_first_gap": True} if config_value.osram_base_first_gap else {}),
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
         **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
@@ -3957,6 +3963,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--osram-history-query-adapter", action="store_true",
         help="Adapt never-observed Gap queries with causal three-bit history support.",
     )
+    parser.add_argument('--osram-base-first-gap', action='store_true',
+                        help='Use budget-matched Base-first fusion with a masked Gap correction.')
     parser.add_argument('--osram-memory-only-adapter', action='store_true',
                         help='Keep Local Skip; remove Local from the Flat adapter input.')
     parser.add_argument('--osram-local-skip-gate', action='store_true',
@@ -4328,6 +4336,7 @@ def main(argv=None) -> None:
         backbone_type=args.backbone_type,
         osram_output_dim=args.osram_output_dim,
         osram_adapter_hidden_dim=args.osram_adapter_hidden_dim,
+        osram_base_first_gap=args.osram_base_first_gap,
         osram_num_heads=args.osram_num_heads,
         osram_key_dim=args.osram_key_dim,
         osram_value_dim=args.osram_value_dim,

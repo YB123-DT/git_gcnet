@@ -852,8 +852,13 @@ class OSRAMBackbone(nn.Module):
         osram_readout_candidate: str = 'none',
         osram_meaningful_block: str = 'none',
         osram_adapter_hidden_dim: int = 0,
+        osram_base_first_gap: bool = False,
     ) -> None:
         super().__init__()
+        self.osram_base_first_gap = bool(osram_base_first_gap)
+        if self.osram_base_first_gap:
+            from .base_first_gap import validate_base_first_gap
+            validate_base_first_gap(locals())
         if type(osram_adapter_hidden_dim) is not int or osram_adapter_hidden_dim < 0:
             raise ValueError('osram_adapter_hidden_dim must be a nonnegative integer')
         if osram_adapter_hidden_dim and (
@@ -1203,6 +1208,13 @@ class OSRAMBackbone(nn.Module):
                 for adapter in self.history_query_adapters.values():
                     nn.init.zeros_(adapter[-1].weight)
                     nn.init.zeros_(adapter[-1].bias)
+
+        if self.osram_base_first_gap:
+            from .base_first_gap import BaseFirstGapFusion
+            with torch.random.fork_rng(devices=[]):
+                self.base_first_gap = BaseFirstGapFusion(
+                    self.latent_dim, self.context_dim, self.output_dim, dropout)
+            self.emotion_adapter = nn.Identity()
 
     def _adapt_history_queries(self, queries, availability, valid):
         """Adapt Gap addresses using strictly past, real-observation support.
@@ -1764,6 +1776,10 @@ class OSRAMBackbone(nn.Module):
             hidden = hidden + self.modality_track_residual(
                 latents, availability, umask, modality_embeddings
             )
+        elif self.osram_base_first_gap:
+            hidden = self.base_first_gap(
+                local, emotion_base, emotion_gap, availability, umask,
+                local_skip=self.local_skip, emotion_norm=self.emotion_norm)
         elif self.osram_readout_fusion == "base-gap-delta":
             hidden = self.base_gap_delta_fusion(
                 local,
