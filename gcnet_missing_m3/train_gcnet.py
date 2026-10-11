@@ -114,6 +114,7 @@ class TrainConfig:
     osram_output_dim: int = 500
     osram_adapter_hidden_dim: int = 0
     osram_base_first_gap: bool = False
+    osram_counterfactual_readout: str = 'none'
     osram_num_heads: int = 4
     osram_key_dim: int = 32
     osram_value_dim: int = 32
@@ -178,6 +179,26 @@ class TrainConfig:
     osram_ced_block: bool = False
 
     def __post_init__(self) -> None:
+        if self.osram_counterfactual_readout not in ('none', 'marginal', 'coalition'):
+            raise ValueError('counterfactual readout must be none, marginal, or coalition')
+        if self.osram_counterfactual_readout != 'none':
+            incompatible = ('osram_base_first_gap', 'paired_history_views', 'osram_relation_block',
+                'osram_relation_dual_readout', 'osram_decision_correction',
+                'osram_gap_increment_filter', 'osram_post_grn', 'osram_history_query_adapter',
+                'classification_completion', 'osram_local_skip_gate', 'osram_memory_only_adapter',
+                'osram_history_input_gate', 'osram_local_evidence_gate',
+                'osram_hierarchical_evidence_gate', 'completion_write_to_memory',
+                'local_context_residual', 'node_interaction_residual', 'text_core',
+                'osram_ced_block')
+            if (any(getattr(self, key) for key in incompatible)
+                    or self.backbone_type != 'osram' or self.osram_readout_fusion != 'flat'
+                    or self.osram_bidirectional or self.osram_forward_slot_reuse
+                    or self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none'
+                    or self.osram_adapter_hidden_dim or self.core20_method != 'none'
+                    or self.training_objective != 'emotion-only' or self.completion_path != 'none'
+                    or self.readout_type != 'shared' or self.osram_ablation != 'full'
+                    or self.osram_emotion_ablation != 'full' or not self.disable_unused_aux_modules):
+                raise ValueError('counterfactual readout requires independent causal cfg84 Flat training')
         if self.osram_base_first_gap:
             from .base_first_gap import validate_base_first_gap
             validate_base_first_gap(vars(self))
@@ -3270,6 +3291,7 @@ def run_experiment(
         osram_output_dim=config_value.osram_output_dim,
         osram_adapter_hidden_dim=config_value.osram_adapter_hidden_dim,
         osram_base_first_gap=config_value.osram_base_first_gap,
+        osram_counterfactual_readout=config_value.osram_counterfactual_readout,
         osram_num_heads=config_value.osram_num_heads,
         osram_key_dim=config_value.osram_key_dim,
         osram_value_dim=config_value.osram_value_dim,
@@ -3873,6 +3895,8 @@ def run_experiment(
         "osram_meaningful_block": config_value.osram_meaningful_block,
         "osram_ced_block": config_value.osram_ced_block,
         **({"osram_base_first_gap": True} if config_value.osram_base_first_gap else {}),
+        **({'osram_counterfactual_readout': config_value.osram_counterfactual_readout}
+           if config_value.osram_counterfactual_readout != 'none' else {}),
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
         **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
@@ -3965,6 +3989,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument('--osram-base-first-gap', action='store_true',
                         help='Use budget-matched Base-first fusion with a masked Gap correction.')
+    parser.add_argument('--osram-counterfactual-readout',
+                        choices=('none', 'marginal', 'coalition'), default='none',
+                        help='Preserve Flat and add evidence-effect marginal or coalition residuals.')
     parser.add_argument('--osram-memory-only-adapter', action='store_true',
                         help='Keep Local Skip; remove Local from the Flat adapter input.')
     parser.add_argument('--osram-local-skip-gate', action='store_true',
@@ -4337,6 +4364,7 @@ def main(argv=None) -> None:
         osram_output_dim=args.osram_output_dim,
         osram_adapter_hidden_dim=args.osram_adapter_hidden_dim,
         osram_base_first_gap=args.osram_base_first_gap,
+        osram_counterfactual_readout=args.osram_counterfactual_readout,
         osram_num_heads=args.osram_num_heads,
         osram_key_dim=args.osram_key_dim,
         osram_value_dim=args.osram_value_dim,

@@ -5,6 +5,7 @@ import importlib
 import pytest
 import torch
 from torch import nn
+from unittest.mock import patch
 
 
 def adapter(input_dim=11, output_dim=5, dropout=0.0):
@@ -121,3 +122,54 @@ def test_nan_in_inactive_evidence_cannot_leak_and_gradients_are_finite(mode):
 def test_invalid_mode_is_rejected():
     with pytest.raises(ValueError, match='counterfactual readout'):
         module().CounterfactualEvidenceReadout('unknown', 2, 5)
+
+
+@pytest.mark.parametrize('mode', ['marginal', 'coalition'])
+def test_backbone_zero_init_matches_flat_and_preserves_memory_and_rng(mode):
+    from gcnet_missing_m3.osram import OSRAMBackbone
+    kw = dict(latent_dim=8, output_dim=10, num_heads=2, key_dim=3,
+              value_dim=3, dropout=0, n_speakers=1, bidirectional=False)
+    torch.manual_seed(47)
+    flat = OSRAMBackbone(**kw).eval()
+    expected_rng = torch.random.get_rng_state()
+    torch.manual_seed(47)
+    changed = OSRAMBackbone(**kw, osram_counterfactual_readout=mode).eval()
+    assert torch.equal(torch.random.get_rng_state(), expected_rng)
+    for key, value in flat.state_dict().items():
+        assert torch.equal(value, changed.state_dict()[key]), key
+    node = torch.randn(3, 1, 8)
+    latents = {name: torch.randn_like(node) for name in ('audio', 'text', 'visual')}
+    availability = torch.tensor([[[1, 1, 1]], [[1, 0, 1]], [[0, 0, 1]]])
+    umask = torch.ones(1, 3)
+    args = (node, latents, availability, torch.zeros(1, 3, dtype=torch.long), umask, [3])
+    states = [[], []]
+    outputs = []
+    for index, backbone in enumerate((flat, changed)):
+        original = backbone.block_write
+        def capture(*pos, _index=index, _original=original, **named):
+            state = _original(*pos, **named)
+            states[_index].append(state.detach().clone())
+            return state
+        with patch.object(backbone, 'block_write', side_effect=capture):
+            outputs.append(backbone(*args)[0])
+    torch.testing.assert_close(outputs[0], outputs[1], rtol=0, atol=0)
+    for left, right in zip(*states):
+        torch.testing.assert_close(left, right, rtol=0, atol=0)
+
+
+def test_train_config_accepts_modes_and_rejects_competing_readouts():
+    from gcnet_missing_m3.train_gcnet import TrainConfig
+    common = dict(backbone_type='osram', osram_bidirectional=False,
+                  training_objective='emotion-only', disable_unused_aux_modules=True,
+                  osram_output_dim=1600, osram_num_heads=8,
+                  osram_key_dim=64, osram_value_dim=64, osram_write_step=.6)
+    for mode in ('marginal', 'coalition'):
+        assert TrainConfig(**common, osram_counterfactual_readout=mode).osram_counterfactual_readout == mode
+        for field, value in [('osram_relation_block', True),
+                             ('osram_meaningful_block', 'nested_gnn_rooted_evidence'),
+                             ('osram_readout_fusion', 'base-gap-delta'),
+                             ('paired_history_views', True)]:
+            with pytest.raises(ValueError):
+                TrainConfig(**common, osram_counterfactual_readout=mode, **{field: value})
+    with pytest.raises(ValueError, match='counterfactual readout'):
+        TrainConfig(**common, osram_counterfactual_readout='invalid')

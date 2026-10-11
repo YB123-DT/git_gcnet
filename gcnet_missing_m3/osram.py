@@ -853,8 +853,24 @@ class OSRAMBackbone(nn.Module):
         osram_meaningful_block: str = 'none',
         osram_adapter_hidden_dim: int = 0,
         osram_base_first_gap: bool = False,
+        osram_counterfactual_readout: str = 'none',
     ) -> None:
         super().__init__()
+        if osram_counterfactual_readout not in ('none', 'marginal', 'coalition'):
+            raise ValueError('counterfactual readout must be none, marginal, or coalition')
+        self.osram_counterfactual_readout = osram_counterfactual_readout
+        if self.osram_counterfactual_readout != 'none' and (
+            bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat'
+            or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter
+            or osram_history_input_gate or osram_local_evidence_gate
+            or osram_hierarchical_evidence_gate or osram_hierarchical_feature_only
+            or history_query_adapter or osram_relation_block or osram_relation_dual_readout
+            or osram_gap_increment_filter or osram_decision_correction
+            or osram_readout_candidate != 'none' or osram_meaningful_block != 'none'
+            or osram_base_first_gap or osram_adapter_hidden_dim
+            or osram_ablation != 'full' or osram_emotion_ablation != 'full'
+        ):
+            raise ValueError('counterfactual readout requires the original causal Flat path')
         self.osram_base_first_gap = bool(osram_base_first_gap)
         if self.osram_base_first_gap:
             from .base_first_gap import validate_base_first_gap
@@ -1215,6 +1231,12 @@ class OSRAMBackbone(nn.Module):
                 self.base_first_gap = BaseFirstGapFusion(
                     self.latent_dim, self.context_dim, self.output_dim, dropout)
             self.emotion_adapter = nn.Identity()
+        if self.osram_counterfactual_readout != 'none':
+            from .counterfactual_readout import CounterfactualEvidenceReadout
+            with torch.random.fork_rng(devices=[]):
+                self.counterfactual_readout = CounterfactualEvidenceReadout(
+                    self.osram_counterfactual_readout, self.context_dim,
+                    self.output_dim, encoder_dropout=dropout)
 
     def _adapt_history_queries(self, queries, availability, valid):
         """Adapt Gap addresses using strictly past, real-observation support.
@@ -1894,6 +1916,11 @@ class OSRAMBackbone(nn.Module):
                         valid.unsqueeze(-1), base_hidden, torch.zeros_like(base_hidden))
                 hidden = self.emotion_norm(flat_anchor + self.relation_block(
                     local, emotion_base, emotion_gap, availability, umask, flat_anchor))
+            elif self.osram_counterfactual_readout != 'none':
+                flat_anchor, residual = self.counterfactual_readout(
+                    local, emotion_base, emotion_gap, availability, umask,
+                    local_skip=self.local_skip, adapter=self.emotion_adapter)
+                hidden = self.emotion_norm(flat_anchor + residual)
             elif self.osram_local_skip_gate:
                 skip_gate = self.local_skip_gate(local, emotion_base, emotion_gap, availability, umask)
                 hidden = self.emotion_norm(
@@ -1915,7 +1942,7 @@ class OSRAMBackbone(nn.Module):
             }
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none' or self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+        elif self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none' or self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_counterfactual_readout != 'none' or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
@@ -2012,6 +2039,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics['gap_increment_filter'] = self.gap_increment_filter.last_diagnostics
         if self.osram_readout_candidate != 'none':
             diagnostics['readout_candidate'] = self.readout_candidate.last_diagnostics
+        if self.osram_counterfactual_readout != 'none':
+            diagnostics['counterfactual_readout'] = self.counterfactual_readout.last_diagnostics
         self.last_diagnostics = diagnostics
         if self.osram_meaningful_block != 'none':
             diagnostics['meaningful_block'] = self.meaningful_block.last_diagnostics
