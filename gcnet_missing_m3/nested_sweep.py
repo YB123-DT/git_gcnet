@@ -76,9 +76,12 @@ def build(method, latent_dim=256, num_heads=8, value_dim=64):
     if method not in NESTED_SWEEP:
         raise ValueError('Unknown bounded Nested comparison: ' + method)
     options = dict(NESTED_SWEEP[method])
+    residual = options.pop('residual', True)
+    zero_decoder = options.pop('zero_decoder', True)
     groups = options.pop('groups', num_heads)
     if groups < 1 or num_heads % groups:
         raise ValueError('Nested groups must divide the actual OSRAM head count')
     grouped_value_dim = (num_heads // groups) * value_dim
     dim = options.get('dim', 64)
-    return TokenAdapter(NestedSweepGNN(**options), latent_dim, groups, grouped_value_dim, dim)
+    return TokenAdapter(NestedSweepGNN(**options), latent_dim, groups, grouped_value_dim, dim,
+                        residual=residual, zero_decoder=zero_decoder)

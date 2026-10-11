@@ -55,6 +55,10 @@ NEW40_FAMILIES = {
 NEW40_METHODS = tuple(method for methods in NEW40_FAMILIES.values() for method in methods)
 # Pooling variants are comparisons, not additional independent catalog methods.
 NESTED_SWEEP = {
+    'nested_direct_random_mlp256': {'mlp_hidden': 256, 'residual': False, 'zero_decoder': False},
+    'nested_direct_random_mlp512': {'mlp_hidden': 512, 'residual': False, 'zero_decoder': False},
+    'nested_direct_random_dim128': {'dim': 128, 'residual': False, 'zero_decoder': False},
+    'nested_direct_random_dim256': {'dim': 256, 'residual': False, 'zero_decoder': False},
     'nested_ab_plain_gin': {'plain_gin': True},
     'nested_ab_no_markers': {'markers': False},
     'nested_ab_no_head_edges': {'head_edges': False},
