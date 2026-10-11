@@ -32,3 +32,12 @@ Uncommitted history tails may roll back to the last atomic checkpoint.
 New children use start_new_session=True, isolating them from tmux teardown.
 Original failed logs and queue snapshots remain preserved. No new training
 protocol or model changes. Verify recovery advancement before claiming restored.
+
+Recovery verified: all six progressed beyond interruption. MOSI67/68 reached
+38/36;FourNested66 reached115;SixFlat66 reached15;SixNested66 reached111;
+FourNested67 reached112. Queue8running/39pending/15cancelled/0failed.
+The6class Flat67 child2167167 remained uninterrupted. Old controller2167068
+intentionally stays paused while that inherited child exists; do not kill its
+tmux session before the child finishes. Active coordinator2177243 owns QUEUE.
+Recorded recovery controller and wrapper commitdc84f75. Full150 completion
+and final metrics are still pending, not implied by recovery verification.
