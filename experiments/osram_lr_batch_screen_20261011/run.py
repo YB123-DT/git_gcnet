@@ -82,7 +82,7 @@ def candidate_config(base, name):
     result = dict(base)
     result.update(epochs=spec["epochs"], batch_size=spec["batch_size"],
                   learning_rate=spec["learning_rate"],
-                  osram_meaningful_block=NESTED if spec["model"] == "nested" else None)
+                  osram_meaningful_block=NESTED if spec["model"] == "nested" else "none")
     return result
 
 

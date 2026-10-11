@@ -24,4 +24,4 @@ def test_locked_five_run_matrix():
         assert cfg["batch_size"] == spec["batch_size"]
         assert cfg["learning_rate"] == spec["learning_rate"]
         assert cfg["epochs"] == spec["epochs"]
-        assert cfg["osram_meaningful_block"] == (NESTED if spec["model"] == "nested" else None)
+        assert cfg["osram_meaningful_block"] == (NESTED if spec["model"] == "nested" else "none")
