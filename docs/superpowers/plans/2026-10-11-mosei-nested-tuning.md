@@ -31,7 +31,7 @@
 
 - [ ] 增加 runner 测试：任务集合必须恰好六项、全部 seed66；GPU 只允许2/3且每卡三项；配置相对 same-seed Flat 只能改变 `osram_meaningful_block`。
 - [ ] 运行目标测试确认 runner 尚不存在而失败。
-- [ ] 实现训练子命令：验证 manifest/reference hash、固定100epochs、运行训练、核对24个 rate artifacts、mask hash和 provenance。
+- [ ] 实现训练子命令：验证 manifest/reference hash、固定100epochs、运行训练、核对20个必要 artifacts、mask hash和 provenance。
 - [ ] 实现 dispatch 子命令：GPU2/3 UUID 实时核对，各启动三项，独立日志/目录，禁止已有状态重复提交。
 - [ ] 运行 `pytest -q tests/test_mosei_nested_tuning.py` 和 `python -m py_compile experiments/osram_mosei_nested_tuning_20261011/run.py`。
 - [ ] 使用 Lore 格式提交 runner 和测试。

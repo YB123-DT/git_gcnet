@@ -36,5 +36,34 @@ class MoseiNestedTuningRegistryTests(unittest.TestCase):
                                     for layer in module.memory_decoders))
 
 
+class MoseiNestedTuningRunnerTests(unittest.TestCase):
+    def test_runner_scope_and_gpu_assignment_are_locked(self):
+        from experiments.osram_mosei_nested_tuning_20261011.run import (
+            GPU_ASSIGNMENT,
+            METHODS,
+            configuration_delta,
+        )
+
+        self.assertEqual(tuple(METHODS), tuple(EXPECTED_METHODS))
+        self.assertEqual(tuple(GPU_ASSIGNMENT.values()), (2, 2, 2, 3, 3, 3))
+        for method in METHODS:
+            self.assertEqual(configuration_delta(method), {
+                "osram_meaningful_block": method,
+            })
+
+    def test_runner_rejects_out_of_scope_method_and_gpu(self):
+        from experiments.osram_mosei_nested_tuning_20261011.run import (
+            configuration_delta,
+            validate_gpu_index,
+        )
+
+        with self.assertRaisesRegex(ValueError, "method"):
+            configuration_delta("nested_dim128")
+        with self.assertRaisesRegex(ValueError, "GPU"):
+            validate_gpu_index(4)
+        with self.assertRaisesRegex(ValueError, "GPU"):
+            validate_gpu_index(0)
+
+
 if __name__ == "__main__":
     unittest.main()
