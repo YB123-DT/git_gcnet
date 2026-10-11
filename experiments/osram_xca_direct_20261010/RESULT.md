@@ -1,6 +1,40 @@
 # Direct XCA and Neural Production input transformations
 
-INTERNAL DIAGNOSTIC ONLY. Status: **running**, not completed; no final scores yet.
+INTERNAL DIAGNOSTIC ONLY. Status: **completed**, both runs finished 100 epochs.
+
+## Final results (archived 2026-10-11)
+
+W-F1 percentages; seed66, per-rate Test-oracle BEST. High missing is the mean
+of .5/.6/.7. These are trained variants, not evaluation-only interventions.
+
+| Model | Eight-rate mean | High missing | Mean difference vs Flat (pp) |
+|---|---:|---:|---:|
+| Original Flat |81.068095|76.352251|0|
+| Direct XCiT-XCA |75.897875|71.261185|-5.170220|
+| Direct Neural Production |79.971398|75.376807|-1.096697|
+
+| Missing rate | Direct XCA | Direct Neural Production |
+|---|---:|---:|
+|0.0|82.038|86.646|
+|0.1|81.060|85.641|
+|0.2|78.487|82.554|
+|0.3|76.968|79.877|
+|0.4|74.847|78.923|
+|0.5|72.098|76.419|
+|0.6|71.155|75.293|
+|0.7|70.531|74.419|
+
+Both are below Flat and their historical residual references. This does not
+support removing the external evidence bypass for these implementations. XCA
+also changes its decoding interface/parameter count, and both change decoder
+initialization; this is not proof that residual connections universally help.
+No additional training or automatic multi-seed expansion was performed.
+
+Final evidence is under `final_records/`: dispatcher, source snapshot, summary,
+and per-run config/metrics/history/diagnostics/provenance. Both exit codes are 0;
+provenance reports outputs_verified=true. Archived config/history/metrics SHA256
+match provenance; all six direct trials share the same eight evaluation mask
+hashes. Checkpoints and predictions remain on biggpu, not uploaded to Git.
 
 Two approved MOSI seed66,100epoch from-scratch runs. Original cfg84 causal
 no-JEPA, cyclic0.0–0.7, original Flat/output1600, original task head/MSE,
@@ -41,7 +75,7 @@ continues to exclude padding from loss/metrics. Do not modify the head for this.
   not edited. Corrected test executed separately under remote `checks` directory.
 - Python compilation passed. No extra GPU smoke and no baseline rerun.
 
-## Launch
+## Historical launch record
 
 Server biggpu physicalGPU7, UUID `GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e`.
 GPU4 forbidden. Prelaunch free15767MiB; after two starts12215MiB,100%utilization.
