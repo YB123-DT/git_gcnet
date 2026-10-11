@@ -4,6 +4,7 @@ from gcnet_missing_m3.meaningful_new40_registry import NESTED_SWEEP
 from gcnet_missing_m3.nested_sweep import build
 
 def test_config_changes_only_method():
+    pytest.importorskip('torch_geometric')
     import json
     from pathlib import Path
     from experiments.osram_core20_20261005.run import candidate_config
