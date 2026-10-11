@@ -1,6 +1,7 @@
 # Launch record
 
-INTERNAL TEST-ORACLE DIAGNOSTIC ONLY. Status: training, not completed.
+INTERNAL TEST-ORACLE DIAGNOSTIC ONLY. Status: completed100epochs; see RESULT.md
+and completed/ for verified final metrics and mask checks.
 
 - Server biggpu; host GPU6 / GPU-e4cafb17-818e-216a-b94a-7440063a9153.
 - Python PID1700881; tmux socket paired_rho010_infonce_20261011, session train.
