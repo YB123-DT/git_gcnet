@@ -48,7 +48,7 @@ def main():
         model.eval().requires_grad_(False);before=state_hash(model)
         archive=read(source/'metrics.json')
         loader=test[0];loader.sampler.set_epoch(0)
-        preds=[];labels=[];avs=[];max_parity=0.;max_local=0.
+        preds=[];labels=[];avs=[];max_parity=0.;max_local=0.;max_local_relative=0.
         with torch.no_grad():
             for raw in loader:
                 data=_move_batch(raw,torch.device('cuda:0'))
@@ -86,14 +86,20 @@ def main():
                         labels.extend(v['labels'][bv].cpu().tolist());avs.extend(v['availability'].transpose(0,1)[bv].cpu().tolist())
                 anchor=(random['availability']==mask).all(-1)&random['umask'].T.bool()
                 if anchor.any():
-                    max_local=max(max_local,float((records['random'][0][anchor]-records['persistent'][0][anchor]).abs().max()))
-                assert max_local<=1e-6, 'Current Local not isolated'
+                    assert torch.equal(random['incomplete'][anchor],fixed['incomplete'][anchor])
+                    left,right=records['random'][0][anchor],records['persistent'][0][anchor]
+                    max_local=max(max_local,float((left-right).abs().max()))
+                    max_local_relative=max(max_local_relative,float(((left-right).norm(dim=-1)/left.norm(dim=-1).clamp_min(1e-8)).max()))
+                # Previously validated tolerance for changed observed-row GEMM geometry:
+                # experiments/osram_history_drift_20261002/VERIFICATION.md.
+                assert max_local<=1e-5 and max_local_relative<=1e-6, (max_local,max_local_relative)
         old=np.load(source/'predictions_miss_0p7.npz')
         assert np.array_equal(labels,old['labels']) and np.array_equal(avs,old['availability'])
         archive_error=float(abs(np.array(preds)-old['predictions'].reshape(-1)).max());assert archive_error<=1e-5
         assert before==state_hash(model) and digest==sha(checkpoint)
         r=dict(model=name,epoch=epoch,state_sha256=before,checkpoint_sha256=digest,
-            replay_max_error=max_parity,archive_max_error=archive_error,matched_local_max_error=max_local)
+            replay_max_error=max_parity,archive_max_error=archive_error,matched_local_max_error=max_local,
+            matched_local_max_relative_error=max_local_relative)
         state['records'].append(r);write(args.output/'STATUS.json',state);print(json.dumps(r),flush=True)
     table=[]
     for name in sources:
