@@ -25,6 +25,7 @@ class PromptFormer(nn.Module):
         self.n_proto = n_proto
         self.D_e = D_e
         self.prompt_dim = prompt_dim
+        self.temporal_causal = getattr(args, "temporal_causal", True)
 
         self.proj_n = Mlp(in_features=sqlen, hidden_features=n_proto, out_features=n_proto, drop=args.drop_rate)
         self.proj_d = Mlp(in_features=D_e, hidden_features=prompt_dim, out_features=prompt_dim, drop=args.drop_rate)
@@ -69,8 +70,17 @@ class PromptFormer(nn.Module):
         x -> [batch, seqlen, dim]
         umask -> [batch, seqlen]
         """
-        prototype = self._prefix_prototypes(x)
-        prompt = self._prompt_from_prefix_prototypes(x, umask, prototype)
+        if self.temporal_causal:
+            prototype = self._prefix_prototypes(x)
+            prompt = self._prompt_from_prefix_prototypes(x, umask, prototype)
+        else:
+            batch_size = x.size(0)
+            prototype = self.proj_n(x.permute(0, 2, 1)).permute(0, 2, 1)
+            sim = calc_cosine_similarity(x, prototype)
+            prototype_flat = prototype.reshape(-1, self.D_e)
+            mask = umask.view(-1).unsqueeze(1).repeat(1, self.n_proto * batch_size)
+            sim = F.softmax(sim + (1 - mask) * -10000.0, dim=1)
+            prompt = (sim @ prototype_flat).reshape(batch_size, -1, self.D_e)
 
         prompt = self.proj_d(prompt) # [batch, seqlen, prompt_dim]
         res = self.proj_prompt(x)
@@ -86,6 +96,7 @@ class PromptFormer_2(nn.Module):
         self.n_proto = n_proto
         self.D_e = D_e
         self.prompt_dim = prompt_dim
+        self.temporal_causal = getattr(args, "temporal_causal", True)
 
         self.proj_n = Mlp(in_features=sqlen, hidden_features=n_proto, out_features=n_proto, drop=args.drop_rate)
         self.proj_d = Mlp(in_features=D_e, hidden_features=prompt_dim, out_features=prompt_dim, drop=args.drop_rate)
@@ -111,7 +122,15 @@ class PromptFormer_2(nn.Module):
         x -> [batch, seqlen, dim]
         umask -> [batch, seqlen]
         """
-        prompt = self._prompt_from_prefix_prototypes(x, umask, prototype)
+        if self.temporal_causal:
+            prompt = self._prompt_from_prefix_prototypes(x, umask, prototype)
+        else:
+            batch_size = x.size(0)
+            sim = calc_cosine_similarity(x, prototype)
+            prototype_flat = prototype.reshape(-1, self.D_e)
+            mask = umask.view(-1).unsqueeze(1).repeat(1, self.n_proto * batch_size)
+            sim = F.softmax(sim + (1 - mask) * -10000.0, dim=1)
+            prompt = (sim @ prototype_flat).reshape(batch_size, -1, self.D_e)
 
         prompt = self.proj_d(prompt) # [batch, seqlen, prompt_dim]
         res = self.proj_prompt(x)
@@ -135,6 +154,7 @@ class ComP(nn.Module):
         self.prompt_dim = 16 # to adjust
         self.n_proto = 10 # to adjust
         self.lbd = lbd # to adjust
+        temporal_causal = getattr(args, "temporal_causal", True)
 
         self.a_in_proj = nn.Sequential(nn.Linear(self.adim, D_e))
         self.t_in_proj = nn.Sequential(nn.Linear(self.tdim, D_e))
@@ -161,6 +181,7 @@ class ComP(nn.Module):
                     drop=drop_rate,
                     attn_drop=attn_drop_rate,
                     depth=int(depth/2),
+                    temporal_causal=temporal_causal,
                 )
         self.block2 = Block(
                     dim=D_e,
@@ -169,6 +190,7 @@ class ComP(nn.Module):
                     drop=drop_rate,
                     attn_drop=attn_drop_rate,
                     depth=int(depth/2),
+                    temporal_causal=temporal_causal,
                 )
         self.proj1 = nn.Linear(D, D)
         self.nlp_head_a = nn.Linear(D_e, n_classes)

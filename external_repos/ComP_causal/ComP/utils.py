@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from dataloader_iemocap import IEMOCAPDataset
 from dataloader_cmumosi import CMUMOSIDataset
+from dataloader_meld import MELDDataset
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from model import ComP
@@ -24,6 +25,19 @@ class Logger(object):
 
 
 def get_loaders(audio_root, text_root, video_root, num_folder, dataset, batch_size, num_workers):
+    if dataset == 'MELD':
+        meld = MELDDataset(config.PATH_TO_LABEL[dataset])
+        index = {vid: idx for idx, vid in enumerate(meld.vids)}
+        train_idxs = [index[vid] for vid in meld.vids if vid in meld.trainVids]
+        test_idxs = [index[vid] for vid in meld.vids if vid in meld.testVids]
+        train_loader = DataLoader(
+            meld, batch_size=batch_size, sampler=SubsetRandomSampler(train_idxs),
+            collate_fn=meld.collate_fn, num_workers=num_workers, pin_memory=False)
+        test_loader = DataLoader(
+            meld, batch_size=batch_size, sampler=SubsetRandomSampler(test_idxs),
+            collate_fn=meld.collate_fn, num_workers=num_workers, pin_memory=False)
+        return [train_loader], [test_loader], *meld.get_featDim()
+
     ## CMU datasets
     if dataset in ['CMUMOSI', 'CMUMOSEI']:
         dataset = CMUMOSIDataset(label_path=config.PATH_TO_LABEL[dataset],

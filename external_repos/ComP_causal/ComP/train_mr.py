@@ -205,7 +205,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, dataloader, total_sqlen
                 disentangled_loss_1 += DisentangledLoss().foward_1(private_list[i], private_list[j], shared_list[i], shared_list[j], umask)
                 disentangled_loss_2 += DisentangledLoss().foward_2(private_list[i], private_list[j], shared_list[i], shared_list[j], umask)
         
-        if dataset in ['IEMOCAPFour', 'IEMOCAPSix']:
+        if dataset in ['IEMOCAPFour', 'IEMOCAPSix', 'MELD']:
             if first_stage:
                 all_ones = torch.ones_like(lp_a)
                 loss_a = cls_loss(lp_a, labels_, umask) + cls_loss(all_ones - lp_a_private, labels_, umask)
@@ -280,7 +280,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, dataloader, total_sqlen
                                     n, _ = para.shape
                                     para.grad = para.grad * W_i.reshape(1, -1).repeat(n, 1) 
                 
-                elif dataset in ['IEMOCAPFour', 'IEMOCAPSix']:
+                elif dataset in ['IEMOCAPFour', 'IEMOCAPSix', 'MELD']:
                     label = labels_.unsqueeze(1)
                     logit_a = torch.gather(lp_a, 1, label)
                     logit_t = torch.gather(lp_t, 1, label)
@@ -318,7 +318,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, dataloader, total_sqlen
     masks  = np.concatenate(masks)
 
     # all
-    if dataset in ['IEMOCAPFour', 'IEMOCAPSix']:
+    if dataset in ['IEMOCAPFour', 'IEMOCAPSix', 'MELD']:
         preds = np.argmax(preds, 1)
         preds_a = np.argmax(preds_a, 1)
         preds_t = np.argmax(preds_t, 1)
@@ -356,6 +356,7 @@ if __name__ == '__main__':
     parser.add_argument('--text-feature', type=str, default=None, help='text feature name')
     parser.add_argument('--video-feature', type=str, default=None, help='video feature name')
     parser.add_argument('--dataset', type=str, default='IEMOCAPFour', help='dataset type')
+    parser.add_argument('--temporal-mode', choices=['causal', 'noncausal'], default='causal')
 
     ## Params for model
     parser.add_argument('--time-attn', action='store_true', default=False, help='whether to use nodal attention in graph model: Equation 4,5,6 in Paper')
@@ -381,6 +382,7 @@ if __name__ == '__main__':
     parser.add_argument('--mask_rate', type=float, default=0.1, help='mask rate, ranges from 0 to 0.7')
 
     args = parser.parse_args()
+    args.temporal_causal = args.temporal_mode == 'causal'
     device = torch.device(f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu')
     # device = 'cpu'
     args.device = device
@@ -425,6 +427,11 @@ if __name__ == '__main__':
         args.n_classes = 6
         args.n_speakers = 2
         args.seq_len = 150
+    elif args.dataset == 'MELD':
+        args.num_folder = 1
+        args.n_classes = 7
+        args.n_speakers = 9
+        args.seq_len = 33
     cuda = torch.cuda.is_available() and not args.no_cuda
 
     filename = f"{args.dataset}-{args.mask_rate}.txt"
@@ -435,9 +442,12 @@ if __name__ == '__main__':
     ## reading data
     print (f'====== Reading Data =======')
     audio_feature, text_feature, video_feature = args.audio_feature, args.text_feature, args.video_feature
-    audio_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], audio_feature)
-    text_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], text_feature)
-    video_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], video_feature)
+    if args.dataset == 'MELD':
+        audio_root = text_root = video_root = config.PATH_TO_FEATURES[args.dataset]
+    else:
+        audio_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], audio_feature)
+        text_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], text_feature)
+        video_root = os.path.join(config.PATH_TO_FEATURES[args.dataset], video_feature)
     print(audio_root)
     print(text_root)
     print(video_root)
@@ -546,7 +556,7 @@ if __name__ == '__main__':
         print(f'Step3: saving and testing on the {ii+1} folder')
         if args.dataset in ['CMUMOSI', 'CMUMOSEI']:
             best_index_test = np.argmax(np.array(test_fscores))
-        if args.dataset in ['IEMOCAPFour', 'IEMOCAPSix']:
+        if args.dataset in ['IEMOCAPFour', 'IEMOCAPSix', 'MELD']:
             best_index_test = np.argmax(np.array(test_accs))
 
         bestmae = test_maes[best_index_test]
@@ -575,7 +585,7 @@ if __name__ == '__main__':
                 print(f"The best(acc) epoch of mask_rate ({args.mask_rate}): {best_index_test} --test_mae {bestmae} --test_corr {bestcorr} --test_fscores {bestf1} --test_acc {bestacc}.")
                 print(f"acc_a: {best_acc_a}, acc_t: {best_acc_t}, acc_v: {best_acc_v}")
                 print(f'>>>>> Finish: training on the {ii+1} folder, duration: {end_time - start_time} >>>>>')
-            if args.dataset in ['IEMOCAPFour', 'IEMOCAPSix']:
+            if args.dataset in ['IEMOCAPFour', 'IEMOCAPSix', 'MELD']:
                 f.write(f"The best(acc) epoch of mask_rate ({args.mask_rate}): {best_index_test} --test_acc {bestacc} --test_ua {bestcorr}.")
                 f.write(f"acc_a: {best_acc_a}, acc_t: {best_acc_t}, acc_v: {best_acc_v}")
                 f.write(f'>>>>> Finish: training on the {ii+1} folder, duration: {end_time - start_time} >>>>>')
@@ -590,7 +600,7 @@ if __name__ == '__main__':
         if args.dataset in ['CMUMOSI', 'CMUMOSEI']:
             print(f"Folder avg: mask_rate ({args.mask_rate}) --test_mae {np.mean(folder_mae)} --test_corr {np.mean(folder_corr)} --test_fscores {np.mean(folder_f1)} --test_acc{np.mean(folder_acc)}")
             f.write(f"Folder avg: mask_rate ({args.mask_rate}) --test_mae {np.mean(folder_mae)} --test_corr {np.mean(folder_corr)} --test_fscores {np.mean(folder_f1)} --test_acc{np.mean(folder_acc)}\n\n")
-        if args.dataset in ['IEMOCAPFour', 'IEMOCAPSix']:
+        if args.dataset in ['IEMOCAPFour', 'IEMOCAPSix', 'MELD']:
             print(f"Folder avg: mask_rate ({args.mask_rate}) --test_acc{np.mean(folder_acc)} --test_ua {np.mean(folder_corr)}")
             f.write(f"Folder avg: mask_rate ({args.mask_rate}) --test_acc{np.mean(folder_acc)} --test_ua {np.mean(folder_corr)}\n\n")
 

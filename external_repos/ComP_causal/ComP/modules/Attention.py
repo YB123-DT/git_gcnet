@@ -37,6 +37,7 @@ class Block_softmoe(nn.Module):
             attn_drop=0,
             proj_drop=0,
             mlp_ratio=1,
+            temporal_causal=True,
     ):
         super().__init__()
         mlp_hidden_dim = int(dim * mlp_ratio)
@@ -46,6 +47,7 @@ class Block_softmoe(nn.Module):
             attn_drop=attn_drop,
             proj_drop=proj_drop,
             mlp_ratio=mlp_ratio,
+            temporal_causal=temporal_causal,
         )
         self.Transformer_t = Attention(
             dim,
@@ -53,6 +55,7 @@ class Block_softmoe(nn.Module):
             attn_drop=attn_drop,
             proj_drop=proj_drop,
             mlp_ratio=mlp_ratio,
+            temporal_causal=temporal_causal,
         )
         self.Transformer_v = Attention(
             dim,
@@ -60,6 +63,7 @@ class Block_softmoe(nn.Module):
             attn_drop=attn_drop,
             proj_drop=proj_drop,
             mlp_ratio=mlp_ratio,
+            temporal_causal=temporal_causal,
         )
 
     def forward(self, x, cross_modality='atv', mask_modality=None, mask=None):
@@ -84,10 +88,12 @@ class Attention(nn.Module):
             num_heads=8,
             attn_drop=0.0,
             proj_drop=0.0,
-            mlp_ratio=1.0
+            mlp_ratio=1.0,
+            temporal_causal=True,
     ):
         super().__init__()
         self.num_heads = num_heads
+        self.temporal_causal = temporal_causal
         head_dim = dim // num_heads
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.scale = head_dim ** -0.5
@@ -117,8 +123,10 @@ class Attention(nn.Module):
             mask = {'a':mask[:, :seq_len], 't':mask[:, seq_len:2*seq_len], 'v':mask[:, 2*seq_len:3*seq_len]}
             key_mask = mask[mask_modality]
 
-        causal_mask = torch.ones(seq_len, seq_len, dtype=torch.bool, device=x.device).tril()
-        valid_keys = key_mask[:, None, None, :] & causal_mask[None, None, :, :]
+        valid_keys = key_mask[:, None, None, :]
+        if self.temporal_causal:
+            causal_mask = torch.ones(seq_len, seq_len, dtype=torch.bool, device=x.device).tril()
+            valid_keys = valid_keys & causal_mask[None, None, :, :]
         attn = self.attn_drop(attn.masked_fill(~valid_keys, float("-inf")).softmax(dim=-1).type_as(x))
         attn = torch.where(torch.isnan(attn), torch.full_like(attn, 0), attn)
 
@@ -189,7 +197,8 @@ class Block(nn.Module):
             mlp_ratio=4.0,
             drop=0.0,
             attn_drop=0.0,
-            depth=4
+            depth=4,
+            temporal_causal=True,
     ):
         super().__init__()
         self.drop = drop
@@ -200,7 +209,8 @@ class Block(nn.Module):
                               num_heads=num_heads,
                               attn_drop=attn_drop,
                               proj_drop=drop,
-                              mlp_ratio=mlp_ratio,)
+                              mlp_ratio=mlp_ratio,
+                              temporal_causal=temporal_causal,)
                 for i in range(depth)
             ]
         )
