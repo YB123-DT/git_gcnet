@@ -23,17 +23,30 @@ OUTPUT_ROOT = Path(os.environ.get(
 ))
 
 
-def build_config(seed: int, config_class=None, model_variant: str = "nested"):
+def build_config(
+    seed: int,
+    config_class=None,
+    model_variant: str = "nested",
+    epochs: int = 100,
+    meaningful_block: str | None = None,
+):
     if model_variant not in {"flat", "nested"}:
         raise ValueError("model_variant must be flat or nested")
     if config_class is None:
         from gcnet_missing_m3.train_gcnet import TrainConfig
         config_class = TrainConfig
+    if epochs < 1:
+        raise ValueError("epochs must be positive")
+    selected_block = meaningful_block
+    if selected_block is None:
+        selected_block = (
+            "nested_gnn_rooted_evidence" if model_variant == "nested" else "none"
+        )
     return config_class(
         dataset="MELD",
         fold=1,
         seed=seed,
-        epochs=100,
+        epochs=epochs,
         batch_size=32,
         learning_rate=1e-3,
         weight_decay=1e-5,
@@ -54,9 +67,7 @@ def build_config(seed: int, config_class=None, model_variant: str = "nested"):
         osram_forward_slot_reuse=False,
         osram_write_step=0.6,
         osram_readout_fusion="flat",
-        osram_meaningful_block=(
-            "nested_gnn_rooted_evidence" if model_variant == "nested" else "none"
-        ),
+        osram_meaningful_block=selected_block,
         disable_unused_aux_modules=True,
         completion_path="none",
         classification_completion=False,
@@ -91,6 +102,8 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=66)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--model-variant", choices=("flat", "nested"), default="nested")
+    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--meaningful-block")
     args = parser.parse_args()
     if not MELD_PICKLE.is_file():
         raise FileNotFoundError(MELD_PICKLE)
@@ -101,7 +114,12 @@ def main() -> None:
     os.environ["GCNET_MELD_PICKLE"] = str(MELD_PICKLE)
     os.environ["GCNET_CACHE_ROOT"] = str(OUTPUT_ROOT / "cache")
     cpu_threads = _configure_cpu_threads()
-    config = build_config(args.seed, model_variant=args.model_variant)
+    config = build_config(
+        args.seed,
+        model_variant=args.model_variant,
+        epochs=args.epochs,
+        meaningful_block=args.meaningful_block,
+    )
     provenance = {
         "status": "running",
         "started_utc": _now(),

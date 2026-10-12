@@ -1843,13 +1843,13 @@ def _metrics(
 def _checkpoint_selection_metric(dataset: str) -> str:
     """Return the test/validation metric used to choose an epoch.
 
-    The published conversational emotion-recognition protocols report and
-    select IEMOCAP checkpoints by accuracy (with UA as a companion metric),
-    whereas MOSI/MOSEI use weighted F1.  Keep this policy explicit instead of
-    silently using weighted F1 for every dataset.
+    Conversational emotion-recognition protocols report and select IEMOCAP
+    and MELD checkpoints by accuracy (with UA as a companion metric), whereas
+    MOSI/MOSEI use weighted F1.  Keep this policy explicit instead of silently
+    using weighted F1 for every dataset.
     """
     normalized = str(dataset).strip().upper()
-    if normalized in {"IEMOCAPFOUR", "IEMOCAPSIX"}:
+    if normalized in {"IEMOCAPFOUR", "IEMOCAPSIX", "MELD"}:
         return "accuracy"
     return "weighted_f1"
 

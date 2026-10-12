@@ -1,4 +1,5 @@
 import pickle
+from collections import Counter
 
 import numpy as np
 
@@ -79,6 +80,38 @@ def test_meld_nested_runner_keeps_selected_cfg84_protocol():
     assert (config.osram_num_heads, config.osram_key_dim, config.osram_value_dim) == (8, 64, 64)
     assert config.osram_output_dim == 1600
     assert config.osram_write_step == 0.6
+
+
+def test_meld_runner_accepts_bounded_epoch_and_nested_sweep_overrides():
+    from types import SimpleNamespace
+    from experiments.osram_ecerc_features_20261012.run_meld import build_config
+
+    config = build_config(
+        66,
+        config_class=SimpleNamespace,
+        epochs=50,
+        meaningful_block="nested_dim128",
+    )
+    assert config.epochs == 50
+    assert config.osram_meaningful_block == "nested_dim128"
+
+
+def test_meld_nested_grid_has_64_balanced_unique_configs():
+    from gcnet_missing_m3.meaningful_new40_registry import MELD_NESTED_GRID
+
+    assert len(MELD_NESTED_GRID) == 64
+    configs = [tuple(sorted(value.items())) for value in MELD_NESTED_GRID.values()]
+    assert len(set(configs)) == 64
+    expected = {
+        "dim": {32, 64, 128, 256},
+        "depth": {1, 2, 3, 4},
+        "groups": {1, 2, 4, 8},
+        "mlp_hidden": {64, 128, 256, 512},
+    }
+    for factor, levels in expected.items():
+        counts = Counter(config[factor] for config in MELD_NESTED_GRID.values())
+        assert set(counts) == levels
+        assert set(counts.values()) == {16}
 
 
 def test_meld_flat_variant_changes_only_the_meaningful_block():

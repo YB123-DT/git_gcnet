@@ -53,6 +53,27 @@ NEW40_FAMILIES = {
     'retrieval': ('n3_recursive_neighbor_volumes', 'pointcnn_x_transformed_evidence'),
 }
 NEW40_METHODS = tuple(method for methods in NEW40_FAMILIES.values() for method in methods)
+# MELD uses a balanced 64-run orthogonal grid instead of the complete 4^4
+# factorial.  For every (dimension, depth, grouping) triple, the MLP level is
+# assigned cyclically.  This balances every level and every pair of factors
+# while keeping the user-authorized screen to 64 Nested configurations.
+_MELD_DIMS = (32, 64, 128, 256)
+_MELD_DEPTHS = (1, 2, 3, 4)
+_MELD_GROUPS = (1, 2, 4, 8)
+_MELD_MLPS = (64, 128, 256, 512)
+MELD_NESTED_GRID = {
+    f"meld_nested_d{dim}_l{depth}_g{groups}_m{mlp}": {
+        "dim": dim,
+        "depth": depth,
+        "groups": groups,
+        "mlp_hidden": mlp,
+    }
+    for dim_index, dim in enumerate(_MELD_DIMS)
+    for depth_index, depth in enumerate(_MELD_DEPTHS)
+    for group_index, groups in enumerate(_MELD_GROUPS)
+    for mlp in (_MELD_MLPS[(dim_index + depth_index + group_index) % 4],)
+}
+
 # Pooling variants are comparisons, not additional independent catalog methods.
 NESTED_SWEEP = {
     # Locked CMU-MOSEI seed66 capacity screen.  These names are dataset-scoped
@@ -85,6 +106,7 @@ NESTED_SWEEP = {
     'nested_groups1': {'groups': 1},
     'nested_groups1_dim512': {'groups': 1, 'dim': 512},
     'nested_groups4': {'groups': 4},
+    **MELD_NESTED_GRID,
 }
 NEW40_VARIANTS = ('cwn_cellular_direct', 'perceiver_io_direct', 'neural_production_direct', 'nested_gnn_rootaware_evidence', 'nested_gnn_direct_evidence',
                   'nested_gnn_gap_residual_gate',

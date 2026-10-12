@@ -8,6 +8,7 @@ from gcnet_missing_m3.train_gcnet import _checkpoint_selection_metric
     [
         ("IEMOCAPFour", "accuracy"),
         ("IEMOCAPSix", "accuracy"),
+        ("MELD", "accuracy"),
         ("CMUMOSI", "weighted_f1"),
         ("CMUMOSEI", "weighted_f1"),
     ],
