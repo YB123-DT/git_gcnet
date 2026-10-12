@@ -120,8 +120,11 @@ def train(root, name, gpu_uuid):
                                  training_state=TrainingState(output, identity=identity))
         if len(read(output / "history.json")) != spec["epochs"]:
             raise ValueError("epoch count mismatch")
-        if metrics.get("mask_sha256") != read(ref / "metrics.json").get("mask_sha256"):
-            raise ValueError("evaluation masks changed")
+        # Raw hashes depend on batching/chunk boundaries.  Compare the
+        # canonical sample/mask stream so batch-size controls remain valid.
+        from experiments.osram_mosi_hparam_sweep_20260918.run import canonical_mask_hashes
+        if canonical_mask_hashes(output) != canonical_mask_hashes(ref):
+            raise ValueError("canonical evaluation masks changed")
         record.update(status="complete", finished_utc=now(), outputs_verified=True,
                       peak_allocated_mib=torch.cuda.max_memory_allocated() / 2**20)
         write(output / "PROVENANCE.json", record)
