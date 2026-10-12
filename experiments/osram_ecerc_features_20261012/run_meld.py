@@ -85,6 +85,15 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def discard_screen_checkpoints(output: Path) -> dict[str, int]:
+    """Remove only this run's per-rate model weights after metrics are durable."""
+    checkpoints = sorted(output.glob("best_miss_*.pt"))
+    total_bytes = sum(path.stat().st_size for path in checkpoints)
+    for path in checkpoints:
+        path.unlink()
+    return {"count": len(checkpoints), "bytes": total_bytes}
+
+
 def _configure_cpu_threads() -> int:
     """Bound thread pools for concurrent execution on shared GPU servers."""
     count = int(os.environ.get("GCNET_CPU_THREADS", "0"))
@@ -104,6 +113,7 @@ def main() -> None:
     parser.add_argument("--model-variant", choices=("flat", "nested"), default="nested")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--meaningful-block")
+    parser.add_argument("--discard-checkpoints", action="store_true")
     args = parser.parse_args()
     if not MELD_PICKLE.is_file():
         raise FileNotFoundError(MELD_PICKLE)
@@ -138,6 +148,8 @@ def main() -> None:
         # MELD features are contained in the pickle; these positional roots are
         # deliberately unused by the MELD loader.
         metrics = run_experiment(config, "MELD-pickle", "MELD-pickle", "MELD-pickle", output)
+        if args.discard_checkpoints:
+            provenance["discarded_checkpoints"] = discard_screen_checkpoints(output)
         provenance.update(status="complete", finished_utc=_now(),
                           selection_metric=metrics.get("selection_metric"))
         _write(output / "PROVENANCE.json", provenance)

@@ -9,6 +9,8 @@
   seven on physical GPU1. GPU4 is excluded.
 - All runs use cfg84 no-JEPA, cyclic random missing, 50 epochs, and the official
   ECERC MELD train/dev/test split.
+- Per-rate checkpoints are deleted after metrics/history/provenance are written;
+  the selected configuration must be rerun before downstream diagnostics.
 
 The grid is a screening design. Its test-selected scores must not be presented
 as an unbiased estimate of the selected hyperparameter configuration.

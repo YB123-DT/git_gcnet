@@ -113,6 +113,7 @@ def _command(job: dict, output: Path, epochs: int) -> list[str]:
         job["variant"],
         "--output",
         str(output),
+        "--discard-checkpoints",
     ]
     if job["meaningful_block"] is not None:
         command += ["--meaningful-block", job["meaningful_block"]]

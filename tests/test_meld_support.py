@@ -114,6 +114,25 @@ def test_meld_nested_grid_has_64_balanced_unique_configs():
         assert set(counts.values()) == {16}
 
 
+def test_meld_screen_checkpoint_cleanup_is_scoped_to_best_checkpoints(tmp_path):
+    from experiments.osram_ecerc_features_20261012.run_meld import (
+        discard_screen_checkpoints,
+    )
+
+    first = tmp_path / "best_miss_0p0.pt"
+    second = tmp_path / "best_miss_0p7.pt"
+    retained = tmp_path / "metrics.json"
+    first.write_bytes(b"one")
+    second.write_bytes(b"two")
+    retained.write_text("{}")
+
+    summary = discard_screen_checkpoints(tmp_path)
+
+    assert summary == {"count": 2, "bytes": 6}
+    assert not first.exists() and not second.exists()
+    assert retained.exists()
+
+
 def test_meld_flat_variant_changes_only_the_meaningful_block():
     from types import SimpleNamespace
     from experiments.osram_ecerc_features_20261012.run_meld import build_config
