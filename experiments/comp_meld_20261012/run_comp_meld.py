@@ -31,9 +31,20 @@ def install_runtime_config():
     sys.modules["config"] = config
 
 
+def configure_cpu_threads():
+    """Bound PyTorch thread pools when sharing a multi-GPU server."""
+    count = int(os.environ.get("COMP_CPU_THREADS", "4"))
+    if count < 1:
+        raise ValueError("COMP_CPU_THREADS must be positive")
+    import torch
+    torch.set_num_threads(count)
+    torch.set_num_interop_threads(min(count, 4))
+
+
 def main():
     if not MELD_PICKLE.is_file():
         raise FileNotFoundError(MELD_PICKLE)
+    configure_cpu_threads()
     install_runtime_config()
     sys.path.insert(0, str(COMP_SOURCE))
     sys.argv[0] = str(COMP_SOURCE / "train_mr.py")
