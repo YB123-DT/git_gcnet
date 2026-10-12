@@ -70,6 +70,18 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _configure_cpu_threads() -> int:
+    """Bound thread pools for concurrent execution on shared GPU servers."""
+    count = int(os.environ.get("GCNET_CPU_THREADS", "0"))
+    if count < 0:
+        raise ValueError("GCNET_CPU_THREADS cannot be negative")
+    if count:
+        import torch
+        torch.set_num_threads(count)
+        torch.set_num_interop_threads(min(count, 4))
+    return count
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=66)
@@ -83,6 +95,7 @@ def main() -> None:
     output.mkdir(parents=True)
     os.environ["GCNET_MELD_PICKLE"] = str(MELD_PICKLE)
     os.environ["GCNET_CACHE_ROOT"] = str(OUTPUT_ROOT / "cache")
+    cpu_threads = _configure_cpu_threads()
     config = build_config(args.seed)
     provenance = {
         "status": "running",
@@ -91,6 +104,7 @@ def main() -> None:
         "pid": os.getpid(),
         "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
         "dataset_pickle": str(MELD_PICKLE),
+        "cpu_threads": cpu_threads or "runtime-default",
         "protocol": "ECERC official MELD train/dev/test; cfg84 cyclic missing; per-rate Test-oracle",
         "config": asdict(config),
     }
