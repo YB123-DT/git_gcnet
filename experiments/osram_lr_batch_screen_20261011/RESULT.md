@@ -37,14 +37,14 @@ evaluation examples and masks themselves are unchanged.
 These runs belong to `osram_mosei_nested_tuning_20261011`, not the 60-epoch
 low-LR screen above.
 
-| Configuration | Parameters | 8-rate mean | High missing |
-|---|---:|---:|---:|
-| Original Flat | 13,509,793 | 83.671 | 80.890 |
-| Original Nested | 13,669,028 | 83.881 | 81.323 |
-| Nested MLP hidden 128 | 13,726,692 | 83.985 | 81.245 |
-| Nested depth 2 | 13,656,483 | 84.008 | 81.330 |
-| Nested relation dim 32 + depth 2 | 13,572,259 | **84.095** | 81.279 |
-| Nested dim 32 + depth 2 + MLP 64 | 13,583,651 | 83.847 | **81.422** |
+| Configuration | Parameters | 8-rate mean | vs Flat | High missing | vs Flat |
+|---|---:|---:|---:|---:|---:|
+| Original Flat | 13,509,793 | 83.671 | — | 80.890 | — |
+| Original Nested | 13,669,028 | 83.881 | +0.210 | 81.323 | +0.433 |
+| Nested MLP hidden 128 | 13,726,692 | 83.985 | +0.314 | 81.245 | +0.355 |
+| Nested depth 2 | 13,656,483 | 84.008 | +0.337 | 81.330 | +0.440 |
+| Nested relation dim 32 + depth 2 | 13,572,259 | **84.095** | **+0.424** | 81.279 | +0.389 |
+| Nested dim 32 + depth 2 + MLP 64 | 13,583,651 | 83.847 | +0.176 | **81.422** | **+0.532** |
 
 The clearly parameter-increased MLP-128 model improves the overall mean by
 0.104 pp over Original Nested, but reduces the high-missing mean by 0.078 pp.
