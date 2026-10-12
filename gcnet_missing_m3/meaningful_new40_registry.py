@@ -74,6 +74,38 @@ MELD_NESTED_GRID = {
     for mlp in (_MELD_MLPS[(dim_index + depth_index + group_index) % 4],)
 }
 
+# A single 14-run local refinement around the compact region favored by the
+# broad MELD screen.  Ten entries fill the previously untested cells of the
+# 32/64-d, depth-3/4, group-2/4, MLP-64/128 cube; four 48-d entries probe the
+# midpoint without increasing the MLP width.
+_MELD_LOCAL_CUBE = (
+    (dim, depth, groups, mlp)
+    for dim in (32, 64)
+    for depth in (3, 4)
+    for groups in (2, 4)
+    for mlp in (64, 128)
+)
+_MELD_EXISTING_CONFIGS = {
+    tuple(config[key] for key in ("dim", "depth", "groups", "mlp_hidden"))
+    for config in MELD_NESTED_GRID.values()
+}
+_MELD_LOCAL_NEW = [
+    config for config in _MELD_LOCAL_CUBE if config not in _MELD_EXISTING_CONFIGS
+] + [
+    (48, depth, groups, 64)
+    for depth in (3, 4)
+    for groups in (2, 4)
+]
+MELD_NESTED_LOCAL14 = {
+    f"meld_local_d{dim}_l{depth}_g{groups}_m{mlp}": {
+        "dim": dim,
+        "depth": depth,
+        "groups": groups,
+        "mlp_hidden": mlp,
+    }
+    for dim, depth, groups, mlp in _MELD_LOCAL_NEW
+}
+
 # Pooling variants are comparisons, not additional independent catalog methods.
 NESTED_SWEEP = {
     # Locked CMU-MOSEI seed66 capacity screen.  These names are dataset-scoped
@@ -107,6 +139,7 @@ NESTED_SWEEP = {
     'nested_groups1_dim512': {'groups': 1, 'dim': 512},
     'nested_groups4': {'groups': 4},
     **MELD_NESTED_GRID,
+    **MELD_NESTED_LOCAL14,
 }
 NEW40_VARIANTS = ('cwn_cellular_direct', 'perceiver_io_direct', 'neural_production_direct', 'nested_gnn_rootaware_evidence', 'nested_gnn_direct_evidence',
                   'nested_gnn_gap_residual_gate',

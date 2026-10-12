@@ -114,6 +114,18 @@ def test_meld_nested_grid_has_64_balanced_unique_configs():
         assert set(counts.values()) == {16}
 
 
+def test_meld_nested_local14_is_unique_and_disjoint_from_broad_grid():
+    from gcnet_missing_m3.meaningful_new40_registry import (
+        MELD_NESTED_GRID,
+        MELD_NESTED_LOCAL14,
+    )
+
+    broad = {tuple(sorted(value.items())) for value in MELD_NESTED_GRID.values()}
+    local = {tuple(sorted(value.items())) for value in MELD_NESTED_LOCAL14.values()}
+    assert len(MELD_NESTED_LOCAL14) == len(local) == 14
+    assert broad.isdisjoint(local)
+
+
 def test_meld_screen_checkpoint_cleanup_is_scoped_to_best_checkpoints(tmp_path):
     from experiments.osram_ecerc_features_20261012.run_meld import (
         discard_screen_checkpoints,
