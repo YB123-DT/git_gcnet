@@ -24,3 +24,8 @@ For a remote environment, set `COMP_PYTHON`, `MELD_ECERC_PICKLE`, and
 `COMP_SHARD_INDEX` and `COMP_SHARD_COUNT` environment variables.
 `COMP_CPU_THREADS` defaults to four to prevent PyTorch/BLAS oversubscription
 when several independent rates share a server.
+
+For disposable tuning screens, set `COMP_KEEP_CHECKPOINTS=0`. The runner then
+deletes only checkpoint-like files (`*.pt`, `*.pth`, and `*.pkl`) under that
+run's `saved/` directory after successful training, while retaining metrics,
+logs, and the manifest. The default remains `1` for backward compatibility.
