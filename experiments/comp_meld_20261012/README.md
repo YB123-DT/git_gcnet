@@ -18,3 +18,7 @@ Run one condition with:
 experiments/comp_meld_20261012/run_one.sh causal 0.0 3
 experiments/comp_meld_20261012/run_one.sh noncausal 0.0 3
 ```
+
+For a remote environment, set `COMP_PYTHON`, `MELD_ECERC_PICKLE`, and
+`COMP_MELD_RUN_ROOT`. A queue can be split across devices with the matched
+`COMP_SHARD_INDEX` and `COMP_SHARD_COUNT` environment variables.

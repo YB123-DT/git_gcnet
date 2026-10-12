@@ -4,8 +4,11 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOST_GPU="${1:-3}"
 MAX_PARALLEL="${COMP_MAX_PARALLEL:-3}"
+SHARD_INDEX="${COMP_SHARD_INDEX:-0}"
+SHARD_COUNT="${COMP_SHARD_COUNT:-1}"
 RATES=(0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7)
 failures=0
+task_index=0
 
 run_task() {
   local mode="$1" rate="$2"
@@ -17,6 +20,11 @@ run_task() {
 
 for rate in "${RATES[@]}"; do
   for mode in causal noncausal; do
+    current_index=${task_index}
+    task_index=$((task_index + 1))
+    if (( current_index % SHARD_COUNT != SHARD_INDEX )); then
+      continue
+    fi
     while (( $(jobs -rp | wc -l) >= MAX_PARALLEL )); do
       sleep 10
     done

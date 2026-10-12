@@ -7,8 +7,10 @@ MODE="${1:?causal or noncausal required}"
 MASK_RATE="${2:?mask rate required}"
 HOST_GPU="${3:?host GPU required}"
 SEED="${COMP_SEED:-66}"
-RUN_DIR="${WORKSPACE}/05_reproduction/runs/ComP_MELD_20261012/${MODE}/seed_${SEED}/mr_${MASK_RATE}"
+RUN_ROOT="${COMP_MELD_RUN_ROOT:-${WORKSPACE}/05_reproduction/runs/ComP_MELD_20261012}"
+RUN_DIR="${RUN_ROOT}/${MODE}/seed_${SEED}/mr_${MASK_RATE}"
 WRAPPER="${REPOSITORY}/experiments/comp_meld_20261012/run_comp_meld.py"
+PYTHON_BIN="${COMP_PYTHON:-/home/yangbin/miniconda3/envs/comp-repro/bin/python}"
 
 if [[ "${MODE}" != "causal" && "${MODE}" != "noncausal" ]]; then
   echo "invalid temporal mode: ${MODE}" >&2
@@ -31,8 +33,7 @@ printf '%s\n' \
 cd "${RUN_DIR}"
 env PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES="${HOST_GPU}" \
   COMP_OUTPUT_ROOT="${RUN_DIR}/saved" \
-  /home/yangbin/miniconda3/bin/conda run --no-capture-output -n comp-repro \
-  python "${WRAPPER}" --dataset=MELD --temporal-mode="${MODE}" \
+  "${PYTHON_BIN}" "${WRAPPER}" --dataset=MELD --temporal-mode="${MODE}" \
     --seed="${SEED}" --batch-size=32 --epochs=300 --stage_epoch=150 \
     --lr=0.0001 --hidden=256 --depth=4 --num_heads=2 --drop_rate=0.5 \
     --attn_drop_rate=0.0 --gpu=0 --mask_rate="${MASK_RATE}" --lbd=0.3 \
