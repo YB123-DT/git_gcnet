@@ -21,3 +21,15 @@ not used. Outputs are isolated under `execution/runs/`.
 The initial seed67/68 processes configured for 100 epochs were stopped before
 finishing epoch 1 and preserved with the suffix `stopped_before_epoch1`. They
 were replaced by the 60-epoch runs above; seed66 low-LR was not interrupted.
+
+## Additional seed68 variants
+
+| Run | GPU | PID | Epochs | LR |
+|---|---:|---:|---:|---:|
+| seed68 MLP128 | 5 | 3318442 | 60 | 1e-3 |
+| seed68 depth2 | 5 | 3321634 | 60 | 1e-3 |
+
+Depth2 was initially placed on GPU6, but another process claimed 23.7 GiB after
+the resource check. It was moved before completing epoch 1 to GPU5; the
+preserved initial directory uses suffix `gpu6_capacity_restart`. The experiment
+configuration was unchanged.
