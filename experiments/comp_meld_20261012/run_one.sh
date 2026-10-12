@@ -12,6 +12,8 @@ RUN_DIR="${RUN_ROOT}/${MODE}/seed_${SEED}/mr_${MASK_RATE}"
 WRAPPER="${REPOSITORY}/experiments/comp_meld_20261012/run_comp_meld.py"
 PYTHON_BIN="${COMP_PYTHON:-/home/yangbin/miniconda3/envs/comp-repro/bin/python}"
 CPU_THREADS="${COMP_CPU_THREADS:-4}"
+EPOCHS="${COMP_EPOCHS:-300}"
+STAGE_EPOCH="${COMP_STAGE_EPOCH:-150}"
 
 if [[ "${MODE}" != "causal" && "${MODE}" != "noncausal" ]]; then
   echo "invalid temporal mode: ${MODE}" >&2
@@ -28,7 +30,7 @@ printf '%s\n' \
   "upstream_comp_commit=28192d3a5683543d7383e40898f9a98d1f114a08" \
   "dataset=MELD" "feature_source=ECERC" "temporal_mode=${MODE}" \
   "seed=${SEED}" "mask_rate=${MASK_RATE}" "host_gpu=${HOST_GPU}" \
-  "epochs=300" "stage_epoch=150" "batch_size=32" "hidden=256" \
+  "epochs=${EPOCHS}" "stage_epoch=${STAGE_EPOCH}" "batch_size=32" "hidden=256" \
   "cpu_threads=${CPU_THREADS}" \
   > "${RUN_DIR}/run_manifest.txt"
 
@@ -39,7 +41,7 @@ env PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES="${HOST_GPU}" \
   NUMEXPR_NUM_THREADS="${CPU_THREADS}" \
   COMP_OUTPUT_ROOT="${RUN_DIR}/saved" \
   "${PYTHON_BIN}" "${WRAPPER}" --dataset=MELD --temporal-mode="${MODE}" \
-    --seed="${SEED}" --batch-size=32 --epochs=300 --stage_epoch=150 \
+    --seed="${SEED}" --batch-size=32 --epochs="${EPOCHS}" --stage_epoch="${STAGE_EPOCH}" \
     --lr=0.0001 --hidden=256 --depth=4 --num_heads=2 --drop_rate=0.5 \
     --attn_drop_rate=0.0 --gpu=0 --mask_rate="${MASK_RATE}" --lbd=0.3 \
   > run.log 2>&1
