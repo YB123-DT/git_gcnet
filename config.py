@@ -24,6 +24,7 @@ DATA_DIR = {
 	'CMUMOSEI': os.path.join(_LOCAL_DATASET_ROOT, 'CMUMOSEI'),
 	'IEMOCAPSix': os.path.join(_LOCAL_DATASET_ROOT, 'IEMOCAP'),
 	'IEMOCAPFour': os.path.join(_LOCAL_DATASET_ROOT, 'IEMOCAP'),
+	'MELD': os.path.join(_LOCAL_DATASET_ROOT, 'MELD'),
 }
 PATH_TO_RAW_AUDIO = {
 	'CMUMOSI': os.path.join(DATA_DIR['CMUMOSI'], 'subaudio'),
@@ -48,12 +49,14 @@ PATH_TO_FEATURES = {
 	'CMUMOSEI': os.path.join(DATA_DIR['CMUMOSEI'], 'features'),
 	'IEMOCAPSix': os.path.join(DATA_DIR['IEMOCAPSix'], 'features'),
 	'IEMOCAPFour': os.path.join(DATA_DIR['IEMOCAPFour'], 'features'),
+	'MELD': os.path.join(DATA_DIR['MELD'], 'features'),
 }
 PATH_TO_LABEL = {
 	'CMUMOSI': os.path.join(DATA_DIR['CMUMOSI'], 'CMUMOSI_features_raw_2way.pkl'),
 	'CMUMOSEI': os.path.join(DATA_DIR['CMUMOSEI'], 'CMUMOSEI_features_raw_2way.pkl'),
 	'IEMOCAPSix': os.path.join(DATA_DIR['IEMOCAPSix'], 'IEMOCAP_features_raw_6way.pkl'),
 	'IEMOCAPFour': os.path.join(DATA_DIR['IEMOCAPFour'], 'IEMOCAP_features_raw_4way.pkl'),
+	'MELD': os.environ.get('GCNET_MELD_PICKLE', os.path.join(DATA_DIR['MELD'], 'meld_emotion_semantic_features_roberta.pkl')),
 }
 
 # pre-trained models, including supervised and unsupervised

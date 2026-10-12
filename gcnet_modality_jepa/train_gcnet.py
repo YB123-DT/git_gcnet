@@ -26,6 +26,7 @@ import config
 from .model import ModalityJEPAGraphModel
 from .dataloader_iemocap import load_iemocap_dataset
 from .dataloader_cmumosi import load_cmumosi_dataset
+from .dataloader_meld import load_meld_dataset
 from .loss import (
     AllModalReconLoss,
     FullFusedReconLoss,
@@ -171,6 +172,30 @@ def get_loaders(
         raise ValueError("evaluation_protocol must be official or strict")
     dataset_name = dataset
     seed_bundle = SeedBundle(master_seed=seed)
+
+    if dataset_name == 'MELD':
+        dataset = load_meld_dataset(config.PATH_TO_LABEL[dataset_name])
+        if num_folder != 1:
+            raise ValueError("MELD requires its single official split")
+        split_indices = build_official_split(
+            dataset.vids,
+            train_vids=dataset.trainVids,
+            validation_vids=dataset.valVids,
+            test_vids=dataset.testVids,
+        )
+        loaders = [
+            _build_protocol_loader(
+                dataset, indices, dataset_name, 1, split, batch_size, num_workers,
+                seed_bundle, split_indices.split_hash, evaluation_protocol,
+            )
+            for indices, split in (
+                (split_indices.train, "train"),
+                (split_indices.validation, "validation"),
+                (split_indices.test, "test"),
+            )
+        ]
+        adim, tdim, vdim = dataset.get_featDim()
+        return [loaders[0]], [loaders[1]], [loaders[2]], adim, tdim, vdim
 
     ###########################################################################
     ###########################################################################
@@ -1074,7 +1099,7 @@ def _train_or_eval_model_impl(
         ## calculate loss
         lp_ = log_prob.transpose(0,1).contiguous().view(-1, log_prob.size(2)) # [batch*seq_len, n_classes]
         labels_ = label.view(-1) # [batch*seq_len]
-        if dataset in ['IEMOCAPFour', 'IEMOCAPSix']: loss1 = cls_loss(lp_, labels_, umask)
+        if dataset in ['IEMOCAPFour', 'IEMOCAPSix', 'MELD']: loss1 = cls_loss(lp_, labels_, umask)
         if dataset in ['CMUMOSI', 'CMUMOSEI']  : loss1 = reg_loss(lp_, labels_, umask)
         if recon_input_features:
             loss2 = primary_rec_loss(
@@ -1229,7 +1254,7 @@ def _train_or_eval_model_impl(
     labels = np.concatenate(labels)
     masks  = np.concatenate(masks)
 
-    if dataset in ['IEMOCAPFour', 'IEMOCAPSix']:
+    if dataset in ['IEMOCAPFour', 'IEMOCAPSix', 'MELD']:
         preds = np.argmax(preds, 1)
         avg_loss = round(np.sum(losses)/np.sum(masks), 4)
         avg_loss1 = round(np.sum(losses1)/np.sum(masks), 4)

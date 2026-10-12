@@ -681,6 +681,12 @@ def _dataset_shape(dataset: str) -> Dict[str, object]:
             "num_speakers": 1,
             "task": "regression",
         },
+        "MELD": {
+            "num_folds": 1,
+            "num_classes": 7,
+            "num_speakers": 9,
+            "task": "classification",
+        },
     }
     try:
         return dict(contracts[dataset])
@@ -4049,7 +4055,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--dataset",
-        choices=("IEMOCAPFour", "IEMOCAPSix", "CMUMOSI", "CMUMOSEI"),
+        choices=("IEMOCAPFour", "IEMOCAPSix", "CMUMOSI", "CMUMOSEI", "MELD"),
         default="IEMOCAPSix",
     )
     parser.add_argument(
