@@ -1,4 +1,6 @@
 """Replay only Flat/head; the original Local Skip and Memory are retained."""
+import math
+
 import torch
 
 
@@ -18,6 +20,29 @@ def disable_correction_slot(raw, corrected, slot):
         gap = gap.clone()
         index = ('Gap-A', 'Gap-T', 'Gap-V').index(slot)
         gap[:, :, index] = raw[2][:, :, index]
+    return local, base, gap
+
+
+def scale_correction_slot(raw, corrected, slot, scale):
+    """Scale exactly one external Nested correction around its raw anchor.
+
+    The other four correction slots are returned byte-for-byte unchanged.  This
+    is an inference intervention only: it never changes Memory, availability,
+    or the original Local Skip input.
+    """
+    names = ('Local', 'Base', 'Gap-A', 'Gap-T', 'Gap-V')
+    if slot not in names or not math.isfinite(float(scale)):
+        raise ValueError(f'Invalid correction scale: slot={slot!r}, scale={scale!r}')
+    local, base, gap = corrected
+    if slot == 'Local':
+        local = raw[0] + float(scale) * (local - raw[0])
+    elif slot == 'Base':
+        base = raw[1] + float(scale) * (base - raw[1])
+    else:
+        gap = gap.clone()
+        index = names[2:].index(slot)
+        gap[:, :, index] = (raw[2][:, :, index]
+                            + float(scale) * (gap[:, :, index] - raw[2][:, :, index]))
     return local, base, gap
 
 
