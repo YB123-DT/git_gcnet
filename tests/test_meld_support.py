@@ -79,3 +79,16 @@ def test_meld_nested_runner_keeps_selected_cfg84_protocol():
     assert (config.osram_num_heads, config.osram_key_dim, config.osram_value_dim) == (8, 64, 64)
     assert config.osram_output_dim == 1600
     assert config.osram_write_step == 0.6
+
+
+def test_meld_flat_variant_changes_only_the_meaningful_block():
+    from types import SimpleNamespace
+    from experiments.osram_ecerc_features_20261012.run_meld import build_config
+
+    nested = vars(build_config(66, config_class=SimpleNamespace, model_variant="nested"))
+    flat = vars(build_config(66, config_class=SimpleNamespace, model_variant="flat"))
+    assert nested["osram_meaningful_block"] == "nested_gnn_rooted_evidence"
+    assert flat["osram_meaningful_block"] == "none"
+    assert {key: value for key, value in nested.items() if key != "osram_meaningful_block"} == {
+        key: value for key, value in flat.items() if key != "osram_meaningful_block"
+    }

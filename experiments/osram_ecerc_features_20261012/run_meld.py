@@ -23,7 +23,9 @@ OUTPUT_ROOT = Path(os.environ.get(
 ))
 
 
-def build_config(seed: int, config_class=None):
+def build_config(seed: int, config_class=None, model_variant: str = "nested"):
+    if model_variant not in {"flat", "nested"}:
+        raise ValueError("model_variant must be flat or nested")
     if config_class is None:
         from gcnet_missing_m3.train_gcnet import TrainConfig
         config_class = TrainConfig
@@ -52,7 +54,9 @@ def build_config(seed: int, config_class=None):
         osram_forward_slot_reuse=False,
         osram_write_step=0.6,
         osram_readout_fusion="flat",
-        osram_meaningful_block="nested_gnn_rooted_evidence",
+        osram_meaningful_block=(
+            "nested_gnn_rooted_evidence" if model_variant == "nested" else "none"
+        ),
         disable_unused_aux_modules=True,
         completion_path="none",
         classification_completion=False,
@@ -86,6 +90,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=66)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--model-variant", choices=("flat", "nested"), default="nested")
     args = parser.parse_args()
     if not MELD_PICKLE.is_file():
         raise FileNotFoundError(MELD_PICKLE)
@@ -96,7 +101,7 @@ def main() -> None:
     os.environ["GCNET_MELD_PICKLE"] = str(MELD_PICKLE)
     os.environ["GCNET_CACHE_ROOT"] = str(OUTPUT_ROOT / "cache")
     cpu_threads = _configure_cpu_threads()
-    config = build_config(args.seed)
+    config = build_config(args.seed, model_variant=args.model_variant)
     provenance = {
         "status": "running",
         "started_utc": _now(),
@@ -104,6 +109,7 @@ def main() -> None:
         "pid": os.getpid(),
         "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
         "dataset_pickle": str(MELD_PICKLE),
+        "model_variant": args.model_variant,
         "cpu_threads": cpu_threads or "runtime-default",
         "protocol": "ECERC official MELD train/dev/test; cfg84 cyclic missing; per-rate Test-oracle",
         "config": asdict(config),
