@@ -11,9 +11,13 @@
 
 | Run | GPU | PID | Epochs | LR |
 |---|---:|---:|---:|---:|
-| seed67 dim32+depth2 | 5 | pending restart | 60 | 1e-3 |
-| seed68 dim32+depth2 | 5 | pending restart | 60 | 1e-3 |
+| seed67 dim32+depth2 | 5 | 2734820 | 60 | 1e-3 |
+| seed68 dim32+depth2 | 5 | 2734823 | 60 | 1e-3 |
 | seed66 dim32+depth2 low-LR | 6 | 2713048 | 60 | 1e-4 |
 
 All three processes were confirmed alive with GPU allocations. Host GPU4 was
 not used. Outputs are isolated under `execution/runs/`.
+
+The initial seed67/68 processes configured for 100 epochs were stopped before
+finishing epoch 1 and preserved with the suffix `stopped_before_epoch1`. They
+were replaced by the 60-epoch runs above; seed66 low-LR was not interrupted.
