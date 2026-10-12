@@ -18,7 +18,7 @@ if [[ "${MODE}" != "causal" && "${MODE}" != "noncausal" ]]; then
   exit 2
 fi
 mkdir -p "${RUN_DIR}"
-if [[ -f "${RUN_DIR}/MELD-${MASK_RATE}.txt" ]] && rg -q 'Folder avg:' "${RUN_DIR}/MELD-${MASK_RATE}.txt"; then
+if [[ -f "${RUN_DIR}/MELD-${MASK_RATE}.txt" ]] && grep -q 'Folder avg:' "${RUN_DIR}/MELD-${MASK_RATE}.txt"; then
   echo "[skip] completed ${MODE} MELD seed=${SEED} miss=${MASK_RATE}"
   exit 0
 fi
