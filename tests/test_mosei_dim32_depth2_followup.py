@@ -16,7 +16,7 @@ def baseline(seed):
 
 
 def test_locked_followup_matrix():
-    assert set(SPECS) == {"seed67_lr1e3_e100", "seed68_lr1e3_e100", "seed66_lr1e4_e60"}
+    assert set(SPECS) == {"seed67_lr1e3_e60", "seed68_lr1e3_e60", "seed66_lr1e4_e60"}
     for name, spec in SPECS.items():
         cfg = candidate_config(baseline(spec["seed"]), name)
         assert cfg["seed"] == spec["seed"]

@@ -17,8 +17,8 @@ import time
 LABEL = "INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle"
 METHOD = "mosei_nested_dim32_depth2"
 SPECS = {
-    "seed67_lr1e3_e100": dict(seed=67, learning_rate=1e-3, epochs=100, gpu=5),
-    "seed68_lr1e3_e100": dict(seed=68, learning_rate=1e-3, epochs=100, gpu=5),
+    "seed67_lr1e3_e60": dict(seed=67, learning_rate=1e-3, epochs=60, gpu=5),
+    "seed68_lr1e3_e60": dict(seed=68, learning_rate=1e-3, epochs=60, gpu=5),
     "seed66_lr1e4_e60": dict(seed=66, learning_rate=1e-4, epochs=60, gpu=6),
 }
 
