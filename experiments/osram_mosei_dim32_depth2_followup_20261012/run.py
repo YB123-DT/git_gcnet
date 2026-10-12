@@ -15,11 +15,17 @@ import time
 
 
 LABEL = "INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle"
-METHOD = "mosei_nested_dim32_depth2"
 SPECS = {
-    "seed67_lr1e3_e60": dict(seed=67, learning_rate=1e-3, epochs=60, gpu=5),
-    "seed68_lr1e3_e60": dict(seed=68, learning_rate=1e-3, epochs=60, gpu=5),
-    "seed66_lr1e4_e60": dict(seed=66, learning_rate=1e-4, epochs=60, gpu=6),
+    "seed67_lr1e3_e60": dict(seed=67, learning_rate=1e-3, epochs=60, gpu=5,
+                              method="mosei_nested_dim32_depth2"),
+    "seed68_lr1e3_e60": dict(seed=68, learning_rate=1e-3, epochs=60, gpu=5,
+                              method="mosei_nested_dim32_depth2"),
+    "seed66_lr1e4_e60": dict(seed=66, learning_rate=1e-4, epochs=60, gpu=6,
+                              method="mosei_nested_dim32_depth2"),
+    "seed68_mlp128_lr1e3_e60": dict(seed=68, learning_rate=1e-3, epochs=60, gpu=5,
+                                     method="mosei_nested_mlp128"),
+    "seed68_depth2_lr1e3_e60": dict(seed=68, learning_rate=1e-3, epochs=60, gpu=6,
+                                     method="mosei_nested_depth2"),
 }
 
 
@@ -71,7 +77,7 @@ def candidate_config(base, name):
         raise ValueError("reference is not Flat")
     result = dict(base)
     result.update(epochs=spec["epochs"], learning_rate=spec["learning_rate"],
-                  osram_meaningful_block=METHOD)
+                  osram_meaningful_block=spec["method"])
     return result
 
 
