@@ -29,3 +29,10 @@ For disposable tuning screens, set `COMP_KEEP_CHECKPOINTS=0`. The runner then
 deletes only checkpoint-like files (`*.pt`, `*.pth`, and `*.pkl`) under that
 run's `saved/` directory after successful training, while retaining metrics,
 logs, and the manifest. The default remains `1` for backward compatibility.
+
+The MELD summary now records weighted F1 from the same epoch selected by test
+accuracy (`test_wf1`). This is a reporting-only change: weighted F1 was already
+computed every epoch and does not affect checkpoint selection or optimization.
+The same selected epoch also exports an NPZ containing active-utterance
+predictions and labels, and reports exact correct/incorrect counts. The NPZ is
+retained when disposable checkpoint cleanup is enabled.

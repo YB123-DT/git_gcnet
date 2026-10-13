@@ -68,7 +68,8 @@ def random_mask(view_num, input_len, missing_rate):
 
 
 def train_or_eval_model(args, model, reg_loss, cls_loss, dataloader, total_sqlen, optimizer=None, train=False, first_stage=True, mark='train', mask_rate = 0, 
-                        coordinator=True, communication=True, prompt_former=True, gradient_modulator=True):
+                        coordinator=True, communication=True, prompt_former=True, gradient_modulator=True,
+                        artifacts=None):
     weight = []
     preds, preds_a, preds_t, preds_v, masks, labels = [], [], [], [], [], []
     losses, losses1, losses2, losses3 = [], [], [], []
@@ -331,6 +332,12 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, dataloader, total_sqlen
         avg_acc_a = accuracy_score(labels, preds_a, sample_weight=masks)
         avg_acc_t = accuracy_score(labels, preds_t, sample_weight=masks)
         avg_acc_v = accuracy_score(labels, preds_v, sample_weight=masks)
+        if artifacts is not None:
+            artifacts.update(
+                predictions=preds.copy(),
+                labels=labels.copy(),
+                masks=masks.copy(),
+            )
         return mae, ua, avg_accuracy, avg_fscore, [avg_acc_a, avg_acc_t, avg_acc_v], vidnames, avg_loss, weight
 
     elif dataset in ['CMUMOSI', 'CMUMOSEI']: #binary classification
@@ -489,6 +496,7 @@ if __name__ == '__main__':
         train_acc_as, train_acc_ts, train_acc_vs = [], [], []
         test_acc_as, test_acc_ts, test_acc_vs = [], [], []
         test_fscores, test_accs, test_maes, test_corrs = [], [], [], []
+        test_artifacts = []
         models = []
         start_first_stage_time = time.time()
 
@@ -498,8 +506,9 @@ if __name__ == '__main__':
             ## training and testing (!!! if IEMOCAP, the ua is equal to corr !!!)
             train_mae, train_corr, train_acc, train_fscore, train_acc_atv, train_names, train_loss, weight_train = train_or_eval_model(args, model, reg_loss, cls_loss, train_loader, \
                                                                             total_sqlen=args.seq_len, optimizer=optimizer, train=True, first_stage=first_stage, mark='train', mask_rate = args.mask_rate)
+            epoch_test_artifacts = {}
             test_mae, test_corr, test_acc, test_fscore, test_acc_atv, test_names, test_loss, weight_test = train_or_eval_model(args, model, reg_loss, cls_loss, test_loader, \
-                                                                            total_sqlen=args.seq_len, optimizer=None, train=False, first_stage=first_stage, mark='test', mask_rate = args.mask_rate)
+                                                                            total_sqlen=args.seq_len, optimizer=None, train=False, first_stage=first_stage, mark='test', mask_rate = args.mask_rate, artifacts=epoch_test_artifacts)
 
 
             ## save
@@ -507,6 +516,7 @@ if __name__ == '__main__':
             test_fscores.append(test_fscore)
             test_maes.append(test_mae)
             test_corrs.append(test_corr)
+            test_artifacts.append(epoch_test_artifacts)
             models.append(model)
             train_acc_as.append(train_acc_atv[0])
             train_acc_ts.append(train_acc_atv[1])
@@ -564,6 +574,23 @@ if __name__ == '__main__':
         bestf1 = test_fscores[best_index_test]
         bestacc = test_accs[best_index_test]
         bestmodel = models[best_index_test]
+        best_artifacts = test_artifacts[best_index_test]
+        active = best_artifacts['masks'].astype(bool)
+        correct_count = int(np.sum(
+            best_artifacts['predictions'][active] == best_artifacts['labels'][active]
+        ))
+        total_count = int(np.sum(active))
+        incorrect_count = total_count - correct_count
+        os.makedirs(config.NPZ_DIR, exist_ok=True)
+        prediction_path = os.path.join(
+            config.NPZ_DIR,
+            f"{args.dataset}_seed{args.seed}_miss{str(args.mask_rate).replace('.', 'p')}_best_acc.npz",
+        )
+        np.savez_compressed(
+            prediction_path,
+            predictions=best_artifacts['predictions'][active],
+            labels=best_artifacts['labels'][active],
+        )
 
         best_acc_a = test_acc_as[best_index_test]
         best_acc_t = test_acc_ts[best_index_test]
@@ -586,10 +613,10 @@ if __name__ == '__main__':
                 print(f"acc_a: {best_acc_a}, acc_t: {best_acc_t}, acc_v: {best_acc_v}")
                 print(f'>>>>> Finish: training on the {ii+1} folder, duration: {end_time - start_time} >>>>>')
             if args.dataset in ['IEMOCAPFour', 'IEMOCAPSix', 'MELD']:
-                f.write(f"The best(acc) epoch of mask_rate ({args.mask_rate}): {best_index_test} --test_acc {bestacc} --test_ua {bestcorr}.")
+                f.write(f"The best(acc) epoch of mask_rate ({args.mask_rate}): {best_index_test} --test_acc {bestacc} --test_ua {bestcorr} --test_wf1 {bestf1} --test_correct {correct_count} --test_incorrect {incorrect_count}.")
                 f.write(f"acc_a: {best_acc_a}, acc_t: {best_acc_t}, acc_v: {best_acc_v}")
                 f.write(f'>>>>> Finish: training on the {ii+1} folder, duration: {end_time - start_time} >>>>>')
-                print(f"The best(acc) epoch of mask_rate ({args.mask_rate}): {best_index_test} --test_acc {bestacc} --test_ua {bestcorr}.")
+                print(f"The best(acc) epoch of mask_rate ({args.mask_rate}): {best_index_test} --test_acc {bestacc} --test_ua {bestcorr} --test_wf1 {bestf1} --test_correct {correct_count} --test_incorrect {incorrect_count}.")
                 print(f"acc_a: {best_acc_a}, acc_t: {best_acc_t}, acc_v: {best_acc_v}")
                 print(f'>>>>> Finish: training on the {ii+1} folder, duration: {end_time - start_time} >>>>>')
 
@@ -601,6 +628,6 @@ if __name__ == '__main__':
             print(f"Folder avg: mask_rate ({args.mask_rate}) --test_mae {np.mean(folder_mae)} --test_corr {np.mean(folder_corr)} --test_fscores {np.mean(folder_f1)} --test_acc{np.mean(folder_acc)}")
             f.write(f"Folder avg: mask_rate ({args.mask_rate}) --test_mae {np.mean(folder_mae)} --test_corr {np.mean(folder_corr)} --test_fscores {np.mean(folder_f1)} --test_acc{np.mean(folder_acc)}\n\n")
         if args.dataset in ['IEMOCAPFour', 'IEMOCAPSix', 'MELD']:
-            print(f"Folder avg: mask_rate ({args.mask_rate}) --test_acc{np.mean(folder_acc)} --test_ua {np.mean(folder_corr)}")
-            f.write(f"Folder avg: mask_rate ({args.mask_rate}) --test_acc{np.mean(folder_acc)} --test_ua {np.mean(folder_corr)}\n\n")
+            print(f"Folder avg: mask_rate ({args.mask_rate}) --test_acc{np.mean(folder_acc)} --test_ua {np.mean(folder_corr)} --test_wf1 {np.mean(folder_f1)}")
+            f.write(f"Folder avg: mask_rate ({args.mask_rate}) --test_acc{np.mean(folder_acc)} --test_ua {np.mean(folder_corr)} --test_wf1 {np.mean(folder_f1)}\n\n")
 
