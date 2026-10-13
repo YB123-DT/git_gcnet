@@ -39,4 +39,15 @@ The Nested readout improves the aggregate ACC, W-F1, and UA slightly. At high
 missing rates it improves ACC but not W-F1 or UA; therefore the result does not
 support a uniform high-missing improvement claim.
 
+## Comparison with the unchanged causal ComP run (%)
+
+| Model | 8-rate ACC | 8-rate W-F1 | 8-rate UA | High ACC | High W-F1 | High UA |
+|---|---:|---:|---:|---:|---:|---:|
+| causal ComP | 60.532 | 56.440 | 33.742 | 56.462 | 50.742 | 27.768 |
+| Nested GNN | 60.022 | 56.097 | 35.240 | 55.624 | 49.518 | 28.421 |
+| Nested - ComP | -0.509 | -0.343 | +1.498 | -0.839 | -1.224 | +0.652 |
+
+ComP was not modified or rerun. This comparison uses the same original GCNet
+sampling law, but the stochastic masks are not sample-paired across methods.
+
 IEMOCAP-4/6 jobs remain in progress and are not reported here.
