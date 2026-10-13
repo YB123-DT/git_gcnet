@@ -55,6 +55,23 @@ All 14 configurations completed. The leading new configuration was
 `d32-l3-g2-m64` with 61.140 mean ACC, 57.586 high-missing ACC, and 58.185
 mean W-F1. It did not exceed the broad-screen best mean ACC of 61.255.
 
+| Local configuration (seed 66) | Mean ACC | High ACC | Mean W-F1 | High W-F1 |
+|---|---:|---:|---:|---:|
+| d32-l3-g2-m64 | **61.140** | 57.586 | **58.185** | 53.484 |
+| d32-l4-g4-m64 | 60.987 | **57.918** | 57.429 | 52.861 |
+| d48-l3-g4-m64 | 60.987 | 57.701 | 58.025 | 53.236 |
+| d32-l4-g2-m128 | 60.958 | 57.458 | 57.698 | 52.185 |
+| d64-l3-g2-m128 | 60.915 | 57.573 | 57.740 | 52.591 |
+| d64-l4-g4-m64 | 60.905 | 57.676 | 57.903 | 53.149 |
+| d64-l3-g4-m64 | 60.900 | 57.752 | 57.230 | 53.078 |
+| d32-l3-g4-m128 | 60.867 | 57.599 | 57.348 | 51.622 |
+| d32-l3-g2-m128 | 60.852 | 57.637 | 56.911 | 51.273 |
+| d64-l4-g2-m64 | 60.790 | 57.484 | 58.104 | **53.581** |
+| d48-l4-g2-m64 | 60.738 | 57.548 | 57.563 | 52.773 |
+| d48-l3-g2-m64 | 60.728 | 57.625 | 57.603 | 53.105 |
+| d64-l4-g4-m128 | 60.723 | 57.433 | 57.330 | 51.875 |
+| d48-l4-g4-m64 | 60.656 | 57.382 | 57.323 | 52.918 |
+
 Across the broad 64-run seed-66 screen, larger capacity was not beneficial:
 parameter count had a descriptive correlation of -0.286 with mean ACC. The
 best factor-level means favored dimension 64, depth 4, group count 4, and MLP
