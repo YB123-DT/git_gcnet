@@ -30,3 +30,15 @@ def test_batch_adapter_draws_independent_host_and_guest_masks():
     assert torch.all(host.sum(dim=-1) >= 1)
     assert torch.all(guest.sum(dim=-1) >= 1)
     assert not torch.equal(host, guest)
+
+
+def test_batch_adapter_zeros_only_padding_rows():
+    np.random.seed(67)
+    schedule = GCNetLegacyRandomMaskSchedule("MELD", "train", 1, 0.7, 123)
+    umask = torch.tensor([[1.0, 1.0, 0.0], [1.0, 0.0, 0.0]])
+    host, guest = build_primary_mask_tensors(schedule, ["a", "b"], umask, 0)
+    valid = umask.T.bool()
+    assert torch.all(host[valid].sum(dim=-1) == 1)
+    assert torch.all(guest[valid].sum(dim=-1) == 1)
+    assert torch.count_nonzero(host[~valid]) == 0
+    assert torch.count_nonzero(guest[~valid]) == 0

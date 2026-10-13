@@ -106,5 +106,10 @@ class GCNetLegacyRandomMaskSchedule:
         for _ in ("host", "guest"):
             sampled = random_mask(3, count, self.requested_missing_rate)
             shaped = sampled.reshape(batch_size, sequence_length, 3).transpose(1, 0, 2)
-            sides.append(torch.as_tensor(shaped, device=umask.device))
+            tensor = torch.as_tensor(shaped, device=umask.device)
+            # GCNet samples over the padded rectangle and its downstream mask
+            # ignores padded positions.  OSRAM enforces the equivalent state
+            # explicitly by requiring padding availability to be zero.
+            valid = umask.transpose(0, 1).bool().unsqueeze(-1)
+            sides.append(torch.where(valid, tensor, torch.zeros_like(tensor)))
         return sides[0], sides[1]
