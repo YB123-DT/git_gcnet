@@ -4,6 +4,7 @@ set -euo pipefail
 
 EPOCHS=100
 STAGE_EPOCH=50
+CPU_THREADS=4
 
 if [[ "${1:-}" == "--print-budget" ]]; then
   if [[ "${2:-}" != "CMUMOSEI" ]]; then
@@ -14,11 +15,16 @@ if [[ "${1:-}" == "--print-budget" ]]; then
   exit 0
 fi
 
+if [[ "${1:-}" == "--print-runtime" ]]; then
+  printf 'cpu_threads=%s\n' "${CPU_THREADS}"
+  exit 0
+fi
+
 REPOSITORY="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 WRAPPER="${REPOSITORY}/experiments/comp_causal_seed66/run_comp_causal.py"
 PYTHON_BIN="${COMP_PYTHON:-/home/qinjinghui/anaconda3/envs/emo/bin/python}"
 DATA_ROOT="${COMP_DATA_ROOT:-/data2/yb/paper/GCNet_TPAMI_modality_jepa_20260818/dataset}"
-OUTPUT_ROOT="${COMP_MOSEI_OUTPUT_ROOT:-/data2/yb/paper/remote_runs_20261012/results/comp_causal_mosei_3seed_100e_20261013}"
+OUTPUT_ROOT="${COMP_MOSEI_OUTPUT_ROOT:-/data2/yb/paper/remote_runs_20261012/results/comp_causal_mosei_3seed_100e_cpu4_20261013}"
 
 DATASET="${1:?dataset is required}"
 SEED="${2:?seed is required}"
@@ -55,6 +61,7 @@ printf '%s\n' \
   "epochs=${EPOCHS}" \
   "stage_epoch=${STAGE_EPOCH}" \
   "budget_evidence=ComP paper Figure 5(a)" \
+  "cpu_threads=${CPU_THREADS}" \
   "batch_size=32" \
   "learning_rate=0.0001" \
   "hidden=256" \
@@ -72,6 +79,13 @@ echo "[start] ${DATASET} seed=${SEED} rate=${MASK_RATE} gpu=${GPU_UUID} epochs=$
 (
   cd "${RUN_DIR}"
   env PYTHONDONTWRITEBYTECODE=1 \
+    COMP_CPU_THREADS="${CPU_THREADS}" \
+    OMP_NUM_THREADS="${CPU_THREADS}" \
+    MKL_NUM_THREADS="${CPU_THREADS}" \
+    OPENBLAS_NUM_THREADS="${CPU_THREADS}" \
+    NUMEXPR_NUM_THREADS="${CPU_THREADS}" \
+    VECLIB_MAXIMUM_THREADS="${CPU_THREADS}" \
+    OMP_WAIT_POLICY=PASSIVE \
     CUDA_VISIBLE_DEVICES="${GPU_UUID}" \
     COMP_DATA_ROOT="${DATA_ROOT}" \
     COMP_OUTPUT_ROOT="${RUN_DIR}/saved" \

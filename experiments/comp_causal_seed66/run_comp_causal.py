@@ -49,6 +49,12 @@ def install_runtime_config() -> None:
 
 
 def main() -> None:
+    cpu_threads = int(os.environ.get("COMP_CPU_THREADS", "0"))
+    if cpu_threads > 0:
+        import torch
+
+        torch.set_num_threads(cpu_threads)
+        torch.set_num_interop_threads(min(2, cpu_threads))
     install_runtime_config()
     source_dir = COMP_REPO / "ComP"
     sys.path.insert(0, str(source_dir))

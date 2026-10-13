@@ -4,7 +4,7 @@ set -euo pipefail
 
 REPOSITORY="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 RUN_ONE="${REPOSITORY}/experiments/comp_causal_mosei_3seed_20261013/run_one.sh"
-OUTPUT_ROOT="${COMP_MOSEI_OUTPUT_ROOT:-/data2/yb/paper/remote_runs_20261012/results/comp_causal_mosei_3seed_100e_20261013}"
+OUTPUT_ROOT="${COMP_MOSEI_OUTPUT_ROOT:-/data2/yb/paper/remote_runs_20261012/results/comp_causal_mosei_3seed_100e_cpu4_20261013}"
 GPU_UUID="${COMP_GPU_UUID:-GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a}"
 CONTROL_FILE="${OUTPUT_ROOT}/MAX_PARALLEL"
 STATUS_FILE="${OUTPUT_ROOT}/dispatcher.status"

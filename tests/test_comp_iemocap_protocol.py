@@ -35,6 +35,16 @@ def test_iemocap_runner_rejects_non_iemocap_dataset():
     assert completed.returncode != 0
 
 
+def test_iemocap_runtime_caps_cpu_threads():
+    completed = subprocess.run(
+        ["bash", str(SCRIPT), "--print-runtime"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.stdout.strip() == "cpu_threads=4"
+
+
 def test_mosei_budget_matches_paper_training_curve():
     completed = subprocess.run(
         ["bash", str(MOSEI_SCRIPT), "--print-budget", "CMUMOSEI"],
@@ -52,4 +62,14 @@ def test_mosei_runner_rejects_other_datasets():
         text=True,
     )
     assert completed.returncode != 0
+
+
+def test_mosei_runtime_caps_cpu_threads():
+    completed = subprocess.run(
+        ["bash", str(MOSEI_SCRIPT), "--print-runtime"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.stdout.strip() == "cpu_threads=4"
 
