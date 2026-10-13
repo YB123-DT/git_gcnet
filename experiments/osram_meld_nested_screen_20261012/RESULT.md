@@ -36,6 +36,12 @@ For `d32-l4-g2-m64`, recomputed three-seed UA is 36.445 over all rates and
 +3.053, and +0.724 points, so the direction is consistent but its magnitude is
 seed-dependent.
 
+A matched W-F1 comparison against the 50-epoch causal ComP screen is not
+available. ComP logged only ACC and UA, did not retain per-utterance
+predictions, and its disposable checkpoints were deleted as requested. ACC
+and UA are insufficient to reconstruct weighted F1. The Nested configuration's
+own three-seed W-F1 is 57.623 overall and 52.911 at high missing rates.
+
 The per-seed breakdown of the best mean-ACC configuration (`d32-l4-g2-m64`)
 is:
 
