@@ -29,6 +29,18 @@ The best mean-ACC configuration improves over the three-seed Flat anchor by
 high-missing and W-F1 aggregate, but its improvements remain small. These
 screens do not establish statistical significance.
 
+The per-seed breakdown of the best mean-ACC configuration (`d32-l4-g2-m64`)
+is:
+
+| Seed | 8-rate ACC | High ACC | 8-rate W-F1 | High W-F1 |
+|---|---:|---:|---:|---:|
+| 66 | 61.255 | 58.072 | 58.086 | 53.707 |
+| 67 | 61.207 | 57.497 | 57.729 | 52.502 |
+| 68 | 60.996 | 57.739 | 57.053 | 52.524 |
+
+Relative to the matched Flat seeds, its mean-ACC changes are +0.340, +0.264,
+and -0.134 percentage points. The improvement is therefore not seed-consistent.
+
 ## One-seed compact local refinement
 
 All 14 configurations completed. The leading new configuration was
