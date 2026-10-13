@@ -50,4 +50,17 @@ support a uniform high-missing improvement claim.
 ComP was not modified or rerun. This comparison uses the same original GCNet
 sampling law, but the stochastic masks are not sample-paired across methods.
 
-IEMOCAP-4/6 jobs remain in progress and are not reported here.
+## Correct-mask IEMOCAP completion status
+
+The corrected-mask Flat runs have completed for IEMOCAP-4 and IEMOCAP-6.
+Their matched Nested counterparts were launched on 2026-10-13 from commit
+`7a25dd1` and remain in progress, so no Flat-versus-Nested result is claimed
+yet.  Each task uses seeds 66/67/68, folds 1--5, 100 epochs, and the original
+IEMOCAP Nested configuration (`dim=64`, `depth=3`, `groups=8`,
+`mlp_hidden=64`).  MOSEI- or MELD-specific Nested parameters are not reused.
+
+The remote output root is:
+
+```text
+/data2/yb/paper/remote_runs_20261012/results/osram_gcnet_random_mask_iemocap_nested_20261013
+```
