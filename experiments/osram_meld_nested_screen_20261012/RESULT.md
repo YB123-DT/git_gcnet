@@ -41,6 +41,14 @@ is:
 Relative to the matched Flat seeds, its mean-ACC changes are +0.340, +0.264,
 and -0.134 percentage points. The improvement is therefore not seed-consistent.
 
+Across all seven follow-up configurations, `d256-l3-g1-m128` was the only one
+whose mean ACC exceeded its matched Flat result for every seed (+0.249, +0.153,
+and +0.014 points). `d64-l4-g4-m256` was the only configuration with a clear
+high-missing ACC improvement for every seed (+0.230, +0.370, and +0.332
+points), although its seed-68 overall mean was 0.110 points below Flat. Thus
+the strongest overall-ACC and high-missing patterns occur in different
+configurations, and neither constitutes a large uniform gain.
+
 ## One-seed compact local refinement
 
 All 14 configurations completed. The leading new configuration was
