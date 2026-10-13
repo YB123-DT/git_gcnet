@@ -3,6 +3,7 @@ from torch import nn
 
 from experiments.osram_meld_flat_source_combinations_20261013.evaluate import (
     SOURCE_COMBINATIONS,
+    materialize_legacy_masks,
     runtime_config_payload,
     replay_flat_hidden,
     select_flat_sources,
@@ -87,3 +88,15 @@ def test_frozen_legacy_schedule_preserves_observed_budget_and_never_goes_empty()
     assert int(generated.availability[:10].sum()) == round(30 * 0.4)
     assert torch.as_tensor(generated.availability[:10]).sum(dim=1).min() >= 1
     assert generated.availability[10:].sum() == 0
+
+
+def test_legacy_batch_materialization_matches_source_training_contract():
+    schedule = LegacyFixedMaskSchedule("MELD", "test", 1, 0.5, 2468)
+    umask = torch.tensor([[1.0, 1.0, 0.0], [1.0, 1.0, 1.0]])
+    host, guest = materialize_legacy_masks(
+        schedule, ["dia1", "dia2"], umask, epoch=0
+    )
+    assert host.shape == guest.shape == (3, 2, 3)
+    torch.testing.assert_close(host, guest)
+    assert torch.count_nonzero(host[2, 0]) == 0
+    assert host[:, 1].sum(dim=1).min() >= 1

@@ -47,6 +47,36 @@ def runtime_config_payload(source: dict) -> dict:
     return payload
 
 
+def materialize_legacy_masks(
+    schedule,
+    conversation_ids,
+    umask: torch.Tensor,
+    epoch: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Materialize the exact host/guest batch contract of the source commit."""
+    if umask.ndim != 2:
+        raise ValueError("umask must have shape [batch, sequence]")
+    conversation_ids = list(conversation_ids)
+    batch_size, sequence_length = umask.shape
+    if len(conversation_ids) != batch_size:
+        raise ValueError("conversation IDs must match the umask batch size")
+    sides = []
+    for side in ("host", "guest"):
+        conversations = []
+        for batch_index, conversation_id in enumerate(conversation_ids):
+            valid_length = int(umask[batch_index].sum().item())
+            generated = schedule.generate(
+                str(conversation_id),
+                length=sequence_length,
+                valid_length=valid_length,
+                side=side,
+                epoch=epoch,
+            )
+            conversations.append(torch.as_tensor(generated.availability))
+        sides.append(torch.stack(conversations, dim=1).to(device=umask.device))
+    return sides[0], sides[1]
+
+
 def _write(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -204,7 +234,7 @@ def evaluate_rate(model, loader, config, dimensions, schedule) -> tuple[dict, di
     from gcnet_missing_m3.train_gcnet import (
         _collect_predictions,
         _move_batch,
-        _prepare_view,
+        _prepare_view_from_primary_masks,
     )
 
     labels_all: list[np.ndarray] = []
@@ -214,7 +244,12 @@ def evaluate_rate(model, loader, config, dimensions, schedule) -> tuple[dict, di
     with torch.no_grad():
         for raw in loader:
             data = _move_batch(raw, next(model.parameters()).device)
-            view = _prepare_view(data, schedule, epoch=0, dimensions=dimensions)
+            host_availability, guest_availability = materialize_legacy_masks(
+                schedule, data[-1], data[7], epoch=0
+            )
+            view = _prepare_view_from_primary_masks(
+                data, host_availability, guest_availability, dimensions
+            )
             with FlatReadoutCapture(model.osram) as capture:
                 logits, _, _, predicted_missing = model(
                     [view["incomplete"]],
