@@ -90,6 +90,7 @@ def main() -> None:
                 stream = log.open("x")
                 environment = dict(os.environ, CUDA_VISIBLE_DEVICES=GPU_UUIDS[gpu],
                     OSRAM_GCNET_MASK_OUTPUT=str(root), GCNET_CPU_THREADS="1",
+                    ECERC_MELD_OSRAM_OUTPUT=str(root / "meld_runtime"),
                     OMP_NUM_THREADS="1", MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1")
                 process = subprocess.Popen(job["command"], cwd=source, env=environment,
                     stdout=stream, stderr=subprocess.STDOUT)
