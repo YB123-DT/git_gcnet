@@ -72,6 +72,15 @@ mean W-F1. It did not exceed the broad-screen best mean ACC of 61.255.
 | d64-l4-g4-m128 | 60.723 | 57.433 | 57.330 | 51.875 |
 | d48-l4-g4-m64 | 60.656 | 57.382 | 57.323 | 52.918 |
 
+UA was recomputed as seven-class macro recall from the saved per-utterance
+predictions because it is not stored directly in `metrics.json`. The seed-66
+Flat anchor obtains 35.327 mean UA and 30.249 high-missing UA; default Nested
+obtains 38.226 and 32.746. Within the local14 screen, `d64-l4-g4-m64` has the
+best mean UA (38.050), while `d64-l4-g2-m64` has the best high-missing UA
+(33.668). The local mean-ACC winner `d32-l3-g2-m64` reaches 37.827 mean UA and
+32.466 high-missing UA. These one-seed results suggest a class-balance effect,
+but they do not establish cross-seed stability.
+
 Across the broad 64-run seed-66 screen, larger capacity was not beneficial:
 parameter count had a descriptive correlation of -0.286 with mean ACC. The
 best factor-level means favored dimension 64, depth 4, group count 4, and MLP
