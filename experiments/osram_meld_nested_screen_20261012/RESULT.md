@@ -29,6 +29,13 @@ The best mean-ACC configuration improves over the three-seed Flat anchor by
 high-missing and W-F1 aggregate, but its improvements remain small. These
 screens do not establish statistical significance.
 
+For `d32-l4-g2-m64`, recomputed three-seed UA is 36.445 over all rates and
+31.495 over rates 0.5--0.7. The matched 50-epoch causal ComP screen obtains
+33.742 and 27.768, respectively, so the Nested configuration is higher by
+2.702 and 3.727 percentage points. The per-seed mean-UA advantages are +4.330,
++3.053, and +0.724 points, so the direction is consistent but its magnitude is
+seed-dependent.
+
 The per-seed breakdown of the best mean-ACC configuration (`d32-l4-g2-m64`)
 is:
 
