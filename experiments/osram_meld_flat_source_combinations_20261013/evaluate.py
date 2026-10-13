@@ -34,6 +34,19 @@ SOURCE_COMBINATIONS = {
 }
 
 
+def runtime_config_payload(source: dict) -> dict:
+    """Adapt a historical config to the current constructor without changing masks.
+
+    The exact historical schedule is instantiated explicitly below.  Replacing
+    this one constructor-only value avoids re-enabling the retired protocol in
+    the normal training surface.
+    """
+    payload = dict(source)
+    if payload.get("missing_mask_protocol") == "gcnet-legacy-fixed-v1":
+        payload["missing_mask_protocol"] = "conversation-mask-v2"
+    return payload
+
+
 def _write(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -277,14 +290,22 @@ def main() -> None:
     args = parser.parse_args()
 
     os.environ["GCNET_DATASET_ROOT"] = str(args.dataset_root)
-    from gcnet_missing_m3.train_gcnet import TrainConfig, _dataset_shape, _schedules
+    from gcnet_missing_m3.train_gcnet import TrainConfig, _dataset_shape
+    from gcnet_modality_jepa.protocol import SeedBundle
     from gcnet_modality_jepa.train_gcnet import get_loaders
+    from experiments.osram_meld_flat_source_combinations_20261013.legacy_schedule import (
+        LegacyFixedMaskSchedule,
+    )
 
     if args.output.exists():
         raise FileExistsError(args.output)
     args.output.mkdir(parents=True)
     config_path = args.source / "config.json"
-    config = TrainConfig(**json.loads(config_path.read_text()))
+    source_config = json.loads(config_path.read_text())
+    source_mask_protocol = source_config.get("missing_mask_protocol")
+    if source_mask_protocol != "gcnet-legacy-fixed-v1":
+        raise ValueError(f"Unexpected source mask protocol: {source_mask_protocol!r}")
+    config = TrainConfig(**runtime_config_payload(source_config))
     if not (
         config.dataset == "MELD"
         and config.backbone_type == "osram"
@@ -310,13 +331,25 @@ def main() -> None:
     )
     dimensions = (ad, td, vd)
     model = _build_model(config, dimensions, device)
-    schedules = _schedules(config, "test")
+    mask_seed = SeedBundle(config.seed).derive("missing_mask")
+    schedules = {
+        index / 10: LegacyFixedMaskSchedule(
+            dataset=config.dataset,
+            split="test",
+            fold=config.fold,
+            requested_missing_rate=index / 10,
+            mask_seed=mask_seed,
+            freeze_evaluation=True,
+        )
+        for index in range(8)
+    }
     summary = {
         "status": "running",
         "training": False,
         "protocol": "INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle source checkpoints",
         "source": str(args.source),
         "source_config_sha256": _sha256(config_path),
+        "source_missing_mask_protocol": source_mask_protocol,
         "seed": config.seed,
         "combinations": list(SOURCE_COMBINATIONS),
         "intervention": "one unchanged causal memory scan; zero selected captured Flat input groups only",

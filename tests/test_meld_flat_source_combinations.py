@@ -3,8 +3,12 @@ from torch import nn
 
 from experiments.osram_meld_flat_source_combinations_20261013.evaluate import (
     SOURCE_COMBINATIONS,
+    runtime_config_payload,
     replay_flat_hidden,
     select_flat_sources,
+)
+from experiments.osram_meld_flat_source_combinations_20261013.legacy_schedule import (
+    LegacyFixedMaskSchedule,
 )
 
 
@@ -64,3 +68,22 @@ def test_full_combination_exactly_replays_original_flat_formula():
         combination="LBG",
     )
     torch.testing.assert_close(actual, expected)
+
+
+def test_legacy_checkpoint_protocol_is_only_sanitized_for_config_construction():
+    source = {
+        "missing_mask_protocol": "gcnet-legacy-fixed-v1",
+        "dataset": "MELD",
+    }
+    runtime = runtime_config_payload(source)
+    assert source["missing_mask_protocol"] == "gcnet-legacy-fixed-v1"
+    assert runtime["missing_mask_protocol"] == "conversation-mask-v2"
+    assert runtime["dataset"] == "MELD"
+
+
+def test_frozen_legacy_schedule_preserves_observed_budget_and_never_goes_empty():
+    schedule = LegacyFixedMaskSchedule("MELD", "test", 1, 0.6, 12345)
+    generated = schedule.generate("dia2", length=12, valid_length=10, side="host")
+    assert int(generated.availability[:10].sum()) == round(30 * 0.4)
+    assert torch.as_tensor(generated.availability[:10]).sum(dim=1).min() >= 1
+    assert generated.availability[10:].sum() == 0
