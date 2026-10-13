@@ -29,6 +29,7 @@ def build_config(
     model_variant: str = "nested",
     epochs: int = 100,
     meaningful_block: str | None = None,
+    missing_mask_protocol: str = "conversation-mask-v2",
 ):
     if model_variant not in {"flat", "nested"}:
         raise ValueError("model_variant must be flat or nested")
@@ -54,6 +55,7 @@ def build_config(
         checkpoint_selection="test-oracle-per-rate",
         evaluate_test=True,
         train_rate_mode="cyclic",
+        missing_mask_protocol=missing_mask_protocol,
         training_objective="emotion-only",
         emotion_loss_mode="sample-mean",
         fusion_type="mean",
@@ -113,6 +115,11 @@ def main() -> None:
     parser.add_argument("--model-variant", choices=("flat", "nested"), default="nested")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--meaningful-block")
+    parser.add_argument(
+        "--missing-mask-protocol",
+        choices=("conversation-mask-v2", "gcnet-random-mask-v1"),
+        default="conversation-mask-v2",
+    )
     parser.add_argument("--discard-checkpoints", action="store_true")
     args = parser.parse_args()
     if not MELD_PICKLE.is_file():
@@ -129,6 +136,7 @@ def main() -> None:
         model_variant=args.model_variant,
         epochs=args.epochs,
         meaningful_block=args.meaningful_block,
+        missing_mask_protocol=args.missing_mask_protocol,
     )
     provenance = {
         "status": "running",
@@ -139,7 +147,10 @@ def main() -> None:
         "dataset_pickle": str(MELD_PICKLE),
         "model_variant": args.model_variant,
         "cpu_threads": cpu_threads or "runtime-default",
-        "protocol": "ECERC official MELD train/dev/test; cfg84 cyclic missing; per-rate Test-oracle",
+        "protocol": (
+            "ECERC official MELD train/dev/test; cfg84 cyclic missing; "
+            f"{args.missing_mask_protocol}; per-rate Test-oracle"
+        ),
         "config": asdict(config),
     }
     _write(output / "PROVENANCE.json", provenance)

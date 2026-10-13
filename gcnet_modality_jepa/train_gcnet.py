@@ -384,6 +384,9 @@ def build_primary_mask_tensors(
     epoch,
 ):
     """Materialize host/guest ``[sequence, batch, 3]`` availability tensors."""
+    batch_generator = getattr(mask_schedule, "generate_batch", None)
+    if callable(batch_generator):
+        return batch_generator(conversation_ids, umask, epoch)
     if not isinstance(mask_schedule, ConversationMaskSchedule):
         raise TypeError("mask_schedule must be a ConversationMaskSchedule")
     if umask.ndim != 2:
