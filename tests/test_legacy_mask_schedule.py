@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
+import torch
 
 from gcnet_modality_jepa.legacy_mask_schedule import LegacyFixedMaskSchedule
+from gcnet_modality_jepa.train_gcnet import build_primary_mask_tensors
 
 
 def schedule(rate, split="train"):
@@ -43,5 +45,15 @@ def test_evaluation_is_frozen_at_epoch_zero():
     assert first.epoch == later.epoch == 0
     assert first.schedule_hash == later.schedule_hash
     assert np.array_equal(first.availability, later.availability)
+
+
+def test_primary_mask_builder_accepts_the_legacy_schedule_contract():
+    umask = torch.tensor([[1.0, 1.0, 0.0], [1.0, 0.0, 0.0]])
+    host, guest = build_primary_mask_tensors(
+        schedule(0.7), ["dia-a", "dia-b"], umask, epoch=3
+    )
+    assert torch.equal(host, guest)
+    assert torch.equal(host[:, :, :].sum(dim=-1)[:1], torch.ones(1, 2))
+    assert torch.equal(host[1:, 1], torch.zeros_like(host[1:, 1]))
 
 

@@ -384,8 +384,11 @@ def build_primary_mask_tensors(
     epoch,
 ):
     """Materialize host/guest ``[sequence, batch, 3]`` availability tensors."""
-    if not isinstance(mask_schedule, ConversationMaskSchedule):
-        raise TypeError("mask_schedule must be a ConversationMaskSchedule")
+    # Accept schedule implementations that honor the same ``generate``
+    # contract.  The legacy count-matched schedule deliberately uses a
+    # different sampling law while returning the same ConversationMask type.
+    if not callable(getattr(mask_schedule, "generate", None)):
+        raise TypeError("mask_schedule must provide generate()")
     if umask.ndim != 2:
         raise ValueError("umask must have shape [batch, sequence]")
     conversation_ids = list(conversation_ids)
