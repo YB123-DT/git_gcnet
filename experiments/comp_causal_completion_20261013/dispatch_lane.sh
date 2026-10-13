@@ -67,10 +67,10 @@ while (( next < ${#TASKS[@]} || running > 0 )); do
   reaped=0
   for pid in "${!PIDS[@]}"; do
     if ! kill -0 "${pid}" 2>/dev/null; then
-      if wait "${pid}"; then ((completed += 1)); else
-        echo "[failed] ${PIDS[${pid}]}" >&2; ((failed += 1))
+      if wait "${pid}"; then completed=$((completed + 1)); else
+        echo "[failed] ${PIDS[${pid}]}" >&2; failed=$((failed + 1))
       fi
-      unset 'PIDS['"${pid}"']'; ((running -= 1)); reaped=1
+      unset 'PIDS['"${pid}"']'; running=$((running - 1)); reaped=1
     fi
   done
   write_status
