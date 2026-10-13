@@ -19,3 +19,6 @@ Remote source checkpoints:
 /data2/yb/paper/remote_runs_20261012/results/
   osram_meld_gcnet_legacy_fixed_50e_3seed_20261013/runs/flat_seed{66,67,68}
 ```
+
+The replay uses the same ECERC MELD pickle recorded by the source-run
+provenance; the feature-root arguments remain unused by the MELD loader.

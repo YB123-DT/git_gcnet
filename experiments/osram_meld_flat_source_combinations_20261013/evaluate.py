@@ -285,11 +285,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--dataset-root", type=Path, required=True)
+    parser.add_argument("--meld-pickle", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
 
+    if not args.meld_pickle.is_file():
+        raise FileNotFoundError(args.meld_pickle)
     os.environ["GCNET_DATASET_ROOT"] = str(args.dataset_root)
+    os.environ["GCNET_MELD_PICKLE"] = str(args.meld_pickle)
     from gcnet_missing_m3.train_gcnet import TrainConfig, _dataset_shape
     from gcnet_modality_jepa.protocol import SeedBundle
     from gcnet_modality_jepa.train_gcnet import get_loaders
@@ -348,6 +352,7 @@ def main() -> None:
         "training": False,
         "protocol": "INTERNAL DIAGNOSTIC ONLY; per-rate Test-oracle source checkpoints",
         "source": str(args.source),
+        "dataset_pickle": str(args.meld_pickle),
         "source_config_sha256": _sha256(config_path),
         "source_missing_mask_protocol": source_mask_protocol,
         "seed": config.seed,
