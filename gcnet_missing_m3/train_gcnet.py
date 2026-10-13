@@ -19,7 +19,6 @@ from sklearn.metrics import accuracy_score, f1_score
 
 import config
 from gcnet_modality_jepa.mask_schedule import ConversationMaskSchedule
-from gcnet_modality_jepa.legacy_mask_schedule import LegacyFixedMaskSchedule
 from gcnet_modality_jepa.protocol import SeedBundle
 from gcnet_modality_jepa.train_gcnet import (
     build_primary_mask_tensors,
@@ -80,7 +79,6 @@ class TrainConfig:
     validation_fraction: float = 0.1
     device: str = "cuda"
     train_rate_mode: str = "cyclic"
-    missing_mask_protocol: str = "conversation-mask-v2"
     # Rates used by the cyclic training schedule.  Evaluation/protocol rates
     # remain the official MISSING_RATES set, so an experiment can omit 0.0
     # during optimization without losing the complete test-rate report.
@@ -182,11 +180,6 @@ class TrainConfig:
     osram_ced_block: bool = False
 
     def __post_init__(self) -> None:
-        if self.missing_mask_protocol not in {
-            "conversation-mask-v2",
-            "gcnet-legacy-fixed-v1",
-        }:
-            raise ValueError("unsupported missing_mask_protocol")
         if self.osram_history_recency:
             incompatible = ('osram_base_first_gap', 'paired_history_views', 'osram_relation_block',
                 'osram_relation_dual_readout', 'osram_decision_correction',
@@ -1185,13 +1178,8 @@ def _build_schedule(
     config: TrainConfig,
     split: str,
     rate: float,
-) -> ConversationMaskSchedule | LegacyFixedMaskSchedule:
-    schedule_class = (
-        LegacyFixedMaskSchedule
-        if config.missing_mask_protocol == "gcnet-legacy-fixed-v1"
-        else ConversationMaskSchedule
-    )
-    return schedule_class(
+) -> ConversationMaskSchedule:
+    return ConversationMaskSchedule(
         dataset=config.dataset,
         split=split,
         fold=config.fold,
@@ -1201,9 +1189,7 @@ def _build_schedule(
     )
 
 
-def _schedules(
-    config: TrainConfig, split: str
-) -> Dict[float, ConversationMaskSchedule | LegacyFixedMaskSchedule]:
+def _schedules(config: TrainConfig, split: str) -> Dict[float, ConversationMaskSchedule]:
     return {rate: _build_schedule(config, split, rate) for rate in MISSING_RATES}
 
 
@@ -3854,7 +3840,6 @@ def run_experiment(
         ),
         "test": test_metrics,
         "mask_sha256": mask_hashes,
-        "missing_mask_protocol": config_value.missing_mask_protocol,
         "parameter_count": sum(parameter.numel() for parameter in model.parameters()),
         "trainable_parameter_count": sum(
             parameter.numel() for parameter in model.parameters() if parameter.requires_grad
