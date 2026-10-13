@@ -15,6 +15,7 @@ CPU_THREADS="${COMP_CPU_THREADS:-4}"
 EPOCHS="${COMP_EPOCHS:-300}"
 STAGE_EPOCH="${COMP_STAGE_EPOCH:-150}"
 KEEP_CHECKPOINTS="${COMP_KEEP_CHECKPOINTS:-1}"
+MASK_PROTOCOL="${COMP_MASK_PROTOCOL:-legacy-random}"
 
 if [[ "${MODE}" != "causal" && "${MODE}" != "noncausal" ]]; then
   echo "invalid temporal mode: ${MODE}" >&2
@@ -33,6 +34,7 @@ printf '%s\n' \
   "seed=${SEED}" "mask_rate=${MASK_RATE}" "host_gpu=${HOST_GPU}" \
   "epochs=${EPOCHS}" "stage_epoch=${STAGE_EPOCH}" "batch_size=32" "hidden=256" \
   "cpu_threads=${CPU_THREADS}" "keep_checkpoints=${KEEP_CHECKPOINTS}" \
+  "mask_protocol=${MASK_PROTOCOL}" \
   > "${RUN_DIR}/run_manifest.txt"
 
 cd "${RUN_DIR}"
@@ -45,6 +47,7 @@ env PYTHONDONTWRITEBYTECODE=1 CUDA_VISIBLE_DEVICES="${HOST_GPU}" \
     --seed="${SEED}" --batch-size=32 --epochs="${EPOCHS}" --stage_epoch="${STAGE_EPOCH}" \
     --lr=0.0001 --hidden=256 --depth=4 --num_heads=2 --drop_rate=0.5 \
     --attn_drop_rate=0.0 --gpu=0 --mask_rate="${MASK_RATE}" --lbd=0.3 \
+    --mask-protocol="${MASK_PROTOCOL}" \
   > run.log 2>&1
 
 if [[ "${KEEP_CHECKPOINTS}" == "0" ]]; then

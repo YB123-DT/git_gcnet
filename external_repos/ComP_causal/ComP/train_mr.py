@@ -11,7 +11,13 @@ from utils import Logger, get_loaders, build_model, generate_mask, generate_inpu
 from loss import MaskedCELoss, MaskedMSELoss
 import os
 import warnings
+from pathlib import Path
 sys.path.append('./')
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from gcnet_modality_jepa.legacy_mask_schedule import LegacyFixedMaskSchedule
+from gcnet_modality_jepa.protocol import SeedBundle
 warnings.filterwarnings("ignore")
 import config
 import torch.nn as nn
@@ -67,13 +73,34 @@ def random_mask(view_num, input_len, missing_rate):
     return matrix
 
 
+def scheduled_mask_tensor(schedule, conversation_ids, umask, seqlen, epoch):
+    """Return one shared ``[sequence,batch,3]`` mask from stable IDs."""
+    if schedule is None:
+        raise ValueError("schedule is required")
+    if len(conversation_ids) != umask.size(0):
+        raise ValueError("conversation IDs must match the mask batch")
+    conversations = []
+    for index, conversation_id in enumerate(conversation_ids):
+        valid_length = int(umask[index].sum().item())
+        generated = schedule.generate(
+            str(conversation_id),
+            length=seqlen,
+            valid_length=valid_length,
+            side="shared",
+            epoch=epoch,
+        )
+        conversations.append(torch.as_tensor(generated.availability))
+    return torch.stack(conversations, dim=1).long()
+
+
 def train_or_eval_model(args, model, reg_loss, cls_loss, dataloader, total_sqlen, optimizer=None, train=False, first_stage=True, mark='train', mask_rate = 0, 
                         coordinator=True, communication=True, prompt_former=True, gradient_modulator=True,
-                        artifacts=None):
+                        artifacts=None, mask_schedule=None, mask_epoch=0):
     weight = []
     preds, preds_a, preds_t, preds_v, masks, labels = [], [], [], [], [], []
     losses, losses1, losses2, losses3 = [], [], [], []
     preds_test_condition = []
+    availability_records = []
     dataset = args.dataset
     cuda = torch.cuda.is_available() and not args.no_cuda
     view_num = 3
@@ -115,24 +142,16 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, dataloader, total_sqlen
 
 
         ## using cmp-net masking manner [at least one view exists]
-        ## host mask
-        # matrix = generate_mask(seqlen, batch, args.test_condition, first_stage) # [seqlen*batch, view_num]
-        matrix = random_mask(view_num, seqlen*batch, mask_rate) # We can implement it in this way because 'shuffle = False' in dataloader
-        #  all 1 if first_stage, else only 1 for observed modal
-        audio_host_mask = np.reshape(matrix[:,0], (batch, seqlen, 1))
-        text_host_mask = np.reshape(matrix[:,1], (batch, seqlen, 1))
-        visual_host_mask = np.reshape(matrix[:,2], (batch, seqlen, 1))
-        audio_host_mask = torch.LongTensor(audio_host_mask.transpose(1, 0, 2))
-        text_host_mask = torch.LongTensor(text_host_mask.transpose(1, 0, 2))
-        visual_host_mask = torch.LongTensor(visual_host_mask.transpose(1, 0, 2))
-        # guest mask
-        matrix = random_mask(view_num, seqlen*batch, mask_rate)
-        audio_guest_mask = np.reshape(matrix[:,0], (batch, seqlen, 1))
-        text_guest_mask = np.reshape(matrix[:,1], (batch, seqlen, 1))
-        visual_guest_mask = np.reshape(matrix[:,2], (batch, seqlen, 1))
-        audio_guest_mask = torch.LongTensor(audio_guest_mask.transpose(1, 0, 2))
-        text_guest_mask = torch.LongTensor(text_guest_mask.transpose(1, 0, 2))
-        visual_guest_mask = torch.LongTensor(visual_guest_mask.transpose(1, 0, 2))
+        if mask_schedule is None:
+            matrix = random_mask(view_num, seqlen*batch, mask_rate)
+            host = torch.LongTensor(np.reshape(matrix, (batch, seqlen, 3)).transpose(1, 0, 2))
+            matrix = random_mask(view_num, seqlen*batch, mask_rate)
+            guest = torch.LongTensor(np.reshape(matrix, (batch, seqlen, 3)).transpose(1, 0, 2))
+        else:
+            host = scheduled_mask_tensor(mask_schedule, vidnames, umask, seqlen, mask_epoch)
+            guest = host.clone()
+        audio_host_mask, text_host_mask, visual_host_mask = [host[:, :, i:i+1] for i in range(3)]
+        audio_guest_mask, text_guest_mask, visual_guest_mask = [guest[:, :, i:i+1] for i in range(3)]
 
         masked_audio_host = audio_host * audio_host_mask
         masked_audio_guest = audio_guest * audio_guest_mask
@@ -184,6 +203,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, dataloader, total_sqlen
         weight.append(weight_save)
         in_mask = torch.clone(input_features_mask[0].permute(1, 0, 2))
         in_mask[umask == 0] = 0
+        availability_records.append(np.array(in_mask.cpu()))
         weight.append(np.array(in_mask.cpu()))
         weight.append(label.detach().cpu().numpy())
         weight.append(vidnames)
@@ -337,6 +357,7 @@ def train_or_eval_model(args, model, reg_loss, cls_loss, dataloader, total_sqlen
                 predictions=preds.copy(),
                 labels=labels.copy(),
                 masks=masks.copy(),
+                availability=np.concatenate(availability_records, axis=0),
             )
         return mae, ua, avg_accuracy, avg_fscore, [avg_acc_a, avg_acc_t, avg_acc_v], vidnames, avg_loss, weight
 
@@ -387,6 +408,11 @@ if __name__ == '__main__':
     parser.add_argument('--stage_epoch', type=float, default=100, help='number of epochs of the first stage')
     parser.add_argument('--lbd', type=float, default=0.5, help='lambda for prompt updating')
     parser.add_argument('--mask_rate', type=float, default=0.1, help='mask rate, ranges from 0 to 0.7')
+    parser.add_argument(
+        '--mask-protocol',
+        choices=['legacy-random', 'gcnet-legacy-fixed-v1'],
+        default='legacy-random',
+    )
 
     args = parser.parse_args()
     args.temporal_causal = args.temporal_mode == 'causal'
@@ -467,6 +493,18 @@ if __name__ == '__main__':
                                                                             dataset=args.dataset,
                                                                             num_workers=0)
     assert len(train_loaders) == args.num_folder, f'Error: folder number'
+    train_mask_schedule = test_mask_schedule = None
+    if args.mask_protocol == 'gcnet-legacy-fixed-v1':
+        mask_seed = SeedBundle(args.seed).derive('missing_mask')
+        schedule_args = dict(
+            dataset=args.dataset,
+            fold=1,
+            requested_missing_rate=args.mask_rate,
+            mask_seed=mask_seed,
+            freeze_evaluation=True,
+        )
+        train_mask_schedule = LegacyFixedMaskSchedule(split='train', **schedule_args)
+        test_mask_schedule = LegacyFixedMaskSchedule(split='test', **schedule_args)
 
     
     print (f'====== Training and Testing =======')
@@ -505,10 +543,10 @@ if __name__ == '__main__':
             first_stage = True if epoch < args.stage_epoch else False
             ## training and testing (!!! if IEMOCAP, the ua is equal to corr !!!)
             train_mae, train_corr, train_acc, train_fscore, train_acc_atv, train_names, train_loss, weight_train = train_or_eval_model(args, model, reg_loss, cls_loss, train_loader, \
-                                                                            total_sqlen=args.seq_len, optimizer=optimizer, train=True, first_stage=first_stage, mark='train', mask_rate = args.mask_rate)
+                                                                            total_sqlen=args.seq_len, optimizer=optimizer, train=True, first_stage=first_stage, mark='train', mask_rate = args.mask_rate, mask_schedule=train_mask_schedule, mask_epoch=epoch)
             epoch_test_artifacts = {}
             test_mae, test_corr, test_acc, test_fscore, test_acc_atv, test_names, test_loss, weight_test = train_or_eval_model(args, model, reg_loss, cls_loss, test_loader, \
-                                                                            total_sqlen=args.seq_len, optimizer=None, train=False, first_stage=first_stage, mark='test', mask_rate = args.mask_rate, artifacts=epoch_test_artifacts)
+                                                                            total_sqlen=args.seq_len, optimizer=None, train=False, first_stage=first_stage, mark='test', mask_rate = args.mask_rate, artifacts=epoch_test_artifacts, mask_schedule=test_mask_schedule, mask_epoch=epoch)
 
 
             ## save
@@ -590,6 +628,7 @@ if __name__ == '__main__':
             prediction_path,
             predictions=best_artifacts['predictions'][active],
             labels=best_artifacts['labels'][active],
+            availability=best_artifacts['availability'].reshape(-1, 3)[active],
         )
 
         best_acc_a = test_acc_as[best_index_test]
