@@ -96,6 +96,8 @@ class TrainConfig:
     readout_type: str = "shared"
     readout_rank: int = 8
     evaluate_test: bool = True
+    # Opt-in exact selection-epoch artifacts; default preserves legacy sampling.
+    preserve_selection_artifacts: bool = False
     jepa_regression_aggregation: str = "target"
     recurrent_padding_mode: str = "legacy"
     task_regression_loss: str = "mse"
@@ -2934,6 +2936,7 @@ def evaluate_rate(
     mosi_task_mode: str = "regression",
     task_regression_loss: str = "mse",
     task_smooth_l1_beta: float = 1.0,
+    collect_identity: bool = False,
 ) -> tuple[Dict[str, float], Dict[str, np.ndarray] | None]:
     model.eval()
     task = _resolve_task_contract(dataset, mosi_task_mode)["task"]
@@ -2953,6 +2956,7 @@ def evaluate_rate(
     all_signed_logits: list[np.ndarray] = []
     all_availability: list[np.ndarray] = []
     all_full_availability: list[np.ndarray] = []
+    collected_identity = {name: [] for name in ('conversation_ids', 'utterance_indices', 'speakers', 'logits')}
     all_text_core_pred_u: list[np.ndarray] = []
     all_text_core_target_u: list[np.ndarray] = []
     all_text_core_observed: list[np.ndarray] = []
@@ -3025,6 +3029,15 @@ def evaluate_rate(
             all_availability.append(
                 metric_availability[selected].cpu().numpy()
             )
+            if collect_identity:
+                if dataset != 'MELD':
+                    raise ValueError('Exact identity collection currently supports MELD only')
+                ids = np.asarray([str(v) for v in view['conversation_ids']])
+                chosen = selected.cpu().numpy()
+                collected_identity['conversation_ids'].append(np.broadcast_to(ids[:, None], chosen.shape)[chosen])
+                collected_identity['utterance_indices'].append(np.broadcast_to(np.arange(chosen.shape[1]), chosen.shape)[chosen])
+                collected_identity['speakers'].append(view['qmask'][selected].cpu().numpy())
+                collected_identity['logits'].append(logits.transpose(0, 1)[selected].cpu().numpy())
             text_core_module = getattr(model, "text_core", None)
             text_core_output = getattr(model, "last_text_core", None)
             if text_core_module is not None:
@@ -3086,6 +3099,8 @@ def evaluate_rate(
             "labels": labels_array,
             "availability": availability_array,
         }
+        if collect_identity:
+            artifacts.update({name: np.concatenate(parts) for name, parts in collected_identity.items()})
         if task in ("binary", "three-class", "dual", "soft-ordinal"):
             artifacts["continuous_labels"] = continuous_labels_array
         if task == "soft-ordinal":
@@ -3168,6 +3183,20 @@ def _project_core20_prototypes(model, loader, schedules, epoch, dimensions, devi
             return model.core20.head.project_train_exemplars(batches(), split='train')
     finally:
         model.train(was_training)
+
+
+def _save_selection_artifacts(output, rate_key, epoch, artifacts):
+    """Save an immutable artifact of an ALREADY executed selection evaluation.
+
+    Its reference travels inside BEST metadata, so epoch-boundary recovery can
+    restore the matching predictions even after an uncommitted improvement.
+    No model call or random sampling occurs here.
+    """
+    from .training_resume import _atomic, _sha
+    path = Path(output) / 'selection_versions' / f'epoch_{epoch:06d}_{rate_key.replace(".", "p")}.npz'
+    _atomic(path, lambda stream: np.savez_compressed(stream, **artifacts, selected_epoch=np.asarray(epoch)))
+    return {'path': str(path.relative_to(output)), 'sha256': _sha(path),
+            'availability_sha256': _sha256_tensor(torch.from_numpy(artifacts['availability']))}
 
 
 def run_experiment(
@@ -3601,19 +3630,27 @@ def run_experiment(
         if selection_schedules is None:
             raise RuntimeError("selection schedules were not initialized")
         selection_metrics: Dict[float, Dict[str, float]] = {}
+        selection_artifacts = {}
+        preserve_selection = config_value.preserve_selection_artifacts and per_rate_oracle
+        if preserve_selection and config_value.dataset != 'MELD':
+            raise ValueError('Exact selection artifact mode requires MELD')
         for rate in protocol_rates:
-            selection_metrics[rate], _ = evaluate_rate(
+            extra_collection = {'collect_identity': True} if preserve_selection else {}
+            selection_metrics[rate], collected = evaluate_rate(
                 model,
                 selection_loader,
                 selection_schedules[rate],
                 config_value.dataset,
                 dimensions,
                 device,
-                collect=False,
+                collect=preserve_selection,
                 mosi_task_mode=config_value.mosi_task_mode,
                 task_regression_loss=config_value.task_regression_loss,
                 task_smooth_l1_beta=config_value.task_smooth_l1_beta,
+                **extra_collection,
             )
+            if preserve_selection:
+                selection_artifacts[rate] = collected
         selection_mean = sum(
             float(selection_metrics[rate][selection_metric])
             for rate in protocol_rates
@@ -3693,6 +3730,11 @@ def run_experiment(
                             else float(accuracy_value)
                         ),
                     }
+                    if preserve_selection:
+                        if selection_artifacts[rate] is None:
+                            raise RuntimeError('Selection artifacts missing')
+                        selected_checkpoint['selection_artifact'] = _save_selection_artifacts(
+                            output, rate_key, epoch + 1, selection_artifacts[rate])
                     if training_state is None:
                         torch.save(selected_checkpoint, output / ("best_miss_" + rate_key.replace(".", "p") + ".pt"))
                     else:
