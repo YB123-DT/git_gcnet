@@ -37,6 +37,10 @@ def main() -> None:
     if os.environ.get("CUDA_VISIBLE_DEVICES") != args.gpu_uuid:
         raise ValueError("CUDA_VISIBLE_DEVICES must equal --gpu-uuid")
 
+    # Dataset path configuration is read while the loader modules are imported.
+    os.environ["GCNET_DATASET_ROOT"] = str(args.dataset_root)
+    os.environ["GCNET_MELD_PICKLE"] = str(args.meld_pickle)
+    os.environ["GCNET_CACHE_ROOT"] = str(args.output.parent / "cache")
     from gcnet_missing_m3.train_gcnet import TrainConfig, run_experiment
 
     source = json.loads(args.source_config.read_text())
@@ -59,9 +63,6 @@ def main() -> None:
         if getattr(config, key) != expected:
             raise ValueError(f"{key} must be {expected!r}, got {getattr(config, key)!r}")
 
-    os.environ["GCNET_DATASET_ROOT"] = str(args.dataset_root)
-    os.environ["GCNET_MELD_PICKLE"] = str(args.meld_pickle)
-    os.environ["GCNET_CACHE_ROOT"] = str(args.output.parent / "cache")
     import torch
     torch.set_num_threads(args.num_threads)
     torch.set_num_interop_threads(min(args.num_threads, 4))
