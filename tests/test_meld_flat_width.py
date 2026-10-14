@@ -29,3 +29,16 @@ def test_legacy_or_altered_missing_protocol_is_rejected():
         source['missing_mask_protocol'] = protocol
         with pytest.raises(ValueError, match='missing_mask_protocol'):
             settings_for_width(source, 512)
+
+
+def test_additional_seeds_keep_their_source_config_and_only_change_width():
+    for seed in (67, 68):
+        source = source_settings()
+        source['seed'] = seed
+        result = settings_for_width(source, 512)
+        assert result['seed'] == seed
+        assert {k for k in result if result[k] != source[k]} == {'osram_adapter_hidden_dim'}
+    source = source_settings()
+    source['seed'] = 65
+    with pytest.raises(ValueError, match='seed'):
+        settings_for_width(source, 512)

@@ -19,7 +19,9 @@ from experiments.osram_meld_write_retention_20261014.reproduce import (
 def settings_for_width(source, width):
     if width not in (512, 1024, 2048):
         raise ValueError('width must be one of the three planned settings')
-    required = dict(dataset='MELD', seed=66, epochs=50, batch_size=32,
+    if source.get('seed') not in (66, 67, 68):
+        raise ValueError('seed must be one of the authorized seeds66/67/68')
+    required = dict(dataset='MELD', epochs=50, batch_size=32,
                     learning_rate=.001, missing_mask_protocol='gcnet-random-mask-v1',
                     train_rate_mode='cyclic', backbone_type='osram',
                     training_objective='emotion-only', osram_bidirectional=False,
@@ -85,7 +87,7 @@ def main():
     args.output.mkdir(parents=True)
     provenance = dict(status='running', started_utc=now(), pid=os.getpid(),
                       host=socket.gethostname(), gpu_uuid=args.gpu_uuid,
-                      host_gpu_index=int(matched[0][0]), seed=66,
+                      host_gpu_index=int(matched[0][0]), seed=config.seed,
                       training_commit=HISTORICAL_COMMIT,
                       runner_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
                       baseline_reference=str(args.baseline_reference),
