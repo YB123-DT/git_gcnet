@@ -52,5 +52,23 @@ audits and analysis. This remains a reproduction for internal diagnostics.
 
 Reconstruction statistics were vectorized across source/head pairs to avoid
 per-row GPU synchronization. A fifth regression test verifies equivalence to
-the scalar metric calculation. Actual job launch/status will be recorded
-after startup confirmation; no learned-state conclusion is available yet.
+the scalar metric calculation. Actual job launch/status is recorded below;
+no learned-state conclusion is available yet.
+
+## Running reproduction and automatic audit
+
+- Server: `ssh biggpu`, host `user22`, physical GPU0.
+- GPU UUID: `GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45`.
+- Started UTC: `2026-10-14T10:30:38`.
+- Pipeline PID: `4018218`; baseline training PID: `4018230`.
+- Original training code: detached Git worktree at `b4a3138`.
+- Diagnostic/pipeline code: detached Git worktree at `27ae943`.
+- Output: `/data2/yb/remote_experiments/osram_meld_write_retention_20261014/seed66_reproduced_b4a3138`.
+- Status file: `PIPELINE.json`; training log: `training.log`.
+- Source config SHA256: `ce88eb4166a18f4bd1539326035c8a4f706fe5a4b6c42115f5b8b6599cccd58d`.
+- Startup confirmed epoch001 completed, config/provenance created and CUDA
+  execution on GPU0. Tests after vectorization: **5 passed on biggpu (1.98s)**.
+
+This is a new reproduction. Once training succeeds, the same persistent job
+runs the audit and analysis without another user command. No observed
+write/retention/overwrite conclusion is reported while these stages are pending.
