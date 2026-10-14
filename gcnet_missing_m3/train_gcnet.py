@@ -152,6 +152,7 @@ class TrainConfig:
     osram_history_query_adapter: bool = False
     osram_post_grn: bool = False
     osram_local_skip_gate: bool = False
+    osram_disable_local_skip: bool = False
     paired_history_views: bool = False
     history_drop_prob: float = 0.2
     history_contrast_weight: float = 0.1
@@ -3380,6 +3381,7 @@ def run_experiment(
         osram_history_query_adapter=config_value.osram_history_query_adapter,
         osram_post_grn=config_value.osram_post_grn,
         osram_local_skip_gate=config_value.osram_local_skip_gate,
+        osram_disable_local_skip=config_value.osram_disable_local_skip,
         osram_memory_only_adapter=config_value.osram_memory_only_adapter,
         osram_history_input_gate=config_value.osram_history_input_gate,
         osram_local_evidence_gate=config_value.osram_local_evidence_gate,
@@ -3959,6 +3961,7 @@ def run_experiment(
         **({'osram_causal_gru_history': True} if config_value.osram_causal_gru_history else {}),
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
+        **({'osram_disable_local_skip': True} if config_value.osram_disable_local_skip else {}),
         **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
         **({'osram_history_input_gate': True} if config_value.osram_history_input_gate else {}),
         **({'osram_hierarchical_evidence_gate': True} if config_value.osram_hierarchical_evidence_gate else {}),
@@ -4065,6 +4068,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Keep Local Skip; remove Local from the Flat adapter input.')
     parser.add_argument('--osram-local-skip-gate', action='store_true',
                         help='Apply an identity-initialized scalar gate only to complete Local Skip output')
+    parser.add_argument('--osram-disable-local-skip', action='store_true',
+                        help='Disable only the final Local Skip while retaining Local inside the Flat adapter.')
     parser.add_argument('--osram-history-input-gate', action='store_true',
                         help='Scale Flat history inputs by one bounded 1+0.2*tanh gate per utterance.')
     parser.add_argument('--osram-hierarchical-evidence-gate', action='store_true',
@@ -4346,6 +4351,7 @@ def main(argv=None) -> None:
         osram_history_query_adapter=args.osram_history_query_adapter,
         osram_post_grn=args.osram_post_grn,
         osram_local_skip_gate=args.osram_local_skip_gate,
+        osram_disable_local_skip=args.osram_disable_local_skip,
         paired_history_views=args.paired_history_views,
         history_drop_prob=args.history_drop_prob,
         history_contrast_weight=args.history_contrast_weight,

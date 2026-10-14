@@ -834,6 +834,7 @@ class OSRAMBackbone(nn.Module):
         history_query_adapter: bool = False,
         osram_post_grn: bool = False,
         osram_local_skip_gate: bool = False,
+        osram_disable_local_skip: bool = False,
         osram_memory_only_adapter: bool = False,
         osram_history_input_gate: bool = False,
         osram_local_evidence_gate: bool = False,
@@ -957,6 +958,19 @@ class OSRAMBackbone(nn.Module):
             raise ValueError("osram_post_grn requires flat readout")
         self.osram_post_grn = bool(osram_post_grn)
         self.osram_local_skip_gate = bool(osram_local_skip_gate)
+        self.osram_disable_local_skip = bool(osram_disable_local_skip)
+        if self.osram_disable_local_skip and (
+            bidirectional or osram_readout_fusion != 'flat' or osram_post_grn
+            or osram_local_skip_gate or osram_memory_only_adapter
+            or history_query_adapter or osram_history_input_gate
+            or osram_local_evidence_gate or osram_hierarchical_evidence_gate
+            or osram_relation_block or osram_gap_increment_filter
+            or osram_meaningful_block != 'none' or osram_readout_candidate != 'none'
+            or osram_counterfactual_readout != 'none' or osram_history_recency
+            or osram_base_first_gap or osram_adapter_hidden_dim
+            or osram_ablation != 'full' or osram_emotion_ablation != 'full'
+        ):
+            raise ValueError('disable-local-skip requires the original causal Flat path')
         self.osram_memory_only_adapter = bool(osram_memory_only_adapter)
         if self.osram_memory_only_adapter and (bidirectional or osram_readout_fusion != 'flat' or osram_post_grn or history_query_adapter or osram_history_input_gate or osram_local_evidence_gate or osram_hierarchical_evidence_gate or osram_local_skip_gate):
             raise ValueError('memory-only adapter requires causal Flat without other adaptations')
@@ -2003,6 +2017,8 @@ class OSRAMBackbone(nn.Module):
                 hidden = self.emotion_norm(
                     skip_gate * self.local_skip(local) + self.emotion_adapter(emotion_input)
                 )
+            elif self.osram_disable_local_skip:
+                hidden = self.emotion_norm(self.emotion_adapter(emotion_input))
             else:
                 hidden = self.emotion_norm(
                     self.local_skip(local) + self.emotion_adapter(emotion_input)
@@ -2019,7 +2035,7 @@ class OSRAMBackbone(nn.Module):
             }
         if self.osram_post_grn:
             hidden = self.post_grn(hidden, local, emotion_base, emotion_gap, availability, umask)
-        elif self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none' or self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_counterfactual_readout != 'none' or self.osram_history_recency or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
+        elif self.osram_meaningful_block != 'none' or self.osram_readout_candidate != 'none' or self.osram_decision_correction or self.osram_gap_increment_filter or self.osram_relation_block or self.osram_counterfactual_readout != 'none' or self.osram_history_recency or self.osram_memory_only_adapter or self.osram_local_skip_gate or self.osram_disable_local_skip or self.osram_history_input_gate or self.osram_local_evidence_gate or self.osram_hierarchical_evidence_gate:
             hidden = torch.where(valid.unsqueeze(-1), hidden, torch.zeros_like(hidden))
         else:
             hidden = hidden * valid.unsqueeze(-1).to(hidden.dtype)
@@ -2033,6 +2049,7 @@ class OSRAMBackbone(nn.Module):
             "query_use_availability": self.query_use_availability,
             "bidirectional": self.bidirectional,
             "forward_slot_reuse": self.forward_slot_reuse,
+            "disable_local_skip": self.osram_disable_local_skip,
             "memory_alpha": torch.sigmoid(self.alpha_logits)
             .detach()
             .cpu()
