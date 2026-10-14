@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 import socket
-import subprocess
 
 
 def _write(path: Path, value: object) -> None:
@@ -30,6 +29,7 @@ def main() -> None:
     parser.add_argument("--meld-pickle", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--gpu-uuid", required=True)
+    parser.add_argument("--code-commit", required=True)
     parser.add_argument("--num-threads", type=int, default=6)
     args = parser.parse_args()
     if args.output.exists():
@@ -72,7 +72,7 @@ def main() -> None:
         "started_utc": _now(),
         "host": socket.gethostname(),
         "pid": os.getpid(),
-        "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+        "commit": args.code_commit,
         "source_config": str(args.source_config),
         "dataset_root": str(args.dataset_root),
         "meld_pickle": str(args.meld_pickle),
