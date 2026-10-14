@@ -45,8 +45,10 @@ def normalized(value):
 
 
 def validate_config(config, source):
+    if source.get('seed') not in (66, 67, 68):
+        raise ValueError('Historical seed must be 66, 67 or 68')
     expected = {
-        "dataset": "MELD", "seed": 66, "epochs": 50,
+        "dataset": "MELD", "seed": source['seed'], "epochs": 50,
         "missing_mask_protocol": "gcnet-random-mask-v1",
         "checkpoint_selection": "test-oracle-per-rate",
         "backbone_type": "osram", "osram_readout_fusion": "flat",
@@ -170,6 +172,8 @@ def main():
     if args.train_only:
         train_only(args)
         return
+    if json.loads(args.source_config.read_text()).get('seed') != 66:
+        raise ValueError('The full write-audit pipeline is seed66 only; other seeds use train-only')
     if args.output_root.exists():
         raise FileExistsError(args.output_root)
     for path in (args.training_code / "gcnet_missing_m3/train_gcnet.py", args.source_config,

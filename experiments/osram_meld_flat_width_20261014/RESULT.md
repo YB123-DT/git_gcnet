@@ -1,9 +1,23 @@
 # MELD Flat width screen
 
-INTERNAL DIAGNOSTIC ONLY. RUNNING widths512/1024/2048, baseline1600 reused.
+INTERNAL DIAGNOSTIC ONLY. COMPLETE widths512/1024/2048, baseline1600 reused.
 Only adapter hidden width changes. All runs keep `gcnet-random-mask-v1`,
 seed66, 50 epochs, batch32, Adam lr1e-3, causal no-JEPA Flat and Local skip.
 Per-rate Test-oracle selection is internal screening; no performance claim yet.
+
+Final same-selection-mask ACC/UA were recovered and verified against the
+checkpoint's ACC/W-F1. The earlier mixed-mask progress artifact is withdrawn.
+
+| Width | ACC | Corresponding UA | W-F1 |
+|---:|---:|---:|---:|
+| 1600 reused reference | 60.675 | 35.436 | 56.807 |
+| 512 | 60.766 | 37.359 | 57.150 |
+| 1024 | 60.623 | 35.402 | 56.380 |
+| 2048 | 60.757 | 35.653 | 56.780 |
+
+All are eight-rate macro means from seed66/50epoch runs. High-missing and
+verification details are in `../osram_meld_testbest_ua_20261014/RESULT.md`.
+Width512 improves overall UA but does not improve high-missing UA in this seed.
 
 All three runs started concurrently on biggpu physical GPU0, UUID
 `GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45`. Historical training code is frozen
