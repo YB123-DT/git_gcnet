@@ -1,0 +1,73 @@
+{
+  "status": "design_review_only_not_started",
+  "dataset": "MELD",
+  "scope": "Review separation of frozen-state query reading and downstream decision use. No training or new inference authorized by this review.",
+  "label": "INTERNAL DIAGNOSTIC ONLY",
+  "skills": ["research-experiment-driver", "inno-experiment-analysis"],
+  "source": {
+    "baseline_record": "experiments/osram_meld_testbest_ua_20261014/BASELINE.md",
+    "architecture": "original causal no-JEPA large Flat with Local Skip retained",
+    "missing_protocol": "gcnet-random-mask-v1",
+    "three_seed_reference_ACC": 60.69284802043423,
+    "seed66_reference_ACC": 60.675287356321846,
+    "pilot_if_later_authorized": "seed66 eight retained per-rate checkpoints, not a comparison of single-seed probes with three-seed mean"
+  },
+  "existing_evidence": {
+    "information_probe": "experiments/osram_meld_information_availability_20261014/RESULT.md",
+    "probe_source_protocol": "gcnet-legacy-fixed-v1",
+    "probe_boundary": "Real Memory beats donor but Local+Memory did not exceed Local. This does not establish a strong residual decision gain and cannot be transferred unchanged to the new canonical baseline.",
+    "fixed_query_state_replay": "experiments/osram_meld_write_retention_20261014/task_results/EVIDENCE.md",
+    "state_replay_boundary": "Preserving old source Text associations by suppressing subsequent joint writes worsened task CE in paired cohorts; does not identify Query versus Flat."
+  },
+  "groups": {
+    "A": {
+      "memory": "original fixed pre-target-write state",
+      "query": "original frozen task queries and residual addressing",
+      "decision": "original frozen Flat and classifier",
+      "role": "reference, no training"
+    },
+    "B": {
+      "memory": "same frozen state as A",
+      "query": "same original queries and active-slot reads as A",
+      "decision": "new lightweight readout trained on current Local, active Base/Gap and common availability metadata",
+      "role": "test a specific alternative decoder class; failure does not exclude all decision bottlenecks"
+    },
+    "C_fixed_decoder_recommended": {
+      "memory": "same frozen state as A/B",
+      "query": "learned normalized correction of original queries, preserving original observed keys, ridge, Gap residualization and active masks",
+      "decision": "copy the fitted B decoder including its normalizer and freeze its exact weights",
+      "role": "positive gains cannot be attributed to further decoder retraining; negative results do not prove Query optimality",
+      "boundary": "The query corrector adds trainable capacity. Use Local/donor controls before attributing gain to retrieval of sample-specific history. This staged fitting is an offline diagnosis, not a prescribed two-stage production method."
+    },
+    "C_joint_user_proposal": {
+      "memory": "same frozen state as A/B",
+      "query": "learned correction",
+      "decision": "same decoder architecture/budget as B but jointly trained",
+      "boundary": "C minus B contains Query changes and reader co-adaptation; same decoder capacity alone is not exact causal isolation. Total parameter budget includes the corrector."
+    },
+    "D": {
+      "history": "strict-past frozen Local means across all speakers and same speaker, no labels and no current turn",
+      "query": "no CHM Query",
+      "decision": "lightweight decoder with explicitly matched input projection/total budget",
+      "role": "external history-representation reference, not a same-CHM-state query control",
+      "boundary": "D exceeding B can reflect storage compression, read addressing or representation geometry. It does not isolate Query failure."
+    }
+  },
+  "code_findings": {
+    "scan": "gcnet_missing_m3/osram.py::_scan reads before the joint block write; writes depend on fixed observed keys/values and not task-query values in the original configuration.",
+    "addressing": "gcnet_missing_m3/osram.py::_address_residual must remain unchanged when testing corrected Gap queries.",
+    "capture_reuse": "WriteCapture and TaskCapture can capture original pre-write state, original current Local, queries and observed keys; keep state detached while performing corrected reads under autograd.",
+    "gradient_trap": "experiments/osram_meld_write_retention_20261014/task_replay.py::original_read is decorated torch.no_grad. It is valid for frozen inference but cannot be reused unchanged for learnable Query training or Query gradients will be cut."
+  },
+  "required_controls": [
+    "Same source model, train/evaluation IDs, masks and read-before-write states in all matched comparisons.",
+    "Re-extract from canonical retained weights rather than use the legacy probe cache.",
+    "Train probe/query parameters only using training labels; gold historical labels never enter module inputs.",
+    "Equal valid utterance coverage, optimization budget and metric conventions; ACC/UA/W-F1 all retained with per-rate results.",
+    "Local and donor-history controls distinguish sample-specific Memory use from added Local-dependent capacity.",
+    "Verify the source parameter/state hashes are unchanged and corrected-query gradients are finite and can be nonzero on nonempty history.",
+    "Inactive Gap and padding remain zero; no-historical-state cases cannot create historical information.",
+    "Interpret success as existence of a more useful read/decoder in the tested family; do not infer global optimality from failure."
+  ],
+  "recommended_next_action": "Only if implementation/training is requested: run a seed66 paired B-versus-C_fixed_decoder pilot using the new canonical baseline. Keep A as reference; treat D as a separate history reference rather than proof of Query bottleneck."
+}
