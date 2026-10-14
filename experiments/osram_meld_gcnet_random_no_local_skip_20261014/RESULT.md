@@ -38,6 +38,24 @@ each missing rate under the retained internal Test-oracle protocol.
 Selected epochs for no-skip at rates 0.0 through 0.7 were:
 `22, 14, 17, 15, 26, 14, 26, 10`.
 
+### Final saved-prediction evaluation
+
+The original GCNet sampler is stochastic. Consequently, the mask sampled when
+an epoch sets a Test-oracle maximum is not the same mask sampled during the
+final saved-prediction evaluation. The latter is the source of the previously
+reported approximately 59-point MELD result. On the seed-66 paired runs:
+
+| Metric | Flat | No skip | Delta |
+|---|---:|---:|---:|
+| 8-rate ACC | 59.674 | 59.737 | +0.063 |
+| 8-rate W-F1 | 55.902 | 55.329 | -0.573 |
+| High-missing ACC | 55.032 | 55.492 | +0.460 |
+| High-missing W-F1 | 49.698 | 48.845 | -0.853 |
+
+The corresponding three-seed Flat mean is 59.746 ACC; it must not be directly
+subtracted from this single-seed no-skip result. Its seed-matched Flat value is
+59.674 ACC.
+
 ## Interpretation boundary
 
 Removing the final Local shortcut does not improve the seed-66 Test-oracle
