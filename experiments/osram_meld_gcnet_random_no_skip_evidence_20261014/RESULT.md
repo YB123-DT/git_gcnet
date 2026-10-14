@@ -13,10 +13,36 @@ and/or all Gap slots are zeroed before the trained Adapter.
 - `LB`: Adapter Local + Base; Gap removed
 - `L`: Adapter Local only; Base and Gap removed
 
-All eight Full replays reproduce their saved predictions exactly, with zero
-class disagreement. The replay mask is the final saved stochastic realization,
-not the unavailable mask realization that originally established each
-Test-best maximum; therefore the analysis relies on paired deltas.
+All 24 Full replays (eight rates times three seeds) reproduce their saved
+predictions exactly, with zero class disagreement. The replay mask is the final
+saved stochastic realization, not the unavailable mask realization that
+originally established each Test-best maximum; therefore the analysis relies
+on paired deltas.
+
+## Three-seed paired summary
+
+| Condition | 8-rate ACC | High ACC | 8-rate W-F1 | High W-F1 | 8-rate UA | High UA |
+|---|---:|---:|---:|---:|---:|---:|
+| LBG | **59.947** | **55.390** | **55.844** | **49.477** | **34.758** | **28.350** |
+| LG (no Base) | 59.614 | 55.138 | 55.173 | 48.637 | 34.383 | 27.712 |
+| LB (no Gap) | 59.877 | 55.347 | 55.630 | 49.111 | 34.575 | 28.003 |
+| L (no Base/Gap) | 59.505 | 55.070 | 55.024 | 48.482 | 34.277 | 27.598 |
+
+Paired deltas relative to Full are:
+
+| Intervention | ACC | High ACC | W-F1 | High W-F1 | UA | High UA |
+|---|---:|---:|---:|---:|---:|---:|
+| Remove Base | -0.334 | -0.251 | -0.672 | -0.839 | -0.375 | -0.638 |
+| Remove Gap | -0.070 | -0.043 | -0.214 | -0.366 | -0.184 | -0.346 |
+| Remove Base and Gap | -0.442 | -0.319 | -0.821 | -0.995 | -0.481 | -0.751 |
+
+The UA contribution is positive but small for both evidence groups in all
+three seeds. Removing Base changes UA by `-0.169/-0.098/-0.857` points for
+seeds 66/67/68; removing Gap changes it by `-0.193/-0.225/-0.132` points.
+Thus Base has the larger mean contribution, while Gap has the more consistent
+small effect size across seeds.
+
+## Seed-66 per-rate detail
 
 ## Accuracy (%)
 
@@ -51,17 +77,17 @@ corrections for every aggregate intervention.
 
 ## Conclusion
 
-After retraining without the final Local shortcut, the remaining Adapter does
-use both historical evidence groups. Base has the larger paired contribution:
-removing it costs 0.618 W-F1 points overall and 1.003 points at high missing,
-whereas removing Gap costs 0.264 and 0.491 points. Removing both costs 0.760
-points overall. These effects remain modest, and Adapter Local is still present
-in every condition; this experiment therefore does not show that Memory alone
-is sufficient.
+After retraining without the final Local shortcut, the remaining Adapter uses
+both historical evidence groups across three seeds. Base has the larger mean
+paired contribution: removing it costs 0.672 W-F1 and 0.375 UA points overall,
+whereas removing Gap costs 0.214 W-F1 and 0.184 UA points. Removing both costs
+0.821 W-F1 and 0.481 UA points. These effects remain modest, and Adapter Local
+is still present in every condition; this experiment therefore does not show
+that Memory alone is sufficient.
 
 Remote artifact:
 
 ```text
 /data2/yb/paper/remote_runs_20261012/results/
-osram_meld_gcnet_random_no_skip_evidence_20261014/seed_66_corrected
+osram_meld_gcnet_random_no_skip_evidence_20261014/
 ```

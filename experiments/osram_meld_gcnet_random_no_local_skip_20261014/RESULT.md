@@ -6,7 +6,7 @@
 
 - Code commit: `ac2aa446ae4ca605aeb2de81f798e89d9ff18612`
 - Dataset: MELD
-- Seed: 66
+- Seeds: 66, 67, 68
 - Epochs: 50
 - Missing sampler: `gcnet-random-mask-v1`
 - Selection: separate best test epoch for each missing rate, using accuracy
@@ -17,7 +17,31 @@
 The deterministic `gcnet-legacy-fixed-v1` replay result is not used in this
 comparison.
 
-## Results
+## Three-seed Test-best result
+
+| Model / seed | 8-rate ACC | 8-rate W-F1 | High ACC | High W-F1 |
+|---|---:|---:|---:|---:|
+| No skip, 66 | 60.560 | 56.400 | 56.718 | 50.700 |
+| No skip, 67 | 60.517 | 56.238 | 56.284 | 50.091 |
+| No skip, 68 | 60.584 | 57.018 | 56.667 | 51.942 |
+| **No skip, mean** | **60.554** | **56.552** | **56.556** | **50.911** |
+| Flat, mean | 60.498 | 56.754 | 56.420 | 51.352 |
+| **No skip - Flat** | **+0.056** | **-0.202** | **+0.136** | **-0.441** |
+
+The shortcut removal does not yield a consistent task improvement: mean ACC is
+effectively unchanged, while weighted F1 decreases overall and at high missing.
+
+UA cannot be reconstructed for the exact historical mask that first set each
+Test-best checkpoint because those per-epoch predictions were not saved. On the
+reproducible final saved-mask evaluation of the same selected checkpoints:
+
+| Model | 8-rate UA | High UA |
+|---|---:|---:|
+| Flat, 3-seed mean | 34.980 | 29.213 |
+| No skip, 3-seed mean | 34.758 | 28.350 |
+| **No skip - Flat** | **-0.222** | **-0.863** |
+
+## Seed-66 detail
 
 Values are percentages. The checkpoint epoch is selected independently for
 each missing rate under the retained internal Test-oracle protocol.
