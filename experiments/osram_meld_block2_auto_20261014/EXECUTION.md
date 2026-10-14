@@ -43,3 +43,19 @@ Controller log: `<output>/controller.log`; per-job logs:
 It will complete fiftyepochs, paired on/off replay, fixed Top2 selection and
 conditional twenty-trial training HPO. No external task was stopped. Original
 baseline24checkpoints remain outside all cleanup scopes.
+
+## Completed-trial storage relocation
+
+On 2026-10-14, `/data2` approached 7 GiB free during HPO. To retain all
+winning checkpoints without exhausting that filesystem, completed runs
+`hpo_B6_000` through `hpo_B6_016` were moved to the same server's root filesystem:
+`/home/qinjinghui/osram_meld_block2_completed_20261014_v2/`.
+Their original paths under the canonical experiment output remain directory
+symlinks. Every file was SHA256-verified before and after the move; see
+`evidence/STORAGE_ARCHIVE_01.jsonl`. All 136 winning checkpoints in these
+17 trials, along with exact prediction/mask artifacts and metadata, are retained.
+No active run, protected historical Flat checkpoint, feature file, or immutable
+training source was moved or changed. `/data2` free space returned to about
+14 GiB. The operations-only `archive_completed.py` is not part of or imported by
+the running training snapshot `7abb855`.
+
