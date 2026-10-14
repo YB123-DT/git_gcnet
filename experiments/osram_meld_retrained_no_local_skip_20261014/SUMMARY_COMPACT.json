@@ -1,0 +1,21 @@
+{
+  "label": "INTERNAL TEST-ORACLE DIAGNOSTIC ONLY",
+  "dataset": "MELD",
+  "seed": 66,
+  "epochs": 50,
+  "commit": "60903a6",
+  "missing_mask_protocol": "gcnet-legacy-fixed-v1",
+  "checkpoint_selection": "test-oracle-per-rate",
+  "intervention": "retrain without final local_skip(Local); adapter Local retained",
+  "eight_rate_percent": {
+    "flat": {"accuracy": 59.636, "weighted_f1": 54.530},
+    "no_local_skip": {"accuracy": 60.580, "weighted_f1": 56.283},
+    "delta": {"accuracy": 0.943, "weighted_f1": 1.754}
+  },
+  "high_missing_percent": {
+    "flat": {"accuracy": 55.338, "weighted_f1": 48.068},
+    "no_local_skip": {"accuracy": 56.028, "weighted_f1": 50.103},
+    "delta": {"accuracy": 0.690, "weighted_f1": 2.035}
+  },
+  "remote_artifacts": "/data2/yb/remote_experiments/osram_meld_retrained_no_local_skip_20261014/seed66_60903a6"
+}
