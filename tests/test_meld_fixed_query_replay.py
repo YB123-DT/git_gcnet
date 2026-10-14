@@ -96,6 +96,9 @@ def test_source_guard_rejects_legacy_no_skip_and_small_flat():
                 osram_disable_local_skip=False, osram_output_dim=1600,
                 osram_adapter_hidden_dim=0)
     validate_source(good)
+    historical = dict(good)
+    historical.pop('osram_disable_local_skip')
+    validate_source(historical)
     for name, value in [('missing_mask_protocol', 'gcnet-legacy-fixed-v1'),
                          ('osram_disable_local_skip', True), ('osram_adapter_hidden_dim', 512)]:
         with pytest.raises(ValueError):

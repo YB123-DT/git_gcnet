@@ -41,10 +41,14 @@ def validate_source(source):
     required = dict(dataset='MELD', seed=66, missing_mask_protocol=CANONICAL_MASK_PROTOCOL,
                     backbone_type='osram', osram_bidirectional=False,
                     osram_readout_fusion='flat', osram_meaningful_block='none',
-                    training_objective='emotion-only', osram_disable_local_skip=False,
+                    training_objective='emotion-only',
                     osram_output_dim=1600)
     if any(source.get(k) != value for k, value in required.items()):
         raise ValueError('Require original canonical seed66 no-JEPA causal Flat1600 with Skip')
+    # Historical b4a3138 predates this optional flag. Its original Flat always
+    # keeps Local Skip; reject explicit removal without rejecting absent flags.
+    if source.get('osram_disable_local_skip', False):
+        raise ValueError('Source must preserve original Local Skip')
     if source.get('osram_adapter_hidden_dim', 0) not in (0, 1600):
         raise ValueError('Task diagnostic cannot substitute reduced-width Flat')
     # No post-read module, readout ablation or forward-half duplication is legal.
