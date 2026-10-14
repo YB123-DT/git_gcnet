@@ -7,15 +7,16 @@ only:
 osram_disable_local_skip = true
 ```
 
-It uses the retained MELD Flat seed-66 configuration from the corrected
+It uses the retained seed-matched MELD Flat configuration from the corrected
 original-GCNet-mask rerun and hard-requires:
 
 ```text
 missing_mask_protocol = gcnet-random-mask-v1
 ```
 
-The run is 50 epochs and uses the established per-rate Test-oracle selection
-protocol. It is an internal diagnostic, not a paper result.
+Each run is 50 epochs for seed 66, 67, or 68 and uses the established per-rate
+Test-oracle selection protocol. It is an internal diagnostic, not a paper
+result.
 
 Do not substitute `gcnet-legacy-fixed-v1`; that schedule exists only for
 replaying historical frozen controls.

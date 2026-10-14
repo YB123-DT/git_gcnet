@@ -47,6 +47,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--gpu-uuid", required=True)
     parser.add_argument("--code-commit", required=True)
+    parser.add_argument("--seed", type=int, choices=(66, 67, 68), required=True)
     parser.add_argument("--num-threads", type=int, default=6)
     args = parser.parse_args()
     if args.output.exists():
@@ -64,7 +65,7 @@ def main() -> None:
     config = TrainConfig(**corrected_settings(source))
     required = {
         "dataset": "MELD",
-        "seed": 66,
+        "seed": args.seed,
         "epochs": 50,
         "missing_mask_protocol": CANONICAL_MASK_PROTOCOL,
         "checkpoint_selection": "test-oracle-per-rate",

@@ -1,7 +1,8 @@
 # MELD GCNet-random no-skip evidence ablation
 
-Frozen inference on the seed-66 no-Local-skip model trained with
-`gcnet-random-mask-v1`.
+Frozen inference on a seed-66/67/68 no-Local-skip model trained with
+`gcnet-random-mask-v1`. Each seed is evaluated in an independent output
+directory using its own checkpoints and saved availability artifacts.
 
 For each missing rate, the evaluator loads the corresponding per-rate
 Test-best checkpoint. The exact availability realization saved by that run's

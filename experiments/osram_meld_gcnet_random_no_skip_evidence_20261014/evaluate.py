@@ -192,13 +192,13 @@ def main() -> None:
         raise ValueError(f"source must use {CANONICAL_MASK_PROTOCOL}")
     config = TrainConfig(**source_config)
     if not (
-        config.dataset == "MELD" and config.seed == 66
+        config.dataset == "MELD" and config.seed in (66, 67, 68)
         and config.backbone_type == "osram" and not config.osram_bidirectional
         and config.osram_readout_fusion == "flat"
         and config.training_objective == "emotion-only"
         and config.osram_disable_local_skip
     ):
-        raise ValueError("source must be the canonical seed66 causal MELD no-skip model")
+        raise ValueError("source must be a canonical causal MELD no-skip model")
     device = torch.device("cuda")
     config = replace(config, device=str(device))
     torch.set_num_threads(2)
