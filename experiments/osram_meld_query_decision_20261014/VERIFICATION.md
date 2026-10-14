@@ -48,4 +48,6 @@ CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=2 PYTHONPATH=. \
 
 Successful GPU artifact:
 `/data2/yb/remote_experiments/osram_meld_query_decision_20261014_smoke_v2/SUMMARY.json`.
-Full seed66 eight-rate fit result is pending at the implementation commit.
+At implementation commit16d0313 the full result was pending. All eight rates
+subsequently completed (40fits); full data/checks are in runs/*.json and
+INTERPRETATION.md. No source update or frozen-decoder violation occurred.

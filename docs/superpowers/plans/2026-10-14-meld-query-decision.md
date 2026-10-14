@@ -17,6 +17,13 @@ Stack: existing PyTorch1.13.1, NumPy and sklearn in biggpu cmerc-repro; no new
 dependency, no Optuna search. All new source files live in
 `experiments/osram_meld_query_decision_20261014/`; no backbone edits.
 
+Execution record2026-10-14: all planned implementation, tests, bounded GPU
+smoke, push/immutable deployment and eight-rate runs completed. The checklist
+below preserves the initial plan; completion evidence is in VERIFICATION.md,
+LAUNCH.json, runs/*.json and INTERPRETATION.md. Forty fits completed, all frozen
+hash checks passed. No real-history advantage beyond Local was established;
+no automatic multi-seed or D-control expansion was performed.
+
 ## Fixed protocol
 
 - Source model remains original GCNet-mask cyclic-trained no-JEPA Flat; this
