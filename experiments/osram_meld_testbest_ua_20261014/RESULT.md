@@ -37,9 +37,17 @@ using final-mask UA is withdrawn as a main-score comparison. The reproduced
 Flat seed66 has ACC60.675/UA35.436; it is not the deleted historical seed66
 with ACC60.637. Do not combine original scores with reproduction UA.
 
-Original-code reproductions for Flat seeds67/68 are being prepared to complete
+Original-code reproductions for Flat seeds67/68 have been launched to complete
 a fresh three-seed same-selection-mask comparison. Report their new scores
-separately from the historical originals.
+separately from the historical originals. Both run concurrently on biggpu
+GPU0 with historical `b4a3138` training code, original source configs, 50
+epochs, and all eight best checkpoints retained. Each job automatically runs
+exact Test-best UA recovery after training. Runner/recovery worktree: `6b96994`.
+
+Output root: `/data2/yb/remote_experiments/osram_meld_testbest_ua_20261014/flat_restore`.
+Persistent parent job PIDs: seed67 `271203`, seed68 `271204`. Source masks and
+epochs/lr/batch are unchanged. These are baseline reproductions required by
+deleted original weights, not additional module or width configurations.
 
 ## Artifacts and verification
 
