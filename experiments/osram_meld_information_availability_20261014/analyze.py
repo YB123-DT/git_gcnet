@@ -143,6 +143,16 @@ def render_markdown(aggregate: dict, decision: dict) -> str:
             f"| {100*eight['weighted_f1']['mean']:.3f}±{100*eight['weighted_f1']['sample_std']:.3f} "
             f"| {100*high['accuracy']['mean']:.3f} | {100*high['weighted_f1']['mean']:.3f} |"
         )
+    rates = next(iter(aggregate["variants"].values()))["rates"]
+    for metric, title in (("accuracy", "ACC"), ("weighted_f1", "W-F1")):
+        lines.extend([
+            "", f"## Per-rate {title}", "",
+            "| Probe | " + " | ".join(f"{rate:.1f}" for rate in rates) + " |",
+            "|---|" + "---:|" * len(rates),
+        ])
+        for name, values in aggregate["variants"].items():
+            cells = [100 * values["per_rate"][f"{rate:.1f}"][metric]["mean"] for rate in rates]
+            lines.append(f"| {name} | " + " | ".join(f"{value:.3f}" for value in cells) + " |")
     lines.extend(["", "## Paired real-minus-donor deltas", "", "| Real | Control | ΔACC | ΔW-F1 | min N |", "|---|---|---:|---:|---:|"])
     for name, values in aggregate["paired_deltas"].items():
         eight = values["eight_rate"]
@@ -150,6 +160,14 @@ def render_markdown(aggregate: dict, decision: dict) -> str:
             f"| {name} | {values['control']} | {100*eight['accuracy']['mean']:+.3f} "
             f"| {100*eight['weighted_f1']['mean']:+.3f} | {values['coverage']['minimum_n']} |"
         )
+    lines.extend([
+        "", "## Per-rate paired ΔW-F1", "",
+        "| Real | " + " | ".join(f"{rate:.1f}" for rate in rates) + " |",
+        "|---|" + "---:|" * len(rates),
+    ])
+    for name, values in aggregate["paired_deltas"].items():
+        cells = [100 * values["per_rate"][f"{rate:.1f}"]["weighted_f1"]["mean"] for rate in rates]
+        lines.append(f"| {name} | " + " | ".join(f"{value:+.3f}" for value in cells) + " |")
     lines.extend([
         "", "## Diagnostic reading", "",
         f"- Rule-based outcome: **{decision['case']}**.",

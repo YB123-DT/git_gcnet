@@ -3,6 +3,7 @@ import numpy as np
 from experiments.osram_meld_information_availability_20261014.analyze import (
     aggregate_records,
     classify_case,
+    render_markdown,
 )
 
 
@@ -47,3 +48,15 @@ def test_decision_rules_do_not_call_redundant_memory_case_c():
     assert classify_case(raw_history_signal=True, memory_signal=False, conditional_memory_signal=False) == "B"
     assert classify_case(raw_history_signal=True, memory_signal=True, conditional_memory_signal=True) == "C"
     assert classify_case(raw_history_signal=False, memory_signal=True, conditional_memory_signal=False) == "mixed"
+
+
+def test_markdown_contains_per_rate_acc_wf1_and_paired_deltas():
+    result = aggregate_records(_records())
+    text = render_markdown(result, {
+        "case": "C", "raw_history_signal": True,
+        "memory_signal": True, "conditional_memory_signal": True,
+    })
+    assert "## Per-rate ACC" in text
+    assert "## Per-rate W-F1" in text
+    assert "## Per-rate paired ΔW-F1" in text
+    assert "| LocalMemory |" in text
