@@ -64,6 +64,11 @@ def source_epoch_metrics(history: list[dict], *, epoch: int, rate: float) -> dic
     return {"accuracy": float(metrics["accuracy"]), "weighted_f1": float(metrics["weighted_f1"])}
 
 
+def assert_source_parity_scope(max_batches: int | None) -> None:
+    if max_batches is not None:
+        raise ValueError("source metric parity requires the full test split")
+
+
 def flatten_batch_cache(view: dict, capture, logits: torch.Tensor, *, local_dim: int, context_dim: int) -> dict:
     """Flatten valid utterances conversation-first from one unchanged forward."""
     if capture.local.shape[:2] != logits.shape[:2] or capture.flat_input.shape[:2] != logits.shape[:2]:
@@ -300,9 +305,12 @@ def main() -> None:
                     dataset="MELD", split=split, fold=config.fold, requested_missing_rate=rate,
                     mask_seed=mask_seed, freeze_evaluation=True,
                 )
+                extraction_limit = None
+                if split == "test":
+                    assert_source_parity_scope(extraction_limit)
                 split_data[split], scans[split] = extract_split(
                     model, loader, schedule, dimensions, config,
-                    max_batches=2 if args.check_only else None,
+                    max_batches=extraction_limit,
                 )
                 np.savez_compressed(rate_dir / f"{split}_features.npz", **split_data[split])
             if set(split_data["train"]["conversation_ids"]) & set(split_data["test"]["conversation_ids"]):

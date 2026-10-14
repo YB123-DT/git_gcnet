@@ -5,6 +5,7 @@ import pytest
 import torch
 
 from experiments.osram_meld_information_availability_20261014.run import (
+    assert_source_parity_scope,
     flatten_batch_cache,
     model_state_hash,
     source_epoch_metrics,
@@ -73,3 +74,9 @@ def test_source_epoch_metrics_select_exact_checkpoint_epoch_and_rate():
     assert source_epoch_metrics(history, epoch=2, rate=0.0) == {"accuracy": 0.6, "weighted_f1": 0.5}
     with pytest.raises(ValueError, match="epoch 3"):
         source_epoch_metrics(history, epoch=3, rate=0.0)
+
+
+def test_source_parity_may_not_compare_a_truncated_test_loader():
+    assert_source_parity_scope(None)
+    with pytest.raises(ValueError, match="full test split"):
+        assert_source_parity_scope(2)
