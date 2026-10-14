@@ -43,6 +43,26 @@ At high missing rates (0.5/0.6/0.7), Text Delta CE was 0.06853/0.10080
 (same/other speaker) for IEMOCAP-4 and 0.06421/0.07891 for IEMOCAP-6. MELD
 remained much less sensitive at 0.00733/0.00758.
 
+## Separating Text content from speaker metadata
+
+The completed design already contains the proposed Text-only and
+same-speaker/wrong-Text analyses:
+
+- The Text intervention changes only the strict-past Text feature slice;
+  historical Audio/Visual, availability and every speaker ID remain unchanged.
+- In the `same_speaker` arm, the replacement Text comes from another utterance
+  by the target speaker. Thus explicit speaker metadata and speaker relation are
+  preserved while Text content changes.
+
+The sizeable same-speaker Text effects (0.05287 for IEMOCAP-4 and 0.04819 for
+IEMOCAP-6; 0.06853 and 0.06421 at high missing rates) establish that speaker ID
+alone is insufficient: the model is sensitive to the speaker-associated Text
+content. Using an other-speaker Text donor adds 0.02918 and 0.01658 Delta CE
+respectively over the same-speaker donor when pooled across rates. This extra
+effect is compatible with speaker-conditioned content, style or trajectory
+mismatch, but it does **not** isolate the causal contribution of explicit
+speaker ID because the intervention never changes `qmask`.
+
 ## Supported conclusions
 
 1. IEMOCAP decisions depend on the identity of historical content, rather than
