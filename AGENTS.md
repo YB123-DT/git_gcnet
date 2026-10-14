@@ -1,5 +1,14 @@
 # OSRAM task delivery agreement
 
+- 当前 MELD Flat baseline 更新（用户指定，2026-10-14）：采用原代码复跑
+  seeds66/67/68 的八率 Test-best ACC 平均60.693，对应 UA36.255/W-F1 57.045。
+  GCNet missing、50epoch、原1600 Flat 与 Local Skip 均保留；不修改其他数据集
+  baseline。完整权重/mask索引与重现边界见
+  `experiments/osram_meld_testbest_ua_20261014/BASELINE.md`。
+  该基线24个checkpoint必须保留，不纳入旧调参权重清理；测试重放必须复用
+  选点当轮mask，不能混用最终复测mask。冻结推理已验证，从头重训逐位一致
+  尚未证明；best权重缺少optimizer/RNG，不称为完整断点续训。
+
 - 最新范围覆盖（2026-10-05）：用户明确提供并要求实施 C01–C20 完整机制。
   这是新的有限批次，不是继续扩充/恢复旧120调研队列；允许按各项机制改变
   Memory、表征、任务分布或必要来源损失，不得伪装成同一个 readout residual。
