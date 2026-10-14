@@ -86,3 +86,20 @@ def test_capture_preserves_forward_and_restores_method_on_exception():
     except RuntimeError:
         pass
     assert 'block_write' not in model.__dict__
+
+
+def test_vectorized_metrics_match_scalar_for_each_source_head():
+    from experiments.osram_meld_write_retention_20261014.audit import (
+        _metric_arrays, _metrics, candidate_pool,
+    )
+    model, trace = tiny_trace()
+    pool = candidate_pool(trace, 3, 0, 0)
+    memory = trace[3][-1]
+    keys = trace[3][2][..., 0]
+    values = trace[3][3][..., 0]
+    actual = _metric_arrays(memory, keys, values, [pool])
+    expected = _metrics(memory[0, 0], keys[0, 0], values[0, 0], pool, 0)
+    import math
+    for name, value in expected.items():
+        assert (math.isnan(actual[name][0, 0]) if value is None
+                else abs(actual[name][0, 0] - value) < 1e-5)

@@ -35,3 +35,22 @@ was performed by this task. No performance or learned-state findings exist.
 To complete: recover the original eight checkpoints. Saved predictions and
 Local/Base/Gap caches cannot reconstruct the Key/Value projectors or full
 Memory state. No retraining is authorized in this task.
+
+## Subsequent authorization and recovery plan
+
+The user subsequently authorized searching for backups and reproducing the
+original baseline if none exists. Local MELD checkpoint search and a remote
+configuration scan under `/data2/yb` found only the canonical original seed66
+Flat r0/r1 directories with **zero .pt files**. Available retained MELD
+weights belong to different missing-mask protocols or no-Local-skip models.
+
+Implemented `reproduce.py` to train exactly the historical `b4a3138` code and
+source config: MELD seed66, 50 epochs, batch32, Adam lr1e-3, cyclic GCNet
+random mask, original Flat/Local skip, per-rate Test-oracle. Keep eight best
+checkpoints, compare historical/new results, then automatically run both
+audits and analysis. This remains a reproduction for internal diagnostics.
+
+Reconstruction statistics were vectorized across source/head pairs to avoid
+per-row GPU synchronization. A fifth regression test verifies equivalence to
+the scalar metric calculation. Actual job launch/status will be recorded
+after startup confirmation; no learned-state conclusion is available yet.

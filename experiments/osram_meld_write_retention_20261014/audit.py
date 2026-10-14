@@ -6,6 +6,7 @@ only as offline probes; current Base/Gap queries and task heads are untouched.
 
 from __future__ import annotations
 
+import math
 import torch
 from torch.nn import functional as F
 
@@ -107,6 +108,54 @@ def _metrics(memory, key, value, pool, head):
 
 
 @torch.no_grad()
+def _metric_arrays(memory, keys, values, pools):
+    """Score all source/head pairs together and transfer scalars once per batch."""
+    prediction = (memory @ keys.unsqueeze(-1)).squeeze(-1)
+    norm = values.norm(dim=-1)
+    pred_norm = prediction.norm(dim=-1)
+    if not torch.isfinite(prediction).all():
+        raise FloatingPointError('nonfinite source-key reconstruction')
+    eligible = torch.tensor([p is not None for p in pools], device=keys.device)
+    candidate_keys = torch.stack([p[0] if p is not None else keys.new_zeros(4, *keys.shape[1:])
+                                 for p in pools])
+    candidates = torch.stack([p[1] if p is not None else values.new_zeros(4, *values.shape[1:])
+                              for p in pools])
+    center = candidates.mean(dim=1)
+    wrong = (memory @ candidate_keys[:, 1].unsqueeze(-1)).squeeze(-1)
+    def cos(a, b, active):
+        score = F.cosine_similarity(a, b, dim=-1, eps=1e-8)
+        valid = active & a.norm(dim=-1).gt(1e-8) & b.norm(dim=-1).gt(1e-8)
+        return score.masked_fill(~valid, float('nan'))
+    pool_mask = eligible[:, None].expand_as(norm)
+    centered_prediction = prediction - center
+    scores = F.cosine_similarity(centered_prediction[:, None], candidates - center[:, None],
+                                 dim=-1, eps=1e-8)
+    higher = (scores > scores[:, :1] + 1e-7).sum(dim=1)
+    ties = (scores - scores[:, :1]).abs().le(1e-7).sum(dim=1)
+    retrieval_valid = pool_mask & centered_prediction.norm(dim=-1).gt(1e-8) & (
+        candidates - center[:, None]).norm(dim=-1).gt(1e-8).all(dim=1)
+    mrr = torch.zeros_like(norm)
+    for index in range(4):
+        mrr += torch.where(ties > index, 1. / (higher + index + 1), torch.zeros_like(norm))
+    fields = {
+        'relative_error': (prediction - values).norm(dim=-1) / norm.clamp_min(1e-8),
+        'target_norm': norm, 'prediction_norm': pred_norm,
+        'norm_ratio': pred_norm / norm.clamp_min(1e-8),
+        'raw_cosine': cos(prediction, values, torch.ones_like(pool_mask)),
+        'centered_cosine': cos(centered_prediction, values - center, pool_mask),
+        'retrieval_top1': torch.where(higher == 0, 1. / ties, torch.zeros_like(norm)).masked_fill(
+            ~retrieval_valid, float('nan')),
+        'retrieval_mrr': (mrr / ties).masked_fill(~retrieval_valid, float('nan')),
+        'wrong_key_centered_cosine': cos(wrong - center, values - center, pool_mask),
+        'wrong_key_relative_error': ((wrong - values).norm(dim=-1) / norm.clamp_min(1e-8)).masked_fill(
+            ~pool_mask, float('nan')),
+        'candidate_count': pool_mask.to(norm.dtype) * 4,
+    }
+    arrays = torch.stack(list(fields.values()), dim=-1).cpu().numpy()
+    return {name: arrays[..., i] for i, name in enumerate(fields)}
+
+
+@torch.no_grad()
 def audit_batch(osram, snapshots, sample_ids, rate, *, distances=(1, 2, 4, 8)):
     """Stream scalar per-source/per-head rows, never retain dataset states."""
     if not snapshots:
@@ -115,28 +164,39 @@ def audit_batch(osram, snapshots, sample_ids, rate, *, distances=(1, 2, 4, 8)):
         raise ValueError('conversation IDs do not match state batch')
     if any(snapshots[i][0] >= snapshots[i + 1][0] for i in range(len(snapshots) - 1)):
         raise ValueError('snapshots must be chronological')
+    availability_cpu = [s[4].bool().cpu().tolist() for s in snapshots]
     for source_index, (source_time, pre, keys, values, observed, post) in enumerate(snapshots):
-        sources = [(b, m) for b in range(len(sample_ids)) for m in range(3) if bool(observed[b, m])]
-        pools = {(b, m): candidate_pool(snapshots, source_index, b, m) for b, m in sources}
+        sources = [(b, m) for b in range(len(sample_ids)) for m in range(3)
+                   if availability_cpu[source_index][b][m]]
+        if not sources:
+            continue
+        pools = [candidate_pool(snapshots, source_index, b, m) for b, m in sources]
+        source_keys = torch.stack([keys[b, ..., m] for b, m in sources])
+        source_values = torch.stack([values[b, ..., m] for b, m in sources])
+        source_batches = torch.tensor([b for b, m in sources], device=keys.device)
+        after_error = ((post[source_batches] @ source_keys.unsqueeze(-1)).squeeze(-1)
+                       - source_values).norm(dim=-1) / source_values.norm(dim=-1).clamp_min(1e-8)
+        after_error = after_error.cpu().numpy()
 
         def rows_for(states, phase, distance, error):
             target_index = next((i for i in range(source_index, len(snapshots))
                                  if snapshots[i][0] == source_time + distance), None)
-            for b, m in sources:
-                if phase == 'future' and (target_index is None or not bool(snapshots[target_index][4][b].any())):
-                    continue
-                for branch, memory in states.items():
+            for branch, memory in states.items():
+                scored = _metric_arrays(memory[source_batches], source_keys, source_values, pools)
+                for index, (b, m) in enumerate(sources):
+                    if phase == 'future' and (target_index is None or not any(availability_cpu[target_index][b])):
+                        continue
                     for head in range(osram.num_heads):
+                        metrics = {name: (float(array[index, head]) if math.isfinite(float(array[index, head]))
+                                          else None) for name, array in scored.items()}
+                        metrics['candidate_count'] = int(metrics['candidate_count'])
                         yield {
                             'conversation_id': str(sample_ids[b]), 'rate': float(rate),
                             'source_t': int(source_time), 'target_t': int(source_time + distance),
                             'distance': int(distance), 'modality': MODALITIES[m], 'head': head,
                             'phase': phase, 'branch': branch, 'replay_error': float(error),
-                            **_metrics(memory[b, head], keys[b, head, :, m],
-                                       values[b, head, :, m], pools[b, m], head),
-                            'write_after_relative_error': float((post[b, head] @ keys[b, head, :, m]
-                                                                - values[b, head, :, m]).norm())
-                            / max(float(values[b, head, :, m].norm()), 1e-8),
+                            **metrics,
+                            'write_after_relative_error': float(after_error[index, head]),
                         }
         yield from rows_for({'write_before': pre, 'write_after': post}, 'write', 0, 0.)
         for distance, branches, error in replay_forks(osram, snapshots, source_index, distances=distances):

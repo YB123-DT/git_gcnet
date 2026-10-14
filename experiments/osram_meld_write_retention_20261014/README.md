@@ -61,3 +61,35 @@ Optional `--max-batches 1 --rates 0.7` marks output partial, never complete.
 Missing exact source weights fail before GPU use or output creation. Restore
 the original weights before running; alternate/no-skip/old-mask models are
 not replacements for this source.
+
+## Authorized baseline reproduction when weights cannot be recovered
+
+The user subsequently authorized searching for backups and, if absent,
+retraining the original baseline to enable the two audits. `reproduce.py`
+automates historical-code training -> historical-score comparison -> both
+frozen audits -> CSV/plots. The training snapshot must match original commit
+`b4a313841f098487a6482d2712bdac94aa8e319e`; the exact original config is read
+from the historical run. It retains all eight best weights. This is a new
+reproduction, not a restoration of deleted original parameters.
+
+Use a dedicated healthy GPU and immutable Git worktrees:
+
+```bash
+CUDA_VISIBLE_DEVICES=GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45 \
+/data2/yb/conda_envs/cmerc-repro/bin/python -u \
+experiments/osram_meld_write_retention_20261014/reproduce.py \
+  --training-code /data2/yb/remote_experiments/osram_meld_write_retention_20261014/training_b4a3138 \
+  --audit-code /path/to/current/audit/worktree \
+  --source-config /data2/yb/paper/remote_runs_20261012/results/osram_gcnet_random_mask_iemocap_meld_20261013_r1/meld/meld_flat_s66/config.json \
+  --historical-source /data2/yb/paper/remote_runs_20261012/results/osram_gcnet_random_mask_iemocap_meld_20261013_r1/meld/meld_flat_s66 \
+  --dataset-root /data2/yb/remote_experiments/osram_meld_write_retention_20261014/training_b4a3138/dataset \
+  --meld-pickle /data2/yb/paper/remote_runs_20261012/data/meld/meld_emotion_semantic_features_roberta.pkl \
+  --output-root /data2/yb/remote_experiments/osram_meld_write_retention_20261014/seed66_reproduced_b4a3138 \
+  --gpu-uuid GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45
+```
+
+`PIPELINE.json` records each child PID/status/log/return code. Stage failures
+stop dependent stages. `REPRODUCTION_COMPARISON.json` separates per-rate
+selection scores from final saved-mask scores and checks mask/prediction
+agreement with history. Actual audit always uses the reproduced model's own
+saved masks and requires exact prediction parity with that model.
