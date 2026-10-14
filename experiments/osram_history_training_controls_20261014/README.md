@@ -13,6 +13,8 @@
 
 P2 显式设置 `checkpoint_selection_metric=weighted_f1` 与 `test-oracle-per-rate`。这是既定探索对照协议，会用测试集选每个缺失率的最佳 epoch；不能作为严格独立测试集泛化证据。其他调用仍默认 `dataset-default`（现有情感任务按 accuracy 选点）。每个 run 保存有效 config、数据 hash、feature manifest、commit/差异、环境、日志、预测、权重和 provenance。
 
+部署为不含 `.git` 的 `git archive` 快照时，provenance 不调用 Git，改为记录快照目录身份、P2 核心文件及 runner/冻结 mask schedule 的 SHA256 和组合身份。可显式设置 `OSRAM_P2_SOURCE_COMMIT` 关联外部 launch 的源 commit；未设置时标记 `unknown`，不从目录名猜测 commit。Git 工作树仍保存真实 HEAD 和 tracked diff。快照的 `code_diff_available=false`，空 `CODE_DIFF.patch` 不表示已验证工作树无修改；文件缺失/读取失败和真实工作树中的 Git 错误仍会抛出。
+
 只查看完整任务与配置（不训练、不创建结果目录）：
 
 ```bash

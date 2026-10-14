@@ -25,6 +25,15 @@ CONTROLS = ("local-only", "causal-gru")
 DATASETS = ("IEMOCAPFour", "IEMOCAPSix", "MELD")
 IEMOCAP_DATASETS = ("IEMOCAPFour", "IEMOCAPSix")
 BAD_GPU_UUID = "GPU-46fb379f-cc90-dc82-9b5e-5d011f552264"
+PROVENANCE_SOURCE_FILES = (
+    "gcnet_missing_m3/causal_gru_history.py",
+    "gcnet_missing_m3/legacy_fixed_mask.py",
+    "gcnet_missing_m3/osram.py",
+    "gcnet_missing_m3/model.py",
+    "gcnet_missing_m3/train_gcnet.py",
+    "experiments/osram_history_training_controls_20261014/run.py",
+    "experiments/osram_meld_flat_source_combinations_20261013/legacy_schedule.py",
+)
 OUTPUT_ROOT = Path(os.environ.get(
     "OSRAM_P2_OUTPUT", "/data2/yb/paper/05_reproduction/runs/OSRAM_P2_history_controls_20261014"))
 
@@ -99,6 +108,37 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def collect_code_provenance(source_root: Path | None = None) -> tuple[dict, str]:
+    """Identify either a real Git worktree or an immutable archive deployment.
+
+    An archive has no .git marker, so it never runs Git. Actual source-file I/O
+    failures and Git failures inside a declared worktree remain hard failures.
+    """
+    source_root = (Path(__file__).resolve().parents[2] if source_root is None
+                   else Path(source_root).resolve())
+    source_hashes = {name: _sha256(source_root / name) for name in PROVENANCE_SOURCE_FILES}
+    source_identity = hashlib.sha256(json.dumps(source_hashes, sort_keys=True).encode()).hexdigest()
+    if (source_root / ".git").exists():
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=source_root, text=True).strip()
+        diff = subprocess.check_output([
+            "git", "diff", "HEAD", "--", "gcnet_missing_m3",
+            "experiments/osram_history_training_controls_20261014/run.py"],
+            cwd=source_root, text=True)
+        metadata = dict(code_source_kind="git-worktree", commit=commit,
+                        code_diff_available=True, code_diff_sha256=hashlib.sha256(diff.encode()).hexdigest())
+    else:
+        diff = ""
+        metadata = dict(
+            code_source_kind="snapshot", commit=os.environ.get("OSRAM_P2_SOURCE_COMMIT") or "unknown",
+            code_diff_available=False, code_diff_sha256=None,
+            snapshot_identity=dict(name=source_root.name, path=str(source_root), source_sha256=source_identity),
+        )
+    metadata["source_sha256"] = source_hashes
+    metadata["source_identity_sha256"] = source_identity
+    return metadata, diff
 
 
 def output_path(root: Path, task: dict) -> Path:
@@ -190,14 +230,13 @@ def run_fold(task: dict, root: Path):
         raise ValueError("GCNET_CPU_THREADS must be positive")
     torch.set_num_threads(threads)
     torch.set_num_interop_threads(min(threads, 4))
-    diff = subprocess.check_output(["git", "diff", "HEAD", "--", "gcnet_missing_m3", __file__], text=True)
+    code_provenance, diff = collect_code_provenance()
     (output / "CODE_DIFF.patch").write_text(diff)
     provenance = dict(
         status="running", task=task, started_utc=_now(), host=socket.gethostname(),
         pid=os.getpid(), argv=sys.argv, cuda_visible_devices=os.environ.get("CUDA_VISIBLE_DEVICES"),
         visible_host_gpus=visible_devices,
-        commit=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
-        code_diff_sha256=hashlib.sha256(diff.encode()).hexdigest(),
+        **code_provenance,
         config=asdict(config), dataset_source=str(source), dataset_sha256=_sha256(source),
         feature_manifest=feature_manifest, environment=dict(python=sys.version, torch=torch.__version__),
         protocol="per-rate test-oracle weighted-F1 exploratory control; same cyclic rates and cfg84 Flat",
