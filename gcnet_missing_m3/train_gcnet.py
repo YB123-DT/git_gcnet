@@ -81,6 +81,7 @@ class TrainConfig:
     device: str = "cuda"
     train_rate_mode: str = "cyclic"
     missing_mask_protocol: str = "conversation-mask-v2"
+    checkpoint_selection_metric: str = "dataset-default"
     # Rates used by the cyclic training schedule.  Evaluation/protocol rates
     # remain the official MISSING_RATES set, so an experiment can omit 0.0
     # during optimization without losing the complete test-rate report.
@@ -118,6 +119,7 @@ class TrainConfig:
     osram_base_first_gap: bool = False
     osram_counterfactual_readout: str = 'none'
     osram_history_recency: bool = False
+    osram_causal_gru_history: bool = False
     osram_num_heads: int = 4
     osram_key_dim: int = 32
     osram_value_dim: int = 32
@@ -182,10 +184,17 @@ class TrainConfig:
     osram_ced_block: bool = False
 
     def __post_init__(self) -> None:
+        if self.checkpoint_selection_metric not in {"dataset-default", "weighted_f1", "accuracy"}:
+            raise ValueError("unsupported checkpoint_selection_metric")
         if self.missing_mask_protocol not in {
-            "conversation-mask-v2", "gcnet-random-mask-v1"
+            "conversation-mask-v2", "gcnet-random-mask-v1", "gcnet-legacy-fixed-v1"
         }:
             raise ValueError("unsupported missing_mask_protocol")
+        if self.missing_mask_protocol == "gcnet-legacy-fixed-v1" and self.dataset != "MELD":
+            raise ValueError("gcnet-legacy-fixed-v1 is explicitly retained for MELD controls only")
+        if self.osram_causal_gru_history:
+            from .causal_gru_history import validate_causal_gru_history
+            validate_causal_gru_history(vars(self))
         if self.osram_history_recency:
             incompatible = ('osram_base_first_gap', 'paired_history_views', 'osram_relation_block',
                 'osram_relation_dual_readout', 'osram_decision_correction',
@@ -1185,11 +1194,15 @@ def _build_schedule(
     split: str,
     rate: float,
 ) -> ConversationMaskSchedule | GCNetLegacyRandomMaskSchedule:
-    schedule_class = (
-        GCNetLegacyRandomMaskSchedule
-        if config.missing_mask_protocol == "gcnet-random-mask-v1"
-        else ConversationMaskSchedule
-    )
+    if config.missing_mask_protocol == "gcnet-legacy-fixed-v1":
+        from .legacy_fixed_mask import TrainingLegacyFixedMaskSchedule
+        schedule_class = TrainingLegacyFixedMaskSchedule
+    else:
+        schedule_class = (
+            GCNetLegacyRandomMaskSchedule
+            if config.missing_mask_protocol == "gcnet-random-mask-v1"
+            else ConversationMaskSchedule
+        )
     return schedule_class(
         dataset=config.dataset,
         split=split,
@@ -1851,7 +1864,7 @@ def _metrics(
     }
 
 
-def _checkpoint_selection_metric(dataset: str) -> str:
+def _checkpoint_selection_metric(dataset: str, override: str = "dataset-default") -> str:
     """Return the test/validation metric used to choose an epoch.
 
     Conversational emotion-recognition protocols report and select IEMOCAP
@@ -1859,6 +1872,10 @@ def _checkpoint_selection_metric(dataset: str) -> str:
     MOSI/MOSEI use weighted F1.  Keep this policy explicit instead of silently
     using weighted F1 for every dataset.
     """
+    if override not in {"dataset-default", "weighted_f1", "accuracy"}:
+        raise ValueError("unsupported checkpoint_selection_metric")
+    if override != "dataset-default":
+        return override
     normalized = str(dataset).strip().upper()
     if normalized in {"IEMOCAPFOUR", "IEMOCAPSIX", "MELD"}:
         return "accuracy"
@@ -3330,6 +3347,7 @@ def run_experiment(
         osram_base_first_gap=config_value.osram_base_first_gap,
         osram_counterfactual_readout=config_value.osram_counterfactual_readout,
         osram_history_recency=config_value.osram_history_recency,
+        osram_causal_gru_history=config_value.osram_causal_gru_history,
         osram_num_heads=config_value.osram_num_heads,
         osram_key_dim=config_value.osram_key_dim,
         osram_value_dim=config_value.osram_value_dim,
@@ -3487,7 +3505,8 @@ def run_experiment(
     history: list[Dict[str, object]] = []
     jepa_pretraining = config_value.training_objective == "jepa-only"
     per_rate_oracle = config_value.checkpoint_selection == "test-oracle-per-rate"
-    selection_metric = _checkpoint_selection_metric(config_value.dataset)
+    selection_metric = _checkpoint_selection_metric(
+        config_value.dataset, config_value.checkpoint_selection_metric)
     best_score: float | None = None if jepa_pretraining or per_rate_oracle else -math.inf
     best_selection_weighted_f1: float | None = (
         None if jepa_pretraining or per_rate_oracle else -math.inf
@@ -3937,6 +3956,7 @@ def run_experiment(
         **({'osram_counterfactual_readout': config_value.osram_counterfactual_readout}
            if config_value.osram_counterfactual_readout != 'none' else {}),
         **({'osram_history_recency': True} if config_value.osram_history_recency else {}),
+        **({'osram_causal_gru_history': True} if config_value.osram_causal_gru_history else {}),
         **({"osram_post_grn": True} if config_value.osram_post_grn else {}),
         **({'osram_local_skip_gate': True} if config_value.osram_local_skip_gate else {}),
         **({'osram_memory_only_adapter': True} if config_value.osram_memory_only_adapter else {}),
@@ -4034,6 +4054,13 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Preserve Flat and add evidence-effect marginal or coalition residuals.')
     parser.add_argument('--osram-history-recency', action='store_true',
                         help='Append strict-past modality coverage and recency to original Flat.')
+    parser.add_argument('--osram-causal-gru-history', action='store_true',
+                        help='Replace CHM with strictly past ordinary single-layer GRU-256 Base; Gap stays zero.')
+    parser.add_argument('--missing-mask-protocol',
+                        choices=('conversation-mask-v2', 'gcnet-random-mask-v1', 'gcnet-legacy-fixed-v1'),
+                        default='conversation-mask-v2')
+    parser.add_argument('--checkpoint-selection-metric',
+                        choices=('dataset-default', 'weighted_f1', 'accuracy'), default='dataset-default')
     parser.add_argument('--osram-memory-only-adapter', action='store_true',
                         help='Keep Local Skip; remove Local from the Flat adapter input.')
     parser.add_argument('--osram-local-skip-gate', action='store_true',
@@ -4399,6 +4426,8 @@ def main(argv=None) -> None:
         postgraph_bilstm_ablation=args.postgraph_bilstm_ablation,
         fixed_missing_rate=args.train_missing_rate,
         checkpoint_selection=args.checkpoint_selection,
+        checkpoint_selection_metric=args.checkpoint_selection_metric,
+        missing_mask_protocol=args.missing_mask_protocol,
         training_objective=args.training_objective,
         initial_backbone_checkpoint=args.initial_backbone_checkpoint,
         pretrained_learning_rate=args.pretrained_lr,
@@ -4408,6 +4437,7 @@ def main(argv=None) -> None:
         osram_base_first_gap=args.osram_base_first_gap,
         osram_counterfactual_readout=args.osram_counterfactual_readout,
         osram_history_recency=args.osram_history_recency,
+        osram_causal_gru_history=args.osram_causal_gru_history,
         osram_num_heads=args.osram_num_heads,
         osram_key_dim=args.osram_key_dim,
         osram_value_dim=args.osram_value_dim,

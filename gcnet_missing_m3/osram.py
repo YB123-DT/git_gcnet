@@ -855,8 +855,13 @@ class OSRAMBackbone(nn.Module):
         osram_base_first_gap: bool = False,
         osram_counterfactual_readout: str = 'none',
         osram_history_recency: bool = False,
+        osram_causal_gru_history: bool = False,
     ) -> None:
         super().__init__()
+        self.osram_causal_gru_history = bool(osram_causal_gru_history)
+        if self.osram_causal_gru_history:
+            from .causal_gru_history import validate_causal_gru_history
+            validate_causal_gru_history(locals())
         if osram_counterfactual_readout not in ('none', 'marginal', 'coalition'):
             raise ValueError('counterfactual readout must be none, marginal, or coalition')
         self.osram_counterfactual_readout = osram_counterfactual_readout
@@ -1264,6 +1269,37 @@ class OSRAMBackbone(nn.Module):
                 self.counterfactual_readout = CounterfactualEvidenceReadout(
                     self.osram_counterfactual_readout, self.context_dim,
                     self.output_dim, encoder_dropout=dropout)
+
+        if self.osram_causal_gru_history:
+            from .causal_gru_history import CausalGRUHistory
+            # Consume legacy initialization first to match Local/Flat weights
+            # and downstream classifier RNG, then remove all unused CHM keys.
+            with torch.random.fork_rng(devices=[]):
+                self.causal_gru_history = CausalGRUHistory(
+                    self.latent_dim, self.num_heads * self.value_dim)
+            for name in ("latent_norm", "node_norm", "availability_embedding",
+                         "speaker_embedding", "query_type_embedding", "key_projectors",
+                         "value_projectors", "query_projector", "alpha_logits", "beta_logits"):
+                delattr(self, name)
+
+    def _causal_gru_forward(self, node, availability, valid):
+        safe_node = torch.where(valid[..., None], node, torch.zeros_like(node))
+        forward = self.causal_gru_history(safe_node, valid)
+        base = torch.cat((forward, torch.zeros_like(forward)), dim=-1)
+        gap = node.new_zeros(*node.shape[:2], 3, self.context_dim)
+        local = safe_node + self.local_path(safe_node)
+        local = torch.where(valid[..., None], local, torch.zeros_like(local))
+        flat_input = torch.cat((local, base, gap.flatten(2)), dim=-1)
+        hidden = self.emotion_norm(self.local_skip(local) + self.emotion_adapter(flat_input))
+        hidden = torch.where(valid[..., None], hidden, torch.zeros_like(hidden))
+        self.last_diagnostics = {
+            "history_source": "strict-past-single-layer-gru-256",
+            "bidirectional": False, "chm_executed": False,
+            "base_context_norm": float(base[valid].detach().norm(dim=-1).mean())
+            if bool(valid.any()) else 0.,
+            "gap_context_norm": {name: 0. for name in MODALITIES},
+        }
+        return hidden, {"base": base, "gap": gap, "local": local}
 
     def _adapt_history_queries(self, queries, availability, valid):
         """Adapt Gap addresses using strictly past, real-observation support.
@@ -1687,6 +1723,14 @@ class OSRAMBackbone(nn.Module):
         valid = self._validate_inputs(
             node, latents, availability, qmask, umask, seq_lengths
         )
+        if self.osram_causal_gru_history:
+            if (read_node is not node or write_node is not node or write_completion is not None
+                    or post_write_observer is not None or context_read_residual is not None
+                    or collect_memory_retention_diagnostics or memory_retention_diagnostics is not None
+                    or write_mask_override is not None or write_node_collector is not None
+                    or core20_reconstruction_targets is not None):
+                raise ValueError("causal GRU history cannot use CHM interventions or completion")
+            return self._causal_gru_forward(node, availability, valid)
         if write_mask_override is not None or write_node_collector is not None:
             if (self.bidirectional or write_completion is not None
                     or hasattr(self, 'core20_memory') or hasattr(self, 'core20_value')
