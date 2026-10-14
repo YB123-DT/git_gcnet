@@ -44,7 +44,7 @@ def _metadata(data: dict, rows: np.ndarray | None = None) -> np.ndarray:
     availability = np.asarray(data["availability"], dtype=np.float32)
     return np.column_stack(
         (
-            availability[np.arange(len(rows))] if len(rows) == len(availability) and np.array_equal(rows, np.arange(len(rows))) else availability[rows],
+            availability[rows],
             np.asarray(data["all_present"], dtype=np.float32)[rows],
             np.asarray(data["same_speaker_present"], dtype=np.float32)[rows],
             np.log1p(np.asarray(data["all_count"], dtype=np.float32)[rows]),
@@ -163,7 +163,8 @@ def fit_probe(
     for epoch in range(1, epochs + 1):
         model.train()
         order = torch.randperm(len(x_train), generator=generator)
-        for indices in order.split(batch_size):
+        for indices_cpu in order.split(batch_size):
+            indices = indices_cpu.to(device)
             optimizer.zero_grad(set_to_none=True)
             loss = nn.functional.cross_entropy(model(x_train[indices]), y_train[indices])
             if not torch.isfinite(loss):
