@@ -89,7 +89,7 @@ From the new immutable source worktree:
   experiments.osram_meld_block2_auto_20261014.run \
   --phase all --gpus 0,2,3 --per-gpu 4 --seed 66 \
   --top-k 2 --trials-per-model 20 \
-  --output /data2/yb/remote_experiments/osram_meld_block2_auto_20261014
+  --output /data2/yb/remote_experiments/osram_meld_block2_auto_20261014_v2
 ```
 
 Use nohup/tmux (controller and detached children survive SSH). Reinvoke the
@@ -103,3 +103,9 @@ RESULT.md, SUMMARY.json/CSV. Only source/config/text/small statistics go to Git.
 
 At implementation time full training is not yet complete. See real run records
 for statuses; no performance is inferred from CPU tests or GPU smoke.
+
+The first committed launcher f24c86c was stopped by smoke before any formal
+training: config paths were materialized before environment initialization;
+the replay constructor also freezes parameters and is unsuitable for training
+smoke without restoring student trainability. Both are locked by regressions.
+The failed original output is retained, never combined with corrected-v2 jobs.

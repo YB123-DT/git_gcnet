@@ -18,6 +18,15 @@ import torch
 from torch.nn import functional as F
 from sklearn.metrics import accuracy_score, f1_score, recall_score
 
+ROOT = Path(__file__).resolve().parents[2]
+DATASET = Path('/data2/yb/paper/remote_runs_20261012/data/meld/meld_emotion_semantic_features_roberta.pkl')
+DATASET_SHA = 'a0349614b2b58e8b2db768f0144aa36b96fb2348ca436a6879ee2623cc2d2f80'
+COMMON = Path('/data2/yb/remote_experiments/osram_meld_testbest_ua_20261014/exact/source_0')
+# config.PATH_TO_LABEL is materialized when train_gcnet is imported. These
+# paths must be fixed BEFORE that import, not merely before get_loaders().
+os.environ.update(GCNET_DATASET_ROOT='/data2/yb/paper/remote_runs_20261012/data',
+                  GCNET_MELD_PICKLE=str(DATASET))
+
 from .methods import METHODS
 from gcnet_missing_m3.training_resume import TrainingState, _sha
 from gcnet_missing_m3 import train_gcnet as trainer
@@ -26,12 +35,6 @@ from experiments.osram_meld_write_retention_20261014.run import guard_gpu
 from experiments.osram_meld_gcnet_random_no_skip_evidence_20261014.evaluate import (
     scatter_saved_availability, replay_view_from_availability,
 )
-
-ROOT = Path(__file__).resolve().parents[2]
-DATASET = Path('/data2/yb/paper/remote_runs_20261012/data/meld/meld_emotion_semantic_features_roberta.pkl')
-DATASET_SHA = 'a0349614b2b58e8b2db768f0144aa36b96fb2348ca436a6879ee2623cc2d2f80'
-COMMON = Path('/data2/yb/remote_experiments/osram_meld_testbest_ua_20261014/exact/source_0')
-
 
 def source_hashes():
     files = list((ROOT / 'gcnet_missing_m3').glob('*.py'))
@@ -159,10 +162,19 @@ def paired_replay(model, loader, dimensions, saved, method):
     return result
 
 
+def build_smoke_model(config, dimensions, device):
+    # The reused replay constructor intentionally freezes EVERY parameter.
+    # Restore normal student training for smoke only, never unfreeze EMA targets.
+    model = _build_model(config, dimensions, device).train().requires_grad_(True)
+    if model.teacher is not None:
+        model.teacher.eval().requires_grad_(False)
+    return model
+
+
 def smoke(config, output, method):
     train, test, dimensions = load_data(config)
     trainer.set_random_seed(config.seed)
-    model = _build_model(config, dimensions, torch.device('cuda:0')).train()
+    model = build_smoke_model(config, dimensions, torch.device('cuda:0'))
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.Adam(params, lr=config.learning_rate, weight_decay=config.weight_decay)
     from gcnet_modality_jepa.gcnet_legacy_random_mask import GCNetLegacyRandomMaskSchedule

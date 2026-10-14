@@ -4,6 +4,9 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import subprocess
+import sys
+import os
 
 
 def worker():
@@ -54,3 +57,22 @@ def test_metric_and_class_probability_ce():
     score = module.class_metrics(labels, logits)
     assert score['ACC'] == 100. and score['UA'] == 100. * 3 / 7
     assert len(score['recall']) == len(score['support']) == 7
+
+
+def test_dataset_environment_precedes_trainer_import():
+    result = subprocess.check_output([sys.executable, '-c',
+        'import experiments.osram_meld_block2_auto_20261014.worker as w; '
+        'import config; assert config.PATH_TO_LABEL["MELD"] == str(w.DATASET)'],
+        env=dict(os.environ, CUDA_VISIBLE_DEVICES=''), stderr=subprocess.STDOUT, text=True)
+
+
+def test_smoke_constructor_is_trainable_not_frozen_inference_helper():
+    import json
+    from experiments.osram_meld_block2_auto_20261014.methods import build_config
+    from gcnet_missing_m3.train_gcnet import TrainConfig
+    root = Path(__file__).resolve().parents[1]
+    base = json.loads((root / 'experiments/osram_meld_block2_auto_20261014/BASE_CONFIG.json').read_text())
+    model = worker().build_smoke_model(TrainConfig(**build_config(base, 'B1', 'unused')), (4, 4, 4), torch.device('cpu'))
+    assert model.training and any(p.requires_grad for p in model.parameters())
+    assert all(p.requires_grad for p in model.osram.meaningful_block.parameters())
+    assert model.teacher is None or all(not p.requires_grad for p in model.teacher.parameters())

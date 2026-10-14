@@ -17,7 +17,7 @@ from .summarize import summarize
 from .optuna_search import run_search
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUTPUT = Path('/data2/yb/remote_experiments/osram_meld_block2_auto_20261014')
+DEFAULT_OUTPUT = Path('/data2/yb/remote_experiments/osram_meld_block2_auto_20261014_v2')
 
 
 def parse_args(argv=None):
@@ -74,7 +74,7 @@ def preflight(args):
     snapshot = Scheduler(args.output / 'queue', args.gpus, args.per_gpu).gpu_snapshot()
     if any(g not in snapshot or g == 4 for g in args.gpus):
         raise RuntimeError('Requested healthy GPU missing')
-    result = dict(experiment_version='MELD-BLOCK2-v1', source_git_sha=sha, source_hashes=source_hashes(),
+    result = dict(experiment_version='MELD-BLOCK2-v2', source_git_sha=sha, source_hashes=source_hashes(),
         dataset_sha256=DATASET_SHA, gpu_inventory=snapshot, requested_gpus=args.gpus,
         per_gpu_limit=args.per_gpu, global_limit=min(12, len(args.gpus) * args.per_gpu),
         disk_free_bytes=shutil.disk_usage(args.output).free,
