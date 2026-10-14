@@ -25,6 +25,20 @@ Key→Value recovery. ΔCE = branch CE − Normal CE; positive means task harm.
 | 8 | write-only | 4395 | -0.012961 | -0.000100 | 8 | 4 |
 | 8 | hold | 4395 | -0.477449 | +0.019972 | 47 | 65 |
 
+This is also present when current Text is absent (A/V/AV combined, no label-based
+selection):
+
+| Distance | N | Decay-only ΔCE | Corrections / harms | Hold ΔCE | Corrections / harms |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 2912 | +0.008908 | 27 / 42 | +0.009506 | 32 / 44 |
+| 4 | 2209 | +0.011599 | 40 / 50 | +0.012786 | 41 / 54 |
+| 8 | 1121 | +0.028882 | 18 / 32 | +0.036331 | 20 / 37 |
+
+Write-only on these no-current-Text cohorts gives small positive ΔCE
+(+0.000306/+0.000312/+0.002677) despite more corrections than harms
+(7/3, 7/2, 6/1). CE and discrete classification need not change together;
+neither metric should be silently substituted for the other.
+
 ## What this supports
 
 Suppressing intervening writes (decay-only/hold) improves source Text
