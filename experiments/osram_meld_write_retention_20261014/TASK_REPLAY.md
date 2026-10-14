@@ -98,3 +98,30 @@ Smoke uses `--rates 0.7 --max-batches 1` and an independent output. Analyze:
 Artifacts: compressed raw rows per rate, frozen-invariance/provenance SUMMARY,
 paired CSV/JSON with class recall and source-Text direction statistics, and
 cohort RESULT.md. Existing storage audit results are never overwritten.
+
+## Verified launch, 2026-10-14
+
+Eleven CPU tests passed (six fixed-query and five previous retention tests).
+Real GPU3 smoke used rate0.7, one batch, 293 valid utterances and 3,124 paired
+source-modal/branch rows. Normal maximum logit error was 9.54e-7 and classes
+and labels matched saved originals exactly. Before/after parameter state hashes
+matched; no gradients accumulated; CUDA RNG was unchanged. Peak allocated CUDA
+memory was 392,220,160 bytes. Replay time was 5.19 seconds, not training time.
+CPU RNG changed only during ordinary DataLoader iteration, as documented above.
+Smoke and smoke analysis remain separately labeled partial; no performance
+conclusion is drawn from this correctness run.
+
+The first source guard rejected this valid historical config because it lacks
+the later optional `osram_disable_local_skip` field. A failing regression was
+added; absence now follows the actual historical default (Local Skip retained).
+Explicit no-skip configurations remain rejected. No source weights or backbone
+were edited. No run output had been created by the initial guard failure.
+
+Full eight-rate inference launched on biggpu healthy host GPU3,
+`GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a`, from immutable `eb7e2e7` worktree:
+`/data2/yb/remote_experiments/osram_meld_fixed_query_task_20261014_code_eb7e2e7`.
+Persistent parent PID `368364`; root output
+`/data2/yb/remote_experiments/osram_meld_fixed_query_task_20261014`.
+`full.log` contains replay and then automatic aggregation; `full/SUMMARY.json`
+tracks each completed rate. All eight source checkpoint files are retained.
+Training and missing-mask generation are not called by this process.
