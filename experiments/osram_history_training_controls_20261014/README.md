@@ -39,3 +39,20 @@ python -m experiments.osram_history_training_controls_20261014.run --dispatch --
 dispatcher 保留 nvidia-smi GPU identity，默认并发1；CPU测试不构成GPU显存容量证据，正式执行前应按该服务器实际空闲资源与训练峰值调整并发。用 `--control local-only` 或 `--control causal-gru` 可只调度一组。重复输出、日志或 dispatcher status 会拒绝覆盖。
 
 路径可通过 `OSRAM_P2_OUTPUT`、`ECERC_GCNET_FEATURE_ROOT`、`GCNET_DATASET_ROOT`、`GCNET_MELD_PICKLE` 指定；每个输出位于 `{dataset}/{control}/seed_{seed}/fold_{fold}`，不同任务隔离。
+
+## 结果聚合（不启动训练）
+
+```bash
+python -m experiments.osram_history_training_controls_20261014.summarize \
+  --input-root /path/to/P2_runs \
+  --full-anchor-root /path/to/osram_history_effect_stratification_20261013/full_31cfe1f \
+  --output /path/to/new/P2_summary
+```
+
+默认严格要求 seeds66–68 的全部66个训练任务完成，以及指定 anchor 时全部33个 frozen P0来源；正式三模型报告必须提供 `--full-anchor-root`。校验有效配置、训练源码 commit/hash、数据来源、完整训练 history 和八个缺失率的 per-rate Test-oracle weighted-F1 选点、预测及权重文件，直接从预测重算指标并核对保存值。IEMOCAP 先池化同 seed 五 fold 的真实 labels/predictions 再计算 ACC/weighted-F1，MELD 使用 fold1，最后报告三 seed 均值及样本标准差（ddof=1）；八率均值和 high-missing 0.5/0.6/0.7 均值先在各 seed 内计算。P0 从 `SUMMARY.json` 指定的原始 utterance NPZ 读取 `logits_LBG`/`pred_LBG`，校验原始 replay、身份、mask 和跨 fold conversation 不重叠，作为 `full-chm` 第三组。
+
+Full anchor 必须明确满足同 cfg84 Full CHM 语义，包括 output1600、heads8/key64/value64、write_step.6、单向、不复用 forward slot、emotion/full ablation、Flat、meaningful none、emotion-only 与 disable-unused-aux，以及关闭 relation、额外 readout/gates、completion、paired-view、text-core/Core20 等机制；影响语义的字段缺失直接拒绝，不猜默认安全值。仅兼容已知历史来源缺 `checkpoint_selection_metric`（保留历史选点说明）和当时尚未引入的 `osram_causal_gru_history` 字段。
+
+预测 NPZ 的 `availability` 必须为 `[N,3]`、二值、每句至少一个 observed modality，rate0.0 全观测；同 dataset/seed/fold/rate 的两个训练 control 必须具有相同 labels/order、availability 和报告的 mask hash。训练器 `metrics.mask_sha256` 实际对每个 batch 的 time-major valid masks 求哈希，而预测 NPZ 保存 batch-major availability，当前 NPZ 没有 conversation IDs、lengths 或 batch 边界，因此不能从其 availability 直接重算该原始 hash。聚合仅验证原始 hash 的格式、test/top-level 字段及两个 control 间的一致性，并独立保存 batch-major bytes 的 hash，绝不混称为原始 mask hash。只有 control artifact 显式提供真实 `conversation_id`/`position` 时，才与 P0 `current_availability` 按这两个键对齐核对；当前无 IDs 的训练产物不声称已完成逐句 anchor mask 对齐。
+
+输出新目录中的 `AGGREGATE.json` 与 `REPORT.md`，始终标注 **INTERNAL DIAGNOSTIC ONLY / Test-oracle**。Full CHM 沿用历史选点：IEMOCAP 的历史来源有 weighted-F1 provenance，旧配置可能缺显式字段；MELD 是保留的 per-rate Test-oracle 权重复放，selection-metric 元数据不可得，不宣称三模型拥有完全相同的新 CLI 选点元数据。参数量只报告 artifact 的显式字段；trainable 参数量不视为有效 task-connected 参数量，缺失后者不猜测。没有 anchor 的输出明确标为 controls-only；`--allow-partial` 仅用于调试，列出全部错误并标注 **PARTIAL DEBUG ONLY**，不把缺 fold 的 seed 当作完整估计，也不替代正式报告。聚合不反序列化权重，检查存在/非空及保存其 SHA256；权重内部张量语义由运行器验证。
