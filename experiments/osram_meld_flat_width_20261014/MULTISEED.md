@@ -39,3 +39,27 @@ not whole-test-set model scores.
 Tests-first seed67/68 acceptance failed under the previous seed66-only guard,
 then passed after extending that guard. Three config tests passed locally.
 No original training, mask or backbone implementation was edited.
+
+## Launch record
+
+Started on biggpu healthy host GPU2, UUID
+`GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4`; training code `b4a3138`,
+immutable runner worktree
+`/data2/yb/remote_experiments/osram_meld_flat_width_20261014_multiseed_code_18a2816`.
+
+| Seed | Persistent parent PID | Training child PID | Output |
+|---:|---:|---:|---|
+| 67 | 313945 | 313948 | `osram_meld_flat_width_20261014_multiseed/seed67` |
+| 68 | 313947 | 313949 | `osram_meld_flat_width_20261014_multiseed/seed68` |
+
+Output paths above are relative to `/data2/yb/remote_experiments`.
+Logs are sibling `seed67.log`, `seed68.log`. Each persistent shell runs
+training followed by `osram_meld_testbest_ua_20261014.recover`. Its recovery
+output is sibling `seed67_testbest_ua`, `seed68_testbest_ua`.
+
+The initial direct-file invocation failed to find the `experiments` package
+before creating any run directory or performing training. Original failure
+logs remain as `seed67_initial_import_failure.log` and
+`seed68_initial_import_failure.log`; corrected launch uses module invocation
+(`python -m experiments.osram_meld_flat_width_20261014.run`). Both corrected
+jobs have model processes and checked PROVENANCE records.
