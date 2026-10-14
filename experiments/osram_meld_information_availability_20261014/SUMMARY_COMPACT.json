@@ -1,0 +1,33 @@
+{
+  "label": "INTERNAL DIAGNOSTIC ONLY",
+  "training_commit": "68c698f2a611b390c9c7a0b9f93c742015ce5a52",
+  "report_commit_parent": "3cbf6d7",
+  "dataset": "MELD",
+  "backbone_seed": 66,
+  "probe_seeds": [66, 67, 68],
+  "rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+  "probe_epochs": 30,
+  "completed_fits": 312,
+  "source_parity_all_rates": true,
+  "minimum_paired_test_coverage": 2608,
+  "remote_artifacts": "/data2/yb/remote_experiments/osram_meld_information_availability_20261014/full_68c698f_v2",
+  "eight_rate_percent": {
+    "Local": {"accuracy": 60.102, "weighted_f1": 56.597},
+    "LocalBase": {"accuracy": 59.765, "weighted_f1": 56.620},
+    "LocalMemory": {"accuracy": 59.516, "weighted_f1": 56.257},
+    "LocalRawHistory": {"accuracy": 60.330, "weighted_f1": 57.068},
+    "Base": {"accuracy": 50.981, "weighted_f1": 43.146},
+    "Memory": {"accuracy": 53.292, "weighted_f1": 47.120},
+    "RawHistory": {"accuracy": 48.333, "weighted_f1": 35.555}
+  },
+  "paired_real_minus_donor_percent": {
+    "Base": {"accuracy": 2.829, "weighted_f1": 11.744},
+    "Memory": {"accuracy": 5.280, "weighted_f1": 15.681},
+    "LocalBase": {"accuracy": 0.244, "weighted_f1": 0.607},
+    "LocalMemory": {"accuracy": 0.308, "weighted_f1": 0.883},
+    "RawHistory": {"accuracy": 0.184, "weighted_f1": 4.198},
+    "LocalRawHistory": {"accuracy": 0.421, "weighted_f1": 0.920}
+  },
+  "rule_based_case": "C",
+  "interpretation": "Qualified Case C: learned Memory contains sample-specific conditional information, but Local+Memory remains slightly below Local in absolute W-F1; Local+RawHistory is strongest."
+}
