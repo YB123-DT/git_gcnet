@@ -1,4 +1,4 @@
-# Width512 three-seed extension
+# Width512 three-seed extension — COMPLETE
 
 INTERNAL DIAGNOSTIC ONLY. Authorized on 2026-10-14.
 
@@ -63,3 +63,39 @@ logs remain as `seed67_initial_import_failure.log` and
 `seed68_initial_import_failure.log`; corrected launch uses module invocation
 (`python -m experiments.osram_meld_flat_width_20261014.run`). Both corrected
 jobs have model processes and checked PROVENANCE records.
+
+## Completed results
+
+All new runs completed50epochs and retained8best checkpoints. Exact selection
+mask recovery completed for all24width512 seed/rate points. ACC/W-F1 reproduce
+stored checkpoint selection scores, and UA uses those same checkpoints/masks.
+No protocol, batch size, optimizer or missing algorithm changed.
+
+| Seed | Flat1600 ACC | Flat512 ACC | Flat1600 UA | Flat512 UA | Flat1600 W-F1 | Flat512 W-F1 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 66 | 60.675 | 60.766 | 35.436 | 37.359 | 56.807 | 57.150 |
+| 67 | 60.603 | 60.330 | 35.830 | 35.961 | 56.889 | 56.300 |
+| 68 | 60.800 | 60.915 | 37.498 | 36.411 | 57.438 | 57.116 |
+| Mean | 60.693 | 60.670 | 36.255 | 36.577 | 57.045 | 56.855 |
+
+These are per-rate Test-oracle ACC-selected eight-rate means, internal only.
+Flat1600 is the new original-code reproduction, not a replacement of archived
+historical scores or restoration of the deleted original parameters.
+
+Width512 minus1600: ACC-0.022pp, UA+0.322pp, W-F1-0.189pp. Seed66's UA gain
+is not consistent across seeds: +1.923/+0.130/-1.087pp. There is no supported
+claim of uniform improvement. High-missing0.5/0.6/0.7 results:
+
+| Width | ACC | UA | W-F1 |
+|---:|---:|---:|---:|
+| 1600 reproduced | 56.484 | 30.157 | 51.066 |
+| 512 | 56.667 | 28.901 | 50.407 |
+| Delta512−1600 | +0.183 | -1.256 | -0.658 |
+
+Full new width512 per-rate scores, epochs and hashes:
+`SEED67_SUMMARY.json`, `SEED68_SUMMARY.json`; seed66 remains in
+`../osram_meld_testbest_ua_20261014/SUMMARY.json` (source ending `/width512`).
+Reproduced Flat1600 seed67/68 records are
+`../osram_meld_testbest_ua_20261014/FLAT_RESTORED67_SUMMARY.json` and
+`FLAT_RESTORED68_SUMMARY.json`. Both baseline restores also completed exact
+UA recovery. No model search was launched by the separate Optuna installation.

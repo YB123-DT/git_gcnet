@@ -19,6 +19,22 @@ All are eight-rate macro means from seed66/50epoch runs. High-missing and
 verification details are in `../osram_meld_testbest_ua_20261014/RESULT.md`.
 Width512 improves overall UA but does not improve high-missing UA in this seed.
 
+## Completed three-seed extension
+
+Seeds67/68 were subsequently authorized and completed. All24width512 selected
+ACC/W-F1 points and corresponding UA masks passed recovery parity.
+
+| Width | Mean ACC | Corresponding UA | Mean W-F1 |
+|---:|---:|---:|---:|
+| 1600 original-code reproduction, seeds66/67/68 | 60.693 | 36.255 | 57.045 |
+| 512, seeds66/67/68 | 60.670 | 36.577 | 56.855 |
+
+UA is +0.322pp overall, but high-missing UA is -1.256pp and gains are not
+consistent across seeds. Single-seed initial promise did not establish a
+robust performance gain. `MULTISEED.md` records complete seed/high-missing
+tables; JSON files preserve every rate's score and winning epoch. These new
+baseline reproduction scores do not overwrite the historical original scores.
+
 All three runs started concurrently on biggpu physical GPU0, UUID
 `GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45`. Historical training code is frozen
 at `b4a3138`, runner code at `dc78218`. Config checks confirm that the only

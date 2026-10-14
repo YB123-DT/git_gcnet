@@ -49,6 +49,27 @@ Persistent parent job PIDs: seed67 `271203`, seed68 `271204`. Source masks and
 epochs/lr/batch are unchanged. These are baseline reproductions required by
 deleted original weights, not additional module or width configurations.
 
+### Completion update: original-code baseline reproductions
+
+Both restores completed50epochs and retained all8weights. Corresponding UA
+recovery completed with exact final-mask and selected ACC/W-F1 parity. These
+are fresh reproduction scores, NOT the deleted historical model's UA.
+
+| Seed | ACC | Corresponding UA | W-F1 |
+|---:|---:|---:|---:|
+| 66 | 60.675 | 35.436 | 56.807 |
+| 67 | 60.603 | 35.830 | 56.889 |
+| 68 | 60.800 | 37.498 | 57.438 |
+| Mean | 60.693 | 36.255 | 57.045 |
+
+The source-mask algorithm remains `gcnet-random-mask-v1`; all scores are
+per-rate Test-oracle ACC-selected eight-rate means. Historical original
+ACC60.498 remains archived separately; do not relabel it with this new UA.
+Per-rate epochs, checkpoint hashes and scores are in
+`FLAT_RESTORED67_SUMMARY.json`, `FLAT_RESTORED68_SUMMARY.json`; seed66 stays
+in original `SUMMARY.json`. No-Skip original three-seed mean remains
+ACC60.554/UA35.510/W-F1 56.552 under its own actual selected-mask recovery.
+
 ## Artifacts and verification
 
 - Full checked values and checkpoint hashes: `SUMMARY.json`.
