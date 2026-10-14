@@ -47,21 +47,32 @@ def scatter_saved_availability(
     umask: torch.Tensor,
 ) -> tuple[torch.Tensor, int]:
     """Restore evaluate_rate's valid-utterance flattening order for one batch."""
-    valid = umask.T.bool()
+    # evaluate_rate stores metric availability after transposing to [B, L, 3]
+    # and applying the [B, L] umask. Restore that batch-major order first,
+    # then return the model-facing [L, B, 3] tensor.
+    valid = umask.bool()
     count = int(valid.sum().item())
     stop = cursor + count
     if stop > len(saved):
         raise ValueError("saved availability ended before the test loader")
-    restored = torch.zeros(
+    batch_major = torch.zeros(
         (*valid.shape, 3), dtype=torch.float32, device=umask.device
     )
-    restored[valid] = torch.as_tensor(
-        saved[cursor:stop], dtype=restored.dtype, device=restored.device
+    batch_major[valid] = torch.as_tensor(
+        saved[cursor:stop], dtype=batch_major.dtype, device=batch_major.device
     )
-    return restored, stop
+    return batch_major.transpose(0, 1), stop
 
 
-def evaluate_rate(model, loader, config, dimensions, saved_artifact):
+def evaluate_rate(
+    model,
+    loader,
+    config,
+    dimensions,
+    saved_artifact,
+    *,
+    require_saved_predictions_exact: bool = True,
+):
     from gcnet_missing_m3.train_gcnet import _collect_predictions, _move_batch
 
     saved_availability = np.asarray(saved_artifact["availability"])
@@ -127,7 +138,11 @@ def evaluate_rate(model, loader, config, dimensions, saved_artifact):
     labels = np.concatenate(labels_all)
     combined = {name: np.concatenate(parts) for name, parts in predictions.items()}
     np.testing.assert_array_equal(labels, saved_labels)
-    np.testing.assert_array_equal(combined["LBG"], saved_predictions)
+    saved_prediction_disagreements = int(
+        np.count_nonzero(combined["LBG"] != saved_predictions)
+    )
+    if require_saved_predictions_exact:
+        np.testing.assert_array_equal(combined["LBG"], saved_predictions)
     full_correct = combined["LBG"] == labels
     scores = {name: _metrics(labels, values) for name, values in combined.items()}
     changes = {}
@@ -144,7 +159,9 @@ def evaluate_rate(model, loader, config, dimensions, saved_artifact):
         "checks": {
             "full_logit_max_abs_error": max_full_logit_error,
             "full_class_exact": True,
-            "saved_predictions_exact": True,
+            "saved_predictions_exact": saved_prediction_disagreements == 0,
+            "saved_prediction_disagreements": saved_prediction_disagreements,
+            "saved_prediction_count": int(len(saved_predictions)),
             "saved_availability_rows": cursor,
             "memory_scan_count": scans,
         },
@@ -158,6 +175,7 @@ def main() -> None:
     parser.add_argument("--meld-pickle", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--gpu-uuid", required=True)
+    parser.add_argument("--allow-saved-prediction-mismatch", action="store_true")
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError(args.output)
@@ -222,7 +240,14 @@ def main() -> None:
             model.load_state_dict(state["model"], strict=True)
             with np.load(prediction_source) as saved:
                 result, artifacts = evaluate_rate(
-                    model, test[config.fold - 1], config, dimensions, saved
+                    model,
+                    test[config.fold - 1],
+                    config,
+                    dimensions,
+                    saved,
+                    require_saved_predictions_exact=(
+                        not args.allow_saved_prediction_mismatch
+                    ),
                 )
             prediction_file = f"predictions_miss_{suffix}.npz"
             np.savez_compressed(output / prediction_file, **artifacts)

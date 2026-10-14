@@ -13,7 +13,9 @@ def test_scatter_saved_availability_restores_valid_flattening_order() -> None:
     restored, cursor = scatter_saved_availability(saved, 0, umask)
 
     assert cursor == 3
-    torch.testing.assert_close(restored[umask.T.bool()], torch.from_numpy(saved))
+    torch.testing.assert_close(
+        restored.transpose(0, 1)[umask.bool()], torch.from_numpy(saved)
+    )
     assert restored[~umask.T.bool()].count_nonzero() == 0
 
 
