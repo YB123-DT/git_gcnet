@@ -1,0 +1,86 @@
+{
+  "audit_commit": "27ae9431ae64b51de04746bd1921b120b9c61c28",
+  "error": "RuntimeError('analysis failed with returncode 1; see analysis.log')",
+  "finished_utc": "2026-10-14T11:00:16.318685+00:00",
+  "gpu_uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+  "historical_commit": "b4a313841f098487a6482d2712bdac94aa8e319e",
+  "host": "user22",
+  "host_gpu_index": 0,
+  "pid": 4018218,
+  "seconds": 1777.9437025140505,
+  "source_config_sha256": "ce88eb4166a18f4bd1539326035c8a4f706fe5a4b6c42115f5b8b6599cccd58d",
+  "stages": {
+    "analysis": {
+      "command": [
+        "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/audit_27ae943/experiments/osram_meld_write_retention_20261014/analyze.py",
+        "--input",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/seed66_reproduced_b4a3138/audit"
+      ],
+      "cwd": "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/audit_27ae943",
+      "finished_utc": "2026-10-14T11:00:16.317415+00:00",
+      "pid": 4121476,
+      "returncode": 1,
+      "seconds": 180.34309663600288,
+      "started_utc": "2026-10-14T10:57:15.973340+00:00",
+      "status": "failed"
+    },
+    "audit": {
+      "command": [
+        "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/audit_27ae943/experiments/osram_meld_write_retention_20261014/run.py",
+        "--source",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/seed66_reproduced_b4a3138/baseline",
+        "--dataset-root",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/training_b4a3138/dataset",
+        "--meld-pickle",
+        "/data2/yb/paper/remote_runs_20261012/data/meld/meld_emotion_semantic_features_roberta.pkl",
+        "--output",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/seed66_reproduced_b4a3138/audit",
+        "--gpu-uuid",
+        "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45"
+      ],
+      "cwd": "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/audit_27ae943",
+      "finished_utc": "2026-10-14T10:57:15.968969+00:00",
+      "pid": 4088777,
+      "returncode": 0,
+      "seconds": 511.85148297599517,
+      "started_utc": "2026-10-14T10:48:44.117117+00:00",
+      "status": "complete"
+    },
+    "training": {
+      "command": [
+        "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/audit_27ae943/experiments/osram_meld_write_retention_20261014/reproduce.py",
+        "--train-only",
+        "--training-code",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/training_b4a3138",
+        "--audit-code",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/audit_27ae943",
+        "--source-config",
+        "/data2/yb/paper/remote_runs_20261012/results/osram_gcnet_random_mask_iemocap_meld_20261013_r1/meld/meld_flat_s66/config.json",
+        "--historical-source",
+        "/data2/yb/paper/remote_runs_20261012/results/osram_gcnet_random_mask_iemocap_meld_20261013_r1/meld/meld_flat_s66",
+        "--dataset-root",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/training_b4a3138/dataset",
+        "--meld-pickle",
+        "/data2/yb/paper/remote_runs_20261012/data/meld/meld_emotion_semantic_features_roberta.pkl",
+        "--output-root",
+        "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/seed66_reproduced_b4a3138",
+        "--gpu-uuid",
+        "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+        "--python",
+        "/data2/yb/conda_envs/cmerc-repro/bin/python"
+      ],
+      "cwd": "/data2/yb/remote_experiments/osram_meld_write_retention_20261014/training_b4a3138",
+      "finished_utc": "2026-10-14T10:48:43.173604+00:00",
+      "pid": 4018230,
+      "returncode": 0,
+      "seconds": 1084.7971164078917,
+      "started_utc": "2026-10-14T10:30:38.375444+00:00",
+      "status": "complete"
+    }
+  },
+  "started_utc": "2026-10-14T10:30:38.374057+00:00",
+  "status": "failed"
+}

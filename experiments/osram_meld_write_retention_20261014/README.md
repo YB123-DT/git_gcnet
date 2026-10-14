@@ -55,6 +55,9 @@ experiments.osram_meld_write_retention_20261014.run \
   --output /data2/yb/remote_experiments/osram_meld_write_retention_20261014/seed66 \
   --gpu-uuid GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45
 python -m experiments.osram_meld_write_retention_20261014.analyze --input /path/to/output
+# Render an already completed CSV in an environment that has matplotlib:
+python -m experiments.osram_meld_write_retention_20261014.analyze \
+  --csv /path/to/AGGREGATE.csv --output /path/to/figures
 ```
 
 Optional `--max-batches 1 --rates 0.7` marks output partial, never complete.
