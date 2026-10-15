@@ -105,3 +105,12 @@ python /home/qinjinghui/remote_experiments/osram_meld_b6_threshold_resume_resour
 This resource extension is not a model change, new method, extra trial budget,
 or performance claim. Unit tests cover allowed GPUs, immutable study scope and
 original worker source routing; remote check-only verifies the real saved study.
+
+Handoff verified2026-10-15 08:56UTC: new controllerPID136664 adopted all five
+unchanged trainingPIDs4052358/4052381/4052518/4052528/4052536 at26/50epochs.
+Queue capacities now include2/3/5; additional cards have not yet received jobs
+because all five initial trials must finish first. No extra model training has
+been launched at this handoff. Runtime journal is `RESOURCE_RESUME.json`.
+Local targeted regression:12passed,2Optuna-dependent tests skipped; remote
+check-only and live PID/start-time/queue ownership checks passed. The pre-existing
+unused torch-sparse/libcusparse warning remains; no training error was observed.
