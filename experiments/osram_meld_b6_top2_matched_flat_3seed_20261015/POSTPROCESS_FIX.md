@@ -60,3 +60,9 @@ CUDA_VISIBLE_DEVICES='' /data2/yb/conda_envs/cmerc-repro/bin/python -u \
 
 Read final requested metrics from `testbest_recovery_v1/RESULT.md` and
 SUMMARY.json/CSV,not solely the original auxiliary-replay failure state.
+
+Observed live CPU-only recovery manager PID2382405; both Flat67/68recovered
+successfully and remaining five jobs still training. The committed
+RECOVERED_PROGRESS.md/CSV and RECOVERY_PROGRESS.json preserve this partial
+snapshot,not final three-seed completion. At that check Flat66was23/50epochs
+and the four B6runs10/50. No additional GPU inference was launched.
