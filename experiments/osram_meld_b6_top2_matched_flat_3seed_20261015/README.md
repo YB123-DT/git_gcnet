@@ -89,3 +89,14 @@ protected Flat24checkpoints and previous studies are never modified.
 Final `RESULT.md`, `SUMMARY.json` and `SUMMARY.csv` are generated automatically
 after all seven jobs reach terminal states. Until then RUNNER/queue/live logs
 are the authoritative running status,not a completion claim.
+
+## Post-training replay defect and recovered result location
+
+GPU3/5Flat67/68finished50epochs but inherited cross-seed positional replay
+failed. Training and exact selected artifacts are intact. Requested Test-best
+metrics are recovered separately on CPU,with ID-keyed label/speaker checks and
+artifact/checkpoint hashes; no retraining,new inference or new mask selection.
+See POSTPROCESS_FIX.md. The repaired seven-job continuation writes its final
+RESULT.md and SUMMARY.json/CSV under `testbest_recovery_v1/`. Original failed
+worker/queue summaries remain preserved; common-mask replay is explicitly not
+completed for repaired67/68runs. Do not report the two evaluation scopes as one.
