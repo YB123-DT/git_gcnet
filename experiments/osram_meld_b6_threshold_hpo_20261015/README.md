@@ -148,3 +148,51 @@ trial12PID475965/GPU0,trial13PID476011/GPU3,trial14PID476374/GPU5,
 trial15PID476513/GPU0. Existing sixPIDs456480/456633/456648/456798/456972/457449
 unchanged. At this checkpoint study states5COMPLETE+11RUNNING, not twenty
 completed. No queue delay for these five starts; resource checks remain mandatory.
+
+## Latest override: GPU3/5 each one actively training job
+
+2026-10-15: user requested a final active count of one on GPU3 and one on GPU5,
+not one additional job. The attempted migration precheck detected saved CUDA RNG
+lists of length zero in a full-state checkpoint (trial9,epoch6), despite a live
+CUDA training process. Model/optimizer and CPU RNG exist, but exact GPU RNG
+recovery is **not established**; the original `TrainingState.restore` also checks
+CUDA device-count compatibility. Do not claim these files currently provide
+verified complete cross-GPU recovery. This finding is a recovery defect, not
+proof of invalid existing forward training or score improvement.
+
+The migration attempt aborted **before** signalling any worker or old controller;
+no worker was terminated, migrated, partially resumed or restarted. No migration
+journal was written. The unused `--rebalance` mode must not be used with these
+incomplete CUDA RNG snapshots. Fixing recovery in the training source is deferred
+and must not silently alter the ongoing immutable study.
+
+Instead deploy `--one-active-per-card`: keep the exact original live processes,
+pause surplus owned workers using SIGSTOP, and resume the next using SIGCONT
+when its predecessor finishes. Validate full PID/command/start-time identity
+before every signal. Never signal external processes. Paused workers retain
+resident CPU/CUDA state, RNG and allocated GPU memory; no epoch is replayed.
+The limiter is controller-owned, persists activity events, and fails open for
+its own paused workers on controlled controller exit. Unexpected controller
+death cannot promise automatic continuation; inspect process state before
+recovery. Paused waiting time is included in each worker's wall-clock duration,
+so do not interpret it as unshared compute time.
+
+Verified controller544702, source9fa9f57unchanged, queue capacities0:3/3:1/5:1:
+
+| Physical GPU | Actively training | Paused, resident | Trial IDs |
+|---|---:|---:|---|
+| 0 | 3 | 0 | active11,12,15 |
+| 2 | 2 | 0 | active5,8 |
+| 3 | 1 | 2 | active6; paused9,13 |
+| 5 | 1 | 2 | active7; paused10,14 |
+
+Thus5completed,7actively training,4paused,4not yet proposed out of20total.
+Every11worker PID was preserved; the four paused PIDs verified stateT and the
+two retained GPU3/5PIDs stateR. See `RESOURCE_ACTIVITY.json`. Nine targeted CPU
+tests passed, including ownership-filtered activity planning and safe cleanup.
+
+```bash
+python /home/qinjinghui/remote_experiments/osram_meld_b6_threshold_one_active_20261015.py \
+  --source-root /home/qinjinghui/remote_experiments/osram_meld_b6_threshold_code_9fa9f57 \
+  --one-active-per-card
+```
