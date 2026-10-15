@@ -24,7 +24,13 @@ def burst_count(issued):
     return min(5, 20 - issued)
 
 
-def make_scheduler(frozen, output, source_root, peak):
+def make_scheduler(frozen, output, source_root, peak, rebalance=False):
+    if rebalance:
+        scheduler = frozen.ThresholdScheduler(output / 'queue', gpus=(0, 2, 3),
+            per_gpu=6, code_root=source_root,
+            smoke_costs={'B6': {'peak_memory_mib': peak, 'disk_bytes': 2 * 2**30}})
+        scheduler.capacity = {0: 3, 2: 6, 3: 1, 5: 1}
+        return scheduler
     scheduler = frozen.ThresholdScheduler(output / 'queue', gpus=tuple(CAPACITY),
         per_gpu=3, code_root=source_root,
         smoke_costs={'B6': {'peak_memory_mib': peak, 'disk_bytes': 2 * 2**30}})
@@ -40,6 +46,8 @@ def main():
     parser.add_argument('--output', type=Path, default=Path(
         '/home/qinjinghui/remote_experiments/osram_meld_b6_threshold_hpo_20261015'))
     parser.add_argument('--check-only', action='store_true')
+    parser.add_argument('--rebalance', action='store_true',
+                        help='After audited full-state migrations, cap GPU3/5 at one; use GPU2 for excess')
     args = parser.parse_args()
     source = args.source_root.resolve(strict=True)
     sys.path.insert(0, str(source))
@@ -55,14 +63,15 @@ def main():
             or sha != provenance['source_git_sha'] or source_hashes() != provenance['code_hashes']):
         raise ValueError('Frozen training source changed')
     smoke = json.loads((args.output / 'smoke/SUMMARY.json').read_text())
-    scheduler = make_scheduler(frozen, args.output, source, smoke['peak_memory_mib'])
+    scheduler = make_scheduler(frozen, args.output, source, smoke['peak_memory_mib'], args.rebalance)
     snapshot = scheduler.gpu_snapshot()
+    checked_gpus = set(scheduler.gpus) | {5}
     if any(gpu not in snapshot or not snapshot[gpu]['uuid'].startswith('GPU-')
-           or snapshot[gpu]['uuid'] == snapshot.get(4, {}).get('uuid') for gpu in CAPACITY):
+           or snapshot[gpu]['uuid'] == snapshot.get(4, {}).get('uuid') for gpu in checked_gpus):
         raise RuntimeError('GPU UUID whitelist validation failed')
-    if any(snapshot[gpu]['free_mib'] < 4000 for gpu in CAPACITY):
+    if any(snapshot[gpu]['free_mib'] < 4000 for gpu in checked_gpus):
         raise RuntimeError('Insufficient current GPU headroom for immediate launch')
-    print(json.dumps(dict(preflight='passed', capacity=CAPACITY, source_git_sha=sha)), flush=True)
+    print(json.dumps(dict(preflight='passed', capacity=scheduler.capacity, source_git_sha=sha)), flush=True)
     if args.check_only:
         return
     with (args.output / '.controller.lock').open('a+') as lock:
@@ -87,8 +96,15 @@ def main():
                                    if j['status'] == 'running'])
         if not 5 <= journal['early_issued_target'] <= 20 or len(issued) > 20:
             raise ValueError('Invalid immediate-burst resume budget')
-        scheduler.capacity = {int(g): c for g, c in journal['capacity'].items()}
+        if not args.rebalance:
+            scheduler.capacity = {int(g): c for g, c in journal['capacity'].items()}
         scheduler.save()
+        if args.rebalance:
+            frozen.write_json(args.output / 'RESOURCE_REBALANCE.json', dict(
+                pid=os.getpid(), started_unix=time.time(), capacity=scheduler.capacity,
+                source_git_sha=sha, source_root=str(source),
+                controller_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                reason='User requests GPU3/5 each one; audited full-checkpoint migration to GPU2'))
         journal.update(pid=os.getpid(), controller_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
         frozen.write_json(journal_path, journal)
         for _ in range(max(0, journal['early_issued_target'] - len(issued))):

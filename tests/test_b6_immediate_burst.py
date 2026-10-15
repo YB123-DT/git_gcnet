@@ -48,3 +48,12 @@ def test_existing_card_jobs_are_not_mistaken_for_new_burst_capacity(tmp_path):
         'old5b': {'status': 'running', 'gpu': 5}}, 'capacity': {'3': 1, '5': 1}}))
     s = m.make_scheduler(frozen, tmp_path / 'out', tmp_path / 'source', 1005.)
     assert s.capacity == {0: 3, 3: 3, 5: 3}
+
+
+def test_rebalance_keeps_one_on_gpu3_and5_and_moves_excess_to_gpu2(tmp_path):
+    m = module()
+    from experiments.osram_meld_b6_threshold_hpo_20261015 import run as frozen
+    s = m.make_scheduler(frozen, tmp_path / 'out', tmp_path / 'source', 1005., rebalance=True)
+    assert s.gpus == (0, 2, 3)
+    assert s.capacity == {0: 3, 2: 6, 3: 1, 5: 1}
+    assert s.code_root == (tmp_path / 'source').resolve()
