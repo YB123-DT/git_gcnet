@@ -121,20 +121,30 @@ User explicitly revoked waiting and requested GPU0 with fewer jobs on GPU3/5.
 `immediate_burst.py` therefore consumes five of the existing remaining trials
 immediately: GPU0three, GPU3one, GPU5one. Existing GPU2workers remain untouched;
 no future jobs are added to GPU2 by this controller. GPU4 is still forbidden.
-At this burst there may be ten active trials across the four explicitly requested
-cards. Subsequent launches use only0/3/5 with capacities3/1/1.
+At this burst preserve all already-running trials across the four explicitly
+requested cards. Added capacity is3/1/1 on0/3/5, not a replacement for existing
+jobs on these cards; actual total queue capacities include preserved jobs.
 
-This supersedes the five-completed-starts barrier **only for the five early
-proposals**, without increasing the20trial total or changing the training code.
-Optuna records the count of completed feedback available at each early proposal.
-With no completed trials these are startup/random draws, NOT informed TPE.
-The initial ten are collected before ordinary adaptive search resumes; later
-pending cap remains6 with at most5running on0/3/5. Save the change in
-`IMMEDIATE_BURST.json`, retaining original preregistration as historical evidence.
-This is a user-directed search-protocol deviation, not merely a resource change.
-It does not create five additional trials beyond the original budget.
+The requested override permits immediate proposals without waiting for startup
+feedback, but the actual initial five completed during preflight: the former
+controller had already issued six feedback-informed trials(5..10). The new burst
+consumes another five remaining slots(11..15); Optuna records completed-feedback
+count for each. Therefore these actual proposals can use five completed trials;
+do not describe them as feedback-free draws. No change to training code or total
+budget20. On restart use the saved absolute issued-target16, not another five.
+Collect the active burst before the original adaptive loop resumes for trials
+16..19. Later pending cap remains6. Save actual change in
+`IMMEDIATE_BURST_V2.json`; keep the no-launch first handoff journal separately.
+This is a user-directed search scheduling change, explicitly recorded, not new
+method evidence. Do not hide any earlier warning about feedback availability.
 
 ```bash
-python /home/qinjinghui/remote_experiments/osram_meld_b6_threshold_immediate_burst_20261015.py \
+python /home/qinjinghui/remote_experiments/osram_meld_b6_threshold_immediate_burst_v2_20261015.py \
   --source-root /home/qinjinghui/remote_experiments/osram_meld_b6_threshold_code_9fa9f57
 ```
+
+Verified actual launch: controller475303; new trial11PID475783/GPU0,
+trial12PID475965/GPU0,trial13PID476011/GPU3,trial14PID476374/GPU5,
+trial15PID476513/GPU0. Existing sixPIDs456480/456633/456648/456798/456972/457449
+unchanged. At this checkpoint study states5COMPLETE+11RUNNING, not twenty
+completed. No queue delay for these five starts; resource checks remain mandatory.
