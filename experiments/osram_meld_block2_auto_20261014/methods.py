@@ -58,6 +58,15 @@ METHODS = {
 
 HPO_KEYS = frozenset(("learning_rate", "weight_decay", "dropout"))
 
+
+def validate_training_config(config, replication_seed=None):
+    """Default screen remains seed66; replication requires an explicit opt-in."""
+    if replication_seed is not None and replication_seed not in (67, 68):
+        raise ValueError('Only the authorized seed67/68 replications are supported')
+    expected = 66 if replication_seed is None else replication_seed
+    if config.epochs != 50 or config.seed != expected or not config.preserve_selection_artifacts:
+        raise ValueError('Require registered 50epoch/explicit seed/exact selection artifacts')
+
 _FIXED = {
     "dataset": "MELD", "seed": 66, "batch_size": 32, "backbone_type": "osram",
     "training_objective": "emotion-only", "missing_mask_protocol": "gcnet-random-mask-v1",

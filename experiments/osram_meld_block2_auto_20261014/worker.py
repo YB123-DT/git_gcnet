@@ -27,7 +27,7 @@ COMMON = Path('/data2/yb/remote_experiments/osram_meld_testbest_ua_20261014/exac
 os.environ.update(GCNET_DATASET_ROOT='/data2/yb/paper/remote_runs_20261012/data',
                   GCNET_MELD_PICKLE=str(DATASET))
 
-from .methods import METHODS
+from .methods import METHODS, validate_training_config
 from gcnet_missing_m3.training_resume import TrainingState, _sha
 from gcnet_missing_m3 import train_gcnet as trainer
 from experiments.osram_meld_flat_source_combinations_20261013.evaluate import _build_model, _write
@@ -225,6 +225,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--smoke', action='store_true')
+    parser.add_argument('--replication-seed', type=int, choices=(67, 68), default=None)
     args = parser.parse_args()
     gpu = guard_gpu(args.gpu_uuid)
     repair = repair_uuid_enumeration()
@@ -272,8 +273,7 @@ def main():
         if args.smoke:
             summary.update(smoke(config, args.output, method))
             return
-        if config.epochs != 50 or config.seed != 66 or not config.preserve_selection_artifacts:
-            raise ValueError('Require registered 50epoch/seed66/exact selection artifacts')
+        validate_training_config(config, args.replication_seed)
         identity = {k: provenance[k] for k in ('git_sha', 'code_hashes', 'dataset_sha256', 'config_sha256')}
         state = CompactState(args.output, identity=identity)
         torch.cuda.reset_peak_memory_stats()
