@@ -226,7 +226,10 @@ def main():
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--smoke', action='store_true')
     parser.add_argument('--replication-seed', type=int, choices=(67, 68), default=None)
+    parser.add_argument('--testbest-only', action='store_true')
     args = parser.parse_args()
+    if args.testbest_only and args.replication_seed is None:
+        raise ValueError('Test-best-only is an explicit replication mode, not a screen/HPO shortcut')
     gpu = guard_gpu(args.gpu_uuid)
     repair = repair_uuid_enumeration()
     torch.set_num_threads(2)
@@ -304,6 +307,8 @@ def main():
                 selection_ids = selected['conversation_ids'].copy()
                 selection_times = selected['utterance_indices'].copy()
                 selection_speakers = selected['speakers'].copy()
+            if args.testbest_only:
+                continue
             with np.load(COMMON / f'predictions_miss_0p{i}.npz') as saved:
                 replay = paired_replay(model, test, dimensions, saved, method)
             np.testing.assert_array_equal(replay['conversation_ids'], selection_ids)
@@ -326,9 +331,10 @@ def main():
             peakmemorybytes=torch.cuda.max_memory_allocated(),
             parameters=sum(p.numel() for p in model.parameters()),
             block_parameters=0 if method == 'Flat' else sum(p.numel() for p in model.osram.meaningful_block.parameters()),
-            testbest=aggregate(best), paired=dict(on=aggregate(on), off=aggregate(off), changes=changes,
+            testbest=aggregate(best), paired=(dict(status='not_requested', reason='Test-best-only replication')
+                if args.testbest_only else dict(on=aggregate(on), off=aggregate(off), changes=changes,
                 mask_digest=hashlib.sha256(json.dumps(common_hashes, sort_keys=True).encode()).hexdigest(),
-                id_digest=id_digest.hexdigest()), resume='full epoch-boundary optimizer/RNG; immutable BEST artifacts',
+                id_digest=id_digest.hexdigest())), resume='full epoch-boundary optimizer/RNG; immutable BEST artifacts',
             finished_unix=time.time())
         _write(previous, summary)
         # Completed HPO jobs need no restart cache. Preserve every BEST weight

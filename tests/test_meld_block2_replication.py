@@ -54,6 +54,7 @@ def test_three_fixed_configs_make_only_six_new_jobs(tmp_path):
     assert config['seed'] == 66
     scheduler = module.ReplicationScheduler(tmp_path / 'queue')
     command = scheduler.command(jobs[0], 'config.json', 'GPU-test')
+    assert '--testbest-only' in command
     assert command[-2:] == ['--replication-seed', str(jobs[0]['config']['seed'])]
 
 

@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class ReplicationScheduler(Scheduler):
     def command(self, job, config_path, gpu_uuid):
         return super().command(job, config_path, gpu_uuid) + [
-            '--replication-seed', str(job['config']['seed'])]
+            '--testbest-only', '--replication-seed', str(job['config']['seed'])]
 
 
 def make_jobs(manifests, output):
