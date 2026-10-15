@@ -1,0 +1,58 @@
+{
+  "baseline_root": "/data2/yb/paper/remote_runs_20261012/results/osram_gcnet_random_mask_iemocap_meld_20261013_r1",
+  "feature_hash_note": "Current paths/count/bytes recorded; historical full tree hashes unavailable",
+  "features": {
+    "deberta-large-4-UTT": {
+      "bytes": 42599040,
+      "files": 10085,
+      "path": "/data2/yb/paper/GCNet_TPAMI_modality_jepa_20260818/dataset/IEMOCAP/features/deberta-large-4-UTT"
+    },
+    "manet_UTT": {
+      "bytes": 85189632,
+      "files": 20168,
+      "path": "/data2/yb/paper/GCNet_TPAMI_modality_jepa_20260818/dataset/IEMOCAP/features/manet_UTT"
+    },
+    "wav2vec-large-c-UTT": {
+      "bytes": 21942784,
+      "files": 10084,
+      "path": "/data2/yb/paper/GCNet_TPAMI_modality_jepa_20260818/dataset/IEMOCAP/features/wav2vec-large-c-UTT"
+    }
+  },
+  "labels": {
+    "IEMOCAPFour": {
+      "expected_sha256": "072cffa9c528dd0536792de7ac85d5a0efaf25d4a9e3ed01f7e45453547cc9fd",
+      "path": "/data2/yb/paper/GCNet_TPAMI_modality_jepa_20260818/dataset/IEMOCAP/IEMOCAP_features_raw_4way.pkl",
+      "sha256": "072cffa9c528dd0536792de7ac85d5a0efaf25d4a9e3ed01f7e45453547cc9fd"
+    },
+    "IEMOCAPSix": {
+      "expected_sha256": "e35143e9f087d436779cccd650cb0327e9caa55178d326330f4a8a914e91e023",
+      "path": "/data2/yb/paper/GCNet_TPAMI_modality_jepa_20260818/dataset/IEMOCAP/IEMOCAP_features_raw_6way.pkl",
+      "sha256": "e35143e9f087d436779cccd650cb0327e9caa55178d326330f4a8a914e91e023"
+    }
+  },
+  "preflight_interruption": "Initial command omitted --smoke; only our PID3256477 terminated before a completed epoch. Artifacts retained in preflight/smoke; no scores used.",
+  "smoke_equivalence": {
+    "file_hashes": {
+      "gcnet_missing_m3/model.py": {
+        "formal": "0dc959b53be35e1bf43f782f939aa769e8b607ba94864679ca3b1d6cbce17b57",
+        "smoke": "0dc959b53be35e1bf43f782f939aa769e8b607ba94864679ca3b1d6cbce17b57"
+      },
+      "gcnet_missing_m3/osram.py": {
+        "formal": "c27a1dccbee420f99f16b44b22617e84a384f324d5e1081a1d5c212676d86855",
+        "smoke": "c27a1dccbee420f99f16b44b22617e84a384f324d5e1081a1d5c212676d86855"
+      },
+      "gcnet_modality_jepa/gcnet_legacy_random_mask.py": {
+        "formal": "113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547",
+        "smoke": "113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547"
+      },
+      "gcnet_modality_jepa/protocol.py": {
+        "formal": "29916fd89442e7a845fde6c4270a6d9aa40cf3a6ac0654cf33bda5c6cf34644d",
+        "smoke": "29916fd89442e7a845fde6c4270a6d9aa40cf3a6ac0654cf33bda5c6cf34644d"
+      }
+    },
+    "note": "Only two artifact-collection classification guards expanded; no numerical model/sampler/training changes. Existing real batch smoke reused, not repeated.",
+    "trainer_diff": "diff --git a/gcnet_missing_m3/train_gcnet.py b/gcnet_missing_m3/train_gcnet.py\nindex 39c8030..c373a4c 100644\n--- a/gcnet_missing_m3/train_gcnet.py\n+++ b/gcnet_missing_m3/train_gcnet.py\n@@ -3063,8 +3063,8 @@ def evaluate_rate(\n                 metric_availability[selected].cpu().numpy()\n             )\n             if collect_identity:\n-                if dataset != 'MELD':\n-                    raise ValueError('Exact identity collection currently supports MELD only')\n+                if dataset not in {'MELD', 'IEMOCAPFour', 'IEMOCAPSix'}:\n+                    raise ValueError('Exact identity collection requires MELD or IEMOCAP classification')\n                 ids = np.asarray([str(v) for v in view['conversation_ids']])\n                 chosen = selected.cpu().numpy()\n                 collected_identity['conversation_ids'].append(np.broadcast_to(ids[:, None], chosen.shape)[chosen])\n@@ -3668,8 +3668,8 @@ def run_experiment(\n         selection_metrics: Dict[float, Dict[str, float]] = {}\n         selection_artifacts = {}\n         preserve_selection = config_value.preserve_selection_artifacts and per_rate_oracle\n-        if preserve_selection and config_value.dataset != 'MELD':\n-            raise ValueError('Exact selection artifact mode requires MELD')\n+        if preserve_selection and config_value.dataset not in {'MELD', 'IEMOCAPFour', 'IEMOCAPSix'}:\n+            raise ValueError('Exact selection artifact mode requires MELD or IEMOCAP classification')\n         for rate in protocol_rates:\n             extra_collection = {'collect_identity': True} if preserve_selection else {}\n             selection_metrics[rate], collected = evaluate_rate(\n"
+  },
+  "smoke_source_sha": "9fa9f571e7095d5b09f9c256d888c31a76c82744",
+  "training_source_sha": "785a01242ef1a82b97d5337acbb33ba963df5537"
+}
