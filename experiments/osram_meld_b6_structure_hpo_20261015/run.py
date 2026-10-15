@@ -88,7 +88,9 @@ def unique_tpe_sampler():
             # Conditional uniqueness fallback is explicit, deterministic, bounded.
             study._storage.set_trial_user_attr(trial._trial_id,'unique_fallback_'+param_name,True)
             return random.Random(66+trial.number).choice(allowed)
-    return UniqueTPE(seed=66,n_startup_trials=5,constant_liar=True)
+    # Optuna5 defaults single-objective studies to multivariate sampling, which
+    # bypasses sample_independent. Pin this flag so uniqueness is actually enforced.
+    return UniqueTPE(seed=66,n_startup_trials=5,constant_liar=True,multivariate=False)
 
 
 def build_report(rows):
@@ -244,6 +246,7 @@ def main(argv=None):
         dataset_sha256=DATASET_SHA,config=make_config(1,14),
         **gpu_provenance(a.gpus),
         initial_configs=list(INITIAL_CONFIGS),trials=20,
+        sampler='independent TPE, multivariate=False, constant_liar=True; unique rank/steps pairs',
         environment=dict(python=sys.version,torch=torch.__version__,numpy=np.__version__,optuna=optuna.__version__))
     previous=a.output/'PREFLIGHT.json'
     if previous.exists() and json.loads(previous.read_text())!=provenance:

@@ -29,6 +29,11 @@ new, nonduplicate pairs. Use completed feedback as jobs finish; maintain no
 more than12pending/running trials, at most4total compute processes per GPU
 (including other queues). Source snapshots of old jobs are untouched.
 
+The installed Optuna5 defaults single-objective TPE to multivariate proposals.
+This controller explicitly selects `multivariate=False` so its conditional
+independent-sampling uniqueness guard cannot be bypassed. The SQLite integration
+test checks20unique real proposals and restart after a partially saved proposal.
+
 ## Evaluation and ranking
 
 Preserve exact selected-epoch predictions/masks for all8rates. Also replay the
