@@ -13,9 +13,79 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import signal
+import threading
 import time
 
 CAPACITY = {0: 3, 3: 1, 5: 1}
+
+
+def activity_plan(rows, states):
+    """Only process identities independently verified by the caller are eligible."""
+    actions = []
+    for gpu in (3, 5):
+        group = sorted((r for r in rows if r.get('gpu') == gpu
+                        and r['status'] == 'running' and r['id'] in states),
+                       key=lambda r: (r['started_at'], r['id']))
+        for row in group[1:]:
+            if states[row['id']] != 'T':
+                actions.append((row['id'], 'pause'))
+        if group and states[group[0]['id']] == 'T':
+            actions.append((group[0]['id'], 'resume'))
+    return actions
+
+
+class ActivityLimiter:
+    """Retain complete live CPU/CUDA state; never terminate a training process."""
+    def __init__(self, scheduler, output, writer):
+        self.scheduler, self.output, self.writer = scheduler, output, writer
+        self.stop = threading.Event()
+        self.paused, self.events = {}, []
+        self.thread = threading.Thread(target=self.run, daemon=True)
+
+    def step(self):
+        queue = json.loads((self.output / 'queue/QUEUE.json').read_text())
+        rows, states = queue['jobs'], {}
+        for name, row in rows.items():
+            if (row.get('gpu') in (3, 5) and row['status'] == 'running'
+                    and self.scheduler.owns_process(row)):
+                try:
+                    states[name] = Path(f"/proc/{row['pid']}/stat").read_text().rsplit(')', 1)[1].split()[0]
+                except FileNotFoundError:
+                    continue
+                if states[name] == 'T':
+                    self.paused[name] = row
+        for name, action in activity_plan(list(rows.values()), states):
+            row = rows[name]
+            if not self.scheduler.owns_process(row):
+                continue
+            os.kill(row['pid'], signal.SIGSTOP if action == 'pause' else signal.SIGCONT)
+            if action == 'pause':
+                self.paused[name] = row
+            else:
+                self.paused.pop(name, None)
+            self.events.append(dict(at=time.time(), id=name, pid=row['pid'], gpu=row['gpu'], action=action))
+            self.writer(self.output / 'RESOURCE_ACTIVITY.json', dict(
+                pid=os.getpid(), status='running', policy='GPU3/5 each one active owned worker',
+                paused_gpu_memory_retained=True, events=self.events))
+
+    def run(self):
+        try:
+            while not self.stop.wait(1.):
+                self.step()
+        except BaseException as error:
+            self.writer(self.output / 'RESOURCE_ACTIVITY_ERROR.json', dict(error=repr(error), at=time.time()))
+            import _thread
+            _thread.interrupt_main()
+
+    def close(self):
+        self.stop.set()
+        if self.thread.ident is not None:
+            self.thread.join(timeout=5.)
+        # Fail open if the controller exits: never leave owned training stranded.
+        for row in self.paused.values():
+            if self.scheduler.owns_process(row):
+                os.kill(row['pid'], signal.SIGCONT)
 
 
 def burst_count(issued):
@@ -48,7 +118,11 @@ def main():
     parser.add_argument('--check-only', action='store_true')
     parser.add_argument('--rebalance', action='store_true',
                         help='After audited full-state migrations, cap GPU3/5 at one; use GPU2 for excess')
+    parser.add_argument('--one-active-per-card', action='store_true',
+                        help='Keep GPU3/5 each one computing job; pause excess original processes without losing CUDA RNG')
     args = parser.parse_args()
+    if args.rebalance and args.one_active_per_card:
+        parser.error('Migration and resident-process pause policies cannot be combined')
     source = args.source_root.resolve(strict=True)
     sys.path.insert(0, str(source))
     from experiments.osram_meld_b6_threshold_hpo_20261015 import run as frozen
@@ -98,6 +172,8 @@ def main():
             raise ValueError('Invalid immediate-burst resume budget')
         if not args.rebalance:
             scheduler.capacity = {int(g): c for g, c in journal['capacity'].items()}
+        if args.one_active_per_card:
+            scheduler.capacity = {0: 3, 3: 1, 5: 1}
         scheduler.save()
         if args.rebalance:
             frozen.write_json(args.output / 'RESOURCE_REBALANCE.json', dict(
@@ -126,7 +202,12 @@ def main():
         runner = json.loads((args.output / 'RUNNER.json').read_text())
         runner.update(status='running', pid=os.getpid(), immediate_burst=journal)
         frozen.write_json(args.output / 'RUNNER.json', runner)
+        limiter = None
         try:
+            if args.one_active_per_card:
+                limiter = ActivityLimiter(scheduler, args.output, frozen.write_json)
+                limiter.step()
+                limiter.thread.start()
             if jobs:
                 records = scheduler.run_jobs(jobs)
                 flat = json.loads(frozen.FLAT.read_text())
@@ -151,6 +232,8 @@ def main():
             runner.update(status='failed', error=repr(error), finished_unix=time.time())
             raise
         finally:
+            if limiter is not None:
+                limiter.close()
             frozen.write_json(args.output / 'RUNNER.json', runner)
 
 

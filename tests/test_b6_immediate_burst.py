@@ -57,3 +57,24 @@ def test_rebalance_keeps_one_on_gpu3_and5_and_moves_excess_to_gpu2(tmp_path):
     assert s.gpus == (0, 2, 3)
     assert s.capacity == {0: 3, 2: 6, 3: 1, 5: 1}
     assert s.code_root == (tmp_path / 'source').resolve()
+
+
+def test_one_active_plan_pauses_excess_then_resumes_next_owned_job():
+    m = module()
+    rows = [{'id': 'trial7', 'gpu': 5, 'started_at': '01', 'status': 'running'},
+            {'id': 'trial10', 'gpu': 5, 'started_at': '02', 'status': 'running'},
+            {'id': 'trial14', 'gpu': 5, 'started_at': '03', 'status': 'running'},
+            {'id': 'othergpu', 'gpu': 0, 'started_at': '00', 'status': 'running'}]
+    assert m.activity_plan(rows, {'trial7': 'R', 'trial10': 'R', 'trial14': 'S', 'othergpu': 'R'}) == [
+        ('trial10', 'pause'), ('trial14', 'pause')]
+    rows[0]['status'] = 'complete'
+    assert m.activity_plan(rows, {'trial10': 'T', 'trial14': 'T'}) == [('trial10', 'resume')]
+    assert m.activity_plan(rows, {}) == []  # no unverified PID can be signalled
+
+
+def test_limiter_cleanup_is_safe_before_background_thread_started(tmp_path):
+    m = module()
+    from experiments.osram_meld_b6_threshold_hpo_20261015 import run as frozen
+    s = m.make_scheduler(frozen, tmp_path / 'out', tmp_path / 'source', 1005.)
+    limiter = m.ActivityLimiter(s, tmp_path / 'out', frozen.write_json)
+    limiter.close()
