@@ -114,3 +114,27 @@ been launched at this handoff. Runtime journal is `RESOURCE_RESUME.json`.
 Local targeted regression:12passed,2Optuna-dependent tests skipped; remote
 check-only and live PID/start-time/queue ownership checks passed. The pre-existing
 unused torch-sparse/libcusparse warning remains; no training error was observed.
+
+## Subsequent immediate-launch override
+
+User explicitly revoked waiting and requested GPU0 with fewer jobs on GPU3/5.
+`immediate_burst.py` therefore consumes five of the existing remaining trials
+immediately: GPU0three, GPU3one, GPU5one. Existing GPU2workers remain untouched;
+no future jobs are added to GPU2 by this controller. GPU4 is still forbidden.
+At this burst there may be ten active trials across the four explicitly requested
+cards. Subsequent launches use only0/3/5 with capacities3/1/1.
+
+This supersedes the five-completed-starts barrier **only for the five early
+proposals**, without increasing the20trial total or changing the training code.
+Optuna records the count of completed feedback available at each early proposal.
+With no completed trials these are startup/random draws, NOT informed TPE.
+The initial ten are collected before ordinary adaptive search resumes; later
+pending cap remains6 with at most5running on0/3/5. Save the change in
+`IMMEDIATE_BURST.json`, retaining original preregistration as historical evidence.
+This is a user-directed search-protocol deviation, not merely a resource change.
+It does not create five additional trials beyond the original budget.
+
+```bash
+python /home/qinjinghui/remote_experiments/osram_meld_b6_threshold_immediate_burst_20261015.py \
+  --source-root /home/qinjinghui/remote_experiments/osram_meld_b6_threshold_code_9fa9f57
+```
