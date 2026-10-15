@@ -1,0 +1,289 @@
+--- official/models/mmin_model.py
++++ gcnet_utt/models/mmin_model.py
+@@ -1,4 +1,3 @@
+-
+ import torch
+ import os
+ import json
+@@ -36,7 +35,6 @@
+         parser.add_argument('--ce_weight', type=float, default=1.0, help='weight of ce loss')
+         parser.add_argument('--mse_weight', type=float, default=1.0, help='weight of mse loss')
+         parser.add_argument('--cycle_weight', type=float, default=1.0, help='weight of cycle loss')
+-        parser.add_argument('--share_weight', action='store_true', help='share weight of forward and backward autoencoders')
+         return parser
+ 
+     def __init__(self, opt):
+@@ -47,30 +45,42 @@
+         super().__init__(opt)
+         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
+         self.loss_names = ['CE', 'mse', 'cycle']
+-        self.model_names = ['A', 'V', 'L', 'C', 'AE', 'AE_cycle']
+-        
++        self.model_names = ['A', 'V', 'L', 'C', 'AE', 'AE_cycle'] # name of each layer
++        cls_layers = list(map(lambda x: int(x), opt.cls_layers.split(',')))
++
+         # acoustic model
+-        self.netA = LSTMEncoder(opt.input_dim_a, opt.embd_size_a, embd_method=opt.embd_method_a)
++        #############################
++        # self.netA = LSTMEncoder(opt.input_dim_a, opt.embd_size_a, embd_method=opt.embd_method_a)
++        self.netA = FcClassifier(opt.input_dim_a, cls_layers, output_dim=opt.embd_size_a, dropout=opt.dropout_rate, use_bn=opt.bn)
++        #############################
++
+         # lexical model
+-        self.netL = TextCNN(opt.input_dim_l, opt.embd_size_l)
++        #############################
++        # self.netL = TextCNN(opt.input_dim_l, opt.embd_size_l)
++        self.netL = FcClassifier(opt.input_dim_l, cls_layers, output_dim=opt.embd_size_l, dropout=opt.dropout_rate, use_bn=opt.bn)
++        #############################
++
+         # visual model
+-        self.netV = LSTMEncoder(opt.input_dim_v, opt.embd_size_v, opt.embd_method_v)
++        #############################
++        # self.netV = LSTMEncoder(opt.input_dim_v, opt.embd_size_v, embd_method=opt.embd_method_v)
++        self.netV = FcClassifier(opt.input_dim_v, cls_layers, output_dim=opt.embd_size_v, dropout=opt.dropout_rate, use_bn=opt.bn)
++        #############################
++
+         # AE model
+         AE_layers = list(map(lambda x: int(x), opt.AE_layers.split(',')))
+         AE_input_dim = opt.embd_size_a + opt.embd_size_v + opt.embd_size_l
+         self.netAE = ResidualAE(AE_layers, opt.n_blocks, AE_input_dim, dropout=0, use_bn=False)
+-        if opt.share_weight:
+-            self.netAE_cycle = self.netAE
+-            self.model_names.pop(-1)
+-        else:
+-            self.netAE_cycle = ResidualAE(AE_layers, opt.n_blocks, AE_input_dim, dropout=0, use_bn=False)
+-        cls_layers = list(map(lambda x: int(x), opt.cls_layers.split(',')))
++        self.netAE_cycle = ResidualAE(AE_layers, opt.n_blocks, AE_input_dim, dropout=0, use_bn=False)
+         cls_input_size = AE_layers[-1] * opt.n_blocks
+         self.netC = FcClassifier(cls_input_size, cls_layers, output_dim=opt.output_dim, dropout=opt.dropout_rate, use_bn=opt.bn)
+ 
+         if self.isTrain:
+             self.load_pretrained_encoder(opt)
+-            self.criterion_ce = torch.nn.CrossEntropyLoss()
++            #############################
++            dataset = opt.dataset_mode.split('_')[0]
++            if dataset in ['cmumosi', 'cmumosei']:   self.criterion_ce = torch.nn.MSELoss()
++            if dataset in ['boxoflies', 'iemocapfour', 'iemocapsix']: self.criterion_ce = torch.nn.CrossEntropyLoss()
++            #############################
+             self.criterion_mse = torch.nn.MSELoss()
+             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
+             paremeters = [{'params': getattr(self, 'net'+net).parameters()} for net in self.model_names]
+@@ -121,49 +131,64 @@
+         Parameters:
+             input (dict): include the data itself and its metadata information.
+         """
+-        acoustic = input['A_feat'].float().to(self.device)
+-        lexical = input['L_feat'].float().to(self.device)
+-        visual = input['V_feat'].float().to(self.device)
+-        if self.isTrain:
+-            self.label = input['label'].to(self.device)
+-            self.missing_index = input['missing_index'].long().to(self.device)
+-            # A modality
+-            self.A_miss_index = self.missing_index[:, 0].unsqueeze(1).unsqueeze(2)
+-            self.A_miss = acoustic * self.A_miss_index
+-            self.A_reverse = acoustic * -1 * (self.A_miss_index - 1)
+-            # L modality
+-            self.L_miss_index = self.missing_index[:, 2].unsqueeze(1).unsqueeze(2)
+-            self.L_miss = lexical * self.L_miss_index
+-            self.L_reverse = lexical * -1 * (self.L_miss_index - 1)
+-            # V modality
+-            self.V_miss_index = self.missing_index[:, 1].unsqueeze(1).unsqueeze(2)
+-            self.V_miss = visual * self.V_miss_index
+-            self.V_reverse = visual * -1 * (self.V_miss_index - 1)
+-        else:
+-            self.A_miss = acoustic
+-            self.V_miss = visual
+-            self.L_miss = lexical
++        acoustic = input['A_feat'].float().to(self.device) # [256, 512]
++        lexical = input['L_feat'].float().to(self.device)  # [256, 1024]
++        visual = input['V_feat'].float().to(self.device)   # [256, 1024]
++        self.label = input['label'].to(self.device)    # [256]
++        self.missing_index = input['missing_index'].long().to(self.device) # [256, 3]
++        # A modality
++        #############################################
++        self.A_miss_index = self.missing_index[:, 0].unsqueeze(1) # [256, 1]
++        self.A_miss = acoustic * self.A_miss_index
++        self.A_reverse = acoustic * -1 * (self.A_miss_index - 1)
++        # L modality
++        self.L_miss_index = self.missing_index[:, 2].unsqueeze(1)
++        self.L_miss = lexical * self.L_miss_index
++        self.L_reverse = lexical * -1 * (self.L_miss_index - 1)
++        # V modality
++        self.V_miss_index = self.missing_index[:, 1].unsqueeze(1)
++        self.V_miss = visual * self.V_miss_index
++        self.V_reverse = visual * -1 * (self.V_miss_index - 1)
++        #############################################
++
++
+ 
+     def forward(self):
+         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
+         # get utt level representattion
+-        self.feat_A_miss = self.netA(self.A_miss)
+-        self.feat_L_miss = self.netL(self.L_miss)
+-        self.feat_V_miss = self.netV(self.V_miss)
++        ###############################################
++        self.feat_A_miss, _ = self.netA(self.A_miss)
++        self.feat_L_miss, _ = self.netL(self.L_miss)
++        self.feat_V_miss, _ = self.netV(self.V_miss)
++        # self.feat_A_miss = self.netA(self.A_miss)
++        # self.feat_L_miss = self.netL(self.L_miss)
++        # self.feat_V_miss = self.netV(self.V_miss)
++        ###############################################
+         # fusion miss
+         self.feat_fusion_miss = torch.cat([self.feat_A_miss, self.feat_L_miss, self.feat_V_miss], dim=-1)
+         # calc reconstruction of teacher's output
+         self.recon_fusion, self.latent = self.netAE(self.feat_fusion_miss)
+         self.recon_cycle, self.latent_cycle = self.netAE_cycle(self.recon_fusion)
+         # get fusion outputs for missing modality
++        self.hiddens = self.latent
+         self.logits, _ = self.netC(self.latent)
+-        self.pred = F.softmax(self.logits, dim=-1)
++        #############################
++        # self.pred = F.softmax(self.logits, dim=-1)
++        self.logits = self.logits.squeeze()
++        self.pred = self.logits
++        self.loss_recon = torch.zeros(1)
++        #############################
+         # for training 
+         if self.isTrain:
+             with torch.no_grad():
+-                self.T_embd_A = self.pretrained_encoder.netA(self.A_reverse)
+-                self.T_embd_L = self.pretrained_encoder.netL(self.L_reverse)
+-                self.T_embd_V = self.pretrained_encoder.netV(self.V_reverse)
++                ###############################################
++                # self.T_embd_A = self.pretrained_encoder.netA(self.A_reverse)
++                # self.T_embd_L = self.pretrained_encoder.netL(self.L_reverse)
++                # self.T_embd_V = self.pretrained_encoder.netV(self.V_reverse)
++                self.T_embd_A, _ = self.pretrained_encoder.netA(self.A_reverse)
++                self.T_embd_L, _ = self.pretrained_encoder.netL(self.L_reverse)
++                self.T_embd_V, _ = self.pretrained_encoder.netV(self.V_reverse)
++                ###############################################
+                 self.T_embds = torch.cat([self.T_embd_A, self.T_embd_L, self.T_embd_V], dim=-1)
+         
+     def backward(self):
+@@ -174,7 +199,7 @@
+         loss = self.loss_CE + self.loss_mse + self.loss_cycle
+         loss.backward()
+         for model in self.model_names:
+-            torch.nn.utils.clip_grad_norm_(getattr(self, 'net'+model).parameters(), 1.0)
++            torch.nn.utils.clip_grad_norm_(getattr(self, 'net'+model).parameters(), 5)
+             
+     def optimize_parameters(self, epoch):
+         """Calculate losses, gradients, and update network weights; called in every training iteration"""
+--- official/models/utt_fusion_model.py
++++ gcnet_utt/models/utt_fusion_model.py
+@@ -1,4 +1,3 @@
+-
+ import torch
+ import os
+ import json
+@@ -37,36 +36,54 @@
+         super().__init__(opt)
+         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
+         self.loss_names = ['CE']
+-        self.modality = opt.modality
++        self.modality = opt.modality # 'AVL'
+         self.model_names = ['C']
+-        cls_layers = list(map(lambda x: int(x), opt.cls_layers.split(',')))
++        cls_layers = list(map(lambda x: int(x), opt.cls_layers.split(','))) # [128, 128]
+         cls_input_size = opt.embd_size_a * int("A" in self.modality) + \
+                          opt.embd_size_v * int("V" in self.modality) + \
+-                         opt.embd_size_l * int("L" in self.modality)
++                         opt.embd_size_l * int("L" in self.modality)        # [384]
++
++        ## input dim: concatenation
++        ## layer: cls_layers
++        ## output_dim: output_dim [4]
+         self.netC = FcClassifier(cls_input_size, cls_layers, output_dim=opt.output_dim, dropout=opt.dropout_rate, use_bn=opt.bn)
+         
+-        # acoustic model
++        # acoustic model [frame level]
+         if 'A' in self.modality:
+             self.model_names.append('A')
+-            self.netA = LSTMEncoder(opt.input_dim_a, opt.embd_size_a, embd_method=opt.embd_method_a)
++            #############################
++            # self.netA = LSTMEncoder(opt.input_dim_a, opt.embd_size_a, embd_method=opt.embd_method_a)
++            self.netA = FcClassifier(opt.input_dim_a, cls_layers, output_dim=opt.embd_size_a, dropout=opt.dropout_rate, use_bn=opt.bn)
++            #############################
+             
+-        # lexical model
++        # lexical model [sentence level]
+         if 'L' in self.modality:
+             self.model_names.append('L')
+-            self.netL = TextCNN(opt.input_dim_l, opt.embd_size_l)
++            #############################
++            # self.netL = TextCNN(opt.input_dim_l, opt.embd_size_l)
++            self.netL = FcClassifier(opt.input_dim_l, cls_layers, output_dim=opt.embd_size_l, dropout=opt.dropout_rate, use_bn=opt.bn)
++            #############################
+             
+-        # visual model
++        # visual model [frame level]
+         if 'V' in self.modality:
+             self.model_names.append('V')
+-            self.netV = LSTMEncoder(opt.input_dim_v, opt.embd_size_v, opt.embd_method_v)
+-            
++            #############################
++            # self.netV = LSTMEncoder(opt.input_dim_v, opt.embd_size_v, embd_method=opt.embd_method_v)
++            self.netV = FcClassifier(opt.input_dim_v, cls_layers, output_dim=opt.embd_size_v, dropout=opt.dropout_rate, use_bn=opt.bn)
++            #############################
++        
++        ## self.model_names: ['C', 'A', 'L', 'V']
+         if self.isTrain:
+-            self.criterion_ce = torch.nn.CrossEntropyLoss()
++            #############################
++            dataset = opt.dataset_mode.split('_')[0]
++            if dataset in ['cmumosi', 'cmumosei']:   self.criterion_ce = torch.nn.MSELoss()
++            if dataset in ['boxoflies', 'iemocapfour', 'iemocapsix']: self.criterion_ce = torch.nn.CrossEntropyLoss()
++            #############################
+             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
+-            paremeters = [{'params': getattr(self, 'net'+net).parameters()} for net in self.model_names]
+-            self.optimizer = torch.optim.Adam(paremeters, lr=opt.lr, betas=(opt.beta1, 0.999), weight_decay=opt.weight_decay)
++            paremeters = [{'params': getattr(self, 'net'+net).parameters()} for net in self.model_names] # all parameters
++            self.optimizer = torch.optim.Adam(paremeters, lr=opt.lr, betas=(opt.beta1, 0.999))
+             self.optimizers.append(self.optimizer)
+-            self.output_dim = opt.output_dim
++            self.output_dim = opt.output_dim # classes: 4
+ 
+         # modify save_dir
+         self.save_dir = os.path.join(self.save_dir, str(opt.cvNo))
+@@ -92,21 +109,25 @@
+         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
+         final_embd = []
+         if 'A' in self.modality:
+-            self.feat_A = self.netA(self.acoustic)
++            self.feat_A, _ = self.netA(self.acoustic) # self.acoustic: [256, 155, 130]
+             final_embd.append(self.feat_A)
+ 
+         if 'L' in self.modality:
+-            self.feat_L = self.netL(self.lexical)
++            self.feat_L, _ = self.netL(self.lexical)
+             final_embd.append(self.feat_L)
+         
+         if 'V' in self.modality:
+-            self.feat_V = self.netV(self.visual)
++            self.feat_V, _ = self.netV(self.visual)
+             final_embd.append(self.feat_V)
+         
+         # get model outputs
+-        self.feat = torch.cat(final_embd, dim=-1)
++        self.feat = torch.cat(final_embd, dim=-1) # [batch, dim*3]
+         self.logits, self.ef_fusion_feat = self.netC(self.feat)
+-        self.pred = F.softmax(self.logits, dim=-1)
++        #############################
++        # self.pred = F.softmax(self.logits, dim=-1)
++        self.logits = self.logits.squeeze()
++        self.pred = self.logits
++        #############################
+         
+     def backward(self):
+         """Calculate the loss for back propagation"""
+@@ -114,7 +135,7 @@
+         loss = self.loss_CE
+         loss.backward()
+         for model in self.model_names:
+-            torch.nn.utils.clip_grad_norm_(getattr(self, 'net'+model).parameters(), 0.5)
++            torch.nn.utils.clip_grad_norm_(getattr(self, 'net'+model).parameters(), 5.0) # 0.1
+ 
+     def optimize_parameters(self, epoch):
+         """Calculate losses, gradients, and update network weights; called in every training iteration"""

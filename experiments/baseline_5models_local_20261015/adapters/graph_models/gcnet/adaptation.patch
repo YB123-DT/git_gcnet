@@ -1,0 +1,77 @@
+--- upstream/model.py
++++ adapted/model.py
+@@ -13,8 +13,12 @@
+ from torch.nn.utils.rnn import pad_sequence
+ from torch_geometric.nn import RGCNConv, GraphConv
+ 
+-from module import *
+-from graph import batch_graphify
++try:
++    from .module import *
++    from .graph import batch_graphify
++except ImportError:
++    from module import *
++    from graph import batch_graphify
+ 
+ 
+ class GraphNetwork(torch.nn.Module):
+@@ -135,7 +139,7 @@
+             outputs, _ = self.lstm(inputfeats[0])
+             outputs = outputs.unsqueeze(2)
+         elif self.base_model == 'GRU':
+-            outputs, _ = self.gru(U[0])
++            outputs, _ = self.gru(inputfeats[0])
+             outputs = outputs.unsqueeze(2)
+ 
+         ## add graph model
+--- upstream/graph.py
++++ adapted/graph.py
+@@ -44,7 +44,7 @@
+         for item in eff_array:
+             perms.add((j, item))
+         all_perms = all_perms.union(perms)
+-    return list(all_perms)
++    return sorted(all_perms)
+ 
+ 
+ 
+@@ -65,23 +65,13 @@
+     """
+     ## define edge_type_mapping
+     order_types = ['past', 'now', 'future']
+-    assert n_speakers <= 2, 'Note: n_speakers mush <= 2'
+-    if n_speakers == 1: speaker_types = ['00']
+-    if n_speakers == 2: speaker_types = ['00', '01', '10', '11']
+-    
+-    ## only for single relation graph
+-    assert graph_type in ['temporal', 'speaker'] 
+-    merge_types = set()
+-    if graph_type == 'temporal':
+-        for ii in range(len(order_types)):
+-            merge_types.add(f'{order_types[ii]}')
+-    elif graph_type == 'speaker':
+-        for ii in range(len(speaker_types)):
+-            merge_types.add(f'{speaker_types[ii]}')
+-    
+-    edge_type_mapping = {}
+-    for ii, item in enumerate(merge_types):
+-        edge_type_mapping[item] = ii
++    if n_speakers < 1:
++        raise ValueError("n_speakers must be positive")
++    speaker_types = [f"{i}:{j}" for i in range(n_speakers) for j in range(n_speakers)]
++    if graph_type not in ['temporal', 'speaker']:
++        raise ValueError(f"Unknown graph type: {graph_type}")
++    relation_types = order_types if graph_type == 'temporal' else speaker_types
++    edge_type_mapping = {name: index for index, name in enumerate(relation_types)}
+ 
+     ## qmask to cup()
+     qmask = qmask.cpu().data.numpy().astype(int)
+@@ -125,7 +115,7 @@
+             ## for one speaker, only has 'host2host'
+             jj_speaker = qmask[j, jj_time]
+             ii_speaker = qmask[j, ii_time]
+-            speaker_type = f'{ii_speaker}{jj_speaker}'
++            speaker_type = f'{ii_speaker}:{jj_speaker}'
+ 
+             ## merge [item1, item2, item3]
+             if graph_type == 'speaker':  edge_type_name = f'{speaker_type}'

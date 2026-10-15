@@ -1,0 +1,1 @@
+"""Vendored ComP attention module."""
