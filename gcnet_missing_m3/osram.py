@@ -852,6 +852,8 @@ class OSRAMBackbone(nn.Module):
         osram_decision_correction: bool = False,
         osram_readout_candidate: str = 'none',
         osram_meaningful_block: str = 'none',
+        osram_rpca_rank: int = 1,
+        osram_rpca_steps: int = 14,
         osram_adapter_hidden_dim: int = 0,
         osram_base_first_gap: bool = False,
         osram_counterfactual_readout: str = 'none',
@@ -859,6 +861,8 @@ class OSRAMBackbone(nn.Module):
         osram_causal_gru_history: bool = False,
     ) -> None:
         super().__init__()
+        from .meaningful_input_structured import validate_rpca_config
+        validate_rpca_config(osram_rpca_rank, osram_rpca_steps)
         self.osram_causal_gru_history = bool(osram_causal_gru_history)
         if self.osram_causal_gru_history:
             from .causal_gru_history import validate_causal_gru_history
@@ -1240,9 +1244,11 @@ class OSRAMBackbone(nn.Module):
                     self.meaningful_block = NormalizationOnlyReadout()
                 else:
                     factory = MeaningfulInputAdapter if self.meaningful_input_mode else MeaningfulReadoutResidual
+                    options = ({'osram_rpca_rank': osram_rpca_rank, 'osram_rpca_steps': osram_rpca_steps}
+                               if self.meaningful_input_mode else {})
                     self.meaningful_block = factory(
                         self.latent_dim,self.context_dim,self.output_dim,self.osram_meaningful_block,
-                        self.num_heads,self.value_dim)
+                        self.num_heads,self.value_dim, **options)
         if self.osram_readout_candidate != 'none':
             from .readout_candidates import ExternalReadoutResidual
             with torch.random.fork_rng(devices=[]):

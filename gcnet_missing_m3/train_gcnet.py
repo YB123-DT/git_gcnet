@@ -149,6 +149,8 @@ class TrainConfig:
     osram_decision_correction: bool = False
     osram_readout_candidate: str = 'none'
     osram_meaningful_block: str = 'none'
+    osram_rpca_rank: int = 1
+    osram_rpca_steps: int = 14
     completion_path: str = "none"
     completion_write_to_memory: bool = False
     osram_history_query_adapter: bool = False
@@ -187,6 +189,8 @@ class TrainConfig:
     osram_ced_block: bool = False
 
     def __post_init__(self) -> None:
+        from .meaningful_input_structured import validate_rpca_config
+        validate_rpca_config(self.osram_rpca_rank, self.osram_rpca_steps)
         if self.checkpoint_selection_metric not in {"dataset-default", "weighted_f1", "accuracy"}:
             raise ValueError("unsupported checkpoint_selection_metric")
         if self.missing_mask_protocol not in {
@@ -3405,6 +3409,8 @@ def run_experiment(
         osram_decision_correction=config_value.osram_decision_correction,
         osram_readout_candidate=config_value.osram_readout_candidate,
         osram_meaningful_block=config_value.osram_meaningful_block,
+        osram_rpca_rank=config_value.osram_rpca_rank,
+        osram_rpca_steps=config_value.osram_rpca_steps,
         completion_path=config_value.completion_path,
         completion_write_to_memory=config_value.completion_write_to_memory,
         osram_history_query_adapter=config_value.osram_history_query_adapter,
@@ -3995,6 +4001,8 @@ def run_experiment(
         "osram_decision_correction": config_value.osram_decision_correction,
         "osram_readout_candidate": config_value.osram_readout_candidate,
         "osram_meaningful_block": config_value.osram_meaningful_block,
+        "osram_rpca_rank": config_value.osram_rpca_rank,
+        "osram_rpca_steps": config_value.osram_rpca_steps,
         "osram_ced_block": config_value.osram_ced_block,
         **({"osram_base_first_gap": True} if config_value.osram_base_first_gap else {}),
         **({'osram_counterfactual_readout': config_value.osram_counterfactual_readout}
@@ -4325,6 +4333,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--osram-decision-correction', action='store_true',
                         help='Replace Flat readout with three equally supervised evidence-centered decision exits.')
     parser.add_argument('--osram-meaningful-block', default='none', choices=('none',)+MEANINGFUL_METHODS)
+    parser.add_argument('--osram-rpca-rank', type=int, default=1)
+    parser.add_argument('--osram-rpca-steps', type=int, default=14)
     parser.add_argument('--osram-readout-candidate', default='none',
                         help='Optional external residual before the original Flat LayerNorm; default none.')
     parser.add_argument('--osram-relation-dual-readout', action='store_true')
@@ -4513,6 +4523,8 @@ def main(argv=None) -> None:
         osram_decision_correction=args.osram_decision_correction,
         osram_readout_candidate=args.osram_readout_candidate,
         osram_meaningful_block=args.osram_meaningful_block,
+        osram_rpca_rank=args.osram_rpca_rank,
+        osram_rpca_steps=args.osram_rpca_steps,
         text_core=args.text_core,
         disable_unused_aux_modules=args.disable_unused_aux_modules,
         simple_regression_predictor=args.simple_regression_predictor,

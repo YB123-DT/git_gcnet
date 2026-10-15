@@ -248,7 +248,7 @@ class Scheduler:
             self.failure(row, f"launch failed: {error}")
         self.save()
 
-    def run_jobs(self, jobs):
+    def run_jobs(self, jobs, *, return_on_first_completion=False):
         jobs = list(jobs)
         ids = [job["id"] for job in jobs]
         if len(ids) != len(set(ids)):
@@ -274,6 +274,8 @@ class Scheduler:
                 else:
                     self.state["jobs"][job["id"]] = dict(job, status="pending", attempts=0, failures=[])
             self.recover()
+            unfinished_at_entry = {identifier for identifier in ids
+                if self.state['jobs'][identifier]['status'] not in ('complete', 'failed')}
             self.state.update(status="running", scheduler_pid=os.getpid())
             self.save()
             try:
@@ -297,12 +299,19 @@ class Scheduler:
                                 changed = True
                     if changed:
                         self.save()
+                    if return_on_first_completion and any(
+                            self.state['jobs'][identifier]['status'] in ('complete', 'failed')
+                            for identifier in unfinished_at_entry):
+                        break
                     if any(self.state["jobs"][identifier]["status"] not in ("complete", "failed") for identifier in ids):
                         time.sleep(min(30.0, max(0.01, self.poll_seconds)))
             except BaseException:
                 self.state["status"] = "interrupted"
                 self.save()
                 raise
-            self.state["status"] = "failed" if any(row["status"] == "failed" for row in self.state["jobs"].values()) else "complete"
+            if any(row['status'] not in ('complete', 'failed') for row in self.state['jobs'].values()):
+                self.state['status'] = 'running'
+            else:
+                self.state["status"] = "failed" if any(row["status"] == "failed" for row in self.state["jobs"].values()) else "complete"
             self.save()
             return [dict(self.state["jobs"][identifier]) for identifier in ids]
