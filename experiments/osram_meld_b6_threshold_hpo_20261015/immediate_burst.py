@@ -21,14 +21,16 @@ CAPACITY = {0: 3, 3: 1, 5: 1}
 def burst_count(issued):
     if type(issued) is not int or not 0 <= issued <= 20:
         raise ValueError('The total authorized budget remains twenty trials')
-    return max(0, 10 - issued)
+    return min(5, 20 - issued)
 
 
 def make_scheduler(frozen, output, source_root, peak):
     scheduler = frozen.ThresholdScheduler(output / 'queue', gpus=tuple(CAPACITY),
         per_gpu=3, code_root=source_root,
         smoke_costs={'B6': {'peak_memory_mib': peak, 'disk_bytes': 2 * 2**30}})
-    scheduler.capacity.update(CAPACITY)
+    scheduler.capacity.update({gpu: min(6, added + sum(
+        row.get('gpu') == gpu and row['status'] in ('running', 'launching')
+        for row in scheduler.state['jobs'].values())) for gpu, added in CAPACITY.items()})
     return scheduler
 
 
@@ -75,16 +77,21 @@ def main():
         issued = [t for t in study.trials if t.state != optuna.trial.TrialState.WAITING]
         if len(issued) < 5:
             raise RuntimeError('Expected the five initial configurations already issued')
-        journal_path = args.output / 'IMMEDIATE_BURST.json'
+        journal_path = args.output / 'IMMEDIATE_BURST_V2.json'
         journal = json.loads(journal_path.read_text()) if journal_path.exists() else dict(
             user_override='Launch immediately rather than wait for initial-five feedback',
-            first_started_unix=time.time(), source_git_sha=sha, capacity=CAPACITY,
-            total_budget=20, early_issued_target=10, later_pending_limit=6,
+            first_started_unix=time.time(), source_git_sha=sha, capacity=scheduler.capacity,
+            total_budget=20, issued_before_burst=len(issued),
+            early_issued_target=len(issued) + burst_count(len(issued)), later_pending_limit=6,
             preserved_worker_pids=[j['pid'] for j in scheduler.state['jobs'].values()
                                    if j['status'] == 'running'])
+        if not 5 <= journal['early_issued_target'] <= 20 or len(issued) > 20:
+            raise ValueError('Invalid immediate-burst resume budget')
+        scheduler.capacity = {int(g): c for g, c in journal['capacity'].items()}
+        scheduler.save()
         journal.update(pid=os.getpid(), controller_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
         frozen.write_json(journal_path, journal)
-        for _ in range(burst_count(len(issued))):
+        for _ in range(max(0, journal['early_issued_target'] - len(issued))):
             t = study.ask()
             for name, spec in frozen.SEARCH_SPACE.items():
                 t.suggest_float(name, **spec)
