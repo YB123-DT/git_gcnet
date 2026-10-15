@@ -100,3 +100,14 @@ See POSTPROCESS_FIX.md. The repaired seven-job continuation writes its final
 RESULT.md and SUMMARY.json/CSV under `testbest_recovery_v1/`. Original failed
 worker/queue summaries remain preserved; common-mask replay is explicitly not
 completed for repaired67/68runs. Do not report the two evaluation scopes as one.
+
+## Final requested Test-best comparison
+
+Training and Test-best replication complete; see RESULT.md,SUMMARY.json/CSV and
+FINAL_CHECKS.json. Seven new50epoch runs finished,all nine seed results have
+eight rates,and all72new/reusedBEST checkpoint files are preserved remotely.
+Three-seed means(ACC/UA/WF1):Flat_matched60.635/36.304/56.859;
+B6_default60.827/35.518/56.801;B6_tuned60.809/36.192/56.939.
+Neither B6candidate improves averageACCandUAjointly. Keep original auxiliary
+failure states and the explicit incomplete common-mask-replay caveat. No new
+methods,seeds,training runs or HPOare automatically authorized by completion.
