@@ -854,6 +854,7 @@ class OSRAMBackbone(nn.Module):
         osram_meaningful_block: str = 'none',
         osram_rpca_rank: int = 1,
         osram_rpca_steps: int = 14,
+        osram_rpca_threshold_init: float = .1,
         osram_adapter_hidden_dim: int = 0,
         osram_base_first_gap: bool = False,
         osram_counterfactual_readout: str = 'none',
@@ -862,7 +863,7 @@ class OSRAMBackbone(nn.Module):
     ) -> None:
         super().__init__()
         from .meaningful_input_structured import validate_rpca_config
-        validate_rpca_config(osram_rpca_rank, osram_rpca_steps)
+        validate_rpca_config(osram_rpca_rank, osram_rpca_steps, osram_rpca_threshold_init)
         self.osram_causal_gru_history = bool(osram_causal_gru_history)
         if self.osram_causal_gru_history:
             from .causal_gru_history import validate_causal_gru_history
@@ -1244,7 +1245,8 @@ class OSRAMBackbone(nn.Module):
                     self.meaningful_block = NormalizationOnlyReadout()
                 else:
                     factory = MeaningfulInputAdapter if self.meaningful_input_mode else MeaningfulReadoutResidual
-                    options = ({'osram_rpca_rank': osram_rpca_rank, 'osram_rpca_steps': osram_rpca_steps}
+                    options = ({'osram_rpca_rank': osram_rpca_rank, 'osram_rpca_steps': osram_rpca_steps,
+                                'osram_rpca_threshold_init': osram_rpca_threshold_init}
                                if self.meaningful_input_mode else {})
                     self.meaningful_block = factory(
                         self.latent_dim,self.context_dim,self.output_dim,self.osram_meaningful_block,

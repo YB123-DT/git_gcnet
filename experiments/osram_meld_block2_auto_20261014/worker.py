@@ -176,7 +176,9 @@ def smoke(config, output, method):
     trainer.set_random_seed(config.seed)
     model = build_smoke_model(config, dimensions, torch.device('cuda:0'))
     params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.Adam(params, lr=config.learning_rate, weight_decay=config.weight_decay)
+    optimizer_groups, optimizer_group_provenance = trainer._optimizer_parameter_groups(model, config)
+    optimizer_cls = torch.optim.AdamW if config.optimizer == 'adamw' else torch.optim.Adam
+    optimizer = optimizer_cls(optimizer_groups, weight_decay=config.weight_decay)
     from gcnet_modality_jepa.gcnet_legacy_random_mask import GCNetLegacyRandomMaskSchedule
     schedule = GCNetLegacyRandomMaskSchedule('MELD', 'train', 1, .7, config.seed)
     # Worst-length REAL training conversations cover the padded33-step memory
@@ -210,6 +212,7 @@ def smoke(config, output, method):
     if core is not None and (not changed or not any(v['block_nonzero_parameters'] for v in reports)):
         raise RuntimeError('Block2 did not receive actual task gradients/update after three steps')
     return dict(status='complete', method=method, smoke_only=True, steps=reports,
+                optimizer_parameter_groups=optimizer_group_provenance,
                 smoke_conversation_ids=[str(v) for v in raw[-1]], smoke_padded_length=int(raw[7].shape[1]),
                 parameters=sum(p.numel() for p in model.parameters()),
                 block_parameters=0 if core is None else sum(p.numel() for p in core.parameters()),

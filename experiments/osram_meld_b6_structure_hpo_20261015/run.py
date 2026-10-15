@@ -64,7 +64,7 @@ class StructureScheduler(Scheduler):
             owned=[r['pid'] for r in self.state['jobs'].values()
                    if r.get('gpu')==gpu and r['status'] in ('running','launching') and r.get('pid')]
             # External/other-queue jobs are observed, never signalled or adopted.
-            if not available_slots(4,pids[v['uuid']],owned):
+            if not available_slots(getattr(self,'global_per_gpu_limit',4),pids[v['uuid']],owned):
                 v['free_mib']=0
         return snapshot
 
@@ -93,10 +93,12 @@ def unique_tpe_sampler():
     return UniqueTPE(seed=66,n_startup_trials=5,constant_liar=True,multivariate=False)
 
 
-def build_report(rows):
+def build_report(rows, metadata=None):
     report={'label':'INTERNAL TEST-ORACLE SCREEN; seed66 only',
             'scope':'B6 structural HPO with frozen trial16 training hyperparameters',
             'trials':[], 'best_paired_objective':None,'best_testbest_ACC':None}
+    if metadata:
+        report.update(metadata)
     for row in rows:
         out={k:row[k] for k in ('number','state','params','value')}
         out['failure']=row.get('user_attrs',{}).get('failure')
@@ -114,32 +116,35 @@ def build_report(rows):
     return report
 
 
-def export(study, output):
+def export(study, output, metadata=None):
     rows=[dict(number=t.number,state=t.state.name,params=t.params,value=t.value,user_attrs=t.user_attrs)
           for t in study.trials]
     write_json(output/'TRIALS.json',rows)
-    report=build_report(rows)
+    report=build_report(rows,metadata)
     write_json(output/'SUMMARY.json',report)
     cells=[]
-    lines=['# B6 structural HPO, fixed trial16 training configuration','',report['label'],'',
-           '| Trial | Rank | Steps | State | Test-best ACC | UA | Paired ACC | UA | Objective |',
-           '|---|---:|---:|---|---:|---:|---:|---:|---:|']
+    names=list(dict.fromkeys(k for row in rows for k in row['params']))
+    title=(metadata or {}).get('title','B6 structural HPO, fixed trial16 training configuration')
+    lines=['# '+title,'',report['label'],'',
+           '| Trial | '+' | '.join(names)+' | State | Test-best ACC | UA | Paired ACC | UA | Objective |',
+           '|---|'+'---:|'*len(names)+'---|---:|---:|---:|---:|---:|']
     for r in report['trials']:
         tb=r.get('testbest',{}).get('mean',{})
         pm=r.get('paired',{}).get('on',{}).get('mean',{})
         vals=[tb.get('ACC'),tb.get('UA'),pm.get('ACC'),pm.get('UA'),r['value']]
         text=['—' if v is None else f'{v:.4f}' for v in vals]
-        lines.append(f"| {r['number']} | {r['params'].get('rank','—')} | {r['params'].get('steps','—')} | {r['state']} | {' | '.join(text)} |")
+        param_text=' | '.join(f"{r['params'][k]:.6g}" if k in r['params'] else '—' for k in names)
+        lines.append(f"| {r['number']} | {param_text} | {r['state']} | {' | '.join(text)} |")
         if r['state']=='COMPLETE':
             for protocol in ('testbest','paired'):
                 data=r['testbest'] if protocol=='testbest' else r['paired']['on']
                 for rate,v in dict(data['rates'],mean=data['mean'],high=data['high']).items():
-                    cells.append(dict(trial=r['number'],rank=r['params']['rank'],steps=r['params']['steps'],
+                    cells.append(dict(trial=r['number'],**r['params'],
                                       protocol=protocol,rate=rate,**{k:v[k] for k in ('ACC','UA','WF1','CE')}))
     lines+=['',f"Best paired objective trial: {report['best_paired_objective']}",
             f"Highest Test-best ACC trial: {report['best_testbest_ACC']}",
             '', 'All scores are test-selected exploration, not independent test performance.',
-            'Trial0 repeats rank1/steps14 at this immutable source. No old score is counted as a new run.']
+            (metadata or {}).get('control_note','Trial0 repeats rank1/steps14 at this immutable source. No old score is counted as a new run.')]
     (output/'RESULT.md').write_text('\n'.join(lines)+'\n')
     if cells:
         with (output/'RESULT.csv').open('w') as handle:
@@ -147,23 +152,40 @@ def export(study, output):
     return report
 
 
-def run_search(output, flat_paired, scheduler, budget=20, max_pending=12):
+def run_search(output, flat_paired, scheduler, budget=20, max_pending=12, *,
+               config_factory=None, initial_configs=None, search_space=None,
+               study_name='meld_B6_trial16_structure_seed66',sampler=None,metadata=None):
     import optuna
-    study=optuna.create_study(study_name='meld_B6_trial16_structure_seed66',
+    factory=make_config if config_factory is None else config_factory
+    initial=INITIAL_CONFIGS if initial_configs is None else initial_configs
+    if len(initial)!=5 or not 5<=budget<=20 or not 1<=max_pending<=18:
+        raise ValueError('Require five initial configurations and a bounded <=20trial budget')
+    study=optuna.create_study(study_name=study_name,
         storage='sqlite:///'+str(output/'STRUCTURE.sqlite3'),direction='maximize',
-        sampler=unique_tpe_sampler(),load_if_exists=True)
-    protocol={'budget':budget,'max_pending':max_pending,'base_config':make_config(1,14),
-              'initial':list(INITIAL_CONFIGS),'flat_paired':flat_paired,
+        sampler=unique_tpe_sampler() if sampler is None else sampler,load_if_exists=True)
+    protocol={'budget':budget,'max_pending':max_pending,'base_config':factory(**initial[0]),
+              'initial':list(initial),'flat_paired':flat_paired,
               'objective':'0.6*delta_ACC+0.4*delta_UA','warmstart_parallel':5}
+    if search_space is not None:
+        protocol['search_space']=search_space
+    if metadata is not None:
+        protocol['metadata']=metadata
     if study.user_attrs.get('protocol',protocol)!=protocol:
         raise ValueError('Persistent study settings changed')
     study.set_user_attr('protocol',protocol)
     if not study.trials:
-        for c in INITIAL_CONFIGS:
+        for c in initial:
             study.enqueue_trial(c)
+    def suggest(t):
+        if search_space is None:
+            t.suggest_categorical('rank',[1,2,3])
+            t.suggest_int('steps',4,28,step=2)
+        else:
+            for name,options in search_space.items():
+                t.suggest_float(name,**options)
     def job(t):
         name=f'b6_struct_{t.number:03d}'
-        return dict(id=name,method='B6',config=make_config(**t.params),
+        return dict(id=name,method='B6',config=factory(**t.params),
                     output=str(output/'optuna'/'runs'/name))
     while True:
         trials=study.get_trials(deepcopy=False)
@@ -174,21 +196,23 @@ def run_search(output, flat_paired, scheduler, budget=20, max_pending=12):
                 # Recover an ask->suggest crash before any job was submitted;
                 # suggestions already persisted remain exactly unchanged.
                 live=optuna.Trial(study,t._trial_id)
-                live.suggest_categorical('rank',[1,2,3])
-                live.suggest_int('steps',4,28,step=2)
+                suggest(live)
                 running.append(live)
         # First ask all5fixed configurations concurrently; thereafter replenish
         # only after recording completed results. Constant liar accounts for pending jobs.
-        width=5 if len(issued)<5 else max_pending
-        for _ in range(min(width-len(running),budget-len(issued))):
+        startup_done=(len(issued)>=5 and all(t.state.is_finished() for t in issued[:5]))
+        width=max_pending if startup_done else 5
+        new_count=min(width-len(running),budget-len(issued))
+        if not startup_done:
+            new_count=min(new_count,5-len(issued))
+        for _ in range(max(0,new_count)):
             t=study.ask()
-            t.suggest_categorical('rank',[1,2,3])
-            t.suggest_int('steps',4,28,step=2)
+            suggest(t)
             running.append(t)
         if not running:
             break
         records=scheduler.run_jobs([job(t) for t in running],
-                                  return_on_first_completion=len(issued)>=5)
+                                  return_on_first_completion=startup_done)
         for t,r in zip(running,records):
             if r['status'] not in ('complete','failed'):
                 continue
@@ -204,8 +228,8 @@ def run_search(output, flat_paired, scheduler, budget=20, max_pending=12):
                 study.tell(t.number,state=optuna.trial.TrialState.FAIL)
             else:
                 study.tell(t.number,value)
-        export(study,output)
-    report=export(study,output)
+        export(study,output,metadata)
+    report=export(study,output,metadata)
     report['status']='complete' if all(r['state']=='COMPLETE' for r in report['trials']) and len(report['trials'])==budget else 'completed_with_failures'
     write_json(output/'SUMMARY.json',report)
     return report

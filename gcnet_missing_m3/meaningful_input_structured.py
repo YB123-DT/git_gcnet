@@ -13,6 +13,7 @@ Run this file for the bounded CPU smoke and numerical-solver checks.
 """
 
 import math
+from numbers import Real
 
 import torch
 from torch import nn
@@ -118,20 +119,22 @@ class _SplineCoupling(nn.Module):
         return local, _safe_evidence(out, active)
 
 
-def validate_rpca_config(rank, steps):
+def validate_rpca_config(rank, steps, threshold_init=.1):
     """Bound structural search without silently accepting bools or fractions."""
     if type(rank) is not int or not 1 <= rank <= 4:
         raise ValueError('osram_rpca_rank must be an integer in [1, 4]')
     if type(steps) is not int or not 1 <= steps <= 64:
         raise ValueError('osram_rpca_steps must be an integer in [1, 64]')
+    if isinstance(threshold_init, bool) or not isinstance(threshold_init, Real) or not math.isfinite(threshold_init) or threshold_init <= 0:
+        raise ValueError('osram_rpca_threshold_init must be a positive finite real')
 
 
 class _LearnedRobustPCA(nn.Module):
-    def __init__(self, rank=1, steps=14):
+    def __init__(self, rank=1, steps=14, threshold_init=.1):
         super().__init__()
-        validate_rpca_config(rank, steps)
+        validate_rpca_config(rank, steps, threshold_init)
         self.rank, self.steps = rank, steps
-        thresholds = torch.tensor([.1 * .8 ** t for t in range(1, steps + 1)])
+        thresholds = torch.tensor([threshold_init * .8 ** t for t in range(1, steps + 1)])
         self.threshold_logits = nn.Parameter(torch.log(torch.expm1(thresholds)))
         self.step_logits = nn.Parameter(torch.zeros(steps))
         self.gamma = nn.Parameter(torch.zeros(()))
@@ -145,6 +148,8 @@ class _LearnedRobustPCA(nn.Module):
         # cross the group batch; grouping only amortizes SVD and kernel launches.
         scale = y.abs().mean(dim=(-2, -1), keepdim=True).clamp_min(1e-6)
         with torch.no_grad():
+            # This legacy SVD-initializer threshold is NOT the learned-update
+            # threshold initialization knob; keep its original .1 unchanged.
             initial = y - self._threshold(y, .1 * scale)
             left, singular, right_t = torch.linalg.svd(initial, full_matrices=False)
             rank = min(self.rank, y.shape[-2], y.shape[-1])
@@ -266,16 +271,17 @@ class _DeepEquilibrium(nn.Module):
 
 
 def build_structured(method, latent_dim=256, num_heads=8, value_dim=64,
-                     osram_rpca_rank=1, osram_rpca_steps=14):
+                     osram_rpca_rank=1, osram_rpca_steps=14, osram_rpca_threshold_init=.1):
     """Construct a task-only input transform without changing caller CPU RNG."""
     if min(latent_dim, num_heads, value_dim) <= 0:
         raise ValueError('Structured dimensions must be positive')
-    validate_rpca_config(osram_rpca_rank, osram_rpca_steps)
+    validate_rpca_config(osram_rpca_rank, osram_rpca_steps, osram_rpca_threshold_init)
     with torch.random.fork_rng(devices=[]):
         if method == 'conditional_rational_quadratic_spline_coupling':
             return _SplineCoupling(latent_dim, num_heads, value_dim)
         if method == 'learned_robust_pca_evidence_decomposition':
-            return _LearnedRobustPCA(rank=osram_rpca_rank, steps=osram_rpca_steps)
+            return _LearnedRobustPCA(rank=osram_rpca_rank, steps=osram_rpca_steps,
+                                     threshold_init=osram_rpca_threshold_init)
         if method == 'contractive_deep_equilibrium_evidence':
             return _DeepEquilibrium(latent_dim, num_heads, value_dim)
     raise ValueError('Unknown structured input method: ' + str(method))

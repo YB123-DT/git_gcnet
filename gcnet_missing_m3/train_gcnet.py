@@ -11,6 +11,7 @@ import os
 import random
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from numbers import Real
 from typing import Dict, Iterable, Mapping, Sequence
 
 import numpy as np
@@ -151,6 +152,8 @@ class TrainConfig:
     osram_meaningful_block: str = 'none'
     osram_rpca_rank: int = 1
     osram_rpca_steps: int = 14
+    osram_rpca_threshold_init: float = .1
+    osram_rpca_lr_multiplier: float = 1.0
     completion_path: str = "none"
     completion_write_to_memory: bool = False
     osram_history_query_adapter: bool = False
@@ -190,7 +193,16 @@ class TrainConfig:
 
     def __post_init__(self) -> None:
         from .meaningful_input_structured import validate_rpca_config
-        validate_rpca_config(self.osram_rpca_rank, self.osram_rpca_steps)
+        validate_rpca_config(self.osram_rpca_rank, self.osram_rpca_steps, self.osram_rpca_threshold_init)
+        if (isinstance(self.osram_rpca_lr_multiplier, bool)
+                or not isinstance(self.osram_rpca_lr_multiplier, Real)
+                or not math.isfinite(self.osram_rpca_lr_multiplier)
+                or self.osram_rpca_lr_multiplier <= 0):
+            raise ValueError('osram_rpca_lr_multiplier must be a positive finite real')
+        if self.osram_rpca_lr_multiplier != 1.0 and (
+                self.osram_meaningful_block != 'learned_robust_pca_evidence_decomposition'
+                or self.pretrained_learning_rate is not None):
+            raise ValueError('B6 independent learning rate requires B6 and no pretrained_learning_rate')
         if self.checkpoint_selection_metric not in {"dataset-default", "weighted_f1", "accuracy"}:
             raise ValueError("unsupported checkpoint_selection_metric")
         if self.missing_mask_protocol not in {
@@ -1076,6 +1088,19 @@ def _optimizer_parameter_groups(
         for name, parameter in model.named_parameters()
         if parameter.requires_grad
     ]
+    rpca_multiplier = float(config_value.osram_rpca_lr_multiplier)
+    rpca_ids: set[int] = set()
+    if rpca_multiplier != 1.0:
+        if (config_value.osram_meaningful_block != 'learned_robust_pca_evidence_decomposition'
+                or config_value.pretrained_learning_rate is not None):
+            raise ValueError('B6 independent learning rate requires B6 and no pretrained_learning_rate')
+        from .meaningful_input_structured import _LearnedRobustPCA
+        core = getattr(getattr(getattr(model, 'osram', None), 'meaningful_block', None), 'core', None)
+        if not isinstance(core, _LearnedRobustPCA):
+            raise ValueError('Independent B6 learning rate requires the actual B6 core')
+        rpca_ids = {id(parameter) for parameter in core.parameters() if parameter.requires_grad}
+        if not rpca_ids:
+            raise ValueError('Independent B6 learning rate has no trainable core parameters')
     if config_value.pretrained_learning_rate is None:
         multipliers = {
             "backbone": float(config_value.backbone_lr_multiplier),
@@ -1084,9 +1109,13 @@ def _optimizer_parameter_groups(
             "predictor": 1.0,
             "other": 1.0,
         }
+        if rpca_ids:
+            multipliers['rpca'] = float(config_value.backbone_lr_multiplier) * rpca_multiplier
         grouped: Dict[str, list[tuple[str, torch.nn.Parameter]]] = {}
         for name, parameter in trainable:
-            if name.startswith("osram."):
+            if id(parameter) in rpca_ids:
+                block = 'rpca'
+            elif name.startswith("osram."):
                 block = "backbone"
             elif name.startswith("observed_set."):
                 block = "projector"
@@ -1099,7 +1128,7 @@ def _optimizer_parameter_groups(
             grouped.setdefault(block, []).append((name, parameter))
         groups = []
         provenance = {}
-        for block in ("backbone", "projector", "classifier", "predictor", "other"):
+        for block in ("backbone", "projector", "classifier", "predictor", "other", "rpca"):
             values = grouped.get(block, [])
             if not values:
                 continue
@@ -3411,6 +3440,7 @@ def run_experiment(
         osram_meaningful_block=config_value.osram_meaningful_block,
         osram_rpca_rank=config_value.osram_rpca_rank,
         osram_rpca_steps=config_value.osram_rpca_steps,
+        osram_rpca_threshold_init=config_value.osram_rpca_threshold_init,
         completion_path=config_value.completion_path,
         completion_write_to_memory=config_value.completion_write_to_memory,
         osram_history_query_adapter=config_value.osram_history_query_adapter,
@@ -4003,6 +4033,8 @@ def run_experiment(
         "osram_meaningful_block": config_value.osram_meaningful_block,
         "osram_rpca_rank": config_value.osram_rpca_rank,
         "osram_rpca_steps": config_value.osram_rpca_steps,
+        "osram_rpca_threshold_init": config_value.osram_rpca_threshold_init,
+        "osram_rpca_lr_multiplier": config_value.osram_rpca_lr_multiplier,
         "osram_ced_block": config_value.osram_ced_block,
         **({"osram_base_first_gap": True} if config_value.osram_base_first_gap else {}),
         **({'osram_counterfactual_readout': config_value.osram_counterfactual_readout}
@@ -4335,6 +4367,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--osram-meaningful-block', default='none', choices=('none',)+MEANINGFUL_METHODS)
     parser.add_argument('--osram-rpca-rank', type=int, default=1)
     parser.add_argument('--osram-rpca-steps', type=int, default=14)
+    parser.add_argument('--osram-rpca-threshold-init', type=float, default=.1)
+    parser.add_argument('--osram-rpca-lr-multiplier', type=float, default=1.)
     parser.add_argument('--osram-readout-candidate', default='none',
                         help='Optional external residual before the original Flat LayerNorm; default none.')
     parser.add_argument('--osram-relation-dual-readout', action='store_true')
@@ -4525,6 +4559,8 @@ def main(argv=None) -> None:
         osram_meaningful_block=args.osram_meaningful_block,
         osram_rpca_rank=args.osram_rpca_rank,
         osram_rpca_steps=args.osram_rpca_steps,
+        osram_rpca_threshold_init=args.osram_rpca_threshold_init,
+        osram_rpca_lr_multiplier=args.osram_rpca_lr_multiplier,
         text_core=args.text_core,
         disable_unused_aux_modules=args.disable_unused_aux_modules,
         simple_regression_predictor=args.simple_regression_predictor,

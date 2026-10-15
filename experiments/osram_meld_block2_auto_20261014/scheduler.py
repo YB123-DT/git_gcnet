@@ -47,13 +47,14 @@ def process_identity(pid):
 
 class Scheduler:
     def __init__(self, root, gpus=(0, 2, 3), per_gpu=4, python=sys.executable,
-                 code_root=ROOT, smoke_costs=None):
+                 code_root=ROOT, smoke_costs=None, per_gpu_limit=4):
         self.root = Path(root).resolve()
         self.gpus = tuple(gpus)
         if (not self.gpus or len(set(self.gpus)) != len(self.gpus)
                 or len(self.gpus) > 3 or any(g < 0 or g == 4 for g in self.gpus)
-                or not 1 <= per_gpu <= 4):
-            raise ValueError("use at most three healthy GPUs, never GPU4, <=4 jobs/GPU")
+                or type(per_gpu_limit) is not int or not 1 <= per_gpu_limit <= 6
+                or not 1 <= per_gpu <= per_gpu_limit):
+            raise ValueError("use at most three healthy GPUs, never GPU4; >4 jobs/GPU requires an explicit <=6 limit")
         self.root.mkdir(parents=True, exist_ok=True)
         self.python = str(python)
         self.code_root = Path(code_root).resolve()

@@ -39,10 +39,10 @@ INPUT_METHODS = tuple(name for names in INPUT_FAMILIES.values() for name in name
 
 class MeaningfulInputAdapter(nn.Module):
     def __init__(self, latent_dim, context_dim, output_dim, method, num_heads, value_dim,
-                 osram_rpca_rank=1, osram_rpca_steps=14):
+                 osram_rpca_rank=1, osram_rpca_steps=14, osram_rpca_threshold_init=.1):
         super().__init__()
         from .meaningful_input_structured import validate_rpca_config
-        validate_rpca_config(osram_rpca_rank, osram_rpca_steps)
+        validate_rpca_config(osram_rpca_rank, osram_rpca_steps, osram_rpca_threshold_init)
         if (num_heads,value_dim,context_dim) != (8,64,1024):
             raise ValueError('Input methods require the actual cfg84 8x64 forward heads')
         self.method, self.forward_dim = method, num_heads*value_dim
@@ -51,7 +51,8 @@ class MeaningfulInputAdapter(nn.Module):
                 if family == 'new40_variants':
                     family = 'new40'
                 module = importlib.import_module('.meaningful_input_'+family,__package__)
-                options = ({'osram_rpca_rank': osram_rpca_rank, 'osram_rpca_steps': osram_rpca_steps}
+                options = ({'osram_rpca_rank': osram_rpca_rank, 'osram_rpca_steps': osram_rpca_steps,
+                            'osram_rpca_threshold_init': osram_rpca_threshold_init}
                            if family == 'structured' else {})
                 self.core = getattr(module,'build_'+family)(method,latent_dim,num_heads,value_dim, **options)
                 break
