@@ -72,3 +72,36 @@ B6optimizer group → shared bounded controller → immutable source → remote 
 checks and real batch smoke at threshold1/multiplier30 → detached queue.
 SQLite filename `STRUCTURE.sqlite3` is inherited from the existing controller;
 the actual study searches only threshold initialization and B6LR,not rank/depth.
+
+## Resource-only extension, 2026-10-15
+
+User subsequently authorized using the underutilized GPU3/5 in addition to GPU2.
+The standalone `resume_resources.py` changes only future job placement to the
+UUID-validated whitelist2/3/5. Keep20total trials,6global pending,6total compute
+processes/card including unrelated tasks, and the five-completed-starts barrier.
+Do not invent extra starts just to occupy these cards. GPU4 remains prohibited.
+
+Training workers remain at immutable source
+`9fa9f571e7095d5b09f9c256d888c31a76c82744`, including subsequent trials. The
+standalone controller checks original source hashes, frozen configs and saved
+Optuna protocol before acquiring the same exclusive controller lock. Existing
+worker PID/command/start-time identities are recovered by the original scheduler;
+workers must not be stopped, migrated, restarted or reconfigured. Only the old
+controller is handed off, never its process group. No existing job is replaced.
+
+Keep original PREFLIGHT, masks, outputs and study database untouched; append the
+new resource provenance as `RESOURCE_RESUME.json` and reference it from RUNNER.
+The initial five configurations were already running before this change, so
+there are no adaptive sampler RNG draws to recover at handoff. Later interrupted
+resumes do not promise identical future proposals unless sampler RNG is saved.
+
+```bash
+python /home/qinjinghui/remote_experiments/osram_meld_b6_threshold_resume_resources_20261015.py \
+  --source-root /home/qinjinghui/remote_experiments/osram_meld_b6_threshold_code_9fa9f57 \
+  --gpus 2,3,5 --check-only
+# After the old controller releases its lock, omit --check-only to adopt workers.
+```
+
+This resource extension is not a model change, new method, extra trial budget,
+or performance claim. Unit tests cover allowed GPUs, immutable study scope and
+original worker source routing; remote check-only verifies the real saved study.
