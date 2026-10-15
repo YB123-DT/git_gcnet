@@ -3063,8 +3063,8 @@ def evaluate_rate(
                 metric_availability[selected].cpu().numpy()
             )
             if collect_identity:
-                if dataset != 'MELD':
-                    raise ValueError('Exact identity collection currently supports MELD only')
+                if dataset not in {'MELD', 'IEMOCAPFour', 'IEMOCAPSix'}:
+                    raise ValueError('Exact identity collection requires MELD or IEMOCAP classification')
                 ids = np.asarray([str(v) for v in view['conversation_ids']])
                 chosen = selected.cpu().numpy()
                 collected_identity['conversation_ids'].append(np.broadcast_to(ids[:, None], chosen.shape)[chosen])
@@ -3668,8 +3668,8 @@ def run_experiment(
         selection_metrics: Dict[float, Dict[str, float]] = {}
         selection_artifacts = {}
         preserve_selection = config_value.preserve_selection_artifacts and per_rate_oracle
-        if preserve_selection and config_value.dataset != 'MELD':
-            raise ValueError('Exact selection artifact mode requires MELD')
+        if preserve_selection and config_value.dataset not in {'MELD', 'IEMOCAPFour', 'IEMOCAPSix'}:
+            raise ValueError('Exact selection artifact mode requires MELD or IEMOCAP classification')
         for rate in protocol_rates:
             extra_collection = {'collect_identity': True} if preserve_selection else {}
             selection_metrics[rate], collected = evaluate_rate(
