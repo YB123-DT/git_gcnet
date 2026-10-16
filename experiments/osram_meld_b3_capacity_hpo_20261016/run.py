@@ -58,9 +58,14 @@ def is_new_knob_candidate(params):
     return any(params[key] != value for key, value in DEFAULT_KNOBS.items())
 
 
-def feasible_candidates(reserved, prefix=None, required=None):
+def feasible_candidates(reserved, prefix=None, required=None, fixed_structure=None):
     excluded = {signature(row) for row in reserved}
     prefix = prefix or {}
+    if fixed_structure is not None:
+        fixed = dict(zip(('bottlenecks', 'rounds'), fixed_structure))
+        if any(key in prefix and prefix[key] != value for key, value in fixed.items()):
+            return []
+        prefix = dict(prefix, **fixed)
     return [dict(zip(AXES, values)) for values in itertools.product(*AXES.values())
             if values not in excluded
             and all(values[list(AXES).index(key)] == value for key, value in prefix.items())
@@ -68,7 +73,7 @@ def feasible_candidates(reserved, prefix=None, required=None):
             and (required is None or values[list(AXES).index(required)] != DEFAULT_KNOBS[required])]
 
 
-def unique_sampler(reserved):
+def unique_sampler(reserved, fixed_structure=None, n_startup_trials=5):
     import optuna
 
     class CapacityTPE(optuna.samplers.TPESampler):
@@ -76,7 +81,8 @@ def unique_sampler(reserved):
             used = reserved + [t.params for t in study.get_trials(deepcopy=False)
                 if t.number != trial.number and set(AXES) <= set(t.params)]
             remaining = feasible_candidates(used, trial.params,
-                                            trial.user_attrs.get('required_nondefault_knob'))
+                                            trial.user_attrs.get('required_nondefault_knob'),
+                                            fixed_structure=fixed_structure)
             allowed = {row[param_name] for row in remaining}
             if not allowed:
                 raise RuntimeError('No unique non-token-only completion remains')
@@ -88,7 +94,8 @@ def unique_sampler(reserved):
                                                'conditional_fallback_' + param_name, True)
             return random.Random(266 + trial.number).choice(sorted(allowed))
 
-    return CapacityTPE(seed=266, n_startup_trials=5, constant_liar=True, multivariate=False)
+    return CapacityTPE(seed=266, n_startup_trials=n_startup_trials,
+                       constant_liar=True, multivariate=False)
 
 
 def freeze_reference(output, original, extension, flat_paired):
@@ -136,21 +143,28 @@ def freeze_reference(output, original, extension, flat_paired):
     return reference
 
 
-def run_search(output, reference, scheduler):
+def run_search(output, reference, scheduler, *, fixed_structure=None, study_name=STUDY_NAME,
+               previous_budget=24, job_prefix='b3_capacity', n_startup_trials=5):
     import optuna
     output.mkdir(parents=True, exist_ok=True)
     distributions = {key: (optuna.distributions.IntDistribution(1, 8) if key == 'bottlenecks'
         else optuna.distributions.IntDistribution(1, 4) if key == 'rounds'
         else optuna.distributions.CategoricalDistribution(values)) for key, values in AXES.items()}
-    study = optuna.create_study(study_name=STUDY_NAME, direction='maximize',
+    study = optuna.create_study(study_name=study_name, direction='maximize',
         storage='sqlite:///' + str(output / 'CAPACITY.sqlite3'), load_if_exists=True,
-        sampler=unique_sampler(reference['reserved']))
+        sampler=unique_sampler(reference['reserved'], fixed_structure, n_startup_trials))
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
-    protocol = dict(budget=4, original_budget=24, combined_budget=28, source_git_sha=sha,
+    protocol = dict(budget=4, original_budget=previous_budget, combined_budget=previous_budget + 4, source_git_sha=sha,
         reserved=reference['reserved'], completed=reference['completed'],
         search_space=AXES, required_nondefault_knobs=REQUIRED_KNOBS,
         objective='0.6*paired_delta_ACC+0.4*paired_delta_UA',
         selection='INTERNAL TEST-ORACLE SCREEN', fixed_training=make_config(4, 2))
+    if fixed_structure is not None:
+        protocol.update(fixed_structure=fixed_structure, n_startup_trials=n_startup_trials)
+        if any((r['params']['bottlenecks'], r['params']['rounds']) != tuple(fixed_structure)
+               for r in reference['completed']):
+            raise ValueError('Fixed-structure TPE must not import other structures as observations')
+        protocol['fixed_training'] = make_config(*fixed_structure)
     # JSON normalization avoids tuple/list differences on SQLite resume.
     protocol = json.loads(json.dumps(protocol))
     if study.user_attrs.get('protocol', protocol) != protocol:
@@ -168,12 +182,15 @@ def run_search(output, reference, scheduler):
         live = optuna.Trial(study, new[index]._trial_id) if index < len(new) else study.ask()
         if study._storage.get_trial(live._trial_id).state.is_finished():
             continue
-        live.set_user_attr('job_id', f'b3_capacity_{index + 1:02d}')
+        live.set_user_attr('job_id', f'{job_prefix}_{index + 1:02d}')
         live.set_user_attr('required_nondefault_knob', REQUIRED_KNOBS[index])
         live.suggest_int('bottlenecks', 1, 8)
         live.suggest_int('rounds', 1, 4)
         for key in DEFAULT_KNOBS:
             live.suggest_categorical(key, AXES[key])
+        if fixed_structure is not None and (
+                live.params['bottlenecks'], live.params['rounds']) != tuple(fixed_structure):
+            raise RuntimeError('Fixed structure changed')
         if not is_new_knob_candidate(live.params) or (
                 live.params[REQUIRED_KNOBS[index]] == DEFAULT_KNOBS[REQUIRED_KNOBS[index]]):
             raise RuntimeError('Illegal token-only proposal or required axis unchanged')
@@ -185,7 +202,13 @@ def run_search(output, reference, scheduler):
     metadata = dict(title='MELD B3: four conditional capacity/optimizer TPE trials',
         scope='Conditional six-dimensional expansion, not controlled one-factor ablation',
         control_note='Historical 24 runs are reference-only; exactly four NEW jobs, each changes a required other knob.',
-        new_training_budget=4, combined_budget=28, reference_trials=len(reference['completed']))
+        new_training_budget=4, combined_budget=previous_budget + 4,
+        reference_trials=len(reference['completed']))
+    if fixed_structure is not None:
+        metadata.update(title='MELD B3: fixed four tokens / three exchange rounds',
+            scope='Fixed structure; only internal dimension, heads, FFN, and local learning rate change',
+            control_note='Only completed 4/3 observations train TPE; all 28 prior tuples excluded. Exactly four new jobs.',
+            fixed_structure=fixed_structure, n_startup_trials=n_startup_trials)
 
     def report():
         result = export(SimpleNamespace(trials=[t for t in study.trials
