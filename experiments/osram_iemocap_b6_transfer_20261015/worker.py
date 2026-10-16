@@ -102,6 +102,12 @@ def require_replication_environment(torch):
     return environment
 
 
+def validate_gpu_scope(host_index, *, flat_replication=False):
+    allowed = (5,) if flat_replication else (1, 3)
+    if host_index not in allowed:
+        raise ValueError(f'Authorized physical GPUs for this entry: {allowed}; GPU4 always forbidden')
+
+
 def validate(config, *, flat_only=False, flat_replication=False):
     if flat_replication and not flat_only:
         raise ValueError('Flat replication requires the explicit Flat-only path')
@@ -266,8 +272,7 @@ def main():
     from gcnet_missing_m3.training_resume import TrainingState
     from experiments.osram_meld_write_retention_20261014.run import guard_gpu
     gpu = guard_gpu(args.gpu_uuid)
-    if gpu['host_index'] not in (1, 3):
-        raise ValueError('Only authorized physical GPUs1/3; GPU5/4 excluded')
+    validate_gpu_scope(gpu['host_index'], flat_replication=args.flat_replication)
     repair = repair_uuid_rng(torch)
     torch.set_num_threads(2)
     torch.set_num_interop_threads(1)

@@ -24,6 +24,7 @@ EXPECTED_TORCH = "1.13.1+cu117"
 DEFAULT_OUTPUT = Path("/home/qinjinghui/remote_experiments/osram_iemocap_flat_3seed_cmerc_20261016")
 DEFAULT_B6 = common.DEFAULT_OUTPUT
 NEW_SEEDS = (67, 68)
+GPU5_UUID = "GPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62"
 LABEL = "INTERNAL PER-RATE TEST-ORACLE ACC; original Flat seeds66/67/68; cmerc-repro"
 
 
@@ -80,6 +81,14 @@ def make_scheduler(frozen, root, source, worker, peak):
     inherited = flat.make_scheduler(frozen, root, source, worker, peak)
 
     class ReplicationScheduler(type(inherited)):
+        def admit(self, job):
+            # Latest authorization replaces this replication queue's old1/3
+            # placement only. Reuse the original health/memory/disk admission.
+            device = frozen.Scheduler.admit(self, job)
+            if device is not None and device != (5, GPU5_UUID):
+                raise RuntimeError("Flat replication requires the verified physical GPU5 UUID")
+            return device
+
         def command(self, job, config_path, uuid):
             return super().command(job, config_path, uuid) + ["--flat-replication"]
 
@@ -87,10 +96,10 @@ def make_scheduler(frozen, root, source, worker, peak):
             result = super().summary(row)
             return result if result is not None and valid_summary(result, row) else None
 
-    scheduler = ReplicationScheduler(root, gpus=(1, 3), per_gpu=4, per_gpu_limit=6, code_root=source,
+    scheduler = ReplicationScheduler(root, gpus=(5,), per_gpu=2, per_gpu_limit=2, code_root=source,
         smoke_costs={"Flat": dict(peak_memory_mib=peak, disk_bytes=2 * 2**30)})
     saved = scheduler.state.get("capacity", {})
-    scheduler.capacity = {g: min(limit, int(saved.get(str(g), limit))) for g, limit in ((1, 4), (3, 2))}
+    scheduler.capacity = {5: min(2, int(saved.get("5", 2)))}
     return scheduler
 
 
@@ -157,6 +166,10 @@ def prepare(args, environment):
     if subprocess.check_output(["git", "diff", "HEAD", "--name-only"], cwd=source, text=True).strip():
         raise ValueError("Numerical source must have no tracked edits")
     jobs = flat.make_jobs(flat.load_sources(args.baseline_root, seeds=NEW_SEEDS), args.output, seeds=NEW_SEEDS)
+    # Start4/6classes together for each seed/fold; this changes placement/order,
+    # not any job's model, optimizer, masks or training RNG.
+    jobs.sort(key=lambda job: (job['config']['seed'], flat.FOLDS.index(job['config']['fold']),
+                              job['config']['dataset']))
     seed66_jobs = flat.make_jobs(flat.load_sources(args.baseline_root), args.seed66_root)
     reused, evidence = load_seed66(seed66_jobs, args.seed66_root)
     smoke_path, data_path = args.smoke_summary.resolve(strict=True), args.data_provenance.resolve(strict=True)
@@ -173,7 +186,8 @@ def prepare(args, environment):
     for job in jobs:
         job["provenance"] = provenance
     manifest = dict(label=LABEL, planned_new_fold_runs=20, reused_fold_runs=10, planned_fold_runs=30,
-        new_seeds=list(NEW_SEEDS), reused_seeds=[66], capacities={"1": 4, "3": 2}, excluded_gpus=[4, 5],
+        new_seeds=list(NEW_SEEDS), reused_seeds=[66], capacities={"5": 2},
+        authorized_gpu_uuid=GPU5_UUID, excluded_gpus=[0, 1, 2, 3, 4, 6, 7],
         preserve_all_best_weights=True, preserve_selection_artifacts=True, preserve_last_training=True,
         provenance=provenance, jobs=jobs)
     path = args.output / "MANIFEST.json"

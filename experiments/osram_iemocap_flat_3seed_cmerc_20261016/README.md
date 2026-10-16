@@ -79,12 +79,16 @@ RNG/checkpoint recovery prevent duplicate submissions and mixed protocols.
 Changes to configs, helpers, worker or reused evidence reject resume in the
 same output directory.
 
-Only physical GPU1 and GPU3 are eligible, with at most4 and2 jobs from this
-queue, respectively. Actual memory/process/disk admission can reduce these
-limits. GPUs4/5 are excluded. The existing measured longest-batch B6 smoke
+Latest user authorization resumes this queue on **physical GPU5 only**, at
+most **two concurrent fold workers**. Its verified UUID is
+`GPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62`. GPU4 remains forbidden; no other
+card receives jobs from this queue. The previous1/3 plan was never launched.
+Actual memory/disk admission can reduce concurrency. The existing longest-batch B6 smoke
 provides a conservative Flat memory bound using the larger allocated/reserved
 peak plus1024MiB headroom; no extra GPU smoke is started. Independent active
 jobs also reserve their measured peaks. External jobs are never signalled.
+Classes4/6 are interleaved so the first two jobs are seed67/fold5, one of each
+classification setting. All20jobs remain independent original-Flat runs.
 
 ## Results and retention
 

@@ -1,4 +1,12 @@
-# PAUSED BEFORE LAUNCH
+# RESUME AUTHORIZED ON GPU5 — LAUNCH VERIFICATION PENDING
+
+Latest user instruction supersedes the pause: finish original IEMOCAP4/6 Flat
+three-seed results on GPU5, two concurrent fold jobs. Reuse Flat66; train only
+seeds67/68,100epochs/full fivefold each. No B6 or MELD rerun. Runtime stays
+cmerc-repro and numerical source785a012. Live launch evidence will be recorded
+separately after actual worker verification; authorization is not completion.
+
+## Historical pause record
 
 User instruction on2026-10-16: pause new experiments and first inventory which
 existing results are usable, their scores, environments and evaluation scopes.

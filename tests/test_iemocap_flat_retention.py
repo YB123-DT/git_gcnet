@@ -76,6 +76,19 @@ def test_replication_environment_requires_the_exact_accepted_runtime(monkeypatch
         module.require_replication_environment(fake)
 
 
+def test_latest_replication_is_gpu5_only_without_widening_old_workers():
+    module = worker()
+    module.validate_gpu_scope(5, flat_replication=True)
+    for gpu in (0, 1, 2, 3, 4, 6, 7):
+        with pytest.raises(ValueError):
+            module.validate_gpu_scope(gpu, flat_replication=True)
+    for gpu in (1, 3):
+        module.validate_gpu_scope(gpu, flat_replication=False)
+    for gpu in (0, 2, 4, 5, 6, 7):
+        with pytest.raises(ValueError):
+            module.validate_gpu_scope(gpu, flat_replication=False)
+
+
 def best_files(tmp_path, classes=4):
     from gcnet_missing_m3.train_gcnet import _save_selection_artifacts
     module = worker()

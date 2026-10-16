@@ -118,18 +118,37 @@ class ThreeSeedTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.load_seed66(jobs, root)
 
-    def test_only_twenty_new_jobs_and_replication_flag_with_unchanged_gpu_limits(self):
+    def test_only_twenty_new_jobs_and_replication_flag_on_gpu5_two_slots(self):
         module = self.module()
         with tempfile.TemporaryDirectory() as root:
             frozen = importlib.import_module("experiments.osram_meld_block2_auto_20261014.scheduler")
             scheduler = module.make_scheduler(frozen, root, "/frozen", "/deployed/worker.py", 3590.)
             jobs = module.flat.make_jobs(sources((67, 68)), root, seeds=(67, 68))
-            command = scheduler.command(jobs[0], "/config", "GPU-test-1")
+            command = scheduler.command(jobs[0], "/config", "GPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62")
             self.assertIn("--flat-only", command)
             self.assertIn("--flat-replication", command)
-            self.assertEqual(scheduler.capacity, {1: 4, 3: 2})
-            self.assertEqual(scheduler.gpus, (1, 3))
+            self.assertEqual(scheduler.capacity, {5: 2})
+            self.assertEqual(scheduler.gpus, (5,))
             self.assertEqual({j["config"]["seed"] for j in jobs}, {67, 68})
+
+    def test_gpu5_admission_caps_two_and_rejects_wrong_uuid(self):
+        module = self.module()
+        with tempfile.TemporaryDirectory() as root:
+            frozen = importlib.import_module("experiments.osram_meld_block2_auto_20261014.scheduler")
+            scheduler = module.make_scheduler(frozen, root, "/frozen", "/worker.py", 3590.)
+            scheduler.disk_margin_bytes = 0
+            scheduler.smoke_costs["Flat"]["disk_bytes"] = 0
+            uuid = "GPU-fa1e8bfd-85d8-9599-f804-7c88b9c71b62"
+            scheduler.gpu_snapshot = lambda: {5: dict(uuid=uuid, free_mib=24000.)}
+            jobs = module.flat.make_jobs(sources((67, 68)), root, seeds=(67, 68))
+            self.assertEqual(scheduler.admit(jobs[0]), (5, uuid))
+            scheduler.state["jobs"] = {j["id"]: dict(j, status="running", gpu=5) for j in jobs[:2]}
+            self.assertIsNone(scheduler.admit(jobs[2]))
+            scheduler.state["jobs"] = {}
+            scheduler.state["gpu_uuids"] = {}
+            scheduler.gpu_snapshot = lambda: {5: dict(uuid="GPU-wrong-device", free_mib=24000.)}
+            with self.assertRaises(RuntimeError):
+                scheduler.admit(jobs[0])
 
     def test_worker_replication_environment_schema_is_accepted_and_wrong_runtime_rejected(self):
         module = self.module()
