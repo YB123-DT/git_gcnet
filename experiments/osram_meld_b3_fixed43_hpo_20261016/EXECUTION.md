@@ -88,3 +88,25 @@ Job03 currently exceeds the completed default4/3 reference ACC60.756705 by
 This is not a joint ACC/UA improvement or a final ranking. Approximately19epochs
 remain; the recent observed aggregate rate was20epochs in21.8minutes per job,
 suggesting roughly20–30minutes of training plus saved-mask replay if unchanged.
+
+## Completion verified: 2026-10-16 13:09:27 UTC
+
+Controller and all four jobs report complete. Every history contains50epochs;
+all four selected-checkpoint common-mask on/off evaluations are also complete.
+The finite four-job budget has ended. No new search was launched.
+Remote final `RESULT.md` and `RESULT.csv` are archived beside this record.
+
+Final Test-best values equal the31epoch snapshot above: no later epoch improved
+the selected per-rate ACC. Job03 / Optuna trial4 has the highest new Test-best
+ACC60.785441,UA35.356574. Compared with default4/3 it gains0.028736ACC points but
+loses2.001256UA points; no new row improves both reference metrics.
+
+On common masks,job03 has ACC60.972222/UA35.471030 with B3 on,versus
+ACC60.981801/UA35.579604 with B3 bypassed in the same trained checkpoint.
+Thus its direct on-minus-off contribution is -0.009579ACC points and
+-0.108574UA points. Its paired result must not be presented as evidence that
+opening this B3 directly improves prediction. This bypass comparison does not
+remove B3's influence on the backbone during joint training.
+
+Final results remain INTERNAL TEST-ORACLE SCREEN,seed66 only; no multi-seed
+benefit or mechanistic success has been established.
