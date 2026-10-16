@@ -37,3 +37,18 @@ The legacy Nested table contains seed66ACC61.255 and three-seed mean61.153,
 but belongs to the earlier missing-protocol screen; it is not eligible for
 the current corrected-protocol ranking. None of these selected extrema
 establishes a successful second block or robust joint ACC/UA improvement.
+
+## Highest-ACC B6 training hyperparameters verified
+
+Structural trial3 (rank2/steps14) retains previously searched trial16 training
+settings,not original Flat optimizer/dropout defaults. Its actual global LR is
+0.0003433234536467373,weight decay0.0000044857894231052665,and dropout
+0.22489055023388654. Original Flat defaults are LR0.001,weight decay0.00001,
+and dropout0.5. The B6 structure-control LR multiplier is1,not a separate
+lower adapter LR. Thus this run's global LR is about0.3433times original.
+
+The completed three-seed matched comparison holds these searched global
+settings fixed: B6 ACC60.826948/UA35.517778 versus Flat ACC60.635377/UA36.303932,
+or +0.191571ACC points and -0.786154UA points. The higher selected ACC does
+not establish better seven-class recall. This is a record-only clarification;
+no new run or inference was launched.
