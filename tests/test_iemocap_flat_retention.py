@@ -41,6 +41,41 @@ def test_explicit_flat_validation_accepts_original_flat_not_b6():
             module.validate(dict(cfg, **{key: value}), flat_only=True)
 
 
+def test_flat_replication_requires_explicit_flag_and_only_new_seeds():
+    module = worker()
+    cfg = configuration()
+    for seed in (67, 68):
+        module.validate(dict(cfg, seed=seed), flat_only=True, flat_replication=True)
+        with pytest.raises(ValueError):
+            module.validate(dict(cfg, seed=seed), flat_only=True)
+    for seed in (65, 66, 69):
+        with pytest.raises(ValueError):
+            module.validate(dict(cfg, seed=seed), flat_only=True, flat_replication=True)
+    with pytest.raises(ValueError):
+        module.validate(dict(cfg, seed=67), flat_replication=True)
+
+
+def test_replication_environment_requires_the_exact_accepted_runtime(monkeypatch):
+    from types import SimpleNamespace
+    import sklearn
+    module = worker()
+    monkeypatch.setattr(module.sys, 'executable', '/data2/yb/conda_envs/cmerc-repro/bin/python')
+    monkeypatch.setattr(module.np, '__version__', '1.26.4')
+    monkeypatch.setattr(sklearn, '__version__', '1.3.2')
+    fake = SimpleNamespace(__version__='1.13.1+cu117', version=SimpleNamespace(cuda='11.7'))
+    result = module.require_replication_environment(fake)
+    assert result['executable'] == module.sys.executable
+    assert result['torch'] == '1.13.1+cu117'
+    for key, version in (('torch', '2.9.1+cu128'), ('cuda', '12.8')):
+        bad = SimpleNamespace(__version__=version if key == 'torch' else fake.__version__,
+                              version=SimpleNamespace(cuda=version if key == 'cuda' else '11.7'))
+        with pytest.raises(ValueError):
+            module.require_replication_environment(bad)
+    monkeypatch.setattr(module.sys, 'executable', '/home/qinjinghui/anaconda3/envs/adapter/bin/python')
+    with pytest.raises(ValueError):
+        module.require_replication_environment(fake)
+
+
 def best_files(tmp_path, classes=4):
     from gcnet_missing_m3.train_gcnet import _save_selection_artifacts
     module = worker()

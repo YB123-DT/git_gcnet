@@ -28,42 +28,46 @@ BOOKKEEPING = dict(common.BOOKKEEPING, osram_rpca_lr_multiplier=1.)
 LABEL = "INTERNAL PER-RATE TEST-ORACLE ACC; original Flat, seed66, 100 epochs"
 
 
-def load_sources(root):
+def load_sources(root, seeds=(66,)):
     sources = {}
     for classes in DATASETS:
-        for fold in FOLDS:
-            path = (Path(root) / f"iemocap{classes}/seed_66/fold_{fold}/config.json").resolve(strict=True)
-            sources[classes, 66, fold] = dict(config=json.loads(path.read_text()),
-                config_path=str(path), config_sha256=common.sha256(path))
+        for seed in seeds:
+            for fold in FOLDS:
+                path = (Path(root) / f"iemocap{classes}/seed_{seed}/fold_{fold}/config.json").resolve(strict=True)
+                sources[classes, seed, fold] = dict(config=json.loads(path.read_text()),
+                    config_path=str(path), config_sha256=common.sha256(path))
     return sources
 
 
-def make_jobs(sources, output):
-    if set(sources) != {(c, 66, f) for c in DATASETS for f in FOLDS}:
-        raise ValueError("Exactly ten original Flat seed66 configurations are required")
+def make_jobs(sources, output, seeds=(66,)):
+    seeds = tuple(seeds)
+    if (not seeds or len(set(seeds)) != len(seeds) or any(s not in (66, 67, 68) for s in seeds)
+            or set(sources) != {(c, s, f) for c in DATASETS for s in seeds for f in FOLDS}):
+        raise ValueError("Require exactly the original Flat configurations for the requested seeds66/67/68")
     jobs = []
     for fold in FOLDS:
         for classes, dataset in DATASETS.items():
-            baseline = deepcopy(sources[classes, 66, fold])
-            original = baseline["config"]
-            expected = dict(dataset=dataset, seed=66, fold=fold, epochs=100, batch_size=32,
-                optimizer="adam", learning_rate=.001, weight_decay=1e-5, dropout=.5,
-                train_rate_mode="cyclic", missing_mask_protocol="gcnet-random-mask-v1",
-                training_objective="emotion-only", checkpoint_selection="test-oracle-per-rate",
-                evaluate_test=True, osram_meaningful_block="none", osram_readout_fusion="flat",
-                osram_output_dim=1600, backbone_type="osram")
-            if (any(original.get(k) != v for k, v in expected.items())
-                    or original.get("osram_disable_local_skip", False)
-                    or original.get("initial_backbone_checkpoint")
-                    or original.get("checkpoint_selection_metric", "dataset-default") not in ("dataset-default", "accuracy")
-                    or original.get("train_missing_rates") != [i / 10 for i in range(8)]):
-                raise ValueError(f"Original Flat/no-JEPA/corrected-mask protocol mismatch: {classes}/66/{fold}")
-            config = dict(original, **BOOKKEEPING)
-            name = f"iemocap{classes}_Original_Flat_seed66_fold{fold}"
-            jobs.append(dict(id=name, method="Flat", config=config, baseline=baseline,
-                configuration_diff={k: dict(original=original.get(k), effective=v, added=k not in original)
-                                    for k, v in BOOKKEEPING.items() if k not in original or original[k] != v},
-                output=str((Path(output) / f"runs/iemocap{classes}/seed_66/fold_{fold}").resolve())))
+            for seed in seeds:
+                baseline = deepcopy(sources[classes, seed, fold])
+                original = baseline["config"]
+                expected = dict(dataset=dataset, seed=seed, fold=fold, epochs=100, batch_size=32,
+                    optimizer="adam", learning_rate=.001, weight_decay=1e-5, dropout=.5,
+                    train_rate_mode="cyclic", missing_mask_protocol="gcnet-random-mask-v1",
+                    training_objective="emotion-only", checkpoint_selection="test-oracle-per-rate",
+                    evaluate_test=True, osram_meaningful_block="none", osram_readout_fusion="flat",
+                    osram_output_dim=1600, backbone_type="osram")
+                if (any(original.get(k) != v for k, v in expected.items())
+                        or original.get("osram_disable_local_skip", False)
+                        or original.get("initial_backbone_checkpoint")
+                        or original.get("checkpoint_selection_metric", "dataset-default") not in ("dataset-default", "accuracy")
+                        or original.get("train_missing_rates") != [i / 10 for i in range(8)]):
+                    raise ValueError(f"Original Flat/no-JEPA/corrected-mask protocol mismatch: {classes}/{seed}/{fold}")
+                config = dict(original, **BOOKKEEPING)
+                name = f"iemocap{classes}_Original_Flat_seed{seed}_fold{fold}"
+                jobs.append(dict(id=name, method="Flat", config=config, baseline=baseline,
+                    configuration_diff={k: dict(original=original.get(k), effective=v, added=k not in original)
+                                        for k, v in BOOKKEEPING.items() if k not in original or original[k] != v},
+                    output=str((Path(output) / f"runs/iemocap{classes}/seed_{seed}/fold_{fold}").resolve())))
     return jobs
 
 

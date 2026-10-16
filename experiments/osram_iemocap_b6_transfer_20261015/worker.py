@@ -86,7 +86,25 @@ def repair_uuid_rng(torch):
                 original_random_count=random_count, random_alias_repaired=random_count != runtime)
 
 
-def validate(config, *, flat_only=False):
+def require_replication_environment(torch):
+    """Fail before training rather than silently changing the comparison runtime."""
+    import sklearn
+    expected_python = Path('/data2/yb/conda_envs/cmerc-repro/bin/python')
+    environment = dict(executable=sys.executable, python=sys.version,
+                       torch=torch.__version__, cuda=torch.version.cuda,
+                       numpy=np.__version__, sklearn=sklearn.__version__)
+    if (Path(sys.executable).resolve() != expected_python.resolve()
+            or environment['torch'] != '1.13.1+cu117'
+            or environment['cuda'] != '11.7'
+            or environment['numpy'] != '1.26.4'
+            or environment['sklearn'] != '1.3.2'):
+        raise ValueError(f'Require the accepted cmerc-repro comparison runtime: {environment}')
+    return environment
+
+
+def validate(config, *, flat_only=False, flat_replication=False):
+    if flat_replication and not flat_only:
+        raise ValueError('Flat replication requires the explicit Flat-only path')
     expected = dict(epochs=100, batch_size=32, optimizer='adam', learning_rate=0.001,
         weight_decay=1e-5, dropout=0.5, projector_dropout=0.1, local_fusion_dropout=0.2,
         lr_schedule='constant', gradient_clip_norm=1.0, emotion_loss_mode='sample-mean',
@@ -105,8 +123,9 @@ def validate(config, *, flat_only=False):
         for name in ('osram_rpca_rank', 'osram_rpca_steps', 'osram_rpca_threshold_init'):
             expected.pop(name)
         expected.update(osram_meaningful_block='none', osram_rpca_lr_multiplier=1.0)
-        if config['seed'] != 66:
-            raise ValueError('Flat restoration is authorized for seed66 only')
+        allowed_seeds = (67, 68) if flat_replication else (66,)
+        if config['seed'] not in allowed_seeds:
+            raise ValueError(f'Flat seeds authorized for this entry: {allowed_seeds}')
     for key, value in expected.items():
         original_default = False if key == 'osram_disable_local_skip' else None
         if config.get(key, original_default) != value:
@@ -224,9 +243,11 @@ def main():
     parser.add_argument('--smoke', action='store_true')
     parser.add_argument('--flat-only', action='store_true',
                         help='Authorized seed66 original Flat restoration; no B6 module')
+    parser.add_argument('--flat-replication', action='store_true',
+                        help='Explicitly authorized Flat seeds67/68 in the accepted cmerc-repro runtime')
     args = parser.parse_args()
     raw_config = json.loads(args.config.read_text())
-    validate(raw_config, flat_only=args.flat_only)
+    validate(raw_config, flat_only=args.flat_only, flat_replication=args.flat_replication)
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_uuid
     os.environ['GCNET_DATASET_ROOT'] = str(DATA_ROOT)
     os.environ['GCNET_CACHE_ROOT'] = str(args.output.parent / '_iemocap_feature_cache')
@@ -240,6 +261,7 @@ def main():
         raise ValueError('Numerical source differs from committed snapshot')
     sys.path.insert(0, str(source))
     import torch
+    replication_environment = require_replication_environment(torch) if args.flat_replication else None
     from gcnet_missing_m3 import train_gcnet as trainer
     from gcnet_missing_m3.training_resume import TrainingState
     from experiments.osram_meld_write_retention_20261014.run import guard_gpu
@@ -277,7 +299,9 @@ def main():
         method='Original_Flat' if args.flat_only else 'B6_tuned_pca_only',
         protocol='INTERNAL TEST-ORACLE SCREEN; per-rate selected ACC',
         provenance=dict(hostname=socket.gethostname(), gpu=gpu, uuid_rng=repair, pid=os.getpid(),
-            feature_roots=roots, environment=dict(torch=torch.__version__, numpy=np.__version__),
+            feature_roots=roots, environment=(replication_environment if args.flat_replication
+                else dict(torch=torch.__version__, numpy=np.__version__)),
+            **({'replication_environment': replication_environment} if args.flat_replication else {}),
             command=sys.argv, no_meld_training_hyperparameters=True), started_unix=time.time())
     write(summary_path, summary)
     started = time.monotonic()
