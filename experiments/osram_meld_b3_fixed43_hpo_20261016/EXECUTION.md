@@ -42,3 +42,28 @@ Verification:local6tests passed with2Optuna skips; the deployed remote suite had
 only-matching reference import,full-tuple uniqueness,four-job limit and resume.
 Compilation and whitespace checks passed. No numerical model changes and no new
 GPU smoke were needed; the same-source largest-structure3204.083MiB smoke is reused.
+
+## Automatic handoff verified: 2026-10-16 11:54:39 UTC
+
+The preceding four capacity jobs completed all50epochs. The fixed4/3 controller
+then automatically started all four authorized jobs on physical GPU3. Its
+`RUNNER.json` now reports `running`; no new workload was submitted for this status
+check. Controller and numerical source SHAs remain as recorded above.
+
+All new jobs were running at11/50epochs. Below are eight-rate intermediate
+Test-best ACC and corresponding seven-class UA, in percent. Each UA was computed
+directly from its rate's saved selected-epoch labels/logits, not from another
+random-mask evaluation. Recomputed ACC matched selection metadata within1e-8.
+These are not final results and are not common-mask paired replay results.
+
+| Job | PID | B3 dim | B3 heads | FFN | B3 LR | Epochs | ACC | UA |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| b3_fixed43_01 |2283933|256|4|256|0.001|11/50|60.536398|34.652029|
+| b3_fixed43_02 |2284075|128|8|128|0.001|11/50|60.387931|34.957441|
+| b3_fixed43_03 |2284175|128|4|128|0.0003|11/50|60.450192|35.225104|
+| b3_fixed43_04 |2284199|128|4|256|0.0003|11/50|60.272989|33.018594|
+
+Every row fixes4tokens/3rounds,seed66 and the original global LR0.001. B3 heads
+are internal attention heads,not the unchanged eight CHM Memory heads. Only the
+already-authorized four local configurations are running; there is no budget
+expansion or additional training/inference from this check.
