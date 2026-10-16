@@ -96,6 +96,41 @@ class LocalQueueBoundary(unittest.TestCase):
         self.assertEqual(state['state'],'WAITING')
         self.assertEqual(state['remaining'],1)
 
+    def test_released_formal_gate_needs_two_verified_smokes_with_correct_result_type(self):
+        source, runs, _ = self.queue()
+        tasks = []
+        for mr in (.3, .6):
+            c = dict(model='SDR-GNN', model_version='released_compatible', dataset='MELD', missing_rate=mr)
+            run = runs/str(mr)
+            self.write_json(run/'config.json', c)
+            self.write_json(run/'manifest.json', dict(result_type='smoke'))
+            tasks.append(dict(phase='compatibility_smoke', config=c, run_dir=str(run)))
+        gates = {}
+        with mock.patch.object(dispatch, 'ROOT', source), mock.patch.object(dispatch, 'valid_result', return_value=False):
+            self.assertFalse(dispatch.compatibility_gates(tasks, gates))
+        with mock.patch.object(dispatch, 'ROOT', source), mock.patch.object(dispatch, 'valid_result', return_value=True):
+            self.write_json(Path(tasks[1]['run_dir'])/'manifest.json', dict(result_type='formal'))
+            self.assertFalse(dispatch.compatibility_gates(tasks, gates))
+            self.write_json(Path(tasks[1]['run_dir'])/'manifest.json', dict(result_type='smoke'))
+            self.assertTrue(dispatch.compatibility_gates(tasks, gates))
+        self.assertTrue(gates['SDR-GNN_released_compatible_MELD']['ready'])
+        self.assertEqual(len(gates['SDR-GNN_released_compatible_MELD']['evidence']), 2)
+
+    def test_smoke_launch_sets_hash_seed_before_python_and_forwards_smoke_flag(self):
+        source, runs, task = self.queue()
+        task['phase'] = 'compatibility_smoke'
+        task['config']['python_hash_seed'] = 66
+        self.write_json(task['config_path'], task['config'])
+        with mock.patch.multiple(dispatch, RUN_ROOT=runs, PYTHON=sys.executable), \
+             mock.patch.object(dispatch.subprocess, 'Popen') as start:
+            start.return_value.pid = 123456
+            dispatch.launch(task, 'GPU-test-a', source)
+        command = start.call_args.args[0]
+        env = start.call_args.kwargs['env']
+        self.assertIn('--smoke', command)
+        self.assertEqual(env['PYTHONHASHSEED'], '66')
+        self.assertEqual(env['CUDA_VISIBLE_DEVICES'], 'GPU-test-a')
+
     def test_incompatible_completed_config_cannot_be_silently_skipped(self):
         source,runs,task = self.queue()
         wrong=dict(task['config'],epochs=99)

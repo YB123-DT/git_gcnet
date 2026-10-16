@@ -1,3 +1,7 @@
+# SDR版本适用范围
+
+本文下述SDR实现修复仅适用于`implementation_fixed`，该版本独立保留用于比较，不能代填主文成绩。主文使用`released_compatible`：只允许MELD输入1666维/238个可整除Attention头和九说话人81种关系这两类数值兼容，以及包隔离的相对导入。Released保留官方Tuple拼接后仅Temporal分类、原MHA轴、原重建Padding展平行为，不将这些上游问题静默修复。来源、完整Diff及等价测试见`sdrgnn_released/`；IEMOCAP保持2560/256、原两说话人关系路径并在Python启动前固定hash seed。
+
 # GCNet / SDR-GNN isolated implementation audit
 
 No parent repository files were modified; no training, GPU use, upload or remote write was performed in this audit. Python files are snapshots copied from the source repositories below, followed by the recorded patches. Source status and per-file hashes are in each `provenance.json`.

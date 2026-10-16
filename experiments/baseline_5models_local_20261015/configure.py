@@ -2,10 +2,12 @@
 from pathlib import Path
 from runtime import ROOT,RUN_ROOT,GPUS,HOST,PYTHON,atomic_json
 
-VERSIONS = [('MMIN','original','Utterance-only Causal'),('MoMKE','causal','Causal'),('GCNet','original','Non-causal'),('SDR-GNN','implementation_fixed','Non-causal'),('ComP','causal','Causal'),('MoMKE','original','Non-causal'),('ComP','original','Non-causal')]
+VERSIONS = [('MMIN','original','Utterance-only Causal'),('MoMKE','causal','Causal'),('GCNet','original','Non-causal'),('SDR-GNN','released_compatible','Non-causal'),('ComP','causal','Causal'),('MoMKE','original','Non-causal'),('ComP','original','Non-causal'),('SDR-GNN','implementation_fixed','Non-causal')]
 
 
 def config(model,version,dataset,seed,mr,fold):
+    if model == 'SDR-GNN' and version not in ('released_compatible', 'implementation_fixed'):
+        raise ValueError('SDR-GNN requires an explicit released_compatible or implementation_fixed version')
     c = dict(model=model,model_version=version,dataset=dataset,seed=seed,missing_rate=mr,fold=fold,
              eval_mask_seed=20261015,checkpoint_selection='test_best_acc',evaluation_protocol='test_oracle',
              selection_range='stage2_only' if model in ('MoMKE','ComP') else 'all_epochs',
@@ -22,7 +24,13 @@ def config(model,version,dataset,seed,mr,fold):
         import json
         c.update(json.loads((ROOT/'adapters/mmin/hyperparameters.json').read_text())[dataset])
         c['hidden']=128
-    c['implementation_label'] = ('MMIN-UTT-adapted Original' if model=='MMIN' else 'SDR-GNN-Implementation-fixed' if model=='SDR-GNN' else model+'-'+version) + (' (MELD-adapted)' if dataset=='MELD' and model in ('GCNet','SDR-GNN') else '')
+    if model == 'SDR-GNN' and version == 'released_compatible':
+        c.update(attention_embed_dim=1666 if dataset == 'MELD' else 2560,
+                 attention_heads=238 if dataset == 'MELD' else 256,
+                 python_hash_seed=seed,
+                 relation_mapping='row_major_9speaker' if dataset == 'MELD' else 'upstream_set_with_startup_hash_seed',
+                 reconstruction_layout='upstream_time_major_features_batch_major_padding')
+    c['implementation_label'] = ('MMIN-UTT-adapted Original' if model=='MMIN' else 'SDR-GNN-Released-code-Compatible' if model=='SDR-GNN' and version=='released_compatible' else 'SDR-GNN-Implementation-fixed' if model=='SDR-GNN' else model+'-'+version) + (' (MELD-adapted)' if dataset=='MELD' and model in ('GCNet','SDR-GNN') else '')
     return c
 
 
@@ -42,7 +50,8 @@ def main():
                         mr=mr_i/10
                         c=config(model,version,dataset,seed,mr,fold)
                         ident=f'{dataset}/{model}/{version}/seed_{seed}/mr_{mr:.1f}/fold_{fold}'
-                        priority=(0 if dataset=='MELD' else 20 if dataset=='IEMOCAPFour' else 30)+(40 if index>=5 else 0)
+                        appendix = (model, version) in {('MoMKE','original'), ('ComP','original'), ('SDR-GNN','implementation_fixed')}
+                        priority=(0 if dataset=='MELD' else 20 if dataset=='IEMOCAPFour' else 30)+(40 if appendix else 0)
                         tasks.append(dict(id=ident,config=c,run_dir=str(RUN_ROOT/ident),causality=causality,phase='formal',priority=priority,gate=f'{model}_{version}_{dataset}',status='MISSING'))
     # Budget pilots remain traceable and are explicitly reused when selected and identical.
     for mr in (.3,.6):
@@ -57,6 +66,6 @@ def main():
             raise RuntimeError('Config already exists with different content: '+str(path))
         atomic_json(path,task['config'])
         task['config_path']=str(path)
-    atomic_json(ROOT/'experiment_registry.json',dict(host=HOST,gpu_uuids=GPUS,python=PYTHON,max_gpu_jobs=2,formal_seed_configs=504,formal_fold_units=1848,tasks=tasks))
+    atomic_json(ROOT/'experiment_registry.json',dict(host=HOST,gpu_uuids=GPUS,python=PYTHON,max_gpu_jobs=2,formal_seed_configs=576,formal_fold_units=2112,tasks=tasks))
     print(f'{len(tasks)} queued fold-units ({sum(t["phase"]=="formal" for t in tasks)} formal, 4 budget pilots)')
 if __name__=='__main__': main()

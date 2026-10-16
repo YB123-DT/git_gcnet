@@ -162,3 +162,35 @@ def test_unstarted_table_c_reports_verified_ancestry_without_execution_claim(tmp
     assert row['configuration_scope']=='planned_unstarted'
     assert row['code_snapshot_sha256']==''
     assert row['status']=='MISSING'
+
+
+def test_sdr_versions_remain_separate_and_only_released_enters_main_table(tmp_path, local_records):
+    tasks = [task(tmp_path, model='SDR-GNN', version=v, seed=s)
+             for v in ('released_compatible', 'implementation_fixed') for s in (66, 67, 68)]
+    for t in tasks:
+        t['causality'] = 'Non-causal'
+        save_fixture(t, local_records, correct=t['config']['model_version'] == 'implementation_fixed')
+    _, out = run_registry(tmp_path, tasks)
+    summaries = rows(out/'results_summary.csv')
+    assert len(summaries) == 2 and all(r['count'] == '3' for r in summaries)
+    assert {r['model_version']: float(r['acc_mean']) for r in summaries} == {
+        'released_compatible': 0., 'implementation_fixed': 100.}
+    assert 'released-code compatible' in (out/'TABLE_A.md').read_text()
+    assert 'implementation-fixed' not in (out/'TABLE_A.md').read_text()
+    assert 'implementation-fixed' in (out/'TABLE_D.md').read_text()
+    assert 'released-code compatible' in (out/'TABLE_D.md').read_text()
+    paired = rows(out/'sdr_version_comparison.csv')
+    assert len(paired) == 3 and all(r['status'] == 'PAIRED' for r in paired)
+    assert all(float(r['acc_delta']) == 100. for r in paired)
+
+
+def test_fixed_scores_cannot_fill_missing_released_sdr_result(tmp_path, local_records):
+    released = task(tmp_path, model='SDR-GNN', version='released_compatible')
+    fixed = task(tmp_path, model='SDR-GNN', version='implementation_fixed')
+    save_fixture(fixed, local_records)
+    _, out = run_registry(tmp_path, [released, fixed])
+    summary = {r['model_version']: r for r in rows(out/'results_summary.csv')}
+    assert summary['released_compatible']['count'] == '0'
+    assert summary['released_compatible']['acc_mean'] == ''
+    assert summary['implementation_fixed']['count'] == '1'
+    assert rows(out/'sdr_version_comparison.csv')[0]['status'] == 'MISSING_RELEASED_COMPATIBLE'

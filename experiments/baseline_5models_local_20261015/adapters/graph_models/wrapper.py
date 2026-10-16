@@ -1,4 +1,4 @@
-"""Thin adapters around vendored original graph models (no simplified GNNs).
+"""Thin adapters around explicitly versioned vendored graph models.
 
 Forward inputs are time-major masked A/T/V concatenation, integer speaker IDs
 [B,T], utterance validity [B,T], and dialogue lengths. Complete training features
@@ -10,6 +10,8 @@ from torch import nn
 from torch.nn import functional as F
 from .gcnet.model import GraphModel as GCNet
 from .sdrgnn.model_SDRGNN import GraphModel as SDRGNN
+from .sdrgnn_released.model_SDRGNN import GraphModel as SDRGNNReleased
+from .sdrgnn_released.loss import MaskedCELoss, MaskedReconLoss
 
 
 def _dims(dims):
@@ -37,8 +39,11 @@ class GraphAdapter(nn.Module):
         self.dims = _dims(dims)
         model_name = str(config.get('model', config.get('model_name', 'GCNet'))).lower().replace('-', '').replace('_','')
         self.is_sdr = 'sdr' in model_name
+        self.sdr_version = config.get('model_version', 'implementation_fixed') if self.is_sdr else None
+        if self.is_sdr and self.sdr_version not in ('released_compatible', 'implementation_fixed'):
+            raise ValueError('Unsupported SDR-GNN model_version: ' + repr(self.sdr_version))
         hidden = int(config.get('hidden', 200))
-        cls = SDRGNN if self.is_sdr else GCNet
+        cls = (SDRGNNReleased if self.sdr_version == 'released_compatible' else SDRGNN) if self.is_sdr else GCNet
         self.model = cls(
             base_model=config.get('base_model', 'GRU' if self.is_sdr else 'LSTM'),
             adim=self.dims[0], tdim=self.dims[1], vdim=self.dims[2],
@@ -49,7 +54,14 @@ class GraphAdapter(nn.Module):
             n_classes=nclasses, dropout=self.config['dropout'],
             time_attn=bool(config.get('time_attn',False)), no_cuda=True,
         )
+        if self.sdr_version == 'released_compatible':
+            for key, actual in (('attention_embed_dim', self.model.multihead_attn.embed_dim),
+                                ('attention_heads', self.model.multihead_attn.num_heads)):
+                if key in config and int(config[key]) != actual:
+                    raise ValueError(f'Frozen {key}={config[key]} differs from constructed model {actual}')
         self.version = ('SDR-GNN-Implementation-fixed' if self.is_sdr else 'GCNet-Original')
+        if self.sdr_version == 'released_compatible':
+            self.version = 'SDR-GNN-Released-compatible'
         if nspeakers > 2:
             self.version += '-MELD-adapted'
 
@@ -69,12 +81,14 @@ class GraphAdapter(nn.Module):
         return {'logits': logits, 'reconstruction': reconstruction[0], 'hidden': hidden}
 
     def loss(self, outputs, labels, target, availability, valid):
-        """Original objective, correcting the upstream T/B padding-mask alignment.
+        """Versioned objectives, retaining released padding flatten when selected.
 
         labels/valid are B,T; target is T,B,D; availability T,B,3 is 1=visible.
         GCNet: CE + reconstructed missing-feature modality-normalized MSE.
         SDR: (1-w)*CE + w*reconstruction, w=.5 by default.
         """
+        if self.sdr_version == 'released_compatible':
+            return self._released_loss(outputs, labels, target, availability, valid)
         selector = valid.bool().transpose(0,1)
         logits = outputs['logits']
         ce = F.cross_entropy(logits[selector],labels.transpose(0,1)[selector])
@@ -94,6 +108,21 @@ class GraphAdapter(nn.Module):
         else:
             total = ce+recon
         return total, {'classification':ce, 'reconstruction':recon}
+
+
+    def _released_loss(self, outputs, labels, target, availability, valid):
+        """Keep the train.py CE transpose and the released reconstruction flatten."""
+        logits = outputs['logits']
+        ce = MaskedCELoss()(logits.transpose(0, 1).contiguous().view(-1, logits.shape[-1]),
+                            labels.contiguous().view(-1), valid)
+        recon = MaskedReconLoss()([outputs['reconstruction']], [target], [availability],
+                                 valid, *self.dims)
+        if bool(self.config.get('loss_recon', True)):
+            weight = float(self.config.get('recon_loss_weight', .5))
+            total = (1 - weight) * ce + weight * recon
+        else:
+            total = ce
+        return total, {'classification': ce, 'reconstruction': recon}
 
 
 def build_model(config, dims, nclasses, nspeakers):

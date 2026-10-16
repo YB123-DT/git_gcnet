@@ -1,0 +1,74 @@
+--- upstream/model_SDRGNN.py
++++ sdrgnn_released/model_SDRGNN.py
+@@ -13,7 +13,7 @@
+ import torch.fft
+ from torch_geometric.nn import MessagePassing
+ from torch_geometric.utils import degree
+-from graph import batch_graphify
++from .graph import batch_graphify
+ 
+ 
+ class MatchingAttention(nn.Module):
+@@ -420,7 +420,9 @@
+         D_h = 2 * D_e + graph_hidden_size
+         self.smax_fc = nn.Linear(D_h, n_classes)
+         self.linear_rec = nn.Linear(D_h, adim + tdim + vdim)
+-        self.multihead_attn = nn.MultiheadAttention(2560, 256, dropout=dropout)
++        input_dim = adim + tdim + vdim
++        attention_heads = max(h for h in range(1, min(256, input_dim) + 1) if input_dim % h == 0)
++        self.multihead_attn = nn.MultiheadAttention(input_dim, attention_heads, dropout=dropout)
+         self.linear = nn.Linear(adim + tdim + vdim, D_h)
+ 
+ 
+--- upstream/graph.py
++++ sdrgnn_released/graph.py
+@@ -66,23 +66,34 @@
+     """
+     ## define edge_type_mapping
+     order_types = ['past', 'now', 'future']
+-    assert n_speakers <= 2, 'Note: n_speakers mush <= 2'
+-    if n_speakers == 1: speaker_types = ['00']
+-    if n_speakers == 2: speaker_types = ['00', '01', '10', '11']
++    if n_speakers > 2:
++        # MELD compatibility only: keep the released ii->jj relation direction.
++        # Original single-digit speaker keys remain unambiguous up to nine speakers.
++        assert n_speakers <= 9, 'released speaker keys support at most nine speakers'
++        assert graph_type in ['temporal', 'speaker']
++        if graph_type == 'temporal':
++            edge_type_mapping = {name: i for i, name in enumerate(order_types)}
++        else:
++            edge_type_mapping = {f'{i}{j}': n_speakers * i + j
++                                 for i in range(n_speakers) for j in range(n_speakers)}
++    else:
++        assert n_speakers <= 2, 'Note: n_speakers mush <= 2'
++        if n_speakers == 1: speaker_types = ['00']
++        if n_speakers == 2: speaker_types = ['00', '01', '10', '11']
+     
+-    ## only for single relation graph
+-    assert graph_type in ['temporal', 'speaker'] 
+-    merge_types = set()
+-    if graph_type == 'temporal':
+-        for ii in range(len(order_types)):
+-            merge_types.add(f'{order_types[ii]}')
+-    elif graph_type == 'speaker':
+-        for ii in range(len(speaker_types)):
+-            merge_types.add(f'{speaker_types[ii]}')
++        ## only for single relation graph
++        assert graph_type in ['temporal', 'speaker'] 
++        merge_types = set()
++        if graph_type == 'temporal':
++            for ii in range(len(order_types)):
++                merge_types.add(f'{order_types[ii]}')
++        elif graph_type == 'speaker':
++            for ii in range(len(speaker_types)):
++                merge_types.add(f'{speaker_types[ii]}')
+     
+-    edge_type_mapping = {}
+-    for ii, item in enumerate(merge_types):
+-        edge_type_mapping[item] = ii
++        edge_type_mapping = {}
++        for ii, item in enumerate(merge_types):
++            edge_type_mapping[item] = ii
+ 
+     ## qmask to cup()
+     qmask = qmask.cpu().data.numpy().astype(int)

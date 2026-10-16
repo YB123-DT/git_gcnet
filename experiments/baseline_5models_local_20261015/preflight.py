@@ -16,7 +16,7 @@ from runtime import ROOT, RUN_ROOT, GPUS, PYTHON, atomic_json, enforce_local, gp
 AUDIT = ROOT / 'audit'
 SUMMARY = AUDIT / 'preflight.json'
 VERSIONS = [('MMIN','original'),('MoMKE','causal'),('GCNet','original'),
-            ('SDR-GNN','implementation_fixed'),('ComP','causal'),
+            ('SDR-GNN','released_compatible'),('SDR-GNN','implementation_fixed'),('ComP','causal'),
             ('MoMKE','original'),('ComP','original')]
 MUTEX = threading.Lock()
 STATE = {'started_at': now(), 'state':'STARTING', 'cpu_tests':[], 'runs':[]}
@@ -122,6 +122,9 @@ def run_smoke(task,uuid):
         env=os.environ.copy();env.update(BASELINE_RUN_ROOT=str(RUN_ROOT),CUDA_VISIBLE_DEVICES=uuid,PYTHONUNBUFFERED='1',
                                         PYTHONDONTWRITEBYTECODE='1',OMP_NUM_THREADS='4',
                                         MKL_NUM_THREADS='4',OPENBLAS_NUM_THREADS='4')
+        launch_config=json.loads(Path(task['config_path']).read_text())
+        if 'python_hash_seed' in launch_config:
+            env['PYTHONHASHSEED']=str(launch_config['python_hash_seed'])
         with (run/'run.log').open('a') as output:
             child=subprocess.Popen(command,env=env,cwd=ROOT,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
             row.update(state='RUNNING',pid=child.pid,command=command,log=str(run/'run.log'))
@@ -164,7 +167,8 @@ def main():
     verify_uuid_mapping()
     if not args.skip_cpu and not cpu_checks():
         STATE.update(state='FAILED_CPU_CHECKS',completed_at=now());persist();return 1
-    groups=tasks();STATE.update(state='RUNNING_GPU_SMOKES',expected_runs=42);persist()
+    groups=tasks();expected=sum(len(pair) for pair in groups)
+    STATE.update(state='RUNNING_GPU_SMOKES',expected_runs=expected);persist()
     with ThreadPoolExecutor(max_workers=2) as executor:
         # Complete every MELD smoke before advancing to IEMOCAP.
         for dataset in ('MELD','IEMOCAPFour','IEMOCAPSix'):
@@ -172,9 +176,9 @@ def main():
             futures=[executor.submit(lane,phase[i::2],uuid) for i,uuid in enumerate(GPUS)]
             for future in futures:future.result()
     passed=sum(r.get('valid',False) and r.get('result_type')=='smoke' for r in STATE['runs'])
-    STATE.update(state='PASSED' if passed==42 else 'FAILED_GPU_SMOKES',passed_runs=passed,
-                 failed_runs=42-passed,completed_at=now());persist()
+    STATE.update(state='PASSED' if passed==expected else 'FAILED_GPU_SMOKES',passed_runs=passed,
+                 failed_runs=expected-passed,completed_at=now());persist()
     print('PREFLIGHT',json.dumps({k:v for k,v in STATE.items() if k!='runs'}),flush=True)
-    return 0 if passed==42 else 1
+    return 0 if passed==expected else 1
 
 if __name__=='__main__':sys.exit(main())

@@ -30,11 +30,34 @@ def test_original_equivalence_reference_is_complete_and_verbatim():
 
 
 def test_frozen_defaults_match_executable_model_configuration():
-    from configure import config
+    from configure import VERSIONS, config
     frozen = json.loads((ROOT/'configs/frozen_defaults.json').read_text())
-    assert len(frozen['templates']) == 21
+    assert len(frozen['templates']) == len(VERSIONS) * 3 == 24
+    assert frozen['formal_seed_configs'] == len(VERSIONS) * 3 * 3 * 8 == 576
+    assert frozen['formal_fold_units'] == len(VERSIONS) * 3 * 8 * (1 + 5 + 5) == 2112
     for key, expected in frozen['templates'].items():
         dataset,model,version = key.split('/')
         actual = config(model,version,dataset,66,.3,0 if dataset=='MELD' else 1)
         actual = {k:v for k,v in actual.items() if k not in ('seed','missing_rate','fold')}
         assert actual == expected
+
+
+def test_fresh_preflight_covers_both_sdr_versions_and_all_48_conditions(tmp_path, monkeypatch):
+    from configure import config
+    import preflight
+    tasks = []
+    for dataset in ('MELD', 'IEMOCAPFour', 'IEMOCAPSix'):
+        for model, version in preflight.VERSIONS:
+            for mr in (.3, .6):
+                c = config(model, version, dataset, 66, mr, 0 if dataset == 'MELD' else 1)
+                tasks.append(dict(phase='formal', config=c, config_path=str(tmp_path/'unused.json'),
+                                  gate=f'{model}_{version}_{dataset}'))
+    (tmp_path/'experiment_registry.json').write_text(json.dumps(dict(tasks=tasks)))
+    monkeypatch.setattr(preflight, 'ROOT', tmp_path)
+    monkeypatch.setattr(preflight, 'RUN_ROOT', tmp_path/'outputs')
+    groups = preflight.tasks()
+    assert len(groups) == 24
+    assert sum(map(len, groups)) == 48
+    assert {(r['model_version'], r['missing_rate'])
+            for pair in groups for r in pair if r['model'] == 'SDR-GNN'} == {
+                (v, mr) for v in ('released_compatible', 'implementation_fixed') for mr in (.3, .6)}

@@ -68,7 +68,11 @@ def launch(task,uuid,code):
         code=Path(snapshots[0])
         if not (code/'snapshot.json').exists():raise RuntimeError('Original resume snapshot unavailable')
     args=[PYTHON,str(code/'train_one.py'),'--config',task['config_path'],'--run-dir',str(run)]
+    if task.get('phase') == 'compatibility_smoke':
+        args.append('--smoke')
     env=os.environ.copy();env.update(BASELINE_RUN_ROOT=str(RUN_ROOT),CUDA_VISIBLE_DEVICES=uuid,PYTHONUNBUFFERED='1',PYTHONDONTWRITEBYTECODE='1',TMPDIR=str(RUN_ROOT/'tmp'))
+    if 'python_hash_seed' in task['config']:
+        env['PYTHONHASHSEED'] = str(task['config']['python_hash_seed'])
     (RUN_ROOT/'tmp').mkdir(exist_ok=True,parents=True)
     atomic_json(run/'launch.json',dict(command=args,gpu_uuid=uuid,hostname=socket.gethostname(),code_snapshot=str(code),config=task['config'],started_at=now()))
     # Wrapper records the actual exit code even if dispatcher itself is restarted.
@@ -83,6 +87,32 @@ def launch(task,uuid,code):
 def read_json(path,default=None):
     try:return json.loads(Path(path).read_text())
     except (OSError,ValueError):return default
+
+
+def compatibility_gates(tasks, gates):
+    """Open a released-code dataset gate only after both real GPU smokes pass."""
+    changed = False
+    for dataset in ('MELD', 'IEMOCAPFour', 'IEMOCAPSix'):
+        name = 'SDR-GNN_released_compatible_' + dataset
+        if gates.get(name, {}).get('ready'):
+            continue
+        smokes = [t for t in tasks if t.get('phase') == 'compatibility_smoke'
+                  and t['config'].get('model') == 'SDR-GNN'
+                  and t['config'].get('model_version') == 'released_compatible'
+                  and t['config'].get('dataset') == dataset]
+        if len(smokes) != 2 or {t['config']['missing_rate'] for t in smokes} != {.3, .6}:
+            continue
+        if not all(valid_result(t['run_dir'])
+                   and read_json(Path(t['run_dir'])/'manifest.json', {}).get('result_type') == 'smoke'
+                   and read_json(Path(t['run_dir'])/'config.json') == t['config'] for t in smokes):
+            continue
+        gates[name] = dict(ready=True, smoke_passed=True, verified_at=now(),
+                           source='released_compatible_two_mr_gpu_smokes',
+                           evidence=[t['run_dir'] for t in smokes])
+        changed = True
+    if changed:
+        atomic_json(ROOT/'gates.json', gates)
+    return changed
 
 
 def budget_decision(tasks,gates):
@@ -152,6 +182,7 @@ def main():
                     failed.append(t);continue
                 waiting.append(t)
             if budget_decision(tasks,gates):continue
+            if compatibility_gates(tasks,gates):continue
             occupied={read_json(Path(t['run_dir'])/'launch.json',{}).get('gpu_uuid') for t in active}
             for uuid in GPUS:
                 if len(active)>=2 or uuid in occupied or not gpu_free(uuid):continue

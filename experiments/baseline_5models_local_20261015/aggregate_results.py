@@ -38,7 +38,11 @@ def model_label(model, version, dataset):
     if model == 'MMIN':
         return 'MMIN utterance-feature-adapted Original'
     if model == 'SDR-GNN':
-        return 'SDR-GNN implementation-fixed (MELD-adapted)' if dataset == 'MELD' else 'SDR-GNN implementation-fixed'
+        label = {'released_compatible': 'SDR-GNN released-code compatible',
+                 'implementation_fixed': 'SDR-GNN implementation-fixed'}.get(version)
+        if label is None:
+            raise ValueError('Unknown SDR-GNN version: ' + version)
+        return label + (' (MELD-adapted)' if dataset == 'MELD' else '')
     if model == 'GCNet' and dataset == 'MELD':
         return 'GCNet MELD-adapted Original'
     return model + ('-Causal' if version == 'causal' else ' Original')
@@ -58,6 +62,8 @@ def _source_provenance(config, root, snapshot_path):
              'MMIN': 'adapters/mmin/provenance.json',
              'GCNet': 'adapters/graph_models/gcnet/provenance.json',
              'SDR-GNN': 'adapters/graph_models/sdrgnn/provenance.json'}
+    if model == 'SDR-GNN' and config.get('model_version') == 'released_compatible':
+        paths['SDR-GNN'] = 'adapters/graph_models/sdrgnn_released/PROVENANCE.json'
     base = snapshot if snapshot is not None and (snapshot/'adapters').exists() else current
     origin = 'executed_snapshot' if snapshot is not None and base == snapshot else 'current_verified_adapter_ancestry'
     value = read_json(base/paths[model]) if model in paths else {}
@@ -81,8 +87,11 @@ def _source_provenance(config, root, snapshot_path):
                 if len(verified) == 4 and all(v.get('bytes_equal') for v in verified.values())
                 else 'Official/local byte equivalence has not been established by this provenance record.')
     elif model == 'SDR-GNN':
-        source, repository = value.get('commit', ''), value.get('repository', '')
-        note = 'Implementation-fixed local adapter has no separate committed revision; use executed snapshot hash.'
+        source = value.get('upstream_commit', value.get('commit', ''))
+        repository = value.get('repository_url', value.get('repository', ''))
+        note = ('Released-code-compatible: retain tuple graph selection, attention axes and upstream reconstruction loss; only input-width/speaker compatibility and engineering imports. '
+                if config.get('model_version') == 'released_compatible' else 'Implementation-fixed local adapter; ')
+        note += 'No separate committed revision; use executed snapshot hash.'
     elif model == 'MoMKE':
         module = base/'adapters/momke/__init__.py'
         if module.exists():
@@ -296,6 +305,27 @@ def aggregate(registry, output_dir=None):
                 else:
                     row.update(status='PAIRED', **{m + '_delta': causal[0][m] - original[0][m] for m in METRICS})
             comparisons.append(row)
+    sdr_comparisons = []
+    for dataset, model, version, mr in sorted(planned):
+        if model != 'SDR-GNN' or version != 'released_compatible':
+            continue
+        for seed in SEEDS:
+            released = seed_arrays.get((dataset, model, version, mr, seed))
+            fixed = seed_arrays.get((dataset, model, 'implementation_fixed', mr, seed))
+            row = dict(dataset=dataset, model=model, missing_rate=mr, seed=seed,
+                       comparison='implementation_fixed_minus_released_compatible',
+                       status='MISSING_BOTH', evaluation_protocol='test_oracle')
+            if released is None and fixed is not None:
+                row['status'] = 'MISSING_RELEASED_COMPATIBLE'
+            elif released is not None and fixed is None:
+                row['status'] = 'MISSING_IMPLEMENTATION_FIXED'
+            elif released is not None and fixed is not None:
+                if released[0]['sample_mask_signature'] != fixed[0]['sample_mask_signature']:
+                    row['status'] = 'INCOMPATIBLE_SAMPLE_MASK'
+                else:
+                    row.update(status='PAIRED', **{m + '_delta': fixed[0][m] - released[0][m] for m in METRICS})
+            sdr_comparisons.append(row)
+    write_csv(output/'sdr_version_comparison.csv', sdr_comparisons, ['dataset', 'model', 'missing_rate', 'seed', 'comparison', 'status', *[m + '_delta' for m in METRICS], 'evaluation_protocol'])
     write_csv(output/'progress.csv', progress, ['task_id', *KEYS, 'seed', 'fold', 'phase', 'status', 'pid', 'pid_alive', 'gpu_uuid', 'epoch', 'exit_code', 'run_dir', 'log_path', 'rejection_reason'])
     write_csv(output/'results.csv', folds, [*KEYS, 'seed', 'fold', *METRICS, 'n_test', 'best_epoch', 'actual_missing_rate', 'run_dir', 'checkpoint_selection', 'evaluation_protocol'])
     write_csv(output/'results_seed.csv', seeds_out, [*KEYS, 'seed', 'fold_count', 'missing_folds', 'status', *METRICS, 'n_test', 'actual_missing_rate', 'sample_mask_signature', 'checkpoint_selection', 'evaluation_protocol'])
@@ -310,14 +340,18 @@ def aggregate(registry, output_dir=None):
 
 
 def _write_tables(output, summaries, planned):
-    for letter in ('A', 'B'):
+    for letter in ('A', 'B', 'D'):
         lines = ['**' + BIAS + '**', '', '| Dataset | Model | Causality | MR | ACC | WF1 | UA | Macro F1 | Seeds | Status |',
                  '|---|---|---|---:|---:|---:|---:|---:|---:|---|']
         for row in summaries:
             appendix_model = row['model'] in ('MoMKE', 'ComP')
+            if letter == 'A' and row['model'] == 'SDR-GNN' and row['model_version'] == 'implementation_fixed':
+                continue
             if letter == 'A' and appendix_model and row['model_version'] == 'original':
                 continue
             if letter == 'B' and not appendix_model:
+                continue
+            if letter == 'D' and row['model'] != 'SDR-GNN':
                 continue
             task = planned[tuple(row[k] for k in KEYS)][0]
             scores = ['{:.2f} ± {:.2f}'.format(row[m+'_mean'], row[m+'_std'])

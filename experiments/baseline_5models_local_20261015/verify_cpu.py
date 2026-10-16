@@ -29,7 +29,8 @@ def main():
         import pytest
     root = Path(__file__).resolve().parent
     return pytest.main([str(root / 'tests'),
-                        str(root / 'adapters/graph_models/test_graph_models.py'), '-q'])
+                        str(root / 'adapters/graph_models/test_graph_models.py'),
+                        str(root / 'adapters/graph_models/sdrgnn_released/test_released.py'), '-q'])
 
 
 if __name__ == '__main__':

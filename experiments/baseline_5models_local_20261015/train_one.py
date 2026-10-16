@@ -166,6 +166,9 @@ def main():
     run=Path(args.run_dir);run.mkdir(parents=True,exist_ok=True)
     lock=(run/'run.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     requested=json.loads(Path(args.config).read_text());c=dict(requested)
+    if c.get('model') == 'SDR-GNN' and c.get('model_version') == 'released_compatible':
+        if os.environ.get('PYTHONHASHSEED') != str(c['python_hash_seed']):
+            raise RuntimeError('Released-code relation mappings require PYTHONHASHSEED set before Python starts; use dispatcher or export the configured python_hash_seed')
     if args.smoke: c.update(epochs=2,stage_epoch=1 if c['model'] in ('MoMKE','ComP') else 0,batch_size=min(c['batch_size'],4))
     if (run/'config.json').exists() and json.loads((run/'config.json').read_text())!=c:
         raise RuntimeError('Refusing incompatible resume/config overwrite')
@@ -182,6 +185,8 @@ def main():
     c['seq_len']=seq_len
     manifest=dict(config=c,data=data['metadata'],hostname=socket.gethostname(),pid=os.getpid(),gpu_uuid=uuid,started_at=now(),mask_protocol=MASK_PROTOCOL,python=sys.executable,torch=torch.__version__,numpy=np.__version__,result_type='smoke' if args.smoke else 'formal',code_snapshot=str(ROOT),expected_n_test=sum(len(r['labels']) for r in test),expected_sample_ids=[r['id']+'::'+str(uid) for r in test for uid in r['utterance_ids']],eval_mask_seed=c['eval_mask_seed'],mask_key_records=[dict(id=r['id'],utterance_ids=r['utterance_ids']) for r in test])
     manifest['data_identity'] = data_identity(data['metadata'], train, test)
+    if 'python_hash_seed' in c:
+        manifest['python_hash_seed'] = os.environ['PYTHONHASHSEED']
     if (run/'manifest.json').exists():
         previous=json.loads((run/'manifest.json').read_text())
         validate_resume_identity(previous, manifest)
