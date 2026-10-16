@@ -15,3 +15,18 @@ Fold5 results are stored separately in FOLD5.json. Fivefold averages appear only
 
 Values are equal-fold, then three-seed mean ± sample SD. Test-best uses separate ACC-selected epochs at eight missing rates.
 Old exact-selection-epoch baseline UA is unavailable. Fresh final reevaluation and old baseline ACC are separate evidence.
+
+## Verified original Flat comparison
+
+Same100-epoch, fivefold/three-seed/eight-rate ACC-selected Test-best rule:
+
+| Dataset | Original Flat ACC | B6 ACC | Difference(pp) |
+|---|---:|---:|---:|
+| IEMOCAP4 |79.261|79.287|+0.026|
+| IEMOCAP6 |61.625|61.734|+0.109|
+
+The remembered Flat77.757/60.495 values belong to the later fresh-mask retest,
+not Test-best. They must not be compared with B6's selected scores as if the
+difference were a method gain. No large ACC improvement is established.
+Per-seed results, retest-to-retest comparison and exact source fields are in
+BASELINE_COMPARISON.md. Original and B6 masks are not exact sample-paired.
