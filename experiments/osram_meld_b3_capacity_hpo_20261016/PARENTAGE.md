@@ -34,3 +34,17 @@ trained parent checkpoint whose starting score can be assigned to all four.
 Calling these B3-local parameters correctly identifies which module changes,
 but does not imply the winning B3 structure or its weights were held fixed.
 This distinction should have accompanied the earlier local-parameter description.
+
+## Follow-up specifically for4tokens/3rounds, checked11:18 UTC
+
+The supplied resume ID corresponds to this same experimental conversation.
+The current4/3 follow-up is `b3_capacity_01`,not a separate fixed4/3 multi-trial
+study. It changes dimension128→64,internal heads4→2,FFN256→512 and adapter
+LR0.001→0.0001 together. At33/50completed epochs it is still running.
+
+Its current eight-rate Test-best ACC60.498084/UA35.511931 were recomputed only
+from saved selected artifacts; each ACC matched selection metadata. The completed
+default-capacity4/3 reference is ACC60.756705/UA37.357830. The interim differences
+are therefore approximately−0.259ACC/−1.846UA percentage points,not a final
+performance conclusion. No new inference,training,search or cancellation was
+performed for this check.
