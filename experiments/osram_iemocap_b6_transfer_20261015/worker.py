@@ -86,7 +86,7 @@ def repair_uuid_rng(torch):
                 original_random_count=random_count, random_alias_repaired=random_count != runtime)
 
 
-def validate(config):
+def validate(config, *, flat_only=False):
     expected = dict(epochs=100, batch_size=32, optimizer='adam', learning_rate=0.001,
         weight_decay=1e-5, dropout=0.5, projector_dropout=0.1, local_fusion_dropout=0.2,
         lr_schedule='constant', gradient_clip_norm=1.0, emotion_loss_mode='sample-mean',
@@ -101,6 +101,12 @@ def validate(config):
         osram_rpca_rank=2, osram_rpca_steps=14,
         osram_rpca_threshold_init=0.33599569865951234,
         osram_rpca_lr_multiplier=2.8200380294401013, device='cuda:0')
+    if flat_only:
+        for name in ('osram_rpca_rank', 'osram_rpca_steps', 'osram_rpca_threshold_init'):
+            expected.pop(name)
+        expected.update(osram_meaningful_block='none', osram_rpca_lr_multiplier=1.0)
+        if config['seed'] != 66:
+            raise ValueError('Flat restoration is authorized for seed66 only')
     for key, value in expected.items():
         original_default = False if key == 'osram_disable_local_skip' else None
         if config.get(key, original_default) != value:
@@ -133,7 +139,7 @@ def smoke(config, trainer, roots, torch):
     groups, group_provenance = trainer._optimizer_parameter_groups(model, config)
     optimizer = torch.optim.Adam(groups, weight_decay=config.weight_decay)
     core = model.osram.meaningful_block
-    before = {n: p.detach().clone() for n, p in core.named_parameters()}
+    before = {} if core is None else {n: p.detach().clone() for n, p in core.named_parameters()}
     reports = []
     torch.cuda.reset_peak_memory_stats()
     started = time.monotonic()
@@ -150,17 +156,18 @@ def smoke(config, trainer, roots, torch):
             raise RuntimeError('Nonfinite original task loss/gradient')
         norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradient_clip_norm))
         reports.append(dict(step=step+1, rate=rate, CE=float(loss.detach()), gradient_norm=norm,
-            block_nonzero_parameters=sum(p.grad is not None and bool(p.grad.ne(0).any()) for p in core.parameters())))
+            block_nonzero_parameters=0 if core is None else sum(
+                p.grad is not None and bool(p.grad.ne(0).any()) for p in core.parameters())))
         optimizer.step()
     torch.cuda.synchronize()
-    changed = sum(not torch.equal(before[n], p) for n, p in core.named_parameters())
-    if not changed or not any(r['block_nonzero_parameters'] for r in reports):
+    changed = 0 if core is None else sum(not torch.equal(before[n], p) for n, p in core.named_parameters())
+    if core is not None and (not changed or not any(r['block_nonzero_parameters'] for r in reports)):
         raise RuntimeError('B6 path did not actually learn')
     if len(torch.cuda.get_rng_state_all()) != 1:
         raise RuntimeError('Recovery would omit CUDA RNG')
     return dict(status='complete', smoke_only=True, steps=reports, block_updated_parameters=changed,
         parameters=sum(p.numel() for p in model.parameters()),
-        block_parameters=sum(p.numel() for p in core.parameters()),
+        block_parameters=0 if core is None else sum(p.numel() for p in core.parameters()),
         padded_length=int(raw[7].shape[1]), batch_conversations=len(indices),
         optimizer_parameter_groups=group_provenance,
         peak_memory_mib=torch.cuda.max_memory_allocated() / 2**20,
@@ -194,6 +201,20 @@ def selected_results(output, torch, classes):
     return aggregate(rates)
 
 
+def verify_first_epoch_retention(output, torch, classes, *, cuda_rng_states):
+    """Read the ALREADY saved first-epoch artifacts; no model or sampler call."""
+    if cuda_rng_states != 1:
+        raise ValueError('A complete UUID-bound CUDA RNG state is required for recovery')
+    result = selected_results(output, torch, classes)
+    if any(row['epoch'] != 1 for row in result['rates'].values()):
+        raise ValueError('First-epoch retention check must verify epoch1 artifacts')
+    report = dict(status='complete', epoch=1, best_checkpoints=8, selected_artifacts=8,
+                  cuda_rng_states=cuda_rng_states, testbest=result,
+                  checks='weight/artifact hashes, mask hash, epoch, ACC, UA, logits and classes')
+    write(Path(output) / 'FIRST_EPOCH_RETENTION_CHECK.json', report)
+    return report
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-root', required=True, type=Path)
@@ -201,9 +222,11 @@ def main():
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--smoke', action='store_true')
+    parser.add_argument('--flat-only', action='store_true',
+                        help='Authorized seed66 original Flat restoration; no B6 module')
     args = parser.parse_args()
     raw_config = json.loads(args.config.read_text())
-    validate(raw_config)
+    validate(raw_config, flat_only=args.flat_only)
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_uuid
     os.environ['GCNET_DATASET_ROOT'] = str(DATA_ROOT)
     os.environ['GCNET_CACHE_ROOT'] = str(args.output.parent / '_iemocap_feature_cache')
@@ -251,7 +274,8 @@ def main():
             return
     summary = dict(status='running', smoke_only=args.smoke, config=raw_config,
         effective_config=asdict(config), dataset=config.dataset, seed=config.seed, fold=config.fold, identity=identity,
-        method='B6_tuned_pca_only', protocol='INTERNAL TEST-ORACLE SCREEN; per-rate selected ACC',
+        method='Original_Flat' if args.flat_only else 'B6_tuned_pca_only',
+        protocol='INTERNAL TEST-ORACLE SCREEN; per-rate selected ACC',
         provenance=dict(hostname=socket.gethostname(), gpu=gpu, uuid_rng=repair, pid=os.getpid(),
             feature_roots=roots, environment=dict(torch=torch.__version__, numpy=np.__version__),
             command=sys.argv, no_meld_training_hyperparameters=True), started_unix=time.time())
@@ -264,6 +288,12 @@ def main():
             class CompactState(TrainingState):
                 def commit_epoch(self, **kwargs):
                     super().commit_epoch(**kwargs)
+                    if args.flat_only and kwargs['next_epoch'] == 1:
+                        if getattr(self.model.osram, 'meaningful_block', None) is not None:
+                            raise RuntimeError('Flat restoration must not instantiate a Block2')
+                        verify_first_epoch_retention(args.output, torch,
+                            4 if config.dataset == 'IEMOCAPFour' else 6,
+                            cuda_rng_states=len(torch.cuda.get_rng_state_all()))
                     keep = {self._checked(ref[k]).resolve() for ref in self.references.values() for k in ('model', 'selection')}
                     for path in (self.output / 'training_versions').iterdir():
                         if path.is_file() and path.resolve() not in keep:
