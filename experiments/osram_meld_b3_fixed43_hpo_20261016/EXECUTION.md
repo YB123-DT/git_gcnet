@@ -67,3 +67,24 @@ Every row fixes4tokens/3rounds,seed66 and the original global LR0.001. B3 heads
 are internal attention heads,not the unchanged eight CHM Memory heads. Only the
 already-authorized four local configurations are running; there is no budget
 expansion or additional training/inference from this check.
+
+## Progress verified: 2026-10-16 12:16:27 UTC
+
+The same four PIDs and controller remain running. Each job completed31/50epochs.
+All eight selected-epoch prediction artifacts were read for every job; recomputed
+ACC again agreed with selection metadata within1e-8. Corresponding UA comes from
+the same predictions,with all seven classes included. No new inference/training
+was submitted. These remain intermediate INTERNAL TEST-ORACLE SCREEN results.
+
+| Job | Epochs | Eight-rate Test-best ACC (%) | Corresponding UA (%) |
+|---|---:|---:|---:|
+| b3_fixed43_01 |31/50|60.665709|36.019609|
+| b3_fixed43_02 |31/50|60.699234|34.820145|
+| b3_fixed43_03 |31/50|60.785441|35.356574|
+| b3_fixed43_04 |31/50|60.584291|34.841216|
+
+Job03 currently exceeds the completed default4/3 reference ACC60.756705 by
+0.028736percentage points,but its UA is2.001256points below reference37.357830.
+This is not a joint ACC/UA improvement or a final ranking. Approximately19epochs
+remain; the recent observed aggregate rate was20epochs in21.8minutes per job,
+suggesting roughly20–30minutes of training plus saved-mask replay if unchanged.
