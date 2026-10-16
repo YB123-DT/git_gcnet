@@ -57,10 +57,10 @@ class _Attention(nn.Module):
 
 
 class _TransformerBlock(nn.Module):
-    def __init__(self, dim=128, hidden=256):
+    def __init__(self, dim=128, hidden=256, heads=4):
         super().__init__()
         self.norm_attention = nn.LayerNorm(dim, eps=1e-6)
-        self.attention = _Attention(dim)
+        self.attention = _Attention(dim, heads=heads)
         self.norm_ffn = nn.LayerNorm(dim, eps=1e-6)
         self.ffn = nn.Sequential(nn.Linear(dim, hidden), nn.GELU(), nn.Linear(hidden, dim))
 
@@ -99,23 +99,27 @@ class _TokenLearnerFuser(nn.Module):
         return synthesis @ mixed
 
 
-def validate_mbt_config(bottlenecks, rounds):
-    for name, value in (('osram_mbt_bottlenecks', bottlenecks), ('osram_mbt_rounds', rounds)):
+def validate_mbt_config(bottlenecks, rounds, dim=128, heads=4, ffn_hidden=256):
+    for name, value in (('osram_mbt_bottlenecks', bottlenecks), ('osram_mbt_rounds', rounds),
+                        ('osram_mbt_dim', dim), ('osram_mbt_heads', heads),
+                        ('osram_mbt_ffn_hidden', ffn_hidden)):
         if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:
             raise ValueError(f'{name} must be a positive integer')
+    if dim % heads:
+        raise ValueError('osram_mbt_dim must be divisible by osram_mbt_heads')
 
 
 class _MultimodalBottleneck(nn.Module):
     """Independent role streams with synchronous consensus exchanges."""
 
-    def __init__(self, dim=128, bottlenecks=4, rounds=2):
+    def __init__(self, dim=128, bottlenecks=4, rounds=2, heads=4, hidden=256):
         super().__init__()
-        validate_mbt_config(bottlenecks, rounds)
+        validate_mbt_config(bottlenecks, rounds, dim, heads, hidden)
         self.initial_bottleneck = nn.Parameter(torch.empty(1, bottlenecks, dim))
         nn.init.normal_(self.initial_bottleneck, std=0.02)
-        self.private = nn.ModuleList([_TransformerBlock(dim) for _ in range(5)])
+        self.private = nn.ModuleList([_TransformerBlock(dim, hidden, heads) for _ in range(5)])
         self.exchange = nn.ModuleList([
-            nn.ModuleList([_TransformerBlock(dim) for _ in range(5)]) for _ in range(rounds)
+            nn.ModuleList([_TransformerBlock(dim, hidden, heads) for _ in range(5)]) for _ in range(rounds)
         ])
         self.final_norm = nn.LayerNorm(dim, eps=1e-6)
 
@@ -235,9 +239,11 @@ class RepresentationInputAdapter(nn.Module):
     """Return corrected raw inputs; the existing Flat skip/head stay outside."""
 
     def __init__(self, method, latent_dim=256, num_heads=8, value_dim=64,
-                 osram_mbt_bottlenecks=4, osram_mbt_rounds=2):
+                 osram_mbt_bottlenecks=4, osram_mbt_rounds=2,
+                 osram_mbt_dim=128, osram_mbt_heads=4, osram_mbt_ffn_hidden=256):
         super().__init__()
-        validate_mbt_config(osram_mbt_bottlenecks, osram_mbt_rounds)
+        validate_mbt_config(osram_mbt_bottlenecks, osram_mbt_rounds,
+                            osram_mbt_dim, osram_mbt_heads, osram_mbt_ffn_hidden)
         cores = {
             "tokenlearner_fuser_v11": _TokenLearnerFuser,
             "mbt_role_bottleneck": _MultimodalBottleneck,
@@ -249,13 +255,15 @@ class RepresentationInputAdapter(nn.Module):
         self.method = method
         self.num_heads = num_heads
         self.value_dim = value_dim
-        self.tokenizer = HeadTokenizer(latent_dim, num_heads, value_dim, dim=128,
+        self.dim = osram_mbt_dim if method == 'mbt_role_bottleneck' else 128
+        self.tokenizer = HeadTokenizer(latent_dim, num_heads, value_dim, dim=self.dim,
                                        shared_projection=False, normalize=True)
-        options = ({'bottlenecks': osram_mbt_bottlenecks, 'rounds': osram_mbt_rounds}
+        options = ({'bottlenecks': osram_mbt_bottlenecks, 'rounds': osram_mbt_rounds,
+                    'dim': self.dim, 'heads': osram_mbt_heads, 'hidden': osram_mbt_ffn_hidden}
                    if method == 'mbt_role_bottleneck' else {})
         self.core = cores[method](**options)
-        self.local_decoder = nn.Linear(128, latent_dim)
-        self.memory_decoders = nn.ModuleList([nn.Linear(128, value_dim) for _ in range(num_heads)])
+        self.local_decoder = nn.Linear(self.dim, latent_dim)
+        self.memory_decoders = nn.ModuleList([nn.Linear(self.dim, value_dim) for _ in range(num_heads)])
         for decoder in [self.local_decoder, *self.memory_decoders]:
             nn.init.zeros_(decoder.weight)
             nn.init.zeros_(decoder.bias)
@@ -268,7 +276,7 @@ class RepresentationInputAdapter(nn.Module):
             updated = self.core(packed, columns, self.num_heads)
             contextual[rows[:, None], columns[None, :]] = updated.to(contextual.dtype)
         local_delta = safe_mask(self.local_decoder(contextual[:, 0]), active.any(-1))
-        memory_tokens = contextual[:, 1:].reshape(local.shape[0], 4, self.num_heads, 128)
+        memory_tokens = contextual[:, 1:].reshape(local.shape[0], 4, self.num_heads, self.dim)
         memory_delta = torch.stack([
             decoder(memory_tokens[:, :, head])
             for head, decoder in enumerate(self.memory_decoders)
@@ -279,6 +287,8 @@ class RepresentationInputAdapter(nn.Module):
 
 
 def build_representation(method, latent_dim=256, num_heads=8, value_dim=64,
-                         osram_mbt_bottlenecks=4, osram_mbt_rounds=2):
+                         osram_mbt_bottlenecks=4, osram_mbt_rounds=2,
+                         osram_mbt_dim=128, osram_mbt_heads=4, osram_mbt_ffn_hidden=256):
     return RepresentationInputAdapter(method, latent_dim, num_heads, value_dim,
-                                      osram_mbt_bottlenecks, osram_mbt_rounds)
+                                      osram_mbt_bottlenecks, osram_mbt_rounds,
+                                      osram_mbt_dim, osram_mbt_heads, osram_mbt_ffn_hidden)

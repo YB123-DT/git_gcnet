@@ -1294,6 +1294,9 @@ class MissingM3GraphModel(GraphModel):
         osram_rpca_threshold_init=.1,
         osram_mbt_bottlenecks=4,
         osram_mbt_rounds=2,
+        osram_mbt_dim=128,
+        osram_mbt_heads=4,
+        osram_mbt_ffn_hidden=256,
         osram_adapter_hidden_dim=0,
         osram_base_first_gap=False,
         osram_counterfactual_readout='none',
@@ -1302,7 +1305,8 @@ class MissingM3GraphModel(GraphModel):
     ) -> None:
         from .meaningful_input_structured import validate_rpca_config
         from .meaningful_input_representation import validate_mbt_config
-        validate_mbt_config(osram_mbt_bottlenecks, osram_mbt_rounds)
+        validate_mbt_config(osram_mbt_bottlenecks, osram_mbt_rounds,
+                            osram_mbt_dim, osram_mbt_heads, osram_mbt_ffn_hidden)
         validate_rpca_config(osram_rpca_rank, osram_rpca_steps, osram_rpca_threshold_init)
         if osram_causal_gru_history:
             from .causal_gru_history import validate_causal_gru_history
@@ -1794,6 +1798,9 @@ class MissingM3GraphModel(GraphModel):
                 osram_rpca_threshold_init=osram_rpca_threshold_init,
                 osram_mbt_bottlenecks=osram_mbt_bottlenecks,
                 osram_mbt_rounds=osram_mbt_rounds,
+                osram_mbt_dim=osram_mbt_dim,
+                osram_mbt_heads=osram_mbt_heads,
+                osram_mbt_ffn_hidden=osram_mbt_ffn_hidden,
                 osram_adapter_hidden_dim=osram_adapter_hidden_dim,
                 osram_base_first_gap=osram_base_first_gap,
                 osram_counterfactual_readout=osram_counterfactual_readout,

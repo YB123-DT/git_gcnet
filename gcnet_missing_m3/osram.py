@@ -857,6 +857,9 @@ class OSRAMBackbone(nn.Module):
         osram_rpca_threshold_init: float = .1,
         osram_mbt_bottlenecks: int = 4,
         osram_mbt_rounds: int = 2,
+        osram_mbt_dim: int = 128,
+        osram_mbt_heads: int = 4,
+        osram_mbt_ffn_hidden: int = 256,
         osram_adapter_hidden_dim: int = 0,
         osram_base_first_gap: bool = False,
         osram_counterfactual_readout: str = 'none',
@@ -866,7 +869,8 @@ class OSRAMBackbone(nn.Module):
         super().__init__()
         from .meaningful_input_structured import validate_rpca_config
         from .meaningful_input_representation import validate_mbt_config
-        validate_mbt_config(osram_mbt_bottlenecks, osram_mbt_rounds)
+        validate_mbt_config(osram_mbt_bottlenecks, osram_mbt_rounds,
+                            osram_mbt_dim, osram_mbt_heads, osram_mbt_ffn_hidden)
         validate_rpca_config(osram_rpca_rank, osram_rpca_steps, osram_rpca_threshold_init)
         self.osram_causal_gru_history = bool(osram_causal_gru_history)
         if self.osram_causal_gru_history:
@@ -1254,7 +1258,10 @@ class OSRAMBackbone(nn.Module):
                                if self.meaningful_input_mode else {})
                     if self.meaningful_input_mode:
                         options.update(osram_mbt_bottlenecks=osram_mbt_bottlenecks,
-                                       osram_mbt_rounds=osram_mbt_rounds)
+                                       osram_mbt_rounds=osram_mbt_rounds,
+                                       osram_mbt_dim=osram_mbt_dim,
+                                       osram_mbt_heads=osram_mbt_heads,
+                                       osram_mbt_ffn_hidden=osram_mbt_ffn_hidden)
                     self.meaningful_block = factory(
                         self.latent_dim,self.context_dim,self.output_dim,self.osram_meaningful_block,
                         self.num_heads,self.value_dim, **options)

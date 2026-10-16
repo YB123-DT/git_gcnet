@@ -156,6 +156,10 @@ class TrainConfig:
     osram_rpca_lr_multiplier: float = 1.0
     osram_mbt_bottlenecks: int = 4
     osram_mbt_rounds: int = 2
+    osram_mbt_dim: int = 128
+    osram_mbt_heads: int = 4
+    osram_mbt_ffn_hidden: int = 256
+    osram_mbt_lr_multiplier: float = 1.0
     completion_path: str = "none"
     completion_write_to_memory: bool = False
     osram_history_query_adapter: bool = False
@@ -196,7 +200,17 @@ class TrainConfig:
     def __post_init__(self) -> None:
         from .meaningful_input_structured import validate_rpca_config
         from .meaningful_input_representation import validate_mbt_config
-        validate_mbt_config(self.osram_mbt_bottlenecks, self.osram_mbt_rounds)
+        validate_mbt_config(self.osram_mbt_bottlenecks, self.osram_mbt_rounds,
+                            self.osram_mbt_dim, self.osram_mbt_heads, self.osram_mbt_ffn_hidden)
+        if (isinstance(self.osram_mbt_lr_multiplier, bool)
+                or not isinstance(self.osram_mbt_lr_multiplier, Real)
+                or not math.isfinite(self.osram_mbt_lr_multiplier)
+                or self.osram_mbt_lr_multiplier <= 0):
+            raise ValueError('osram_mbt_lr_multiplier must be a positive finite real')
+        if self.osram_mbt_lr_multiplier != 1.0 and (
+                self.osram_meaningful_block != 'mbt_role_bottleneck'
+                or self.pretrained_learning_rate is not None):
+            raise ValueError('B3 independent learning rate requires B3 and no pretrained_learning_rate')
         validate_rpca_config(self.osram_rpca_rank, self.osram_rpca_steps, self.osram_rpca_threshold_init)
         if (isinstance(self.osram_rpca_lr_multiplier, bool)
                 or not isinstance(self.osram_rpca_lr_multiplier, Real)
@@ -1093,6 +1107,20 @@ def _optimizer_parameter_groups(
         if parameter.requires_grad
     ]
     rpca_multiplier = float(config_value.osram_rpca_lr_multiplier)
+    mbt_multiplier = float(config_value.osram_mbt_lr_multiplier)
+    mbt_ids: set[int] = set()
+    if mbt_multiplier != 1.0:
+        if (config_value.osram_meaningful_block != 'mbt_role_bottleneck'
+                or config_value.pretrained_learning_rate is not None):
+            raise ValueError('B3 independent learning rate requires B3 and no pretrained_learning_rate')
+        from .meaningful_input_representation import _MultimodalBottleneck
+        adapter = getattr(getattr(model, 'osram', None), 'meaningful_block', None)
+        core = getattr(getattr(adapter, 'core', None), 'core', None)
+        if not isinstance(core, _MultimodalBottleneck):
+            raise ValueError('Independent B3 learning rate requires the actual B3 adapter')
+        mbt_ids = {id(parameter) for parameter in adapter.parameters() if parameter.requires_grad}
+        if not mbt_ids:
+            raise ValueError('Independent B3 learning rate has no trainable adapter parameters')
     rpca_ids: set[int] = set()
     if rpca_multiplier != 1.0:
         if (config_value.osram_meaningful_block != 'learned_robust_pca_evidence_decomposition'
@@ -1115,10 +1143,14 @@ def _optimizer_parameter_groups(
         }
         if rpca_ids:
             multipliers['rpca'] = float(config_value.backbone_lr_multiplier) * rpca_multiplier
+        if mbt_ids:
+            multipliers['mbt'] = float(config_value.backbone_lr_multiplier) * mbt_multiplier
         grouped: Dict[str, list[tuple[str, torch.nn.Parameter]]] = {}
         for name, parameter in trainable:
             if id(parameter) in rpca_ids:
                 block = 'rpca'
+            elif id(parameter) in mbt_ids:
+                block = 'mbt'
             elif name.startswith("osram."):
                 block = "backbone"
             elif name.startswith("observed_set."):
@@ -1132,7 +1164,7 @@ def _optimizer_parameter_groups(
             grouped.setdefault(block, []).append((name, parameter))
         groups = []
         provenance = {}
-        for block in ("backbone", "projector", "classifier", "predictor", "other", "rpca"):
+        for block in ("backbone", "projector", "classifier", "predictor", "other", "rpca", "mbt"):
             values = grouped.get(block, [])
             if not values:
                 continue
@@ -3447,6 +3479,9 @@ def run_experiment(
         osram_rpca_threshold_init=config_value.osram_rpca_threshold_init,
         osram_mbt_bottlenecks=config_value.osram_mbt_bottlenecks,
         osram_mbt_rounds=config_value.osram_mbt_rounds,
+        osram_mbt_dim=config_value.osram_mbt_dim,
+        osram_mbt_heads=config_value.osram_mbt_heads,
+        osram_mbt_ffn_hidden=config_value.osram_mbt_ffn_hidden,
         completion_path=config_value.completion_path,
         completion_write_to_memory=config_value.completion_write_to_memory,
         osram_history_query_adapter=config_value.osram_history_query_adapter,
@@ -4043,6 +4078,10 @@ def run_experiment(
         "osram_rpca_lr_multiplier": config_value.osram_rpca_lr_multiplier,
         "osram_mbt_bottlenecks": config_value.osram_mbt_bottlenecks,
         "osram_mbt_rounds": config_value.osram_mbt_rounds,
+        "osram_mbt_dim": config_value.osram_mbt_dim,
+        "osram_mbt_heads": config_value.osram_mbt_heads,
+        "osram_mbt_ffn_hidden": config_value.osram_mbt_ffn_hidden,
+        "osram_mbt_lr_multiplier": config_value.osram_mbt_lr_multiplier,
         "osram_ced_block": config_value.osram_ced_block,
         **({"osram_base_first_gap": True} if config_value.osram_base_first_gap else {}),
         **({'osram_counterfactual_readout': config_value.osram_counterfactual_readout}
@@ -4378,6 +4417,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--osram-rpca-threshold-init', type=float, default=.1)
     parser.add_argument('--osram-mbt-bottlenecks', type=int, default=4)
     parser.add_argument('--osram-mbt-rounds', type=int, default=2)
+    parser.add_argument('--osram-mbt-dim', type=int, default=128)
+    parser.add_argument('--osram-mbt-heads', type=int, default=4)
+    parser.add_argument('--osram-mbt-ffn-hidden', type=int, default=256)
+    parser.add_argument('--osram-mbt-lr-multiplier', type=float, default=1.)
     parser.add_argument('--osram-rpca-lr-multiplier', type=float, default=1.)
     parser.add_argument('--osram-readout-candidate', default='none',
                         help='Optional external residual before the original Flat LayerNorm; default none.')
@@ -4573,6 +4616,10 @@ def main(argv=None) -> None:
         osram_rpca_lr_multiplier=args.osram_rpca_lr_multiplier,
         osram_mbt_bottlenecks=args.osram_mbt_bottlenecks,
         osram_mbt_rounds=args.osram_mbt_rounds,
+        osram_mbt_dim=args.osram_mbt_dim,
+        osram_mbt_heads=args.osram_mbt_heads,
+        osram_mbt_ffn_hidden=args.osram_mbt_ffn_hidden,
+        osram_mbt_lr_multiplier=args.osram_mbt_lr_multiplier,
         text_core=args.text_core,
         disable_unused_aux_modules=args.disable_unused_aux_modules,
         simple_regression_predictor=args.simple_regression_predictor,
