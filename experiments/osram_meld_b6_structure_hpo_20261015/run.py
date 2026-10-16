@@ -154,7 +154,8 @@ def export(study, output, metadata=None):
 
 def run_search(output, flat_paired, scheduler, budget=20, max_pending=12, *,
                config_factory=None, initial_configs=None, search_space=None,
-               study_name='meld_B6_trial16_structure_seed66',sampler=None,metadata=None):
+               study_name='meld_B6_trial16_structure_seed66',sampler=None,metadata=None,
+               job_method='B6',job_prefix='b6_struct'):
     import optuna
     factory=make_config if config_factory is None else config_factory
     initial=INITIAL_CONFIGS if initial_configs is None else initial_configs
@@ -170,6 +171,8 @@ def run_search(output, flat_paired, scheduler, budget=20, max_pending=12, *,
         protocol['search_space']=search_space
     if metadata is not None:
         protocol['metadata']=metadata
+    if job_method!='B6' or job_prefix!='b6_struct':
+        protocol.update(job_method=job_method,job_prefix=job_prefix)
     if study.user_attrs.get('protocol',protocol)!=protocol:
         raise ValueError('Persistent study settings changed')
     study.set_user_attr('protocol',protocol)
@@ -182,10 +185,17 @@ def run_search(output, flat_paired, scheduler, budget=20, max_pending=12, *,
             t.suggest_int('steps',4,28,step=2)
         else:
             for name,options in search_space.items():
-                t.suggest_float(name,**options)
+                options=dict(options)
+                kind=options.pop('kind','float')
+                if kind=='int':
+                    t.suggest_int(name,**options)
+                elif kind=='float':
+                    t.suggest_float(name,**options)
+                else:
+                    raise ValueError('Unknown finite search parameter kind: '+str(kind))
     def job(t):
-        name=f'b6_struct_{t.number:03d}'
-        return dict(id=name,method='B6',config=factory(**t.params),
+        name=f'{job_prefix}_{t.number:03d}'
+        return dict(id=name,method=job_method,config=factory(**t.params),
                     output=str(output/'optuna'/'runs'/name))
     while True:
         trials=study.get_trials(deepcopy=False)

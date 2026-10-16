@@ -17,6 +17,8 @@ NetVLAD redistribution and ToMe membership restoration are readout adapters,
 not claims of invertible reconstruction. GroupViT is deliberately excluded.
 """
 
+from numbers import Integral
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -97,16 +99,23 @@ class _TokenLearnerFuser(nn.Module):
         return synthesis @ mixed
 
 
-class _MultimodalBottleneck(nn.Module):
-    """Independent role streams with two synchronous consensus exchanges."""
+def validate_mbt_config(bottlenecks, rounds):
+    for name, value in (('osram_mbt_bottlenecks', bottlenecks), ('osram_mbt_rounds', rounds)):
+        if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:
+            raise ValueError(f'{name} must be a positive integer')
 
-    def __init__(self, dim=128, bottlenecks=4):
+
+class _MultimodalBottleneck(nn.Module):
+    """Independent role streams with synchronous consensus exchanges."""
+
+    def __init__(self, dim=128, bottlenecks=4, rounds=2):
         super().__init__()
+        validate_mbt_config(bottlenecks, rounds)
         self.initial_bottleneck = nn.Parameter(torch.empty(1, bottlenecks, dim))
         nn.init.normal_(self.initial_bottleneck, std=0.02)
         self.private = nn.ModuleList([_TransformerBlock(dim) for _ in range(5)])
         self.exchange = nn.ModuleList([
-            nn.ModuleList([_TransformerBlock(dim) for _ in range(5)]) for _ in range(2)
+            nn.ModuleList([_TransformerBlock(dim) for _ in range(5)]) for _ in range(rounds)
         ])
         self.final_norm = nn.LayerNorm(dim, eps=1e-6)
 
@@ -225,8 +234,10 @@ class _TokenMerging(nn.Module):
 class RepresentationInputAdapter(nn.Module):
     """Return corrected raw inputs; the existing Flat skip/head stay outside."""
 
-    def __init__(self, method, latent_dim=256, num_heads=8, value_dim=64):
+    def __init__(self, method, latent_dim=256, num_heads=8, value_dim=64,
+                 osram_mbt_bottlenecks=4, osram_mbt_rounds=2):
         super().__init__()
+        validate_mbt_config(osram_mbt_bottlenecks, osram_mbt_rounds)
         cores = {
             "tokenlearner_fuser_v11": _TokenLearnerFuser,
             "mbt_role_bottleneck": _MultimodalBottleneck,
@@ -240,7 +251,9 @@ class RepresentationInputAdapter(nn.Module):
         self.value_dim = value_dim
         self.tokenizer = HeadTokenizer(latent_dim, num_heads, value_dim, dim=128,
                                        shared_projection=False, normalize=True)
-        self.core = cores[method]()
+        options = ({'bottlenecks': osram_mbt_bottlenecks, 'rounds': osram_mbt_rounds}
+                   if method == 'mbt_role_bottleneck' else {})
+        self.core = cores[method](**options)
         self.local_decoder = nn.Linear(128, latent_dim)
         self.memory_decoders = nn.ModuleList([nn.Linear(128, value_dim) for _ in range(num_heads)])
         for decoder in [self.local_decoder, *self.memory_decoders]:
@@ -265,5 +278,7 @@ class RepresentationInputAdapter(nn.Module):
                 safe_mask(evidence, active) + memory_delta.to(evidence.dtype))
 
 
-def build_representation(method, latent_dim=256, num_heads=8, value_dim=64):
-    return RepresentationInputAdapter(method, latent_dim, num_heads, value_dim)
+def build_representation(method, latent_dim=256, num_heads=8, value_dim=64,
+                         osram_mbt_bottlenecks=4, osram_mbt_rounds=2):
+    return RepresentationInputAdapter(method, latent_dim, num_heads, value_dim,
+                                      osram_mbt_bottlenecks, osram_mbt_rounds)

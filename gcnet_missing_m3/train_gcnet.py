@@ -154,6 +154,8 @@ class TrainConfig:
     osram_rpca_steps: int = 14
     osram_rpca_threshold_init: float = .1
     osram_rpca_lr_multiplier: float = 1.0
+    osram_mbt_bottlenecks: int = 4
+    osram_mbt_rounds: int = 2
     completion_path: str = "none"
     completion_write_to_memory: bool = False
     osram_history_query_adapter: bool = False
@@ -193,6 +195,8 @@ class TrainConfig:
 
     def __post_init__(self) -> None:
         from .meaningful_input_structured import validate_rpca_config
+        from .meaningful_input_representation import validate_mbt_config
+        validate_mbt_config(self.osram_mbt_bottlenecks, self.osram_mbt_rounds)
         validate_rpca_config(self.osram_rpca_rank, self.osram_rpca_steps, self.osram_rpca_threshold_init)
         if (isinstance(self.osram_rpca_lr_multiplier, bool)
                 or not isinstance(self.osram_rpca_lr_multiplier, Real)
@@ -3441,6 +3445,8 @@ def run_experiment(
         osram_rpca_rank=config_value.osram_rpca_rank,
         osram_rpca_steps=config_value.osram_rpca_steps,
         osram_rpca_threshold_init=config_value.osram_rpca_threshold_init,
+        osram_mbt_bottlenecks=config_value.osram_mbt_bottlenecks,
+        osram_mbt_rounds=config_value.osram_mbt_rounds,
         completion_path=config_value.completion_path,
         completion_write_to_memory=config_value.completion_write_to_memory,
         osram_history_query_adapter=config_value.osram_history_query_adapter,
@@ -4035,6 +4041,8 @@ def run_experiment(
         "osram_rpca_steps": config_value.osram_rpca_steps,
         "osram_rpca_threshold_init": config_value.osram_rpca_threshold_init,
         "osram_rpca_lr_multiplier": config_value.osram_rpca_lr_multiplier,
+        "osram_mbt_bottlenecks": config_value.osram_mbt_bottlenecks,
+        "osram_mbt_rounds": config_value.osram_mbt_rounds,
         "osram_ced_block": config_value.osram_ced_block,
         **({"osram_base_first_gap": True} if config_value.osram_base_first_gap else {}),
         **({'osram_counterfactual_readout': config_value.osram_counterfactual_readout}
@@ -4368,6 +4376,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--osram-rpca-rank', type=int, default=1)
     parser.add_argument('--osram-rpca-steps', type=int, default=14)
     parser.add_argument('--osram-rpca-threshold-init', type=float, default=.1)
+    parser.add_argument('--osram-mbt-bottlenecks', type=int, default=4)
+    parser.add_argument('--osram-mbt-rounds', type=int, default=2)
     parser.add_argument('--osram-rpca-lr-multiplier', type=float, default=1.)
     parser.add_argument('--osram-readout-candidate', default='none',
                         help='Optional external residual before the original Flat LayerNorm; default none.')
@@ -4561,6 +4571,8 @@ def main(argv=None) -> None:
         osram_rpca_steps=args.osram_rpca_steps,
         osram_rpca_threshold_init=args.osram_rpca_threshold_init,
         osram_rpca_lr_multiplier=args.osram_rpca_lr_multiplier,
+        osram_mbt_bottlenecks=args.osram_mbt_bottlenecks,
+        osram_mbt_rounds=args.osram_mbt_rounds,
         text_core=args.text_core,
         disable_unused_aux_modules=args.disable_unused_aux_modules,
         simple_regression_predictor=args.simple_regression_predictor,

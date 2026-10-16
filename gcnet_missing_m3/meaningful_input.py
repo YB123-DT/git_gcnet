@@ -39,9 +39,12 @@ INPUT_METHODS = tuple(name for names in INPUT_FAMILIES.values() for name in name
 
 class MeaningfulInputAdapter(nn.Module):
     def __init__(self, latent_dim, context_dim, output_dim, method, num_heads, value_dim,
-                 osram_rpca_rank=1, osram_rpca_steps=14, osram_rpca_threshold_init=.1):
+                 osram_rpca_rank=1, osram_rpca_steps=14, osram_rpca_threshold_init=.1,
+                 osram_mbt_bottlenecks=4, osram_mbt_rounds=2):
         super().__init__()
         from .meaningful_input_structured import validate_rpca_config
+        from .meaningful_input_representation import validate_mbt_config
+        validate_mbt_config(osram_mbt_bottlenecks, osram_mbt_rounds)
         validate_rpca_config(osram_rpca_rank, osram_rpca_steps, osram_rpca_threshold_init)
         if (num_heads,value_dim,context_dim) != (8,64,1024):
             raise ValueError('Input methods require the actual cfg84 8x64 forward heads')
@@ -54,6 +57,9 @@ class MeaningfulInputAdapter(nn.Module):
                 options = ({'osram_rpca_rank': osram_rpca_rank, 'osram_rpca_steps': osram_rpca_steps,
                             'osram_rpca_threshold_init': osram_rpca_threshold_init}
                            if family == 'structured' else {})
+                if family == 'representation':
+                    options = {'osram_mbt_bottlenecks': osram_mbt_bottlenecks,
+                               'osram_mbt_rounds': osram_mbt_rounds}
                 self.core = getattr(module,'build_'+family)(method,latent_dim,num_heads,value_dim, **options)
                 break
         else:
