@@ -59,3 +59,20 @@ Both Test-best and final-retest values exist in the same files. Mixing Flat's
 a spurious large apparent gain. B6's previously reported selected scores were
 correct; reporting them without a verified baseline alongside made this
 comparison ambiguity easier to miss. There is no large ACC improvement here.
+
+## Missing-protocol source verification
+
+The original Flat comparison above is ALREADY the corrected2026-10-13 GCNet
+rerun, not a pre-correction conversation-mask-v2 or legacy-fixed run. All30
+original PROVENANCE.json files identify commit
+`b4a313841f098487a6482d2712bdac94aa8e319e` and gcnet-random-mask-v1.
+The B6 source is785a012. Both source versions route that config value to
+GCNetLegacyRandomMaskSchedule; the sampler source file is byte-identical:
+`gcnet_modality_jepa/gcnet_legacy_random_mask.py`, SHA256
+`113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547`.
+
+Its generate_batch() draws fresh global NumPy randomness for host/guest over
+the padded rectangle on each call. The stored freeze_evaluation constructor
+field does not freeze those draws. Thus the SAME corrected sampling algorithm
+can produce both the selected Test-best values and a different later retest.
+Missing protocol and reported evaluation stage are two separate distinctions.
