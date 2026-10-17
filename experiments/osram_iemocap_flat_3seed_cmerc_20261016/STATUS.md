@@ -1,4 +1,21 @@
-# RUNNING ON GPU5 — TWO CONCURRENT FOLDS
+# COMPLETE — Original Flat three seeds, full fivefold
+
+Verified remotely on2026-10-17:RUNNER/SUMMARY complete;30/30validfoldresults,
+including10reusedseed66and20newseed67/68. No new training was launched during
+this status audit. RESULT.md,SUMMARY.json and SUMMARY.csv were retrieved from
+the existing authorized output. The following launch/pause notes are historical.
+
+Verified each of30foldsummaries:100epochs,`gcnet-random-mask-v1`,Flat readout,
+no meaningful Block,original Local Skip,source785a012,Torch1.13.1+cu117.
+Recomputed per-rate UA from stored class recall,rate means,fivefold seed means
+and three-seed mean/sample SD. All agree. Retention check:240BEST checkpoints
+and30last_training states exist. No fresh model inference or test-mask sampling.
+
+Current three-seed eight-rate means:4class ACC79.351±0.242%,UA79.632±0.368%;
+6class ACC61.714±0.264%,UA60.101±0.186%. All INTERNAL TEST-ORACLE diagnostics,
+not a single-checkpoint deployment score or independent-test claim.
+
+## Historical running/launch note
 
 Latest user instruction supersedes the pause: finish original IEMOCAP4/6 Flat
 three-seed results on GPU5, two concurrent fold jobs. Reuse Flat66; train only
