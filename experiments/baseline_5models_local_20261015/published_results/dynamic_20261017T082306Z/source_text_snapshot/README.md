@@ -1,0 +1,1 @@
+Exact current production source bytes, with .txt suffix for read-only review. Do not run these production-path snapshots. The previously published runnable code package predates the protocol restoration; current executed snapshots are identified separately in manifests. No architecture source was altered during mask restoration.

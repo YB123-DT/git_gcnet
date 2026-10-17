@@ -1,0 +1,65 @@
+{
+  "repository_url": "https://github.com/zeroQiaoba/GCNet",
+  "upstream_commit": "8cce4a0c9a50172abfa79971e77c71c40c1d733d",
+  "upstream_directory": "/data2/yb/paper/GCNet_TPAMI/gcnet",
+  "local_checkout_commit": "6c7909056926b9e5b746366b80f3b27e75fe7db0",
+  "version": "released_compatible",
+  "source_files": {
+    "model.py": {
+      "upstream_sha256": "3e8b890be4485405157eb92fbf106896555b92b8aee1de0e07155454b89aa038",
+      "adapted_sha256": "393754d02ae7d7114c1bd83ee26d51ae34517570bf1247d811e9de5b89e68623",
+      "prior_readonly_sha_verification": {
+        "raw_url": "https://raw.githubusercontent.com/zeroQiaoba/GCNet/8cce4a0c9a50172abfa79971e77c71c40c1d733d/gcnet/model.py",
+        "reference_sha256": "3e8b890be4485405157eb92fbf106896555b92b8aee1de0e07155454b89aa038",
+        "local_original_sha256": "3e8b890be4485405157eb92fbf106896555b92b8aee1de0e07155454b89aa038",
+        "bytes_equal": true
+      }
+    },
+    "graph.py": {
+      "upstream_sha256": "24edbf2b4734c84a41c9bb32165802a88a9a840965540c507229f195332a72a1",
+      "adapted_sha256": "e11f0816889d1f4d3aa4eee2a995bf32e577d271896b1d1c96583da51e742ae1",
+      "prior_readonly_sha_verification": {
+        "raw_url": "https://raw.githubusercontent.com/zeroQiaoba/GCNet/8cce4a0c9a50172abfa79971e77c71c40c1d733d/gcnet/graph.py",
+        "reference_sha256": "24edbf2b4734c84a41c9bb32165802a88a9a840965540c507229f195332a72a1",
+        "local_original_sha256": "24edbf2b4734c84a41c9bb32165802a88a9a840965540c507229f195332a72a1",
+        "bytes_equal": true
+      }
+    },
+    "module.py": {
+      "upstream_sha256": "5bf0494153a364981684b201cd8585590ad0f894fa5d8a55054cdb93bf16de7b",
+      "adapted_sha256": "5bf0494153a364981684b201cd8585590ad0f894fa5d8a55054cdb93bf16de7b",
+      "prior_readonly_sha_verification": {
+        "raw_url": "https://raw.githubusercontent.com/zeroQiaoba/GCNet/8cce4a0c9a50172abfa79971e77c71c40c1d733d/gcnet/module.py",
+        "reference_sha256": "5bf0494153a364981684b201cd8585590ad0f894fa5d8a55054cdb93bf16de7b",
+        "local_original_sha256": "5bf0494153a364981684b201cd8585590ad0f894fa5d8a55054cdb93bf16de7b",
+        "bytes_equal": true
+      }
+    },
+    "loss.py": {
+      "upstream_sha256": "7c4f69d716eb769c4ca7e24aaff95dbc0a5f746986701240dc0395c59363c9bb",
+      "adapted_sha256": "7c4f69d716eb769c4ca7e24aaff95dbc0a5f746986701240dc0395c59363c9bb",
+      "prior_readonly_sha_verification": {
+        "raw_url": "https://raw.githubusercontent.com/zeroQiaoba/GCNet/8cce4a0c9a50172abfa79971e77c71c40c1d733d/gcnet/loss.py",
+        "reference_sha256": "7c4f69d716eb769c4ca7e24aaff95dbc0a5f746986701240dc0395c59363c9bb",
+        "local_original_sha256": "7c4f69d716eb769c4ca7e24aaff95dbc0a5f746986701240dc0395c59363c9bb",
+        "bytes_equal": true
+      }
+    }
+  },
+  "reference_verification": {
+    "method": "Local source SHA256 rechecked against existing pinned upstream download audit",
+    "prior_verified_at": "2026-10-15T09:40:20.618419+00:00",
+    "prior_audit": "../gcnet/provenance.json"
+  },
+  "allowed_changes": [
+    "Relative model imports for package isolation",
+    "Only n_speakers > 2: support up to nine speakers with stable row-major speaker relation IDs and past/now/future IDs; all <=2 code and edge set iteration remain official"
+  ],
+  "preserved_behavior": [
+    "Official LSTM/GRU implementation including undefined U in unused GRU branch; strict configs use LSTM",
+    "Both temporal/speaker graphs and original fusion unchanged",
+    "Official CE and reconstruction byte-identical; original B,T padding flatten retained",
+    "Total objective CE + reconstruction, no SDR reconstruction scaling",
+    "Original set-enumerated relations for <=2 speakers; freeze PYTHONHASHSEED at process startup"
+  ]
+}

@@ -1,0 +1,108 @@
+"""Generate an explicit frozen queue. Readiness is granted by verified smoke gates."""
+from pathlib import Path
+from runtime import ROOT,RUN_ROOT,GPUS,HOST,PYTHON,atomic_json
+
+VERSIONS = [('MMIN','original','Utterance-only Causal'),('MoMKE','causal','Causal'),('GCNet','released_compatible','Non-causal'),('SDR-GNN','released_compatible','Non-causal'),('ComP','causal','Causal'),('MoMKE','original','Non-causal'),('ComP','original','Non-causal'),('SDR-GNN','implementation_fixed','Non-causal')]
+
+
+def config(model,version,dataset,seed,mr,fold):
+    if model == 'SDR-GNN' and version not in ('released_compatible', 'implementation_fixed'):
+        raise ValueError('SDR-GNN requires an explicit released_compatible or implementation_fixed version')
+    if model == 'GCNet' and version not in ('released_compatible', 'original'):
+        raise ValueError('Unknown GCNet version')
+    c = dict(model=model,model_version=version,dataset=dataset,seed=seed,missing_rate=mr,fold=fold,
+             eval_mask_seed=20261015,checkpoint_selection='test_best_acc',evaluation_protocol='test_oracle',
+             selection_range='stage2_only' if model in ('MoMKE','ComP') else 'all_epochs',
+             optimizer='Adam',weight_decay=0. if model=='MMIN' else 1e-5,
+             hidden=256,depth=4,num_heads=2,drop_rate=.5,attn_drop_rate=0.,lr=1e-4,
+             epochs=100,stage_epoch=0,batch_size=32,causal=version=='causal',temporal_causal=version=='causal',lbd=.3,
+             n_classes={'MELD':7,'IEMOCAPFour':4,'IEMOCAPSix':6}[dataset],
+             n_speakers=9 if dataset=='MELD' else 2,teacher_epochs=100 if dataset=='MELD' else 20)
+    if model=='ComP': c.update(epochs=300 if dataset=='MELD' else 200,stage_epoch=150 if dataset=='MELD' else 100)
+    if model=='MoMKE': c.update(epochs=200,stage_epoch=100,batch_size=16)
+    if model in ('GCNet','SDR-GNN'): c.update(lr=.001,hidden=200,window_past=2 if model=='GCNet' else 3,window_future=2 if model=='GCNet' else 3,base_model='LSTM' if model=='GCNet' else 'GRU',recon_weight=1. if model=='GCNet' else .5)
+    if model=='MMIN': c.update(epochs=100 if dataset=='MELD' else 60,batch_size=256 if dataset=='MELD' else 128,lr=.001 if dataset=='MELD' else .0002,ae_layers=[256,128,64],n_blocks=5,recon_weight=4.,cycle_weight=2.)
+    if model=='MMIN':
+        import json
+        c.update(json.loads((ROOT/'adapters/mmin/hyperparameters.json').read_text())[dataset])
+        c['hidden']=128
+    if model == 'SDR-GNN' and version == 'released_compatible':
+        c.update(attention_embed_dim=1666 if dataset == 'MELD' else 2560,
+                 attention_heads=238 if dataset == 'MELD' else 256,
+                 python_hash_seed=seed,
+                 relation_mapping='row_major_9speaker' if dataset == 'MELD' else 'upstream_set_with_startup_hash_seed',
+                 reconstruction_layout='upstream_time_major_features_batch_major_padding')
+    if model == 'GCNet' and version == 'released_compatible':
+        c.update(python_hash_seed=seed,
+                 relation_mapping='row_major_9speaker' if dataset == 'MELD' else 'upstream_set_with_startup_hash_seed',
+                 edge_order='upstream_set_iteration',
+                 reconstruction_layout='upstream_time_major_features_batch_major_padding',
+                 loss_implementation='gcnet_released.loss.MaskedCELoss+MaskedReconLoss')
+    c['implementation_label'] = ('MMIN-UTT-adapted Original' if model=='MMIN' else 'SDR-GNN-Released-code-Compatible' if model=='SDR-GNN' and version=='released_compatible' else 'SDR-GNN-Implementation-fixed' if model=='SDR-GNN' else model+'-'+version) + (' (MELD-adapted)' if dataset=='MELD' and model in ('GCNet','SDR-GNN') else '')
+    if model == 'GCNet':
+        c['implementation_label'] = ('GCNet-Released-code-Compatible' if version == 'released_compatible' else 'GCNet-Implementation-adapted-historical') + (' (MELD-adapted)' if dataset == 'MELD' else '')
+    return c
+
+
+def main():
+    import json
+    import numpy as np
+    source = Path('/data2/yb/paper/experiments/baseline_5models_local_20261015/experiment_registry.json')
+    if (ROOT/'experiment_registry.json').exists():
+        raise RuntimeError('Frozen dynamic registry already exists; resume dispatcher instead')
+    previous = json.loads(source.read_text())
+    tasks, reused, gates = [], [], {'dynamic_cpu_validation': {'ready': False}}
+    versions = {'MMIN':'original', 'MoMKE':'causal', 'GCNet':'released_compatible', 'SDR-GNN':'released_compatible'}
+    for old in previous['tasks']:
+        c = old['config']
+        if (old['phase'] != 'formal' or c['dataset'] not in ('IEMOCAPFour','IEMOCAPSix')
+                or c['fold'] != 5 or versions.get(c['model']) != c['model_version']):
+            continue
+        d = Path(old['run_dir'])
+        if c['missing_rate'] == 0 and (d/'metrics.json').exists():
+            status = json.loads((d/'status.json').read_text())
+            assert status['state'] == 'COMPLETED' and status['exit_code'] == 0
+            with np.load(d/'predictions.npz', allow_pickle=False) as z:
+                assert np.all(z['masks'] == 1) and len(z['labels']) == 1241
+            reused.append(dict(task_id=old['id'], config=c, run_dir=str(d),
+                               reason='MR0 all modalities visible; existing architecture, data, seed, budget and selection preserved',
+                               mask_protocol='all_visible_equivalent'))
+            continue
+        c = dict(c, mask_protocol='gcnet-random-mask-v1',
+                 test_mask_policy='dynamic_each_evaluation',
+                 sampling_reference_sha256='113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547',
+                 mask_mapping='retained_OSRAM_batch_time_host_guest', paired_masks=False)
+        ident = old['id']; gate = f"{c['model']}_{c['model_version']}_{c['dataset']}_dynamic"
+        gates[gate] = {'ready':False, 'reason':'Requires both dynamic-mask GPU smoke tests'}
+        tasks.append(dict(id=ident, config=c, run_dir=str(RUN_ROOT/ident),
+                          source_fixed_task_id=old['id'], causality=old['causality'],
+                          phase='formal', priority=1 if c['dataset']=='IEMOCAPFour' else 2,
+                          gate=gate, status='MISSING'))
+    assert len(tasks) == 186 and len(reused) == 6
+    for dataset in ('IEMOCAPFour','IEMOCAPSix'):
+        for model, version in versions.items():
+            for mr in (.3,.6):
+                template=next(t for t in tasks if t['config']['dataset']==dataset
+                              and t['config']['model']==model and t['config']['seed']==66
+                              and t['config']['missing_rate']==mr)
+                c=dict(template['config'], epochs=2, batch_size=4,
+                       stage_epoch=1 if model=='MoMKE' else 0)
+                ident=f'compatibility_smoke/{dataset}/{model}/{version}/seed_66/mr_{mr:.1f}'
+                tasks.append(dict(id=ident,config=c,run_dir=str(RUN_ROOT/ident),
+                                  phase='compatibility_smoke',priority=-10 if dataset=='IEMOCAPFour' else -9,
+                                  gate='dynamic_cpu_validation',opens_gate=template['gate'],status='MISSING'))
+    for task in tasks:
+        path=ROOT/'configs'/(task['id'].replace('/','__')+'.json')
+        atomic_json(path,task['config']);task['config_path']=str(path)
+    atomic_json(ROOT/'gates.json',gates)
+    atomic_json(ROOT/'experiment_registry.json',dict(host=HOST,gpu_uuids=GPUS,python=PYTHON,
+        max_gpu_jobs=4,formal_fold_units=186,all_visible_reuse=reused,
+        user_execution_scope=dict(datasets=['IEMOCAPFour','IEMOCAPSix'],folds=[5],
+            seeds=[66,67,68],missing_rates=[i/10 for i in range(8)],
+            required_configs=240,accepted_historical_comp_configs=48,
+            all_visible_reused_configs=6,missing_formal_configs=186,
+            mask_protocol='gcnet-random-mask-v1',other_folds_and_appendix='deferred',
+            MELD='pending historical dynamic-result audit; no MELD queue created'),tasks=tasks))
+    print(f'{len(tasks)} tasks: 186 formal and 16 GPU smoke checks; 54 accepted/reusable configs')
+
+if __name__=='__main__': main()

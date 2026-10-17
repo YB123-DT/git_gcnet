@@ -1,0 +1,87 @@
+"""Report current dynamic MELD results and audited all-visible reuse only."""
+import csv
+import json
+from pathlib import Path
+
+import numpy as np
+
+from aggregate_results import validate_formal, read_json
+from common_data import load_dataset
+from runtime import ROOT, compute_metrics, digest
+
+METRICS=('acc','ua','wf1','macro_f1')
+MODELS=(('MMIN','original'),('MoMKE','causal'),('GCNet','released_compatible'),
+        ('SDR-GNN','released_compatible'),('ComP','causal'))
+
+
+def write(path,rows,fields):
+    with path.open('w',newline='') as stream:
+        writer=csv.DictWriter(stream,fieldnames=fields,extrasaction='ignore')
+        writer.writeheader();writer.writerows(rows)
+
+
+def export(registry=ROOT/'experiment_registry.json',output=None):
+    registry=Path(registry);output=Path(output or registry.parent)
+    data=read_json(registry);datasets={};expected_cache={};rows=[]
+    for task in data['tasks']:
+        c=task['config']
+        if task['phase']!='formal' or c['dataset']!='MELD':continue
+        arrays,reason=validate_formal(task,datasets,expected_cache)
+        if arrays is None:continue
+        rows.append(dict(dataset='MELD',model=c['model'],model_version=c['model_version'],
+                         seed=c['seed'],missing_rate=c['missing_rate'],
+                         **compute_metrics(arrays['labels'],arrays['predictions'],7),
+                         best_epoch=read_json(Path(task['run_dir'])/'metrics.json')['best_epoch'],
+                         n_test=len(arrays['labels']),actual_missing_rate=float(1-arrays['masks'].mean()),
+                         mask_protocol='dynamic_current',source=task['run_dir'],
+                         checkpoint_selection='test_best_acc',evaluation_protocol='test_oracle'))
+    records=[r for r in load_dataset('MELD')['records'] if r['split']=='test']
+    expected={r['id']+'::'+str(uid):int(label) for r in records for uid,label in zip(r['utterance_ids'],r['labels'])}
+    for reused in data.get('all_visible_reuse',[]):
+        c=reused['config']
+        if c['dataset']!='MELD':continue
+        d=Path(reused['run_dir']);saved=read_json(d/'metrics.json');best=read_json(d/'best.json')
+        assert read_json(d/'status.json')['state']=='COMPLETED'
+        assert read_json(d/'exit.json')['exit_code']==0 and read_json(d/'config.json')==c
+        assert read_json(d/'checkpoint_replay.json')['verified']
+        assert digest(d/'predictions.npz')==best['predictions_sha256']
+        assert best['epoch']==saved['best_epoch'] and c['missing_rate']==0
+        with np.load(d/'predictions.npz',allow_pickle=False) as z:
+            ids=z['sample_ids'].tolist()
+            assert len(ids)==len(set(ids))==len(expected) and set(ids)==set(expected)
+            assert np.array_equal(z['labels'],[expected[x] for x in ids]) and np.all(z['masks']==1)
+            scores=compute_metrics(z['labels'],z['predictions'],7)
+            assert all(abs(scores[k]-saved[k])<1e-9 for k in METRICS)
+        rows.append(dict(dataset='MELD',model=c['model'],model_version=c['model_version'],
+                         seed=c['seed'],missing_rate=0.,**scores,best_epoch=best['epoch'],
+                         n_test=len(ids),actual_missing_rate=0.,mask_protocol='all_visible_equivalent',
+                         source=str(d),checkpoint_selection='test_best_acc',evaluation_protocol='test_oracle'))
+    indexed={(r['model'],r['model_version'],r['seed'],r['missing_rate']):r for r in rows}
+    assert len(indexed)==len(rows)
+    summaries=[];lines=['# MELD dynamic-protocol results','',
+        'Test-oracle, earliest Test ACC best; optimistic test-selection bias. All-visible MR0 results reused. Dynamic realized masks are not sample-paired across methods.',
+        '', '| Model | MR | Seeds | ACC | UA | W-F1 | Macro F1 |', '|---|---:|---:|---:|---:|---:|---:|']
+    for model,version in MODELS:
+        for i in range(8):
+            present=[indexed.get((model,version,seed,i/10)) for seed in (66,67,68)]
+            available=[r for r in present if r is not None]
+            summary=dict(dataset='MELD',model=model,model_version=version,missing_rate=i/10,
+                         completed_seeds=len(available),status='COMPLETE_3SEED' if len(available)==3 else 'INCOMPLETE',
+                         checkpoint_selection='test_best_acc',evaluation_protocol='test_oracle')
+            for metric in METRICS:
+                values=[r[metric] for r in available]
+                for suffix,value in [('mean',np.mean(values) if len(values)==3 else ''),
+                                     ('std',np.std(values,ddof=1) if len(values)==3 else ''),
+                                     ('variance',np.var(values,ddof=1) if len(values)==3 else '')]:
+                    summary[metric+'_'+suffix]=float(value) if value!='' else ''
+            summaries.append(summary)
+            scores=[f"{summary[k+'_mean']:.3f} ± {summary[k+'_std']:.3f}" if len(available)==3 else '—' for k in METRICS]
+            lines.append('| {} | {:.1f} | {}/3 | {} | {} | {} | {} |'.format(model,i/10,len(available),*scores))
+    output.mkdir(parents=True,exist_ok=True)
+    write(output/'meld_results.csv',rows,['dataset','model','model_version','seed','missing_rate',*METRICS,'best_epoch','n_test','actual_missing_rate','mask_protocol','source','checkpoint_selection','evaluation_protocol'])
+    write(output/'meld_results_summary.csv',summaries,list(summaries[0]))
+    (output/'MELD_RESULTS.md').write_text('\n'.join(lines)+'\n')
+    return dict(dataset='MELD',available_configs=len(rows),required_configs=120,missing_configs=120-len(rows))
+
+
+if __name__=='__main__':print(json.dumps(export(),indent=2))

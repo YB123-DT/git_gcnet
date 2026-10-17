@@ -1,0 +1,83 @@
+{
+  "recorded_utc": "2026-10-17T08:13:34.760259+00:00",
+  "scope": "Read-only retained OSRAM MELD mapping audit; no source edits and no training.",
+  "source_files": {
+    "meld_loader": {
+      "path": "/data2/yb/paper/GCNet_TPAMI/.worktrees/ecerc-features/gcnet_modality_jepa/dataloader_meld.py",
+      "sha256": "6bb2ac4f99e234e480add5b91d7c4d4c58a3347905eab885c575a25891fe2460"
+    },
+    "selector": {
+      "path": "/data2/yb/paper/GCNet_TPAMI/.worktrees/ecerc-features/gcnet_modality_jepa/train_gcnet.py",
+      "sha256": "994a02695e2491e7727c6b464ce00759dc336990fd71f953378eca61b46b7c61"
+    },
+    "sampler": {
+      "path": "/data2/yb/paper/GCNet_TPAMI/.worktrees/ecerc-features/gcnet_modality_jepa/gcnet_legacy_random_mask.py",
+      "sha256": "113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547"
+    },
+    "trainer": {
+      "path": "/data2/yb/paper/GCNet_TPAMI/.worktrees/ecerc-features/gcnet_missing_m3/train_gcnet.py",
+      "sha256": "7a5d373454928f439e4331f1a73a056dea8eb8873c5c2ab353cf23015a5ec0fe"
+    },
+    "meld_runner": {
+      "path": "/data2/yb/paper/GCNet_TPAMI/.worktrees/ecerc-features/experiments/osram_ecerc_features_20261012/run_meld.py",
+      "sha256": "d725ee5f3f5abdc848591f336c3e1ba214e9edd19da0c565952a64545311ba0a"
+    },
+    "dispatch": {
+      "path": "/data2/yb/paper/GCNet_TPAMI/.worktrees/ecerc-features/experiments/osram_gcnet_random_mask_20261013/dispatch.py",
+      "sha256": "c094916c89095c6b92e41b78591b3aaed756dff50f90b51374941ad2ca18316d"
+    }
+  },
+  "historical_check": {
+    "commit": "7a25dd1",
+    "meld_loader_byte_identical": true,
+    "generate_inputs_AST_identical": true
+  },
+  "observed_mapping": {
+    "original_speaker_ids": "argmax of [utterances,9] one-hot, IDs0..8 retained",
+    "features": "host and guest slots share each actual utterance feature; no speaker-dependent zeroing at dataset adapter",
+    "random_draws": "two full B*T calls: host then guest; existing sampling and padding handling unchanged",
+    "availability_selector": "original torch.where(qmask == 0, host, guest)",
+    "speaker0": "host mask",
+    "speaker1_to_8": "guest mask",
+    "not_present_in_source": "no nine independently sampled speaker streams; no speaker IDs compressed in graph input",
+    "validity": "padding included in samples then availability zeroed by retained schedule"
+  },
+  "evidence_lines": {
+    "MELDDataset_features_and_speakers": "gcnet_modality_jepa/dataloader_meld.py:53-64",
+    "original_selector": "gcnet_modality_jepa/train_gcnet.py:354-362",
+    "availability_uses_original_selector": "gcnet_missing_m3/train_gcnet.py:1437-1445",
+    "dynamic_full_rectangle_host_guest_draws": "gcnet_modality_jepa/gcnet_legacy_random_mask.py:104-114",
+    "dispatch_dynamic_MELD": "experiments/osram_gcnet_random_mask_20261013/dispatch.py:44-53"
+  },
+  "CPU_semantic_validation": {
+    "sample_shape": [
+      3,
+      9
+    ],
+    "all_speaker_ids_0_to_8_tested": true,
+    "padding_positions": 2,
+    "MR": 0.3,
+    "seed": 66,
+    "original_AST_selector_matches_host0_guest1to8": true,
+    "padding_availability_zero": true
+  },
+  "minimal_next_step": "MELD support implemented and CPU-tested; parent can pass dataset in training integration. No model, hyperparameter, or legacy sampler changes.",
+  "implementation": {
+    "updated_utc": "2026-10-17T08:14:19.173785+00:00",
+    "adapter_path": "/data2/yb/paper/experiments/baseline_5models_dynamic_mask_20261017/dynamic_masks.py",
+    "adapter_sha256": "2493f94004e0407724cbae869d934755933d344574b5d04c8c274c3d19c4143b",
+    "API": "sample_dialogue_masks(speakers,valid,mr,dataset=IEMOCAP); sample_utterance_masks(speakers,mr,dataset=IEMOCAP)",
+    "MELD_dataset_argument": "MELD",
+    "MELD_speaker_validation": "0..8 integers; original array unchanged",
+    "IEMOCAP_validation": "default and IEMOCAPFour/Six require 0..1",
+    "selector": "host for speaker0, guest for all other original IDs, exactly retained OSRAM generate_inputs",
+    "speaker_graph": "all original nine speaker IDs preserved; availability selector does not mutate or compress speaker IDs",
+    "sampling": "unchanged byte-identical legacy_random_mask.py; exactly two padded B*T host/guest calls",
+    "legacy_sampler_sha256": "113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547",
+    "test_path": "/data2/yb/paper/experiments/baseline_5models_dynamic_mask_20261017/tests/test_dynamic_masks.py",
+    "test_sha256": "15362501b4fc637326f8e10a491f46f771b629061b1d48acc9e49632bc36788a",
+    "tests": "68 passed in 2.75s",
+    "MELD_tests": "4 MR cases compare AST original selector on masks AND random A/T/V features, padding, full NumPy RNG state, unchanged speaker IDs; utterance helper B=N,T=1; per-dataset validation rejects illegal speakers without RNG consumption",
+    "training_started": false
+  }
+}

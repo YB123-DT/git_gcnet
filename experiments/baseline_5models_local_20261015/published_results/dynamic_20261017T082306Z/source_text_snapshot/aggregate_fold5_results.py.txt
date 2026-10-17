@@ -1,0 +1,152 @@
+"""Session-5-only report; never present these results as five-fold CV."""
+import argparse
+import csv
+import json
+from collections import defaultdict
+from pathlib import Path
+
+import numpy as np
+
+from common_data import fixed_masks, load_dataset
+from runtime import ROOT, compute_metrics, digest
+
+METRICS = ('acc', 'ua', 'wf1', 'macro_f1')
+MODELS = (('MMIN', 'original'), ('MoMKE', 'causal'), ('GCNet', 'released_compatible'),
+          ('SDR-GNN', 'released_compatible'), ('ComP', 'causal'))
+
+
+def write(path, rows):
+    with path.open('w', newline='') as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), extrasaction='ignore')
+        writer.writeheader(); writer.writerows(rows)
+
+
+def export(registry=ROOT/'experiment_registry.json', output=None):
+    registry = Path(registry); output = Path(output or registry.parent)
+    registry_data = json.loads(registry.read_text())
+    tasks = registry_data['tasks']
+    results = []; datasets = {}
+    for task in tasks:
+        c = task['config']
+        if (task['phase'] != 'formal' or c['dataset'] not in ('IEMOCAPFour', 'IEMOCAPSix')
+                or c['fold'] != 5 or (c['model'], c['model_version']) not in MODELS
+                or c['model'] == 'ComP'):
+            continue
+        d = Path(task['run_dir'])
+        if not (d/'metrics.json').exists(): continue
+        status = json.loads((d/'status.json').read_text())
+        if status.get('state') != 'COMPLETED': continue
+        assert status.get('exit_code') == json.loads((d/'exit.json').read_text())['exit_code'] == 0
+        assert (d/'best.pt').is_file()
+        assert json.loads((d/'config.json').read_text()) == c
+        best = json.loads((d/'best.json').read_text()); saved = json.loads((d/'metrics.json').read_text())
+        replay = json.loads((d/'checkpoint_replay.json').read_text())
+        assert replay['verified'] and best['epoch'] == saved['best_epoch'] == replay['epoch']
+        assert digest(d/'predictions.npz') == best['predictions_sha256']
+        history = [json.loads(line) for line in (d/'history.jsonl').read_text().splitlines()]
+        assert len(history) == c['epochs']
+        eligible = [x for x in history if x['epoch'] > c['stage_epoch']]
+        assert max(eligible, key=lambda x: (x['acc'], -x['epoch']))['epoch'] == best['epoch']
+        if c['dataset'] not in datasets: datasets[c['dataset']] = load_dataset(c['dataset'])
+        expected = {}
+        for record in datasets[c['dataset']]['records']:
+            if record['session'] != 5: continue
+            masks = fixed_masks(c['dataset'], record['id'], record['utterance_ids'], c['missing_rate'], c['eval_mask_seed'])
+            for uid, label, mask in zip(record['utterance_ids'], record['labels'], masks):
+                expected[record['id']+'::'+str(uid)] = (int(label), mask)
+        with np.load(d/'predictions.npz', allow_pickle=False) as z:
+            ids = z['sample_ids'].tolist()
+            assert len(ids) == len(expected) == len(set(ids)) and set(ids) == set(expected)
+            assert np.array_equal(z['labels'], [expected[x][0] for x in ids])
+            if c.get('mask_protocol') == 'gcnet-random-mask-v1':
+                assert np.isin(z['masks'], (0, 1)).all() and (z['masks'].sum(1) >= 1).all()
+            else:
+                assert np.array_equal(z['masks'], [expected[x][1] for x in ids])
+            scores = compute_metrics(z['labels'], z['predictions'], c['n_classes'])
+            assert all(abs(scores[k]-saved[k]) < 1e-9 for k in METRICS)
+            actual_mr = float(1-z['masks'].mean()); n = len(ids)
+        results.append(dict(dataset=c['dataset'], model=c['model'], model_version=c['model_version'],
+                            fold=5, seed=c['seed'], missing_rate=c['missing_rate'],
+                            mask_protocol='dynamic_current', **scores, n_test=n,
+                            actual_missing_rate=actual_mr, best_epoch=best['epoch'],
+                            source=str(d), evaluation_protocol='test_oracle'))
+    for reuse in registry_data.get('all_visible_reuse', []):
+        c = reuse['config']; d = Path(reuse['run_dir'])
+        if c['dataset'] == 'MELD': continue
+        assert c['missing_rate'] == 0 and c['fold'] == 5
+        status = json.loads((d/'status.json').read_text())
+        assert status['state'] == 'COMPLETED' and status['exit_code'] == 0
+        assert json.loads((d/'config.json').read_text()) == c
+        best = json.loads((d/'best.json').read_text())
+        saved = json.loads((d/'metrics.json').read_text())
+        replay = json.loads((d/'checkpoint_replay.json').read_text())
+        assert replay['verified'] and replay['epoch'] == best['epoch'] == saved['best_epoch']
+        assert digest(d/'predictions.npz') == best['predictions_sha256']
+        with np.load(d/'predictions.npz', allow_pickle=False) as z:
+            assert np.all(z['masks'] == 1)
+            scores = compute_metrics(z['labels'], z['predictions'], c['n_classes'])
+            assert all(abs(scores[k]-saved[k]) < 1e-9 for k in METRICS)
+            n = len(z['labels'])
+        results.append(dict(dataset=c['dataset'], model=c['model'], model_version=c['model_version'],
+                            fold=5, seed=c['seed'], missing_rate=0.,
+                            mask_protocol='all_visible_equivalent', **scores, n_test=n,
+                            actual_missing_rate=0., best_epoch=best['epoch'], source=str(d),
+                            evaluation_protocol='test_oracle'))
+    # Historical NPZ archives retain fold 5. Its metrics were independently
+    # recomputed in the saved audit; do not use the old five-fold means here.
+    legacy = json.loads((registry.parent/'audit/remote_comp_iemocap_audit_20261016.json').read_text())
+    for row in legacy['rows']:
+        archive = row['npz']; assert archive['matches_fold5']
+        results.append(dict(dataset=row['dataset'], model='ComP', model_version='causal', fold=5,
+                            seed=int(row['seed']), missing_rate=row['missing_rate'],
+                            mask_protocol='legacy_dynamic',
+                            **{k: archive['metrics'][k]*100 for k in METRICS},
+                            n_test=archive['shapes']['labels'][0], actual_missing_rate='',
+                            best_epoch=row['folds'][4]['epoch']+1, source=archive['path'],
+                            evaluation_protocol='test_oracle'))
+    indexed = {}
+    for row in results:
+        key = tuple(row[k] for k in ('dataset', 'model', 'model_version', 'seed', 'missing_rate'))
+        assert key not in indexed; indexed[key] = row
+    summaries = []
+    for dataset in ('IEMOCAPFour', 'IEMOCAPSix'):
+        for model, version in MODELS:
+            per_seed = []
+            count = 0
+            for seed in (66, 67, 68):
+                rows = [indexed.get((dataset, model, version, seed, i/10)) for i in range(8)]
+                count += sum(x is not None for x in rows)
+                if all(x is not None for x in rows):
+                    per_seed.append({k: float(np.mean([x[k] for x in rows])) for k in METRICS})
+            summary = dict(dataset=dataset, model=model, model_version=version, fold=5,
+                           mask_protocol='legacy_dynamic' if model == 'ComP' else 'dynamic_current_MR0_reused',
+                           completed_configs=count, required_configs=24,
+                           status='COMPLETE_3SEED_8MR' if len(per_seed) == 3 else 'INCOMPLETE',
+                           evaluation_protocol='test_oracle')
+            for metric in METRICS:
+                values = [x[metric] for x in per_seed]
+                for suffix, value in [('mean', np.mean(values) if len(values) == 3 else ''),
+                                      ('std', np.std(values, ddof=1) if len(values) == 3 else ''),
+                                      ('variance', np.var(values, ddof=1) if len(values) == 3 else '')]:
+                    summary[metric+'_'+suffix] = float(value) if value != '' else ''
+            summaries.append(summary)
+    output.mkdir(exist_ok=True, parents=True)
+    write(output/'fold5_results.csv', results)
+    write(output/'fold5_eight_rate_summary.csv', summaries)
+    lines = ['Session 5 ONLY: three seeds, eight missing rates; not five-fold cross-validation.',
+             'Test-oracle selection has optimistic test-selection bias. Current runs use retained OSRAM dynamic sampling; MR0 all-visible results are reused. ComP legacy results retain their original provenance. Realized masks are not sample-paired across methods.',
+             '', '| Dataset | Model | Configs | ACC | UA | W-F1 | Mask |',
+             '|---|---|---:|---:|---:|---:|---|']
+    for row in summaries:
+        scores = [f"{row[k+'_mean']:.3f} ± {row[k+'_std']:.3f}" if row['status']=='COMPLETE_3SEED_8MR' else '—' for k in ('acc','ua','wf1')]
+        lines.append('| {} | {} | {}/24 | {} | {} | {} | {} |'.format(row['dataset'],row['model'],row['completed_configs'],*scores,row['mask_protocol']))
+    (output/'FOLD5_RESULTS.md').write_text('\n'.join(lines)+'\n')
+    return dict(scope='Session5 only', completed_configs=len(results), required_configs=240,
+                missing_configs=240-len(results), full_three_seed_model_dataset_groups=sum(r['status']=='COMPLETE_3SEED_8MR' for r in summaries))
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--registry', type=Path, default=ROOT/'experiment_registry.json')
+    args = parser.parse_args()
+    print(json.dumps(export(args.registry), indent=2))

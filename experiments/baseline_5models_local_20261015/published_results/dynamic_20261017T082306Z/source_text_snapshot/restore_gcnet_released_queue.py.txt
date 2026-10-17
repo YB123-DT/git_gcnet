@@ -1,0 +1,106 @@
+"""Replace the mistaken GCNet adaptation queue with released-code reproduction.
+
+Only registry membership and new task files change. Existing configs, run files,
+checkpoints, predictions and immutable snapshots are preserved byte for byte.
+Run only while this queue's dispatcher is stopped; training children keep running.
+"""
+import argparse
+import copy
+import fcntl
+import json
+import os
+from pathlib import Path
+
+from configure import config
+from runtime import ROOT, RUN_ROOT, atomic_json, digest, enforce_local, now
+
+
+def apply_restore(pid):
+    enforce_local()
+    process = Path('/proc') / str(pid)
+    assert process.stat().st_uid == os.getuid()
+    assert str(ROOT/'dispatch.py').encode() in (process/'cmdline').read_bytes().split(b'\0')
+    assert (process/'stat').read_text().split(') ', 1)[1].split()[0] in ('T', 't')
+    validation = json.loads((ROOT/'audit/gcnet_released_cpu_validation_20261017.json').read_text())
+    assert validation['passed']
+    assert all(digest(ROOT/rel) == sha for rel, sha in validation['source_hashes'].items())
+    transition = json.loads((ROOT/'audit/gcnet_released_restore_transition_20261017.json').read_text())
+    with (RUN_ROOT/'registry_update.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        registry = json.loads((ROOT/'experiment_registry.json').read_text())
+        gates = json.loads((ROOT/'gates.json').read_text())
+        old = [t for t in registry['tasks'] if t['config']['model'] == 'GCNet']
+        if not old:
+            return registry['gcnet_released_restore']
+        assert len(old) == 264 and all(t['config']['model_version'] == 'original' for t in old)
+        untouched = [t for t in registry['tasks'] if t not in old]
+        before_untouched = copy.deepcopy(untouched)
+        original_config_hashes = {t['config_path']: digest(t['config_path']) for t in old}
+        for task in old:
+            assert json.loads(Path(task['config_path']).read_text()) == task['config']
+            for name in ('run.lock', 'supervisor.lock'):
+                path = Path(task['run_dir'])/name
+                if path.exists():
+                    with path.open('a') as probe:
+                        fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        added = []
+        archives = registry.setdefault('archived_tasks', [])
+        for task in old:
+            c = task['config']
+            strict = config('GCNet', 'released_compatible', c['dataset'], c['seed'], c['missing_rate'], c['fold'])
+            # The restoration changes implementation identity, never training budget.
+            for key in ('epochs', 'stage_epoch', 'batch_size', 'lr', 'hidden', 'window_past', 'window_future', 'base_model'):
+                assert strict[key] == c[key], (key, strict[key], c[key])
+            ident = task['id'].replace('/GCNet/original/', '/GCNet/released_compatible/')
+            archived = copy.deepcopy(task)
+            archived.update(archived_at=now(), archive_reason='User requires released behavior; old adaptation changed reconstruction padding and graph order', superseded_by=ident)
+            archives.append(archived)
+            added.append(dict(id=ident, config=strict, run_dir=str(RUN_ROOT/ident),
+                              phase='formal', priority=task['priority'], gate='GCNet_released_compatible_'+c['dataset'],
+                              causality='Non-causal', status='MISSING', table_role='main'))
+        for dataset, priority in (('MELD', -15), ('IEMOCAPFour', -14), ('IEMOCAPSix', -13)):
+            old_gate = 'GCNet_original_' + dataset
+            gates[old_gate] = dict(gates.get(old_gate, {}), ready=False, archived=True,
+                                   reason='Historical implementation adaptation, not released reproduction')
+            gate = 'GCNet_released_compatible_' + dataset
+            gates[gate] = dict(ready=False, reason='Await two real GPU smoke runs of restored released behavior')
+            gates[gate+'_smoke'] = dict(ready=True, source='gcnet_released_cpu_validation_20261017.json')
+            for mr in (.3, .6):
+                c = config('GCNet', 'released_compatible', dataset, 66, mr, 0 if dataset == 'MELD' else 1)
+                c.update(epochs=2, batch_size=4)
+                ident = f'compatibility_smoke/{dataset}/GCNet/released_compatible/seed_66/mr_{mr:.1f}'
+                added.append(dict(id=ident, config=c, run_dir=str(RUN_ROOT/ident), phase='compatibility_smoke',
+                                  priority=priority, gate=gate+'_smoke', causality='Non-causal', status='MISSING'))
+        ids = {t['id'] for t in untouched}
+        for task in added:
+            assert task['id'] not in ids
+            ids.add(task['id'])
+            path = ROOT/'configs'/(task['id'].replace('/', '__')+'.json')
+            assert not (Path(task['run_dir'])/'launch.json').exists()
+            if path.exists():
+                assert json.loads(path.read_text()) == task['config']
+            atomic_json(path, task['config'])
+            task['config_path'] = str(path)
+        assert untouched == before_untouched
+        assert all(digest(path) == sha for path, sha in original_config_hashes.items())
+        registry['tasks'] = untouched + added
+        formal = [t for t in registry['tasks'] if t['phase'] == 'formal']
+        registry['formal_fold_units'] = len(formal)
+        registry['formal_seed_configs'] = len({tuple(t['config'][k] for k in ('dataset', 'model', 'model_version', 'seed', 'missing_rate')) for t in formal})
+        report = dict(at=now(), archived_tasks=len(old), new_formal_tasks=264, new_smoke_tasks=6,
+                      original_config_hashes=original_config_hashes, original_runs_unchanged=True,
+                      other_tasks_unchanged=True, weights_reused_from_adaptation=False,
+                      backup_dir=transition['backup_dir'], formal_fold_units=len(formal))
+        registry['gcnet_released_restore'] = report
+        atomic_json(ROOT/'gates.json', gates)
+        atomic_json(ROOT/'experiment_registry.json', registry)
+        atomic_json(ROOT/'audit/gcnet_released_queue_restore_20261017.json', report)
+        return report
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--paused-dispatcher-pid', type=int, required=True)
+    args = parser.parse_args()
+    report = apply_restore(args.paused_dispatcher_pid)
+    print(json.dumps({k: v for k, v in report.items() if k != 'original_config_hashes'}, indent=2))

@@ -1,0 +1,136 @@
+"""Thin adapters around explicitly versioned vendored graph models.
+
+Forward inputs are time-major masked A/T/V concatenation, integer speaker IDs
+[B,T], utterance validity [B,T], and dialogue lengths. Complete training features
+are accepted only by the loss helper, never the model forward path.
+"""
+from collections.abc import Mapping
+import torch
+from torch import nn
+from torch.nn import functional as F
+from .gcnet.model import GraphModel as GCNet
+from .gcnet_released.model import GraphModel as GCNetReleased
+from .gcnet_released.loss import MaskedCELoss as GCNetMaskedCELoss
+from .gcnet_released.loss import MaskedReconLoss as GCNetMaskedReconLoss
+from .sdrgnn.model_SDRGNN import GraphModel as SDRGNN
+from .sdrgnn_released.model_SDRGNN import GraphModel as SDRGNNReleased
+from .sdrgnn_released.loss import MaskedCELoss, MaskedReconLoss
+
+
+def _dims(dims):
+    if isinstance(dims, Mapping):
+        return tuple(int(dims[key]) for key in ('a', 't', 'v'))
+    if len(dims) != 3:
+        raise ValueError('dims must have A/T/V dimensions')
+    return tuple(map(int, dims))
+
+
+class GraphAdapter(nn.Module):
+    def __init__(self, config, dims, nclasses, nspeakers):
+        super().__init__()
+        self.config = dict(config)
+        self.dims = _dims(dims)
+        model_name = str(config.get('model', config.get('model_name', 'GCNet'))).lower().replace('-', '').replace('_','')
+        self.is_sdr = 'sdr' in model_name
+        self.sdr_version = config.get('model_version', 'implementation_fixed') if self.is_sdr else None
+        if self.is_sdr and self.sdr_version not in ('released_compatible', 'implementation_fixed'):
+            raise ValueError('Unsupported SDR-GNN model_version: ' + repr(self.sdr_version))
+        self.gcnet_version = config.get('model_version', 'original') if not self.is_sdr else None
+        if not self.is_sdr and self.gcnet_version not in ('original', 'released_compatible'):
+            raise ValueError('Unsupported GCNet model_version: ' + repr(self.gcnet_version))
+        hidden = int(config.get('hidden', 200))
+        cls = (SDRGNNReleased if self.sdr_version == 'released_compatible' else SDRGNN) if self.is_sdr else GCNet
+        if self.gcnet_version == 'released_compatible':
+            cls = GCNetReleased
+        self.model = cls(
+            base_model=config.get('base_model', 'GRU' if self.is_sdr else 'LSTM'),
+            adim=self.dims[0], tdim=self.dims[1], vdim=self.dims[2],
+            D_e=hidden, graph_hidden_size=int(config.get('graph_hidden', hidden // 2)),
+            n_speakers=nspeakers,
+            window_past=int(config.get('window_past', config.get('windowp', 3 if self.is_sdr else 2))),
+            window_future=int(config.get('window_future', config.get('windowf', 3 if self.is_sdr else 2))),
+            n_classes=nclasses, dropout=float(config.get('dropout', .5)),
+            time_attn=bool(config.get('time_attn',False)), no_cuda=True,
+        )
+        if self.sdr_version == 'released_compatible':
+            for key, actual in (('attention_embed_dim', self.model.multihead_attn.embed_dim),
+                                ('attention_heads', self.model.multihead_attn.num_heads)):
+                if key in config and int(config[key]) != actual:
+                    raise ValueError(f'Frozen {key}={config[key]} differs from constructed model {actual}')
+        self.version = ('SDR-GNN-Implementation-fixed' if self.is_sdr else 'GCNet-Implementation-fixed-legacy')
+        if self.gcnet_version == 'released_compatible':
+            self.version = 'GCNet-Released-compatible'
+        if self.sdr_version == 'released_compatible':
+            self.version = 'SDR-GNN-Released-compatible'
+        if nspeakers > 2:
+            self.version += '-MELD-adapted'
+
+    def forward(self, x, speakers, valid, lengths):
+        if x.ndim != 3 or x.shape[-1] != sum(self.dims):
+            raise ValueError('x must be [T,B,A+T+V]')
+        if speakers.shape != valid.shape or tuple(valid.shape) != (x.shape[1],x.shape[0]):
+            raise ValueError('speakers and valid must be [B,T]')
+        if len(lengths) != x.shape[1] or any(int(n) < 1 for n in lengths):
+            raise ValueError('one positive dialogue length is required per batch element')
+        # Original internals use .cuda() only when no_cuda=False. CUDA_VISIBLE_DEVICES
+        # is assigned by the local dispatcher; its sole GPU appears as cuda:0.
+        for module in self.model.modules():
+            if hasattr(module, 'no_cuda'):
+                module.no_cuda = x.device.type != 'cuda'
+        logits, reconstruction, hidden = self.model([x], speakers, valid, lengths)
+        return {'logits': logits, 'reconstruction': reconstruction[0], 'hidden': hidden}
+
+    def loss(self, outputs, labels, target, availability, valid):
+        """Versioned objectives, retaining released padding flatten when selected.
+
+        labels/valid are B,T; target is T,B,D; availability T,B,3 is 1=visible.
+        GCNet: CE + reconstructed missing-feature modality-normalized MSE.
+        SDR: (1-w)*CE + w*reconstruction, w=.5 by default.
+        """
+        if self.sdr_version == 'released_compatible':
+            return self._released_loss(outputs, labels, target, availability, valid)
+        if self.gcnet_version == 'released_compatible':
+            logits = outputs['logits']
+            ce = GCNetMaskedCELoss()(logits.transpose(0, 1).contiguous().view(-1, logits.shape[-1]),
+                                     labels.contiguous().view(-1), valid)
+            recon = GCNetMaskedReconLoss()([outputs['reconstruction']], [target], [availability],
+                                           valid, *self.dims)
+            total = ce + recon if bool(self.config.get('loss_recon', True)) else ce
+            return total, {'classification': ce, 'reconstruction': recon}
+        selector = valid.bool().transpose(0,1)
+        logits = outputs['logits']
+        ce = F.cross_entropy(logits[selector],labels.transpose(0,1)[selector])
+        squared = (outputs['reconstruction'] - target).square()
+        recon = squared.sum() * 0.
+        start = 0
+        for modality, width in enumerate(self.dims):
+            missing = (1-availability[...,modality])*selector
+            recon = recon + (squared[...,start:start+width]*missing.unsqueeze(-1)).sum()/width
+            start += width
+        recon = recon/selector.sum().clamp_min(1)
+        if not bool(self.config.get('loss_recon', True)):
+            total = ce
+        elif self.is_sdr:
+            weight = float(self.config.get('recon_loss_weight',.5))
+            total = (1-weight)*ce+weight*recon
+        else:
+            total = ce+recon
+        return total, {'classification':ce, 'reconstruction':recon}
+
+    def _released_loss(self, outputs, labels, target, availability, valid):
+        """Keep the train.py CE transpose and the released reconstruction flatten."""
+        logits = outputs['logits']
+        ce = MaskedCELoss()(logits.transpose(0, 1).contiguous().view(-1, logits.shape[-1]),
+                            labels.contiguous().view(-1), valid)
+        recon = MaskedReconLoss()([outputs['reconstruction']], [target], [availability],
+                                 valid, *self.dims)
+        if bool(self.config.get('loss_recon', True)):
+            weight = float(self.config.get('recon_loss_weight', .5))
+            total = (1 - weight) * ce + weight * recon
+        else:
+            total = ce
+        return total, {'classification': ce, 'reconstruction': recon}
+
+
+def build_model(config, dims, nclasses, nspeakers):
+    return GraphAdapter(config,dims,nclasses,nspeakers)

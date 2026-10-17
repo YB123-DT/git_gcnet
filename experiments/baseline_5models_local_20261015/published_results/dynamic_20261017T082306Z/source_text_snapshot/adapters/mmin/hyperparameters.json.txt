@@ -1,0 +1,155 @@
+{
+  "MELD": {
+    "embedding_dim": 128,
+    "cls_layers": [
+      128,
+      128
+    ],
+    "ae_layers": [
+      256,
+      128,
+      64
+    ],
+    "n_blocks": 5,
+    "dropout": 0.5,
+    "teacher_dropout": 0.3,
+    "ce_weight": 1.0,
+    "reconstruction_weight": 4.0,
+    "cycle_weight": 2.0,
+    "use_bn": false,
+    "optimizer": "Adam",
+    "teacher_betas": [
+      0.9,
+      0.999
+    ],
+    "missing_betas": [
+      0.5,
+      0.999
+    ],
+    "weight_decay": 0.0,
+    "checkpoint_selection": "test_best_acc",
+    "evaluation_protocol": "test_oracle",
+    "teacher_selection": "final_train_epoch",
+    "dataset": "MELD",
+    "num_classes": 7,
+    "input_dims": [
+      300,
+      1024,
+      342
+    ],
+    "teacher_epochs": 100,
+    "epochs": 100,
+    "batch_size": 256,
+    "lr": 0.001,
+    "teacher_constant_epochs": 20,
+    "teacher_decay_epochs": 80,
+    "missing_constant_epochs": 20,
+    "missing_decay_epochs": 80,
+    "init_type": "normal",
+    "init_gain": 0.02,
+    "teacher_clip": 5.0,
+    "missing_clip": 5.0
+  },
+  "IEMOCAPFour": {
+    "embedding_dim": 128,
+    "cls_layers": [
+      128,
+      128
+    ],
+    "ae_layers": [
+      256,
+      128,
+      64
+    ],
+    "n_blocks": 5,
+    "dropout": 0.5,
+    "teacher_dropout": 0.3,
+    "ce_weight": 1.0,
+    "reconstruction_weight": 4.0,
+    "cycle_weight": 2.0,
+    "use_bn": false,
+    "optimizer": "Adam",
+    "teacher_betas": [
+      0.9,
+      0.999
+    ],
+    "missing_betas": [
+      0.5,
+      0.999
+    ],
+    "weight_decay": 0.0,
+    "checkpoint_selection": "test_best_acc",
+    "evaluation_protocol": "test_oracle",
+    "teacher_selection": "final_train_epoch",
+    "dataset": "IEMOCAPFour",
+    "num_classes": 4,
+    "input_dims": [
+      512,
+      1024,
+      1024
+    ],
+    "teacher_epochs": 20,
+    "epochs": 60,
+    "batch_size": 128,
+    "lr": 0.0002,
+    "teacher_constant_epochs": 10,
+    "teacher_decay_epochs": 10,
+    "missing_constant_epochs": 30,
+    "missing_decay_epochs": 30,
+    "init_type": "kaiming",
+    "init_gain": 0.012,
+    "teacher_clip": 0.5,
+    "missing_clip": 1.0
+  },
+  "IEMOCAPSix": {
+    "embedding_dim": 128,
+    "cls_layers": [
+      128,
+      128
+    ],
+    "ae_layers": [
+      256,
+      128,
+      64
+    ],
+    "n_blocks": 5,
+    "dropout": 0.5,
+    "teacher_dropout": 0.3,
+    "ce_weight": 1.0,
+    "reconstruction_weight": 4.0,
+    "cycle_weight": 2.0,
+    "use_bn": false,
+    "optimizer": "Adam",
+    "teacher_betas": [
+      0.9,
+      0.999
+    ],
+    "missing_betas": [
+      0.5,
+      0.999
+    ],
+    "weight_decay": 0.0,
+    "checkpoint_selection": "test_best_acc",
+    "evaluation_protocol": "test_oracle",
+    "teacher_selection": "final_train_epoch",
+    "dataset": "IEMOCAPSix",
+    "num_classes": 6,
+    "input_dims": [
+      512,
+      1024,
+      1024
+    ],
+    "teacher_epochs": 20,
+    "epochs": 60,
+    "batch_size": 128,
+    "lr": 0.0002,
+    "teacher_constant_epochs": 10,
+    "teacher_decay_epochs": 10,
+    "missing_constant_epochs": 30,
+    "missing_decay_epochs": 30,
+    "init_type": "kaiming",
+    "init_gain": 0.012,
+    "teacher_clip": 0.5,
+    "missing_clip": 1.0
+  }
+}

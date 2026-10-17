@@ -1,0 +1,79 @@
+{
+  "recorded_utc": "2026-10-17T08:08:49.648773+00:00",
+  "mask_protocol": "gcnet-random-mask-v1",
+  "reference": {
+    "path": "/data2/yb/paper/GCNet_TPAMI/.worktrees/ecerc-features/gcnet_modality_jepa/gcnet_legacy_random_mask.py",
+    "sha256": "113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547",
+    "copied_path": "/data2/yb/paper/experiments/baseline_5models_dynamic_mask_20261017/legacy_random_mask.py",
+    "copied_sha256": "113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547",
+    "byte_identical": true,
+    "historical_reference_commit": "7a25dd1",
+    "historical_reference_sha256": "113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547"
+  },
+  "official_comparison": {
+    "path": "/data2/yb/paper/GCNet_TPAMI/gcnet/train_gcnet.py",
+    "file_sha256": "a5fd71b0762af30916f3fd4044528019a6134b41ec6cdcfa1f12dce4f863f65b",
+    "function": "random_mask",
+    "line": 155,
+    "function_source_sha256": "9fa2220aca2f8e1a70173cdcaed527c0f119b8c7c18aa2953d3560a814686c94",
+    "test_cases": 40,
+    "row_counts": [
+      1,
+      17,
+      32,
+      97,
+      408
+    ],
+    "missing_rates": [
+      0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7
+    ],
+    "seed": 66,
+    "outputs_equal": true,
+    "post_call_MT19937_states_equal": true,
+    "test_only_compatibility": "Use isolated np.int=int namespace for upstream AST; source and runtime sampler unchanged."
+  },
+  "adapter": {
+    "path": "/data2/yb/paper/experiments/baseline_5models_dynamic_mask_20261017/dynamic_masks.py",
+    "sha256": "fec89b3df4967d25893805785233e04ac79dde7789f049a573d423d0a8c867d5",
+    "datasets": [
+      "IEMOCAPFour",
+      "IEMOCAPSix"
+    ],
+    "speakers": [
+      0,
+      1
+    ],
+    "unsupported_multispeaker": "reject; no MELD behavior invented",
+    "rng": "global numpy.random MT19937; advances without epoch reseeding",
+    "sampling": "call retained GCNetLegacyRandomMaskSchedule.generate_batch directly; two entire B*T draws, host then guest",
+    "layout": "retained OSRAM (B,T,3).transpose(1,0,2), then choose host for speaker0 and guest for speaker1",
+    "padding": "included in draw then zero availability, exactly retained schedule",
+    "utterance_adapter": "B=N,T=1, preserving both host and guest calls",
+    "metadata_seed": "schedule mask_seed=0 is metadata only; no RNG reset",
+    "nominal_mr_0_7_actual_mr": 0.6666666666666666,
+    "cross_model_sample_pairing": false
+  },
+  "retained_osram_vs_full_official_gcnet": {
+    "sampler_outputs_and_rng": "same for identical RNG, N and MR",
+    "batch_layout": "OSRAM batch-major then transpose; upstream direct time-major reshape",
+    "padding": "OSRAM zeroed after draw; upstream availability retained",
+    "dataloader": "OSRAM EpochSeededSubsetSampler with constant test epoch0; upstream global SubsetRandomSampler",
+    "evaluation": "OSRAM per-rate evaluation; upstream IEM train->val->test all draw dynamically"
+  },
+  "verification": {
+    "python": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python",
+    "test_path": "/data2/yb/paper/experiments/baseline_5models_dynamic_mask_20261017/tests/test_dynamic_masks.py",
+    "test_sha256": "514a2b297242671cae20467f7eeef4f37c83b6554be35eed618da5d348f69393",
+    "command": "/home/yangbin/miniconda3/envs/multimodalerc310/bin/python -c \"import sys; sys.path.append('/home/yangbin/miniconda3/lib/python3.13/site-packages'); import pytest; raise SystemExit(pytest.main(['-q', 'experiments/baseline_5models_dynamic_mask_20261017/tests/test_dynamic_masks.py']))\"",
+    "result": "58 passed in 2.76s",
+    "device": "CPU only",
+    "training_started": false
+  }
+}

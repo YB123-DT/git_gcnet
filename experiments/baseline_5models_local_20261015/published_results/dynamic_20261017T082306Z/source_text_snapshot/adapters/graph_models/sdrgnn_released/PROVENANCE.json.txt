@@ -1,0 +1,38 @@
+{
+  "repository_url": "https://github.com/fufangze/SDR-GNN",
+  "upstream_commit": "b45546111e9dbe50e019cfa98a6c19f13a4c8aa8",
+  "upstream_directory": "/data2/yb/paper/SDR-GNN_official_2024",
+  "version": "released_compatible",
+  "source_files": {
+    "model_SDRGNN.py": {
+      "upstream_sha256": "f4537ae84d6dbff10d990491723277d224311efd7915a6585cf34a7567b842f3",
+      "adapted_sha256": "d1c780471bd00497b10d7632c039a32241aec72ad1db47dc31aad34c5c84932b"
+    },
+    "graph.py": {
+      "upstream_sha256": "8b35b4282c2ebc5cfe34dd1d9003e321510d7d919509ce38c6d9839c658cf59d",
+      "adapted_sha256": "413be1cb356d73a06975bd985e700969ffd9414794dca44f68851feea88c972c"
+    },
+    "loss.py": {
+      "upstream_sha256": "76d676521dc41db8f2c7f5ece048d6a6c339d6d5246bd90203157a57cc15fc28",
+      "adapted_sha256": "76d676521dc41db8f2c7f5ece048d6a6c339d6d5246bd90203157a57cc15fc28"
+    }
+  },
+  "allowed_changes": [
+    "Relative graph import for package isolation",
+    "Attention embed_dim=sum(A,T,V), largest exact-divisor heads <=256; 1666/238 for MELD, 2560/256 retained for IEMOCAP",
+    "For >2 up to nine speakers only: ordered temporal IDs past/now/future=0/1/2; original ij speaker keys with row-major n_speakers*i+j IDs. <=2 speaker code, original set mapping and edge order unchanged."
+  ],
+  "preserved_behavior": [
+    "GraphNetwork returns single-element tuple",
+    "hidden1+hidden2 concatenates tuples; only hidden0[0] reaches classification/reconstruction, speaker graph computed but no classification gradient",
+    "Original MHA transpose and batch_first=False retained; attention mixes dialogue batch axis",
+    "Official MaskedReconLoss byte-identical, including T,B reconstruction versus B,T padding flatten order",
+    "Official MaskedCELoss with train.py B,T logits flatten retained",
+    "HypergraphConv and highConv unchanged"
+  ],
+  "notes": [
+    "MELD-adapted released implementation, not claim of unmodified upstream",
+    "No edits to existing implementation_fixed source or running immutable snapshots",
+    "For <=2 speakers, PYTHONHASHSEED must be frozen at process startup to reproduce original set relation IDs; launcher responsibility, not a runtime os.environ substitute."
+  ]
+}

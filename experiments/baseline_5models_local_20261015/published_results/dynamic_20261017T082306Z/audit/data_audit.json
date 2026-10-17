@@ -1,0 +1,403 @@
+{
+  "datasets": {
+    "MELD": {
+      "metadata": {
+        "feature_fields": {
+          "a": 11,
+          "t": 3,
+          "v": 12
+        },
+        "text_feature": "ECERC eroberta1",
+        "num_classes": 7,
+        "num_speakers": 9,
+        "dimensions": [
+          300,
+          1024,
+          342
+        ],
+        "dataset": "MELD",
+        "label_source": "/data2/yb/paper/baseline_sources_20261006/ECERC/data/meld/meld_emotion_semantic_features_roberta.pkl",
+        "label_source_sha256": "a0349614b2b58e8b2db768f0144aa36b96fb2348ca436a6879ee2623cc2d2f80",
+        "selected_features_labels_sha256": "4412dbaa3bb2c6b8d508936f21667d2988c883b488c4d9b96ac316abb0c168ae",
+        "source_fingerprint": {
+          "schema": 2,
+          "path": "/data2/yb/paper/baseline_sources_20261006/ECERC/data/meld/meld_emotion_semantic_features_roberta.pkl",
+          "size": 509327864,
+          "mtime_ns": 1791250252530825507
+        },
+        "mask_protocol": "preserve_one_plus_independent_v1",
+        "evaluation_mask_seed": 20261015,
+        "dialogue_count": 1432,
+        "utterance_count": 13708
+      },
+      "splits_or_test_folds": {
+        "train": {
+          "dialogues": 1038,
+          "utterances": 9989,
+          "labels": {
+            "0": 4710,
+            "1": 1205,
+            "2": 268,
+            "3": 683,
+            "4": 1743,
+            "5": 271,
+            "6": 1109
+          }
+        },
+        "valid": {
+          "dialogues": 114,
+          "utterances": 1109,
+          "labels": {
+            "3": 111,
+            "1": 150,
+            "0": 470,
+            "4": 163,
+            "6": 153,
+            "5": 22,
+            "2": 40
+          }
+        },
+        "test": {
+          "dialogues": 280,
+          "utterances": 2610,
+          "labels": {
+            "1": 281,
+            "6": 345,
+            "0": 1256,
+            "4": 402,
+            "3": 208,
+            "2": 50,
+            "5": 68
+          }
+        }
+      },
+      "test_mask_rates": {
+        "0": {
+          "nominal_missing_rate": 0,
+          "actual_missing_rate": 0.0,
+          "min_visible": 3
+        },
+        "0.1": {
+          "nominal_missing_rate": 0.1,
+          "actual_missing_rate": 0.09578544061302685,
+          "min_visible": 1
+        },
+        "0.2": {
+          "nominal_missing_rate": 0.2,
+          "actual_missing_rate": 0.20957854406130272,
+          "min_visible": 1
+        },
+        "0.3": {
+          "nominal_missing_rate": 0.3,
+          "actual_missing_rate": 0.29948914431673057,
+          "min_visible": 1
+        },
+        "0.4": {
+          "nominal_missing_rate": 0.4,
+          "actual_missing_rate": 0.4002554278416347,
+          "min_visible": 1
+        },
+        "0.5": {
+          "nominal_missing_rate": 0.5,
+          "actual_missing_rate": 0.5006385696040869,
+          "min_visible": 1
+        },
+        "0.6": {
+          "nominal_missing_rate": 0.6,
+          "actual_missing_rate": 0.5947637292464878,
+          "min_visible": 1
+        },
+        "0.7": {
+          "nominal_missing_rate": 0.7,
+          "actual_missing_rate": 0.6666666666666667,
+          "min_visible": 1
+        }
+      }
+    },
+    "IEMOCAPFour": {
+      "metadata": {
+        "feature_names": {
+          "a": "wav2vec-large-c-UTT",
+          "t": "deberta-large-4-UTT",
+          "v": "manet_UTT"
+        },
+        "feature_root": "/data2/yb/paper/GCNet_TPAMI/dataset/IEMOCAP/features",
+        "visual_selection": "actual utterance speaker compress_F/M.npy",
+        "num_classes": 4,
+        "num_speakers": 2,
+        "dimensions": [
+          512,
+          1024,
+          1024
+        ],
+        "dataset": "IEMOCAPFour",
+        "label_source": "/data2/yb/paper/GCNet_TPAMI/dataset/IEMOCAP/IEMOCAP_features_raw_4way.pkl",
+        "label_source_sha256": "072cffa9c528dd0536792de7ac85d5a0efaf25d4a9e3ed01f7e45453547cc9fd",
+        "selected_features_labels_sha256": "0a1a37d98b59b308d65576731b9301ab5ba66eeab7b5def16ecebd5ac24ef6f6",
+        "source_fingerprint": {
+          "schema": 2,
+          "path": "/data2/yb/paper/GCNet_TPAMI/dataset/IEMOCAP/IEMOCAP_features_raw_4way.pkl",
+          "size": 517523,
+          "mtime_ns": 1638133116000000000,
+          "feature_directories": {
+            "deberta-large-4-UTT": 1681768518000000000,
+            "manet_UTT": 1681769464000000000,
+            "wav2vec-large-c-UTT": 1681770034000000000
+          }
+        },
+        "mask_protocol": "preserve_one_plus_independent_v1",
+        "evaluation_mask_seed": 20261015,
+        "dialogue_count": 151,
+        "utterance_count": 5531
+      },
+      "splits_or_test_folds": {
+        "1": {
+          "dialogues": 28,
+          "utterances": 1085,
+          "labels": {
+            "2": 384,
+            "3": 229,
+            "1": 194,
+            "0": 278
+          }
+        },
+        "2": {
+          "dialogues": 30,
+          "utterances": 1023,
+          "labels": {
+            "2": 362,
+            "3": 137,
+            "1": 197,
+            "0": 327
+          }
+        },
+        "3": {
+          "dialogues": 32,
+          "utterances": 1151,
+          "labels": {
+            "2": 320,
+            "0": 286,
+            "1": 305,
+            "3": 240
+          }
+        },
+        "4": {
+          "dialogues": 30,
+          "utterances": 1031,
+          "labels": {
+            "3": 327,
+            "1": 143,
+            "0": 303,
+            "2": 258
+          }
+        },
+        "5": {
+          "dialogues": 31,
+          "utterances": 1241,
+          "labels": {
+            "2": 384,
+            "3": 170,
+            "1": 245,
+            "0": 442
+          }
+        }
+      },
+      "test_mask_rates": {
+        "0": {
+          "nominal_missing_rate": 0,
+          "actual_missing_rate": 0.0,
+          "min_visible": 3
+        },
+        "0.1": {
+          "nominal_missing_rate": 0.1,
+          "actual_missing_rate": 0.10082564937021632,
+          "min_visible": 1
+        },
+        "0.2": {
+          "nominal_missing_rate": 0.2,
+          "actual_missing_rate": 0.2011691677213283,
+          "min_visible": 1
+        },
+        "0.3": {
+          "nominal_missing_rate": 0.3,
+          "actual_missing_rate": 0.29880069908997775,
+          "min_visible": 1
+        },
+        "0.4": {
+          "nominal_missing_rate": 0.4,
+          "actual_missing_rate": 0.39745675887422405,
+          "min_visible": 1
+        },
+        "0.5": {
+          "nominal_missing_rate": 0.5,
+          "actual_missing_rate": 0.4981016091122763,
+          "min_visible": 1
+        },
+        "0.6": {
+          "nominal_missing_rate": 0.6,
+          "actual_missing_rate": 0.6031459048996565,
+          "min_visible": 1
+        },
+        "0.7": {
+          "nominal_missing_rate": 0.7,
+          "actual_missing_rate": 0.6666666666666667,
+          "min_visible": 1
+        }
+      }
+    },
+    "IEMOCAPSix": {
+      "metadata": {
+        "feature_names": {
+          "a": "wav2vec-large-c-UTT",
+          "t": "deberta-large-4-UTT",
+          "v": "manet_UTT"
+        },
+        "feature_root": "/data2/yb/paper/GCNet_TPAMI/dataset/IEMOCAP/features",
+        "visual_selection": "actual utterance speaker compress_F/M.npy",
+        "num_classes": 6,
+        "num_speakers": 2,
+        "dimensions": [
+          512,
+          1024,
+          1024
+        ],
+        "dataset": "IEMOCAPSix",
+        "label_source": "/data2/yb/paper/GCNet_TPAMI/dataset/IEMOCAP/IEMOCAP_features_raw_6way.pkl",
+        "label_source_sha256": "e35143e9f087d436779cccd650cb0327e9caa55178d326330f4a8a914e91e023",
+        "selected_features_labels_sha256": "2b669e85a7f95abc3046e4a120e211e27795f0d11106429e9eef0ce3f5b4051e",
+        "source_fingerprint": {
+          "schema": 2,
+          "path": "/data2/yb/paper/GCNet_TPAMI/dataset/IEMOCAP/IEMOCAP_features_raw_6way.pkl",
+          "size": 708892,
+          "mtime_ns": 1638133130000000000,
+          "feature_directories": {
+            "deberta-large-4-UTT": 1681768518000000000,
+            "manet_UTT": 1681769464000000000,
+            "wav2vec-large-c-UTT": 1681770034000000000
+          }
+        },
+        "mask_protocol": "preserve_one_plus_independent_v1",
+        "evaluation_mask_seed": 20261015,
+        "dialogue_count": 151,
+        "utterance_count": 7433
+      },
+      "splits_or_test_folds": {
+        "1": {
+          "dialogues": 28,
+          "utterances": 1373,
+          "labels": {
+            "2": 384,
+            "5": 280,
+            "3": 229,
+            "1": 194,
+            "0": 143,
+            "4": 143
+          }
+        },
+        "2": {
+          "dialogues": 30,
+          "utterances": 1356,
+          "labels": {
+            "2": 362,
+            "5": 325,
+            "3": 137,
+            "1": 197,
+            "4": 210,
+            "0": 125
+          }
+        },
+        "3": {
+          "dialogues": 32,
+          "utterances": 1569,
+          "labels": {
+            "2": 320,
+            "5": 382,
+            "0": 171,
+            "4": 151,
+            "1": 305,
+            "3": 240
+          }
+        },
+        "4": {
+          "dialogues": 30,
+          "utterances": 1512,
+          "labels": {
+            "5": 481,
+            "3": 327,
+            "1": 143,
+            "4": 238,
+            "2": 258,
+            "0": 65
+          }
+        },
+        "5": {
+          "dialogues": 31,
+          "utterances": 1623,
+          "labels": {
+            "2": 384,
+            "5": 381,
+            "3": 170,
+            "1": 245,
+            "4": 299,
+            "0": 144
+          }
+        }
+      },
+      "test_mask_rates": {
+        "0": {
+          "nominal_missing_rate": 0,
+          "actual_missing_rate": 0.0,
+          "min_visible": 3
+        },
+        "0.1": {
+          "nominal_missing_rate": 0.1,
+          "actual_missing_rate": 0.10327817390914396,
+          "min_visible": 1
+        },
+        "0.2": {
+          "nominal_missing_rate": 0.2,
+          "actual_missing_rate": 0.19646620924705138,
+          "min_visible": 1
+        },
+        "0.3": {
+          "nominal_missing_rate": 0.3,
+          "actual_missing_rate": 0.29660522893403296,
+          "min_visible": 1
+        },
+        "0.4": {
+          "nominal_missing_rate": 0.4,
+          "actual_missing_rate": 0.40279833176375623,
+          "min_visible": 1
+        },
+        "0.5": {
+          "nominal_missing_rate": 0.5,
+          "actual_missing_rate": 0.4989012960222432,
+          "min_visible": 1
+        },
+        "0.6": {
+          "nominal_missing_rate": 0.6,
+          "actual_missing_rate": 0.6000269070361899,
+          "min_visible": 1
+        },
+        "0.7": {
+          "nominal_missing_rate": 0.7,
+          "actual_missing_rate": 0.6666666666666667,
+          "min_visible": 1
+        }
+      }
+    }
+  },
+  "validation": "all features loaded and checked finite, dimensions/labels/speakers verified",
+  "environments": {
+    "training_python": "/home/yangbin/miniconda3/envs/comp-repro/bin/python",
+    "training_numpy": "1.24.3",
+    "training_torch": "1.12.0+cu113",
+    "pytest_python": "/home/yangbin/miniconda3/bin/python",
+    "pytest_evidence": "10 passed in 8.48s; python -m py_compile common_data.py passed"
+  },
+  "mask_compatibility": {
+    "legacy_sampler": "GCNet_TPAMI/gcnet/train_gcnet.py:155",
+    "law": "uniformly preserve one modality, independently retain others with p=max(0,(3*(1-MR)-1)/2)",
+    "change": "Preserves intended missing rate and nonempty constraint, removes legacy rejection sampler/batch dependence. Existing masks must match exactly to reuse."
+  }
+}
