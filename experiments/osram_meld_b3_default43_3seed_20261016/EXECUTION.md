@@ -49,3 +49,26 @@ tmux new-session -d -s meld_b3_default43_3seed_1016 \
 Final `RESULT.md`, `SUMMARY.json` and `SUMMARY.csv` are generated automatically
 after both new workers finish. Preserve BEST checkpoints and exact selected
 prediction artifacts; no final three-seed improvement is claimed at launch.
+
+## Completion verified: 2026-10-17 03:00:38 UTC
+
+Controller and both new workers are complete. Seeds67/68 each have50history
+records and no reported error. All24BEST weights (eight reused66plus16new)are
+present remotely. All24exact selected-prediction SHA256 hashes match their
+summaries. ACC and seven-class UA were independently recomputed from every
+saved artifact and match within1e-8. Three-seed means/sample SD also match
+independent recomputation within1e-10. No training or inference was added.
+
+Final three-seed eight-rate means:ACC60.553959 ±0.201168,
+UA36.486390 ±1.411878,W-F1 57.011331 ±0.520243 (sample SD).
+High-missing means:ACC56.585781,UA29.835688,W-F1 51.065596.
+`RESULT.md`, `SUMMARY.csv` and `SUMMARY.json` are archived alongside this record.
+
+Relative to the user-accepted historical Flat reference60.693/36.255/57.045,
+the approximate changes are -0.139ACC,+0.231UA,-0.034W-F1 percentage points.
+The source snapshots and randomly sampled winning-epoch masks are not shared
+between that baseline and B3; this is a descriptive reference comparison,not
+an exact common-mask paired experiment. The accepted baseline is unchanged.
+UA gains are not seed-consistent:seed66is higher,67and68are lower than their
+accepted Flat rows. This does not establish stable joint ACC/UA improvement.
+The authorized two-run extension ended; no new HPO or seeds were submitted.
