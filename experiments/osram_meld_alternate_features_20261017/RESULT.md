@@ -4,7 +4,7 @@ INTERNAL TEST-ORACLE FEATURE-SOURCE DIAGNOSTIC.
 
 | Feature source | Data state | Training state | ACC/UA |
 |---|---|---|---|
-| MAGTKD |Complete; canonical13,708utterances and17field conversion verified|Corrected v2 running on GPU3;21/50 epochs at 2026-10-17 06:58:37 UTC;no error|Interim eight-rate Test-best ACC54.583%,UA31.867%|
+| MAGTKD |Complete; canonical13,708utterances and17field conversion verified|Corrected v2 running on GPU3;37/50 epochs at 2026-10-17 07:12 UTC;no error|Interim eight-rate Test-best ACC54.583%,UA31.867%|
 | MM-Align |dev/test/embedding verified; train incomplete due Drive quota; dev110_7absent|Not started; strict full-coverage guard|Unavailable|
 
 No performance claim. No local training or environment change. The intended
@@ -44,3 +44,8 @@ historical comparison,not an exact paired-source control: the corrected CUDA
 RNG shim and input dimensions prevent asserting identical initialization/masks.
 The run remains at the authorized 50-epoch budget. No tuning,early stop or
 additional control was launched. Low interim scores do not identify their cause.
+
+At 37/50 epochs the selected artifacts/epochs above remain unchanged: no
+ACC-selected best improved since the previous 21-epoch check. Eight-rate W-F1
+is51.312%; high-missing ACC53.883%,UA28.530%,W-F1 49.604%. The recovery checkpoint
+exists (161684925bytes). These are still interim,not final results.
