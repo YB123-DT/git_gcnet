@@ -1,0 +1,89 @@
+{
+  "at": "20261017T082954Z",
+  "dispatcher_pid": 725714,
+  "formal_total": 294,
+  "formal_states": {
+    "PENDING": 282,
+    "COMPLETED": 6,
+    "FAILED": 2,
+    "RUNNING": 4
+  },
+  "remaining_formal": 288,
+  "max_gpu_jobs": 4,
+  "running": [
+    {
+      "id": "MELD/MMIN/original/seed_66/mr_0.2/fold_0",
+      "pid": 738076,
+      "gpu_uuid": "GPU-7ff18ebb-100e-98fe-038b-a98bd4f94248",
+      "epoch": 55,
+      "log": "/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/MELD/MMIN/original/seed_66/mr_0.2/fold_0/run.log"
+    },
+    {
+      "id": "MELD/MMIN/original/seed_67/mr_0.2/fold_0",
+      "pid": 736599,
+      "gpu_uuid": "GPU-7ff18ebb-100e-98fe-038b-a98bd4f94248",
+      "epoch": 95,
+      "log": "/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/MELD/MMIN/original/seed_67/mr_0.2/fold_0/run.log"
+    },
+    {
+      "id": "MELD/MMIN/original/seed_68/mr_0.1/fold_0",
+      "pid": 736605,
+      "gpu_uuid": "GPU-eed2f34f-b4c0-7b7a-498e-71a026e30c5a",
+      "epoch": 96,
+      "log": "/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/MELD/MMIN/original/seed_68/mr_0.1/fold_0/run.log"
+    },
+    {
+      "id": "MELD/MoMKE/causal/seed_66/mr_0.3/fold_0",
+      "pid": 728596,
+      "gpu_uuid": "GPU-eed2f34f-b4c0-7b7a-498e-71a026e30c5a",
+      "epoch": 113,
+      "log": "/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/MELD/MoMKE/causal/seed_66/mr_0.3/fold_0/run.log"
+    }
+  ],
+  "failures": [
+    {
+      "id": "MELD/MMIN/original/seed_66/mr_0.6/fold_0",
+      "status": {
+        "state": "FAILED",
+        "exit_code": 1,
+        "pid": 732264,
+        "gpu_uuid": "GPU-7ff18ebb-100e-98fe-038b-a98bd4f94248",
+        "at": "2026-10-17T08:24:13Z",
+        "error": "See failure.json and run.log; no automatic retry"
+      },
+      "failure": {
+        "error": "cannot convert float infinity to integer",
+        "traceback": "Traceback (most recent call last):\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/train_one.py\", line 329, in <module>\n    try:main()\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/train_one.py\", line 187, in main\n    return run_mmin(args,run,c,data,train,test,device,rng,manifest)\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/train_one.py\", line 311, in run_mmin\n    pred=evaluate();scores=compute_metrics(pred['labels'],pred['predictions'],c['n_classes'])\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/train_one.py\", line 299, in evaluate\n    return evaluate_mmin(model,test_values,test_speakers,sample_ids,c,device)\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/train_one.py\", line 119, in evaluate_mmin\n    sampled=sample_utterance_masks(speakers[start:end],c['missing_rate'],dataset=c.get('dataset','IEMOCAP'))\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/dynamic_masks.py\", line 65, in sample_utterance_masks\n    return sample_dialogue_masks(\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/dynamic_masks.py\", line 50, in sample_dialogue_masks\n    host, guest = schedule.generate_batch(\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/legacy_random_mask.py\", line 107, in generate_batch\n    sampled = random_mask(3, count, self.requested_missing_rate)\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/legacy_random_mask.py\", line 53, in random_mask\n    rng.randint(0, 100, size=(sample_len, view_num)) < int(ratio * 100)\nOverflowError: cannot convert float infinity to integer\n",
+        "at": "2026-10-17T08:24:13Z",
+        "pid": 732264
+      }
+    },
+    {
+      "id": "MELD/MMIN/original/seed_67/mr_0.6/fold_0",
+      "status": {
+        "state": "FAILED",
+        "exit_code": 1,
+        "pid": 732271,
+        "gpu_uuid": "GPU-eed2f34f-b4c0-7b7a-498e-71a026e30c5a",
+        "at": "2026-10-17T08:22:50Z",
+        "error": "See failure.json and run.log; no automatic retry"
+      },
+      "failure": {
+        "error": "cannot convert float infinity to integer",
+        "traceback": "Traceback (most recent call last):\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/train_one.py\", line 329, in <module>\n    try:main()\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/train_one.py\", line 187, in main\n    return run_mmin(args,run,c,data,train,test,device,rng,manifest)\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/train_one.py\", line 311, in run_mmin\n    pred=evaluate();scores=compute_metrics(pred['labels'],pred['predictions'],c['n_classes'])\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/train_one.py\", line 299, in evaluate\n    return evaluate_mmin(model,test_values,test_speakers,sample_ids,c,device)\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/train_one.py\", line 119, in evaluate_mmin\n    sampled=sample_utterance_masks(speakers[start:end],c['missing_rate'],dataset=c.get('dataset','IEMOCAP'))\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/dynamic_masks.py\", line 65, in sample_utterance_masks\n    return sample_dialogue_masks(\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/dynamic_masks.py\", line 50, in sample_dialogue_masks\n    host, guest = schedule.generate_batch(\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/legacy_random_mask.py\", line 107, in generate_batch\n    sampled = random_mask(3, count, self.requested_missing_rate)\n  File \"/data2/yb/paper/runs/baseline_5models_dynamic_mask_20261017/code_snapshots/eb069ef18144ed8d9b50ba634266457dd9e13d40bfea2828df229b753766a360/legacy_random_mask.py\", line 53, in random_mask\n    rng.randint(0, 100, size=(sample_len, view_num)) < int(ratio * 100)\nOverflowError: cannot convert float infinity to integer\n",
+        "at": "2026-10-17T08:22:49Z",
+        "pid": 732271
+      }
+    }
+  ],
+  "MELD_counts": {
+    "dataset": "MELD",
+    "available_configs": 18,
+    "required_configs": 120,
+    "missing_configs": 102
+  },
+  "IEMOCAP_reused": 54,
+  "original_sampler_modified": false,
+  "automatic_failed_task_retries": false,
+  "sampler_tests_with_preserved_failure_cases": 70
+}

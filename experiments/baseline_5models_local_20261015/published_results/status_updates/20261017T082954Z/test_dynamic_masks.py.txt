@@ -1,0 +1,236 @@
+"""Numerical contracts against the retained OSRAM and released GCNet samplers."""
+
+import ast
+import hashlib
+import json
+from pathlib import Path
+from types import SimpleNamespace
+import sys
+
+import numpy as np
+import pytest
+from sklearn.preprocessing import OneHotEncoder
+import torch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from dynamic_masks import MASK_PROTOCOL, sample_dialogue_masks, sample_utterance_masks
+from legacy_random_mask import GCNetLegacyRandomMaskSchedule, random_mask
+
+REFERENCE = Path('/data2/yb/paper/GCNet_TPAMI/.worktrees/ecerc-features/'
+                 'gcnet_modality_jepa/gcnet_legacy_random_mask.py')
+UPSTREAM = Path('/data2/yb/paper/GCNet_TPAMI/gcnet/train_gcnet.py')
+REFERENCE_SHA = '113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547'
+
+
+def assert_rng_equal(left, right):
+    assert left[0] == right[0]
+    np.testing.assert_array_equal(left[1], right[1])
+    assert left[2:] == right[2:]
+
+
+def official_sampler():
+    source = ast.parse(UPSTREAM.read_text())
+    function = next(node for node in source.body
+                    if isinstance(node, ast.FunctionDef) and node.name == 'random_mask')
+    # Preserve the released expressions while accommodating removed np.int.
+    numpy_compat = SimpleNamespace(**vars(np))
+    numpy_compat.int = int
+    namespace = {'np': numpy_compat, 'randint': np.random.randint,
+                 'OneHotEncoder': OneHotEncoder}
+    exec(compile(ast.Module(body=[function], type_ignores=[]), str(UPSTREAM), 'exec'), namespace)
+    return namespace['random_mask']
+
+
+def test_reference_is_byte_identical_and_protocol_is_explicit():
+    copied = (ROOT / 'legacy_random_mask.py').read_bytes()
+    assert copied == REFERENCE.read_bytes()
+    assert hashlib.sha256(copied).hexdigest() == REFERENCE_SHA
+    assert MASK_PROTOCOL == 'gcnet-random-mask-v1'
+
+
+@pytest.mark.parametrize('count', [1, 17, 32, 97, 408])
+@pytest.mark.parametrize('rate', [0., .1, .2, .3, .4, .5, .6, .7])
+def test_official_sampler_outputs_and_rng_state(count, rate):
+    released = official_sampler()
+    np.random.seed(66)
+    expected = released(3, count, rate)
+    expected_state = np.random.get_state()
+    np.random.seed(66)
+    actual = random_mask(3, count, rate)
+    np.testing.assert_array_equal(actual, expected)
+    assert_rng_equal(np.random.get_state(), expected_state)
+
+
+@pytest.mark.parametrize('rate', [0., .3, .6, .7])
+def test_dialogue_mask_matches_exact_osram_batch_mapping_and_rng(rate):
+    speakers = np.array([[0, 1, 0, 0], [1, 1, 0, 1], [1, 0, 1, 0]], dtype=np.int64)
+    valid = np.array([[1, 1, 1, 0], [1, 1, 0, 0], [1, 1, 1, 1]], dtype=bool)
+    np.random.seed(67)
+    schedule = GCNetLegacyRandomMaskSchedule('IEMOCAP', 'dynamic', 5, rate, 0)
+    host, guest = schedule.generate_batch(['0', '1', '2'], torch.from_numpy(valid), 0)
+    expected = np.where(speakers[..., None] == 0, host.numpy().transpose(1, 0, 2),
+                        guest.numpy().transpose(1, 0, 2)).astype(np.float32)
+    expected_state = np.random.get_state()
+    np.random.seed(67)
+    actual = sample_dialogue_masks(speakers, valid, rate)
+    np.testing.assert_array_equal(actual, expected)
+    assert actual.dtype == np.float32
+    assert np.count_nonzero(actual[~valid]) == 0
+    assert_rng_equal(np.random.get_state(), expected_state)
+
+
+def test_sampler_is_called_host_then_guest_over_entire_padded_rectangle(monkeypatch):
+    import legacy_random_mask
+    calls = []
+    matrices = [np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0],
+                          [0, 1, 1], [1, 0, 1]], dtype=np.int64),
+                np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0], [1, 0, 1],
+                          [1, 1, 0], [0, 1, 1]], dtype=np.int64)]
+    def fake(view_num, input_len, rate):
+        calls.append((view_num, input_len, rate))
+        return matrices[len(calls) - 1]
+    monkeypatch.setattr(legacy_random_mask, 'random_mask', fake)
+    speakers = np.array([[0, 1, 0], [1, 0, 0]])
+    valid = np.array([[1, 1, 1], [1, 1, 0]], dtype=bool)
+    actual = sample_dialogue_masks(speakers, valid, .3)
+    expected = np.array([[[1, 0, 0], [1, 0, 0], [0, 0, 1]],
+                         [[1, 0, 1], [0, 1, 1], [0, 0, 0]]], dtype=np.float32)
+    np.testing.assert_array_equal(actual, expected)
+    assert calls == [(3, 6, .3), (3, 6, .3)]
+
+
+def test_repeated_evaluations_draw_new_masks_and_rng_restore_replays():
+    speakers = np.arange(128).reshape(8, 16) % 2
+    valid = np.ones_like(speakers, dtype=bool)
+    np.random.seed(68)
+    state = np.random.get_state()
+    first = sample_dialogue_masks(speakers, valid, .5)
+    second = sample_dialogue_masks(speakers, valid, .5)
+    assert not np.array_equal(first, second)
+    np.random.set_state(state)
+    np.testing.assert_array_equal(first, sample_dialogue_masks(speakers, valid, .5))
+    np.testing.assert_array_equal(second, sample_dialogue_masks(speakers, valid, .5))
+
+
+@pytest.mark.parametrize('rate', [0., .3, .7])
+def test_utterance_adapter_is_batch_n_sequence_one(rate):
+    speakers = np.arange(37, dtype=np.int64) % 2
+    np.random.seed(66)
+    expected = sample_dialogue_masks(speakers[:, None], np.ones((37, 1), dtype=bool), rate)[:, 0]
+    expected_state = np.random.get_state()
+    np.random.seed(66)
+    np.testing.assert_array_equal(sample_utterance_masks(speakers, rate), expected)
+    assert_rng_equal(np.random.get_state(), expected_state)
+
+
+def test_nominal_point_seven_has_actual_two_thirds_missing():
+    actual = sample_utterance_masks(np.arange(256, dtype=np.int64) % 2, .7)
+    assert np.all(actual.sum(-1) == 1)
+    assert 1 - actual.mean(dtype=np.float64) == pytest.approx(2 / 3)
+
+
+@pytest.mark.parametrize('rate', [0., .3, .6, .7])
+def test_meld_nine_speakers_matches_retained_selector_features_padding_and_rng(rate):
+    path = REFERENCE.parent / 'train_gcnet.py'
+    function = next(node for node in ast.parse(path.read_text()).body
+                    if isinstance(node, ast.FunctionDef) and node.name == 'generate_inputs')
+    namespace = {'torch': torch}
+    exec(compile(ast.Module(body=[function], type_ignores=[]), str(path), 'exec'), namespace)
+    speakers = np.tile(np.arange(9, dtype=np.int64), (3, 1))
+    original_speakers = speakers.copy()
+    valid = np.ones_like(speakers, dtype=bool)
+    valid[0, -2:] = False
+    valid[1, -1] = False
+    features = np.random.RandomState(999).normal(size=(*speakers.shape, 6)).astype(np.float32)
+    np.random.seed(67)
+    schedule = GCNetLegacyRandomMaskSchedule('MELD', 'dynamic', 1, rate, 0)
+    host, guest = schedule.generate_batch(['0', '1', '2'], torch.from_numpy(valid), 0)
+    selected = namespace['generate_inputs'](
+        host[..., 0:1], host[..., 1:2], host[..., 2:3],
+        guest[..., 0:1], guest[..., 1:2], guest[..., 2:3],
+        torch.from_numpy(speakers),
+    )[0].numpy().transpose(1, 0, 2).astype(np.float32)
+    expected_state = np.random.get_state()
+    host_features = torch.from_numpy(features.transpose(1, 0, 2)) * torch.repeat_interleave(host, 2, dim=-1)
+    guest_features = torch.from_numpy(features.transpose(1, 0, 2)) * torch.repeat_interleave(guest, 2, dim=-1)
+    expected_features = namespace['generate_inputs'](
+        host_features[..., :2], host_features[..., 2:4], host_features[..., 4:],
+        guest_features[..., :2], guest_features[..., 2:4], guest_features[..., 4:],
+        torch.from_numpy(speakers),
+    )[0].numpy().transpose(1, 0, 2)
+    np.random.seed(67)
+    actual = sample_dialogue_masks(speakers, valid, rate, dataset='MELD')
+    np.testing.assert_array_equal(actual, selected)
+    np.testing.assert_array_equal(features * np.repeat(actual, 2, axis=-1), expected_features)
+    np.testing.assert_array_equal(speakers, original_speakers)
+    assert np.count_nonzero(actual[~valid]) == 0
+    assert_rng_equal(np.random.get_state(), expected_state)
+
+
+def test_meld_utterance_adapter_preserves_nine_speaker_mapping():
+    speakers = np.tile(np.arange(9, dtype=np.int64), 4)
+    np.random.seed(66)
+    expected = sample_dialogue_masks(speakers[:, None], np.ones((36, 1), dtype=bool),
+                                     .3, dataset='MELD')[:, 0]
+    expected_state = np.random.get_state()
+    np.random.seed(66)
+    actual = sample_utterance_masks(speakers, .3, dataset='MELD')
+    np.testing.assert_array_equal(actual, expected)
+    assert_rng_equal(np.random.get_state(), expected_state)
+
+
+@pytest.mark.parametrize('dataset,max_speaker', [('IEMOCAP', 1), ('IEMOCAPFour', 1),
+                                               ('IEMOCAPSix', 1), ('MELD', 8)])
+def test_dataset_bounded_speaker_ids_are_validated(dataset, max_speaker):
+    speakers = np.array([[max_speaker + 1]])
+    np.random.seed(66)
+    state = np.random.get_state()
+    with pytest.raises(ValueError):
+        sample_dialogue_masks(speakers, np.ones_like(speakers, dtype=bool), .3, dataset=dataset)
+    assert_rng_equal(np.random.get_state(), state)
+
+
+def test_unknown_dataset_is_rejected_without_drawing():
+    np.random.seed(66)
+    state = np.random.get_state()
+    with pytest.raises(ValueError):
+        sample_utterance_masks(np.array([0, 1]), .3, dataset='unrecognized')
+    assert_rng_equal(np.random.get_state(), state)
+
+
+@pytest.mark.parametrize('seed', [66, 67])
+def test_original_tail_overflow_is_preserved_without_retry_or_guard(seed):
+    """Retain the official failure; a successful replacement would change it."""
+    audit = json.loads((ROOT / 'audit/original_sampler_tail_failure.json').read_text())
+    case = next(row for row in audit['actual_failed_runs'] if row['seed'] == seed)
+    saved = case['pre_call_numpy_rng']
+    state = (saved['algorithm'], np.asarray(saved['keys'], dtype=np.uint32),
+             saved['position'], saved['has_gauss'], saved['cached_gaussian'])
+    np.random.set_state(state)
+    with pytest.warns(RuntimeWarning, match='divide by zero'):
+        with pytest.raises(OverflowError, match='cannot convert float infinity to integer'):
+            random_mask(3, 50, .6)
+    retained_after = np.random.get_state()
+    np.random.set_state(state)
+    with pytest.warns(RuntimeWarning, match='divide by zero'):
+        with pytest.raises(OverflowError, match='cannot convert float infinity to integer'):
+            official_sampler()(3, 50, .6)
+    assert_rng_equal(np.random.get_state(), retained_after)
+
+
+@pytest.mark.parametrize('speakers,valid', [
+    (np.array([[0, 2]]), np.ones((1, 2), dtype=bool)),
+    (np.array([[0, -1]]), np.ones((1, 2), dtype=bool)),
+    (np.array([[0., 1.]]), np.ones((1, 2), dtype=bool)),
+    (np.array([[0, 1]]), np.ones((2, 1), dtype=bool)),
+    (np.array([[0, 1]]), np.ones((1, 2), dtype=np.int64)),
+    (np.array([0, 1]), np.ones(2, dtype=bool)),
+    (np.empty((0, 2), dtype=int), np.ones((0, 2), dtype=bool)),
+])
+def test_unsupported_inputs_fail_before_consuming_rng(speakers, valid):
+    np.random.seed(68)
+    before = np.random.get_state()
+    with pytest.raises((ValueError, TypeError)):
+        sample_dialogue_masks(speakers, valid, .3)
+    assert_rng_equal(np.random.get_state(), before)
