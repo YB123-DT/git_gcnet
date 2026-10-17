@@ -4,6 +4,12 @@ Status:PLANNED ONLY. No training or queued jobs launched by this proposal.
 This follows the user's proposed grouped search; frozen diagnostic results do
 not establish the optimal settings of independently trained models.
 
+Follow-up:user requested launch on2026-10-17. First-round execution is tracked
+in experiments/osram_meld_write_tuning_20261017. It retains the accepted original
+per-rate Test-best ACC protocol as internal exploration,not a silent validation
+switch or a formal optimal-setting claim. The planning-only statements below
+describe the initial proposal;later rounds remain unlaunched/unauthorized.
+
 ## First round:five one-factor configurations,not a3x3grid
 
 | ID | osram_write_step | osram_write_ridge | Difference from control |
