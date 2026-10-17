@@ -142,3 +142,16 @@ epochs are unchanged from21epochs. Mean ACC54.583333%,UA31.867129%,W-F1
 51.311692%; high-missing ACC53.882503%,UA28.529767%,W-F1 49.603867%.
 `last_training.pt` exists at161684925bytes. No training/configuration change,
 new inference or additional experiment was performed for this status check.
+
+## Final verification, 2026-10-17 07:31 UTC
+
+SUMMARY status complete,history50epochs,intended PID exited. All8BEST files and
+recovery file remain. Independently checked all8checkpoint SHA256s,selected
+prediction file SHA256s,availability hashes,selected epochs,N2610and recomputed
+ACC/UA/W-F1 from saved logits against SUMMARY; all passed. No fresh inference.
+Onlyrate0.5improved after37epochs (selectedepoch38). Final eight-rate
+ACC54.631226%,UA31.941699%,W-F1 51.375637%; high-missing ACC54.010217%,
+UA28.728619%,W-F1 49.774386%. Recovery file161718909bytes. Wall2697.284seconds,
+peakCUDAallocated606427648bytes. Downloaded the small final SUMMARY as
+MAGTKD_FINAL_SUMMARY.json; weights/data/predictions are not committed.
+No extra training/tuning was started; MM-Align remains unsubmitted.
