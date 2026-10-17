@@ -41,3 +41,21 @@ MM-Align source remains blocked:official Drive quota interrupted the archive at
 missing canonical110_7. No samples were dropped,filled,relabeled or mixed with
 old ECERC features. User clarification was requested for any reduced-subset
 comparison; no such expansion is currently submitted.
+
+## User-requested immediate download retry, 2026-10-17
+
+Ran the existing resumable official downloader again in the dedicated tmux
+session `mmalign_download_resume_1017`,using the same partial archive and URL.
+The fresh request failed with explicit `QuotaExceeded: Google Drive quota
+exceeded; partial archive preserved for a later resume`. The session exited;
+there is no active MM-Align download to report. Archive size remains exactly
+838860800bytes. Retry log:
+`/data2/yb/paper/feature_sources/mmalign_20261017/resume_20261017.log`.
+
+A fresh `ssh biggpu hostname` again failed at SSH banner exchange. The separate
+MAGTKD bounded automatic SSH/submission helper remains alive; no formal GPU
+training has started. No code,environment,seed,missing protocol or samples were
+changed. Existing data are preserved. Official provider quota/server recovery
+or an accessible complete official feature copy is required for further progress.
+Do not call the quota failure a slow-but-running download,or start MM-Align
+training on a partial archive.
