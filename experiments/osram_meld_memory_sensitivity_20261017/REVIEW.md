@@ -1,5 +1,10 @@
 # MELD Memory sensitivity: source audit before parameter intervention
 
+Latest follow-up2026-10-17:the bounded seed66 frozen functional diagnostic is
+complete at rates0.0/0.4/0.7. See SENSITIVITY_RESULT.md and FROZEN_SUMMARY.json.
+Earlier unlaunched/connectivity statuses below describe their original phase,
+not the final status. No retraining was performed.
+
 INTERNAL DIAGNOSTIC ONLY. Source inspected at accepted baseline commit
 `b4a313841f098487a6482d2712bdac94aa8e319e`,not inferred from newer variants.
 No model code,weights,data,masks or training settings were modified.

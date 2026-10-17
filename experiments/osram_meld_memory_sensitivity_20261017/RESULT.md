@@ -1,5 +1,9 @@
 # Learned MELD Flat Memory parameters
 
+Follow-up:the frozen alpha/beta/head functional diagnostic is now complete;
+see SENSITIVITY_RESULT.md. The extraction-only report below retains its original
+scope and does not include those later inference results.
+
 INTERNAL DIAGNOSTIC ONLY. Completed read-only CPU extraction on biggpu at
 2026-10-17T10:45:02Z. No GPU,model inference,backward,optimizer step or retraining.
 

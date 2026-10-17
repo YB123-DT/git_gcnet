@@ -139,3 +139,23 @@ def test_lagged_alpha_forks_start_from_same_postwrite_state_and_replay_normal():
         if target-source == 1:
             valid = by_time[target][4].bool().any(-1)
             torch.testing.assert_close(memory[valid], by_time[source][-1][valid]*.95)
+
+
+def test_global_alpha_read_differences_at_t_equal_first_source_anchored_fork():
+    """Saved full-trajectory read stats at t=d also audit source0, lag=d.
+
+    The zero initial state makes the first post-write state independent of alpha.
+    This identity permits a first-source lag read analysis without new inference.
+    """
+    from experiments.osram_meld_memory_sensitivity_20261017.sensitivity import alpha_forks, parameter_override
+    model, args = tiny_trace()
+    with torch.no_grad(), WriteCapture(model, args[-2]) as original:
+        model(*args)
+    with torch.no_grad(), parameter_override(model, alpha=.95), WriteCapture(model, args[-2]) as changed:
+        model(*args)
+    torch.testing.assert_close(original.snapshots[0][-1], changed.snapshots[0][-1], rtol=0, atol=0)
+    by_time = {row[0]: row for row in changed.snapshots}
+    for source, target, memory in alpha_forks(model, original.snapshots, .95):
+        if source == 0:
+            valid = args[-2][:, target].bool()
+            torch.testing.assert_close(memory[valid], by_time[target][1][valid])

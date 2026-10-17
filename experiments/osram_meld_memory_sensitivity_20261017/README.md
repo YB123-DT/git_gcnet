@@ -2,8 +2,8 @@
 
 INTERNAL DIAGNOSTIC ONLY. No training, no new model, no mask generation.
 Static trained parameters for all24protected BESTs are in RESULT.md. The new
-functional diagnostic is preregistered in SENSITIVITY_PLAN.md and will be reported
-separately in SENSITIVITY_RESULT.md. Three rates are not an eight-rate result.
+functional diagnostic is preregistered in SENSITIVITY_PLAN.md and is complete,
+reported separately in SENSITIVITY_RESULT.md. Three rates are not an eight-rate result.
 
 ## Version and execution
 
@@ -16,9 +16,10 @@ separately in SENSITIVITY_RESULT.md. Three rates are not an eight-rate result.
 - Adjacent log:frozen_801.log. The runner writes only to its isolated output;
   protected checkpoints, masks and feature files are opened for reading only.
 
-Launched2026-10-17. Completion requires SUMMARY.json status=complete,
+Completed2026-10-17 in328.86seconds. SUMMARY.json status=complete,
 all2610utterances per rate, exact original saved-label/class parity, matching
-sample identities across rates, restored state hashes and unchanged CUDA RNG.
+sample identities across rates, restored state hashes and unchanged CUDA RNG
+were verified.
 Do not infer completion from the tmux/session or process exit alone.
 
 ```bash
@@ -69,6 +70,20 @@ active-column spectra, embedded-beta/ridge equivalence, joint-write column
 permutation, exact forward head slicing, learned-alpha fork parity, identities,
 fixed seven-class UA and prior mask/task replay contracts. They do not prove
 performance gains or rule out all scientific failure modes.
+
+After adding artifact/noise-bound checks and the first-source alpha identity,
+the complete suite above plus tests/test_meld_sensitivity_analysis.py passed
+30tests in32.86seconds. The actual frozen run completed with all original
+saved classes/labels matched, state hashes restored and CUDA RNG unchanged.
+Noise-aware postprocessing is at the adjacent remote analysis_noiseaware;
+the earlier analysis_724 head-correlation output is superseded as documented
+in SENSITIVITY_RESULT.md. Reproduce postprocessing with:
+
+```bash
+python experiments/osram_meld_memory_sensitivity_20261017/analyze.py \
+  --input /data2/yb/remote_experiments/osram_meld_memory_sensitivity_20261017/frozen_801 \
+  --output NEW_NONEXISTING_ANALYSIS_DIRECTORY
+```
 
 Raw logits/IDs, large utterance/state/spectrum/direct-beta/lagged-alpha gzip
 streams remain remote. Only compact summaries, source/tests and text reports
