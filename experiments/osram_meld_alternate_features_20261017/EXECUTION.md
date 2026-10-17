@@ -120,3 +120,15 @@ Any future strictly paired ECERC control must use the same corrected worker
 compatibility shim; this experiment does not retroactively make historical
 wrappers' CUDA seeding or checkpoints bit-identical,and no extra control run
 is authorized or launched by this repair.
+
+## Interim progress, 2026-10-17 06:58:37 UTC
+
+Remote v2 SUMMARY reports running,no error;history contains21completed epochs.
+PID1365346 remains the intended MAGTKD Flat worker. Recomputed ACC/UA from the
+eight exact saved selected-epoch artifacts,without new inference. All ACCs
+matched checkpoint metadata within1e-8fraction units. Eight-rate mean is
+ACC54.583333%,UA31.867129%; per-rate scores and selected epochs are in RESULT.md.
+Epoch21training W-F1 is0.9210;its ordinary test mean ACC is0.5184 (distinct from
+the accumulated per-rate Test-best mean). This train/test gap is an observation,
+not a proven feature mismatch or causal diagnosis. No configuration was changed.
+MM-Align remains blocked by the recorded official quota/full-coverage issues.
