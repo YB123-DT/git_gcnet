@@ -54,7 +54,7 @@ def history_bin(prior):
     return 'first' if prior == 0 else '1-3' if prior < 4 else '4-7' if prior < 8 else '8-15' if prior < 16 else '16+'
 
 
-def head_effect_profiles(labels, baseline, removed, patterns):
+def head_effect_profiles(labels, baseline, removed, patterns, *, noise_ce_tolerance=0.):
     """Pearson similarity of eight ablation CE effects; never compare bases."""
     labels, baseline, removed, patterns = map(np.asarray, (labels, baseline, removed, patterns))
     n = len(labels)
@@ -62,6 +62,8 @@ def head_effect_profiles(labels, baseline, removed, patterns):
         raise ValueError('Require aligned [N,7] baseline and [N,8,7] head ablations')
     if not np.isfinite(baseline).all() or not np.isfinite(removed).all():
         raise ValueError('Nonfinite logits cannot define head effect profiles')
+    if not np.isfinite(noise_ce_tolerance) or noise_ce_tolerance < 0:
+        raise ValueError('CE noise tolerance must be finite and nonnegative')
     def ce(logits):
         shifted = logits.astype(float) - logits.max(-1, keepdims=True)
         return np.log(np.exp(shifted).sum(-1)) - shifted[np.arange(n), labels.astype(int)]
@@ -74,11 +76,12 @@ def head_effect_profiles(labels, baseline, removed, patterns):
         values = effects[selected]
         centered = values - values.mean(0, keepdims=True)
         norms = np.linalg.norm(centered, axis=0)
+        unresolved = np.max(np.abs(values), axis=0) <= noise_ce_tolerance
         matrix, pairs = [], []
         for i in range(8):
             row = []
             for j in range(8):
-                value = None if norms[i] == 0 or norms[j] == 0 else float(np.clip(
+                value = None if unresolved[i] or unresolved[j] or norms[i] == 0 or norms[j] == 0 else float(np.clip(
                     np.dot(centered[:, i], centered[:, j]) / (norms[i] * norms[j]), -1., 1.))
                 row.append(value)
                 if i < j and value is not None:
@@ -88,6 +91,8 @@ def head_effect_profiles(labels, baseline, removed, patterns):
             effect_definition='CE(remove head)-CE(original full)',
             mean_ce_delta_per_head=values.mean(0).tolist(),
             zero_variance_heads=np.flatnonzero(norms == 0).tolist(),
+            numerically_unresolved_heads=np.flatnonzero(unresolved).tolist(),
+            noise_ce_tolerance=float(noise_ce_tolerance),
             finite_off_diagonal_pairs=len(pairs), off_diagonal_mean=float(np.mean(pairs)) if pairs else None,
             off_diagonal_min=float(min(pairs)) if pairs else None, off_diagonal_max=float(max(pairs)) if pairs else None))
     return result
@@ -187,6 +192,7 @@ def analyze(source, *, allow_incomplete=False):
             'History bins count prior valid utterances; lagged alpha cohorts instead use actual source-target distance and may repeat targets.',
             'Absolute state/norm summaries are included only when present in the source streams.',
             'Head profile correlations compare per-utterance CE effects of ablations, not cross-head representation coordinates; zero-variance profiles have null correlation.',
+            'If max absolute head CE effect is within twice the measured full-readout logit parity error, its correlation is unresolved/null: CE is 2-Lipschitz in the logit infinity norm. This excludes shared readout roundoff, not trained heads.',
         ], state_changes=[], direct_beta=[], spectra=[], performance=[], head_ablation=[], lagged_alpha=[],
         head_effect_correlations=[], unavailable_optional_artifacts=[])
     ridge = float(summary.get('source_config', {}).get('osram_write_ridge', .001))
@@ -228,7 +234,8 @@ def analyze(source, *, allow_incomplete=False):
                 for kind in ('base', 'gap'):
                     removed = np.stack([predictions[f'remove_{kind}_head_{head}'] for head in range(8)], 1)
                     profiles = head_effect_profiles(predictions['labels'], predictions['baseline'], removed,
-                                                    predictions['availability_patterns'])
+                        predictions['availability_patterns'],
+                        noise_ce_tolerance=2*float(entry.get('max_readout_logit_error', 0.))+1e-12)
                     report['head_effect_correlations'].extend(dict(rate=rate, kind=kind, **row) for row in profiles)
         else:
             report['unavailable_optional_artifacts'].append(str(predictions_path))

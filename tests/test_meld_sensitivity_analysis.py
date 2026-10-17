@@ -90,3 +90,18 @@ def test_effect_correlations_compare_ce_changes_and_report_zero_variance():
     assert report[0]['off_diagonal_mean'] == pytest.approx(1.)
     assert report[1]['availability'] == '011'
     assert report[1]['N'] == 24
+
+
+def test_shared_readout_roundoff_is_not_head_specialization():
+    labels = np.arange(24) % 2
+    baseline = np.zeros((24, 7))
+    replay = baseline.copy()
+    replay[:, 0] = np.linspace(-1e-7, 1e-7, 24)
+    # All heads are identically inactive. One alternate readout arithmetic path
+    # has tiny common roundoff relative to the original full model output.
+    removed = np.repeat(replay[:, None, :], 8, axis=1)
+    report = analyzer().head_effect_profiles(labels, baseline, removed,
+        np.array(['111'] * 24), noise_ce_tolerance=2e-6)
+    assert report[0]['off_diagonal_mean'] is None
+    assert report[0]['numerically_unresolved_heads'] == list(range(8))
+    assert report[0]['correlation_matrix'][0][1] is None
