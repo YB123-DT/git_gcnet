@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_command_keeps_remote_environment_data_hash_and_single_seed():
     from experiments.osram_meld_alternate_features_20261017.submit import command
     text = command('GPU-healthy', '59eb', '/run', smoke=False)

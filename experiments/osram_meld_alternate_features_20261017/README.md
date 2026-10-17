@@ -24,6 +24,10 @@ Use `text/audio_kd/video_kd`,as its original fusion code does. These features
 already include upstream task supervision and cross-modal distillation;
 text uses a causal dialogue prefix. No new distillation is trained here.
 Do not present this as a controlled swap between generic frozen encoders.
+Cached text features can already encode earlier text that a later synthetic
+availability mask removes. Therefore these released inputs do not isolate
+strict observation-conditioned history access by CHM alone; report scores as
+feature-source diagnostics,not proof of a better Memory mechanism.
 
 MM-Align source:[official repo](https://github.com/declare-lab/MM-Align),commit
 `e2448590b3d9b308350515bcb147526f4baa6ac7`;[download](https://drive.google.com/file/d/1RjrYSMpXxg_6r_nUQaysaPyMsldLpMcb/view).
