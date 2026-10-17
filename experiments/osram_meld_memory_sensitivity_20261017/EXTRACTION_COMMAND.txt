@@ -1,0 +1,25 @@
+ssh -o BatchMode=yes -o ConnectTimeout=12 biggpu /data2/yb/conda_envs/cmerc-repro/bin/python - <<'PY'
+import torch,pathlib,json,hashlib,time,io,numpy as np
+roots={66:'/data2/yb/remote_experiments/osram_meld_write_retention_20261014/seed66_reproduced_b4a3138/baseline',67:'/data2/yb/remote_experiments/osram_meld_testbest_ua_20261014/flat_restore/seed67/baseline',68:'/data2/yb/remote_experiments/osram_meld_testbest_ua_20261014/flat_restore/seed68/baseline'}
+def stats(x):
+ x=np.asarray(x,dtype=np.float64)
+ return dict(min=float(x.min()),mean=float(x.mean()),max=float(x.max()),sigmoid_derivative_min=float((x*(1-x)).min()),near_boundary_lt001_or_gt099=int(((x<.01)|(x>.99)).sum()))
+rows=[]
+for seed,root in roots.items():
+ for i in range(8):
+  p=pathlib.Path(root)/f'best_miss_0p{i}.pt'; before=p.stat(); blob=p.read_bytes(); digest=hashlib.sha256(blob).hexdigest(); d=torch.load(io.BytesIO(blob),map_location='cpu',weights_only=False); st=d['model']; c=d['config']
+  assert c['dataset']=='MELD' and c['seed']==seed and c['missing_mask_protocol']=='gcnet-random-mask-v1' and c['osram_readout_fusion']=='flat'
+  assert c.get('osram_meaningful_block','none')=='none' and not c.get('osram_disable_local_skip',False)
+  assert c['osram_write_step']==.6 and c['beta_mode']=='embedded' and c['osram_write_ridge']==.001
+  assert st['osram.alpha_logits'].shape==(8,) and st['osram.beta_logits'].shape==(8,3)
+  assert torch.isfinite(st['osram.alpha_logits']).all() and torch.isfinite(st['osram.beta_logits']).all()
+  a=st['osram.alpha_logits'].sigmoid().numpy();b=st['osram.beta_logits'].sigmoid().numpy()
+  assert d['selection_rate']==i/10 and d['selection_metric']=='accuracy'
+  after=p.stat(); assert (before.st_size,before.st_mtime_ns)==(after.st_size,after.st_mtime_ns)
+  rows.append(dict(seed=seed,rate=i/10,epoch=d['epoch'],checkpoint=str(p),checkpoint_sha256=digest,selection_accuracy=d['selection_accuracy'],alpha_heads=a.tolist(),beta_head_modality=b.tolist(),alpha_logits=st['osram.alpha_logits'].tolist(),beta_logits=st['osram.beta_logits'].tolist(),alpha=stats(a),beta=stats(b),beta_by_modality={m:stats(b[:,j]) for j,m in enumerate(['A','T','V'])},alpha_power8_heads=(a.astype(np.float64)**8).tolist()))
+summary={}
+for seed in roots:
+ r=[x for x in rows if x['seed']==seed];a=np.array([x['alpha_heads'] for x in r]); b=np.array([x['beta_head_modality'] for x in r])
+ summary[str(seed)]=dict(selected_epochs=[x['epoch'] for x in r],alpha=stats(a),beta=stats(b),alpha_head_mean=a.mean(0).tolist(),beta_head_modality_mean=b.mean(0).tolist(),beta_by_modality={m:stats(b[:,:,j]) for j,m in enumerate(['A','T','V'])},alpha_shift_from_init_mean=float(a.mean()-.98),alpha_abs_change_from_init_max=float(np.max(np.abs(a-.98))),beta_abs_change_from_init_max=float(np.max(np.abs(b-.5))))
+print(json.dumps(dict(status='complete_parameter_extraction_only',utc=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),server='biggpu',python='/data2/yb/conda_envs/cmerc-repro/bin/python',torch=torch.__version__,source_commit='b4a313841f098487a6482d2712bdac94aa8e319e',head_order='tensor index0..7 (report Head1..8)',modality_order=['A','T','V'],initial_values={'alpha':.98,'beta':.5},config={'write_step':.6,'beta_mode':'embedded','write_ridge':.001},gpu_used=False,training=False,inference=False,gradients_recovered=False,checkpoints=rows,seed_summary=summary),separators=(',',':')))
+PY

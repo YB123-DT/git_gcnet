@@ -69,7 +69,7 @@ frozen audit is informative. This is a proposal,not training authorization.
 Latest user instruction specifies validation selection for final hyperparameters;
 existing per-rate Test-oracle diagnostics remain labeled and are not relabeled.
 
-## Execution boundary
+## Historical execution boundary (resolved for parameter extraction)
 
 Three relevant SSH attempts this turn timed out during banner exchange on
 `ssh biggpu`,before checkpoint extraction. Thus no new actual alpha/beta values,
@@ -80,3 +80,12 @@ locally through git show,so the source/algebra audit above is complete.
 No remote job was submitted,no GPU allocated,no process signalled,and no local
 training substituted. Remote weights must be read once connectivity returns;
 do not report this source audit as completion of the proposed three-stage study.
+
+## Subsequent read-only parameter extraction
+
+SSH recovered on2026-10-17. Actual alpha/beta were extracted from all24accepted
+MELD Flat BEST checkpoint states. All file hashes/epochs/ACCs match the accepted
+baseline archives. See RESULT.md,ALPHA_BETA.json and ALPHA_BETA_PER_HEAD.csv.
+This completes the static parameter check only;there was no training,backward,
+head-use evaluation or frozen parameter intervention. Earlier connectivity
+failure is retained above as historical evidence,not the current extraction status.
