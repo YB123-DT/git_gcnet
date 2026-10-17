@@ -1,0 +1,28 @@
+{
+  "source_repository": "https://github.com/YB123-DT/git_gcnet",
+  "source_branch": "feature/comp-meld",
+  "source_commit": "aa538318fda0075a48f7ba8474b08fd239bea0f2",
+  "source_directory": "/data2/yb/paper/GCNet_TPAMI/.worktrees/comp-meld/external_repos/ComP_causal/ComP",
+  "upstream_repository": "https://github.com/WenjueHE/2026-AAAI-ComP",
+  "upstream_commit": "28192d3a5683543d7383e40898f9a98d1f114a08",
+  "upstream_directory": "/data2/yb/paper/05_reproduction/external_repos/ComP",
+  "files": {
+    "model.py": {
+      "source_sha256": "e9846bbecb4538d2275b9e24886b3088f1eac79c2f7585fd68439071e25ba40e",
+      "vendored_sha256": "4d9e2da7d4a10514bee8ac59bcdb75420a47b2883a52107607035e8f0df5502f"
+    },
+    "loss.py": {
+      "source_sha256": "f2e997585e7d0045c865d77c043306d9823aeef475235be49681929430a75bd8",
+      "vendored_sha256": "f2e997585e7d0045c865d77c043306d9823aeef475235be49681929430a75bd8"
+    },
+    "modules/Attention.py": {
+      "source_sha256": "d9814e034a0804f6e1c8cd4b2bbb50d5e07617521de0d8a690007722dd21925a",
+      "vendored_sha256": "d9814e034a0804f6e1c8cd4b2bbb50d5e07617521de0d8a690007722dd21925a"
+    }
+  },
+  "local_changes": [
+    "model import uses package-relative .modules.Attention",
+    "noncausal PromptFormer and PromptFormer_2 use reshape instead of view on noncontiguous input masks",
+    "No architecture or loss changes; uses existing temporal_causal switch"
+  ]
+}

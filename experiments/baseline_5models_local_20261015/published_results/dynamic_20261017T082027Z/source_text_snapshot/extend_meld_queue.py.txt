@@ -1,0 +1,85 @@
+"""Append audited MELD dynamic tasks without overwriting any existing run."""
+import fcntl
+import json
+from pathlib import Path
+import shutil
+
+import numpy as np
+
+from runtime import ROOT, RUN_ROOT, atomic_json, now
+
+
+def main():
+    with (RUN_ROOT/'dispatcher.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        registry = json.loads((ROOT/'experiment_registry.json').read_text())
+        if registry.get('MELD_dynamic_extension'):
+            raise RuntimeError('MELD extension already applied; resume the queue')
+        backup = RUN_ROOT/'queue_transitions'/('MELD_dynamic_'+now().replace(':',''))
+        backup.mkdir(parents=True)
+        for name in ('experiment_registry.json','gates.json'):
+            shutil.copy2(ROOT/name, backup/name)
+        old_root = ROOT.parent/'baseline_5models_local_20261015'
+        old = json.loads((old_root/'experiment_registry.json').read_text())
+        versions = {'MMIN':'original','MoMKE':'causal','GCNet':'released_compatible',
+                    'SDR-GNN':'released_compatible','ComP':'causal'}
+        gates = json.loads((ROOT/'gates.json').read_text())
+        additions, aliases = [], []
+        for source in old['tasks']:
+            c = source['config']
+            if (source['phase'] != 'formal' or c['dataset'] != 'MELD'
+                    or versions.get(c['model']) != c['model_version']):
+                continue
+            d = Path(source['run_dir'])
+            if c['missing_rate'] == 0 and (d/'metrics.json').exists():
+                status = json.loads((d/'status.json').read_text())
+                assert status['state'] == 'COMPLETED' and status['exit_code'] == 0
+                with np.load(d/'predictions.npz', allow_pickle=False) as arrays:
+                    assert np.all(arrays['masks'] == 1) and len(arrays['labels']) == 2610
+                aliases.append(dict(task_id=source['id'], config=c, run_dir=str(d),
+                    reason='MR0 all modalities visible; same data/model/seed/budget/selection',
+                    mask_protocol='all_visible_equivalent'))
+                continue
+            config = dict(c, mask_protocol='gcnet-random-mask-v1',
+                test_mask_policy='dynamic_each_evaluation',
+                sampling_reference_sha256='113a48863917e9eda4736cb1e36e57aedb6e55915a3f1ed97fc329d071dfd547',
+                mask_mapping='retained_OSRAM_batch_time_host_guest', paired_masks=False)
+            gate = f"{c['model']}_{c['model_version']}_MELD_dynamic"
+            gates[gate] = dict(ready=False, reason='Requires both MELD dynamic-mask GPU smoke tests')
+            additions.append(dict(id=source['id'], config=config, run_dir=str(RUN_ROOT/source['id']),
+                source_fixed_task_id=source['id'], causality=source['causality'],
+                phase='formal', priority=0, gate=gate, status='MISSING'))
+        assert len(additions) == 108 and len(aliases) == 12
+        for model, version in versions.items():
+            for mr in (.3,.6):
+                template = next(t for t in additions if t['config']['model']==model
+                                and t['config']['seed']==66 and t['config']['missing_rate']==mr)
+                c = dict(template['config'], epochs=2, batch_size=4,
+                         stage_epoch=1 if model in ('MoMKE','ComP') else 0)
+                ident=f'compatibility_smoke/MELD/{model}/{version}/seed_66/mr_{mr:.1f}'
+                additions.append(dict(id=ident,config=c,run_dir=str(RUN_ROOT/ident),
+                    phase='compatibility_smoke',priority=-11,gate='dynamic_cpu_validation',
+                    opens_gate=template['gate'],status='MISSING'))
+        prior = {t['id'] for t in registry['tasks']}
+        for task in additions:
+            assert task['id'] not in prior
+            path = ROOT/'configs'/(task['id'].replace('/','__')+'.json')
+            assert not path.exists()
+            atomic_json(path, task['config']); task['config_path']=str(path)
+        registry['tasks'].extend(additions)
+        registry['all_visible_reuse'].extend(aliases)
+        registry['formal_fold_units']=294
+        registry['MELD_dynamic_extension']=dict(at=now(),formal_tasks=108,smoke_tasks=10,
+                                               all_visible_reuse=12,backup=str(backup))
+        scope=registry['user_execution_scope']
+        scope.update(datasets=['MELD','IEMOCAPFour','IEMOCAPSix'], MELD_fold=0,
+            required_configs=360, all_visible_reused_configs=18,missing_formal_configs=294,
+            MELD='108 new formal configurations; old ComP 50/25 results kept separate from 300/150')
+        atomic_json(ROOT/'gates.json',gates)
+        atomic_json(ROOT/'experiment_registry.json',registry)
+        atomic_json(ROOT/'audit/MELD_queue_extension.json',registry['MELD_dynamic_extension'])
+        print(json.dumps(registry['MELD_dynamic_extension']))
+
+
+if __name__ == '__main__':
+    main()

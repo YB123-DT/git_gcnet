@@ -1,0 +1,192 @@
+"""Local two-lane, full-feature smoke audit. Never launches formal training."""
+import argparse
+from concurrent.futures import ThreadPoolExecutor
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import threading
+import time
+import traceback
+
+from runtime import ROOT, RUN_ROOT, GPUS, PYTHON, atomic_json, enforce_local, gpu_free, now, valid_result
+
+AUDIT = ROOT / 'audit'
+SUMMARY = AUDIT / 'preflight.json'
+VERSIONS = [('MMIN','original'),('MoMKE','causal'),('GCNet','original'),
+            ('SDR-GNN','released_compatible'),('SDR-GNN','implementation_fixed'),('ComP','causal'),
+            ('MoMKE','original'),('ComP','original')]
+MUTEX = threading.Lock()
+STATE = {'started_at': now(), 'state':'STARTING', 'cpu_tests':[], 'runs':[]}
+
+
+def persist():
+    atomic_json(SUMMARY, STATE)
+
+
+def cpu_checks():
+    env = os.environ.copy()
+    env.update(CUDA_VISIBLE_DEVICES='', PYTHONDONTWRITEBYTECODE='1',
+               OMP_NUM_THREADS='4', MKL_NUM_THREADS='4', OPENBLAS_NUM_THREADS='4')
+    cases = [
+        ('momke', [PYTHON,str(ROOT/'tests/test_momke_causality.py')]),
+        ('mmin', [PYTHON,str(ROOT/'tests/test_mmin.py')]),
+        ('comp', [PYTHON,str(ROOT/'tests/test_comp_wrapper.py')]),
+        ('graphs', [PYTHON,str(ROOT/'adapters/graph_models/test_graph_models.py')]),
+        ('sdr_released', [PYTHON,str(ROOT/'adapters/graph_models/sdrgnn_released/test_released.py')]),
+        ('data_aggregate', [PYTHON,'-c',
+             "import sys; sys.path.append('/home/yangbin/miniconda3/lib/python3.13/site-packages'); import pytest; sys.exit(pytest.main(sys.argv[1:]))",
+             str(ROOT/'tests/test_data.py'),str(ROOT/'tests/test_aggregate.py'),'-q'])]
+    good=True
+    for name,command in cases:
+        tick=time.monotonic();log=AUDIT/f'preflight_cpu_{name}.log'
+        with log.open('a') as output:
+            output.write('\nSTART '+now()+'\n');output.flush()
+            result=subprocess.run(command,cwd=ROOT,env=env,stdout=output,stderr=subprocess.STDOUT)
+        row=dict(name=name,command=command,exit_code=result.returncode,
+                 seconds=time.monotonic()-tick,log=str(log),passed=result.returncode==0)
+        STATE['cpu_tests'].append(row);persist()
+        print('CPU',json.dumps(row),flush=True)
+        good &= result.returncode==0
+    return good
+
+
+def verify_uuid_mapping():
+    rows=subprocess.check_output(['nvidia-smi','--query-gpu=index,uuid','--format=csv,noheader'],text=True)
+    mapping={int(line.split(',')[0]):line.split(',')[1].strip() for line in rows.strip().splitlines()}
+    if [mapping.get(i) for i in (0,1)] != GPUS:
+        raise RuntimeError('Physical GPU 0/1 UUID mapping changed: '+repr(mapping))
+    STATE['gpu_mapping']=mapping;STATE['gpu_initial_free']={u:gpu_free(u) for u in GPUS};persist()
+
+
+def tasks():
+    registry=json.loads((ROOT/'experiment_registry.json').read_text())
+    groups=[]
+    for dataset in ('MELD','IEMOCAPFour','IEMOCAPSix'):
+        for model,version in VERSIONS:
+            pair=[]
+            for mr in (.3,.6):
+                found=[t for t in registry['tasks'] if t['phase']=='formal' and
+                       t['config']['dataset']==dataset and t['config']['model']==model and
+                       t['config']['model_version']==version and t['config']['seed']==66 and
+                       t['config']['fold']==(0 if dataset=='MELD' else 1) and
+                       t['config']['missing_rate']==mr]
+                if len(found)!=1:raise RuntimeError('Missing/ambiguous frozen smoke config '+repr((dataset,model,version,mr)))
+                task=found[0]
+                pair.append(dict(id=f'{dataset}/{model}/{version}/mr_{mr:.1f}',
+                                 config_path=task['config_path'],gate=task['gate'],
+                                 dataset=dataset,model=model,model_version=version,missing_rate=mr,
+                                 run_dir=str(RUN_ROOT/'smoke_v2'/dataset/model/version/f'mr_{mr:.1f}')))
+            groups.append(pair)
+    return groups
+
+
+def update_gate(pair,rows):
+    gate=pair[0]['gate']
+    good=all(row.get('valid') and row.get('result_type')=='smoke' for row in rows)
+    with MUTEX:
+        lock=(ROOT/'gates.lock').open('a')
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        path=ROOT/'gates.json'
+        gates=json.loads(path.read_text()) if path.exists() else {}
+        evidence=dict(source='preflight_smoke_v2',verified_at=now(),smoke_passed=good,
+                      evidence=[r['run_dir'] for r in rows],
+                      validation='runtime.valid_result and manifest.result_type=smoke; both MR0.3/0.6')
+        if gate in ('MoMKE_original_MELD','MoMKE_causal_MELD'):
+            # Budget decision owns readiness; record smoke evidence without opening it.
+            entry=gates.get(gate,{'ready':False})
+            entry.update(evidence)
+            gates[gate]=entry
+            if gate=='MoMKE_causal_MELD':
+                gates['MoMKE_causal_MELD_pilot']=dict(ready=good,**evidence)
+        else:
+            gates[gate]=dict(ready=good,**evidence)
+        atomic_json(path,gates)
+        fcntl.flock(lock,fcntl.LOCK_UN);lock.close()
+
+
+def run_smoke(task,uuid):
+    run=Path(task['run_dir']);run.mkdir(parents=True,exist_ok=True)
+    row=dict(task,gpu_uuid=uuid,started_at=now(),state='WAITING',valid=False)
+    with MUTEX:STATE['runs'].append(row);persist()
+    tick=time.monotonic()
+    exit_path=run/'preflight_exit.json'
+    if exit_path.exists():
+        row.update(json.loads(exit_path.read_text()))
+        row['valid']=valid_result(run)
+        print('EXISTING_SMOKE_V2',json.dumps(row),flush=True)
+        return row
+    try:
+        deadline=time.monotonic()+300
+        while not gpu_free(uuid):
+            if time.monotonic()>=deadline:raise RuntimeError('Whitelisted GPU remained occupied; no preemption attempted')
+            time.sleep(5)
+        # gpu_free is checked immediately before every spawn, never cached.
+        if not gpu_free(uuid):raise RuntimeError('GPU became busy immediately before launch')
+        command=[PYTHON,str(ROOT/'train_one.py'),'--config',task['config_path'],
+                 '--run-dir',str(run),'--smoke']
+        env=os.environ.copy();env.update(CUDA_VISIBLE_DEVICES=uuid,PYTHONUNBUFFERED='1',
+                                        PYTHONDONTWRITEBYTECODE='1',OMP_NUM_THREADS='4',
+                                        MKL_NUM_THREADS='4',OPENBLAS_NUM_THREADS='4')
+        config = json.loads(Path(task['config_path']).read_text())
+        if 'python_hash_seed' in config:
+            env['PYTHONHASHSEED'] = str(config['python_hash_seed'])
+        with (run/'run.log').open('a') as output:
+            child=subprocess.Popen(command,env=env,cwd=ROOT,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
+            row.update(state='RUNNING',pid=child.pid,command=command,log=str(run/'run.log'))
+            atomic_json(run/'preflight_launch.json',row)
+            with MUTEX:persist()
+            print('RUNNING',json.dumps(row),flush=True)
+            code=child.wait()
+        manifest=json.loads((run/'manifest.json').read_text()) if (run/'manifest.json').exists() else {}
+        history=[json.loads(line) for line in (run/'history.jsonl').read_text().splitlines()] if (run/'history.jsonl').exists() else []
+        row.update(exit_code=code,valid=code==0 and valid_result(run),
+                   result_type=manifest.get('result_type'),
+                   peak_gpu_mb=max((h.get('peak_gpu_mb',0) for h in history),default=0),
+                   epoch_seconds=sum(h.get('seconds',0) for h in history),
+                   completed_at=now(),seconds=time.monotonic()-tick)
+        row['state']='COMPLETED_SMOKE' if row['valid'] and row['result_type']=='smoke' else 'FAILED'
+        if row['state']=='FAILED':
+            failure=run/'failure.json'
+            row['failure']=json.loads(failure.read_text()) if failure.exists() else {'error':'Artifact validation failed','log':str(run/'run.log')}
+    except Exception:
+        row.update(state='FAILED',exit_code=-1,seconds=time.monotonic()-tick,
+                   failure={'traceback':traceback.format_exc()},completed_at=now())
+    atomic_json(exit_path,row)
+    with MUTEX:persist()
+    print('RESULT',json.dumps(row),flush=True)
+    return row
+
+
+def lane(groups,uuid):
+    for pair in groups:
+        rows=[run_smoke(task,uuid) for task in pair]
+        update_gate(pair,rows)
+
+
+def main():
+    ap=argparse.ArgumentParser();ap.add_argument('--skip-cpu',action='store_true');args=ap.parse_args()
+    enforce_local();AUDIT.mkdir(exist_ok=True,parents=True)
+    lock=(RUN_ROOT/'preflight.lock');lock.parent.mkdir(exist_ok=True,parents=True)
+    handle=lock.open('a');fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    STATE['pid']=os.getpid();persist()
+    verify_uuid_mapping()
+    if not args.skip_cpu and not cpu_checks():
+        STATE.update(state='FAILED_CPU_CHECKS',completed_at=now());persist();return 1
+    groups=tasks();expected=sum(len(pair) for pair in groups)
+    STATE.update(state='RUNNING_GPU_SMOKES',expected_runs=expected);persist()
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        # Complete every MELD smoke before advancing to IEMOCAP.
+        for dataset in ('MELD','IEMOCAPFour','IEMOCAPSix'):
+            phase=[pair for pair in groups if pair[0]['dataset']==dataset]
+            futures=[executor.submit(lane,phase[i::2],uuid) for i,uuid in enumerate(GPUS)]
+            for future in futures:future.result()
+    passed=sum(r.get('valid',False) and r.get('result_type')=='smoke' for r in STATE['runs'])
+    STATE.update(state='PASSED' if passed==expected else 'FAILED_GPU_SMOKES',passed_runs=passed,
+                 failed_runs=expected-passed,completed_at=now());persist()
+    print('PREFLIGHT',json.dumps({k:v for k,v in STATE.items() if k!='runs'}),flush=True)
+    return 0 if passed==expected else 1
+
+if __name__=='__main__':sys.exit(main())

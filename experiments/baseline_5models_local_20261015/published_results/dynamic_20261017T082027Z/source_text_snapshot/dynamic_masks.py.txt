@@ -1,0 +1,67 @@
+"""Expose retained OSRAM batch-level dynamic masks without changing its sampler.
+
+The global NumPy RNG advances on every call. Equal nominal rates do not imply
+paired masks across models, batch sizes, epochs, or training seeds.
+"""
+
+import numpy as np
+import torch
+
+try:
+    from .legacy_random_mask import GCNetLegacyRandomMaskSchedule
+except ImportError:
+    from legacy_random_mask import GCNetLegacyRandomMaskSchedule
+
+
+MASK_PROTOCOL = 'gcnet-random-mask-v1'
+
+
+def sample_dialogue_masks(speakers: np.ndarray, valid: np.ndarray,
+                          mr: float, dataset: str = 'IEMOCAP') -> np.ndarray:
+    """Return A/T/V availability [batch,time,3] using original host/guest draws.
+
+    Sampling includes every padded position; the retained schedule then zeros
+    padding availability. Retained OSRAM selects host for speaker 0 and guest
+    for every nonzero speaker, including MELD IDs 1..8. Original speaker IDs
+    remain unchanged for the downstream model and speaker graph.
+    """
+    speakers = np.asarray(speakers)
+    valid = np.asarray(valid)
+    if speakers.ndim != 2 or valid.shape != speakers.shape:
+        raise ValueError('speakers and valid must have matching [batch,time] shapes')
+    if not all(speakers.shape):
+        raise ValueError('batch and time dimensions must be nonempty')
+    if not np.issubdtype(speakers.dtype, np.integer):
+        raise TypeError('speaker IDs must be integers')
+    if valid.dtype != np.bool_:
+        raise TypeError('valid must be a boolean padding mask')
+    if dataset in {'IEMOCAP', 'IEMOCAPFour', 'IEMOCAPSix'}:
+        max_speaker = 1
+    elif dataset == 'MELD':
+        max_speaker = 8
+    else:
+        raise ValueError('dataset must be IEMOCAP, IEMOCAPFour, IEMOCAPSix, or MELD')
+    if np.any((speakers < 0) | (speakers > max_speaker)):
+        raise ValueError(f'{dataset} speaker IDs must be between 0 and {max_speaker}')
+    schedule = GCNetLegacyRandomMaskSchedule(
+        dataset=dataset, split='dynamic', fold=1 if dataset == 'MELD' else 5,
+        requested_missing_rate=mr, mask_seed=0,
+    )
+    host, guest = schedule.generate_batch(
+        [str(index) for index in range(speakers.shape[0])],
+        torch.from_numpy(valid), epoch=0,
+    )
+    host = host.numpy().transpose(1, 0, 2)
+    guest = guest.numpy().transpose(1, 0, 2)
+    return np.where(speakers[..., None] == 0, host, guest).astype(np.float32)
+
+
+def sample_utterance_masks(speakers: np.ndarray, mr: float,
+                           dataset: str = 'IEMOCAP') -> np.ndarray:
+    """Apply the same two-sided sampler with batch=N and sequence length=1."""
+    speakers = np.asarray(speakers)
+    if speakers.ndim != 1:
+        raise ValueError('utterance speaker IDs must have shape [N]')
+    return sample_dialogue_masks(
+        speakers[:, None], np.ones((len(speakers), 1), dtype=bool), mr, dataset=dataset,
+    )[:, 0]

@@ -1,8 +1,10 @@
 # HAMR 五种 Baseline：独立代码审查包
 
-本目录包含五种Baseline的八个版本、MELD/IEMOCAP-4/6数据接口、固定测试Mask、训练器、双GPU调度、真实Checkpoint验证和三种子统计代码。**代码可审查，不代表三种子训练已经全部完成。** 此分支只交付代码、协议配置、测试和源码适配说明；不含数据、权重、日志、预测、成绩、运行队列或GPU任务状态。
+本目录保留先前的独立代码审查包，并新增用户授权的结果和溯源快照。**最新协议、源码文本、结果分类和真实任务状态以 [published_results](published_results/README.md) 为准；三种子正式补跑尚在运行。**
 
-本次上传由用户另行明确授权。发布目标仅为 `YB123-DT/git_gcnet` 的 `feature/baseline-5models-local-20261015`；本机训练与实验产物仍保持原有禁止上传约束。
+用户于2026-10-17明确授权补传结果。最新协议、真实结果、历史结果分类和运行状态见 [published_results](published_results/README.md)，目标仍仅为 `YB123-DT/git_gcnet` 的 `feature/baseline-5models-local-20261015`。权重、原始特征、预测数组和完整日志仍保留本机。
+
+**版本提示：本页下方的可运行代码审查包是较早版本。当前正式实验已恢复原始动态Mask，GCNet旧修正版结果已归档；最新实际源码文本快照、协议和执行哈希位于上述结果包。下方旧的仅代码交付/固定Mask描述不是当前实验状态。**
 
 ## 模型与协议
 
@@ -10,7 +12,7 @@
 |---|---|---|
 | MMIN UTT-adapted Original | Utterance-only Causal | 既有预提取话语特征编码适配，Teacher/ResidualAE/Reconstruction/Cycle/Classifier保留，无历史编码器 |
 | MoMKE-Causal | Causal | 仅时间Self-Attention可见性变化，保留Experts/SoftMoE/路由/融合/两阶段 |
-| GCNet Original | Non-causal | 双向LSTM、未来窗口与双图保留；MELD为九说话人、81关系的MELD-adapted Original |
+| GCNet 较早实现适配版（历史） | Non-causal | 此旧审查包的Wrapper有Padding/图顺序调整；当前严格Released-compatible源码及结果隔离证据见published_results |
 | SDR-GNN Released-compatible（主文） | Non-causal | 保留发布代码Tuple选择、MHA轴及重建Padding行为；只做MELD输入维度/整除头数和九说话人关系兼容 |
 | SDR-GNN Implementation-fixed（单列比较） | Non-causal | 既有图返回、Attention轴和重建Padding修复版，保留原产物，不能代填主文Released成绩 |
 | ComP-Causal | Causal | 复用feature/comp-meld既有因果实现，不重新设计 |

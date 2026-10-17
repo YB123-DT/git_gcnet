@@ -6,3 +6,7 @@
 4. Exclude live registries, masks, predictions, metrics, logs, datasets, checkpoints and caches.
 5. Run CPU regression, syntax and fresh-registry checks in the delivery worktree; do not start GPU jobs from the delivery copy.
 6. Check exact destination URL and outgoing path/size list; push only the isolated branch to YB123-DT/git_gcnet.
+
+## 2026-10-17 explicit result-publication override
+
+The user explicitly authorized uploading missing results. Publish only the reviewed dynamic result snapshot and clearly classified historical scores under published_results. Keep weights, features, prediction/mask arrays and full training logs local. The interrupted withdrawn draft remains untracked and must not be staged. No unrelated repositories or branches are touched.
