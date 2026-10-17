@@ -92,10 +92,16 @@ def repair_uuid_enumeration(torch):
     runtime_count, python_count = torch._C._cuda_getDeviceCount(), torch.cuda.device_count()
     if runtime_count != 1:
         raise RuntimeError('Require exactly one admitted CUDA runtime device')
-    if python_count != runtime_count:
-        torch.cuda.device_count = lambda: runtime_count
+    # Torch1.13 cuda.random captured device_count at import time. Replacing
+    # only torch.cuda.device_count leaves manual_seed_all/get_rng_state_all
+    # seeing zero UUID-visible devices. Pin both to the checked CUDA runtime.
+    random_count = torch.cuda.random.device_count()
+    torch.cuda.device_count = lambda: runtime_count
+    torch.cuda.random.device_count = torch.cuda.device_count
     return dict(cuda_runtime_count=runtime_count, original_python_count=python_count,
-                uuid_enumeration_repaired=python_count != runtime_count)
+                original_random_count=random_count, cuda_count_pinned=True,
+                uuid_enumeration_repaired=python_count != runtime_count,
+                random_module_count_repaired=random_count != runtime_count)
 
 
 def require_cuda_rng(state):

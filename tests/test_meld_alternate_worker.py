@@ -49,6 +49,19 @@ class AlternateWorkerTests(unittest.TestCase):
                 worker.require_cuda_rng({'rng': rng})
         worker.require_cuda_rng({'rng': {'cuda': [object()]}})
 
+    def test_uuid_count_repair_also_updates_captured_random_module_alias(self):
+        worker = self.require_worker()
+        for initial_count in (0, 1):
+            cuda = SimpleNamespace(device_count=lambda: initial_count,
+                                   random=SimpleNamespace(device_count=lambda: 0))
+            torch = SimpleNamespace(cuda=cuda, _C=SimpleNamespace(_cuda_getDeviceCount=lambda: 1))
+            repair = worker.repair_uuid_enumeration(torch)
+            self.assertEqual(cuda.device_count(), 1)
+            self.assertEqual(cuda.random.device_count(), 1,
+                             'Torch1.13 RNG functions capture a separate device_count alias')
+            self.assertIs(cuda.random.device_count, cuda.device_count)
+            self.assertTrue(repair['cuda_count_pinned'])
+
     def test_ua_covers_all_seven_classes_and_metrics_use_same_logits(self):
         worker = self.require_worker()
         metrics = worker.class_metrics([0, 0, 1], [[4, 0, 0, 0, 0, 0, 0],
