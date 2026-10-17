@@ -1,0 +1,55 @@
+{
+  "audited_at_utc": "2026-10-17",
+  "official_repository": "https://github.com/declare-lab/MM-Align",
+  "official_commit": "e2448590b3d9b308350515bcb147526f4baa6ac7",
+  "official_readme": "https://github.com/declare-lab/MM-Align/blob/e2448590b3d9b308350515bcb147526f4baa6ac7/README.md",
+  "official_release": "https://drive.google.com/file/d/1RjrYSMpXxg_6r_nUQaysaPyMsldLpMcb/view?usp=sharing",
+  "http_range_url": "https://drive.usercontent.google.com/download?id=1RjrYSMpXxg_6r_nUQaysaPyMsldLpMcb&export=download&confirm=t",
+  "release_name": "meld.tar",
+  "release_bytes_expected": 2293780480,
+  "release_last_modified": "2022-06-03T08:16:59Z",
+  "release_bytes_acquired": 838860800,
+  "release_complete": false,
+  "blocker": "Google Drive quota exceeded after the acquired prefix; gdown and public confirmed download return quota HTML for remaining chunks. Do not treat partial meld.tar as complete.",
+  "complete_members": {
+    "dev.pkl": {"bytes": 184008467, "sha256": "854631928cfb0ff2496ee0a2af07b73cc630179d040185643bc6c5526175a21f"},
+    "test.pkl": {"bytes": 446706405, "sha256": "5cefd7e8471702eab6a0bfcc22403aa7e319e234de74938a9ca07b6ecaef41ad"},
+    "embedding.p": {"bytes": 7603360, "sha256": "7a98320eee7ec24e1abb367f4c9453c0bce3e170907d9c4873df1602715431a4"}
+  },
+  "metadata_repository": "https://github.com/declare-lab/MELD",
+  "metadata_commit": "e8cedf27b5d2877e198332c957127e16eb214afe",
+  "metadata_directory": "data/MELD",
+  "metadata_sha256": {
+    "train_sent_emo.csv": "d2fa2d6529cf03cac2989efec05c9b27d8fd2f4c8fc5974c7ae88aa537fa02db",
+    "dev_sent_emo.csv": "2e89c6f8aa182d6f62f8c6331aece905ac7273ca4999660bfb5213e1d0370c1c",
+    "test_sent_emo.csv": "8d37103938f7067600839fe29d5a114a6cd1bcdafb75bec101e06464c5006888"
+  },
+  "verified_schema": {
+    "top_level": "dict keyed by Dialogue_ID_Utterance_ID",
+    "sample_fields": ["token_ids", "audio_features", "video_features", "label"],
+    "text_embedding": "float32[6336,300] GloVe table",
+    "token_ids": "integer-valued floats or ints, range 0..4175 on dev/test",
+    "audio_features": "float32[T,32]",
+    "video_features": "float64[T,2048]",
+    "temporal_lengths": "token/audio/video lengths equal for every acquired dev/test sample",
+    "label_mapping": {"0": "neutral", "1": "surprise", "2": "fear", "3": "sadness", "4": "joy", "5": "disgust", "6": "anger"},
+    "dev_count": 1108,
+    "dev_missing_canonical_ids": ["110_7"],
+    "test_count": 2610,
+    "test_missing_canonical_ids": [],
+    "train_count_paper_only": 9988,
+    "train_missing_canonical_ids": null
+  },
+  "adapter_requirements": [
+    "Join official metadata to recover speakers and chronological dialogue order.",
+    "Release insertion order consists of seven label blocks; it must not become dialogue context or mask order.",
+    "Fixed mean pooling gives text 300, audio 32, video 2048 dimensions; no learned projection is required.",
+    "Missing original utterances must not be silently dropped or fabricated when keeping the existing missing-mask protocol unchanged."
+  ],
+  "limits": [
+    "Training pickle is incomplete and cannot yet be unpickled/audited.",
+    "Exact feature extraction checkpoint, vocabulary construction splits, and feature preprocessing are not released in the official code.",
+    "Official paper says ResNet-101 and wav2vec 2.0; actual released audio dimension is 32, so do not claim 768-dimensional hidden features.",
+    "No model was trained and no project code was modified."
+  ]
+}
