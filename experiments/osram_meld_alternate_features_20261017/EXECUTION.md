@@ -72,3 +72,51 @@ host-resource and network-policy causes are not separated without another
 client or console access. No server service/process was modified or stopped.
 Next safe check is an independent user connection; if that also fails,an
 administrator needs an existing session/console for host and SSH-log inspection.
+
+## SSH recovery and bounded restart, 2026-10-17
+
+SSH is reachable again. The automatic submitter had submitted the MAGTKD job
+at06:24:42UTC on healthy physicalGPU3. Its real three-batch smoke completed
+(11.977seconds,611015680bytes peak allocation). Formal attempt1 failed after
+epoch1 at the strict RNG recovery guard. No complete `last_training.pt` exists;
+all initial artifacts are preserved under `runs/Flat_MAGTKD_seed66` and are
+excluded from valid model ranking. This is not a data/model failure diagnosis.
+
+Root cause was reproduced directly:CUDA runtime1device,patched public Python
+count1,but `torch.cuda.random.device_count()` still0because Torch1.13captured
+the old function at import. `get_rng_state_all()` therefore returned0states
+despite an initialized CUDA context. Synchronizing the random-module alias
+changed RNG count to1without removing the checkpoint guard.
+
+Worker fix:`6392ff5c31ebaa75d485bb0ff426146d2fce072b`; fileSHA
+`66fc911607d06ebc98b7e7ab407aaf786185586eebcd8cb2ac4ab4e6b46a48d1`.
+Only the admitted single-device process-local compatibility shim changed.
+Core131source-file inventory,model,task loss,data,mask and optimizer settings
+remain fixed. The fix also makes CUDA seeding enumerate the real admitted
+device; do not claim bit-identical RNG behavior with the faulty attempt.
+
+Regression:the captured-alias test failed before the fix; all15CPU tests pass
+after it. A tiny realGPU optimizer/save/restore probe passed,including exact
+CPU/CUDA random replay and exactly1saved CUDA RNG state. Evidence:
+`rng_recovery_probe_v2/RESULT.json` remotely and `RNG_RECOVERY_PROBE.json` locally.
+No new full three-batch model smoke was needed; the original completed smoke
+plus the targeted real recovery probe are explicitly distinct.
+
+The corrected formal run starts from scratch at
+`runs/Flat_MAGTKD_seed66_v2`,PID1365346,tmux
+`meld_flat_magtkd_seed66_v2_1017`,same physicalGPU3 UUID and cmerc-repro Python.
+On first verification the worker reportedrunning,0completed epochs,no error,
+runtime/public/random counts1/1/1. Log:`pipeline_v2.log`. New source/config/data
+are not mixed into the preserved failed attempt. Await first committed epoch
+before claiming actual full-state training recovery works on this model.
+
+Subsequent fresh verification confirms1/50epochs completed in v2,no error,
+`last_training.pt` committed atnext_epoch1with1CUDA RNG state and72optimizer
+parameter-state entries. This establishes the previously failing save boundary
+now passes for the actual MAGTKD Flat training,not only the tiny recovery probe.
+The run remains active. Final ACC/UA results are pending.
+
+Any future strictly paired ECERC control must use the same corrected worker
+compatibility shim; this experiment does not retroactively make historical
+wrappers' CUDA seeding or checkpoints bit-identical,and no extra control run
+is authorized or launched by this repair.
