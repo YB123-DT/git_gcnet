@@ -49,3 +49,8 @@ At 37/50 epochs the selected artifacts/epochs above remain unchanged: no
 ACC-selected best improved since the previous 21-epoch check. Eight-rate W-F1
 is51.312%; high-missing ACC53.883%,UA28.530%,W-F1 49.604%. The recovery checkpoint
 exists (161684925bytes). These are still interim,not final results.
+
+Follow-up feature integrity/semantics check: see FEATURE_CHECK.md. All41,124
+converted selected-stream vectors match source arrays exactly; no MAGTKD
+nonfinite/zero vectors or near-constant channels found. This does not establish
+upstream extraction validity or explain the low downstream scores. No run change.
