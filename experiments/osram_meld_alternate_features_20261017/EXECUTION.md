@@ -59,3 +59,16 @@ changed. Existing data are preserved. Official provider quota/server recovery
 or an accessible complete official feature copy is required for further progress.
 Do not call the quota failure a slow-but-running download,or start MM-Align
 training on a partial archive.
+
+## SSH boundary diagnosis
+
+Fresh `ssh -v -o BatchMode=yes -o ConnectTimeout=8 biggpu hostname` established
+TCP and sent the local OpenSSH version string,but timed out before receiving
+the server banner. A separate direct TCP port22check connected in0.005seconds
+and received no SSH banner within5seconds. Authentication was never reached.
+This does not identify a key/password failure,prove the server is down,or
+establish whether earlier training processes are still alive. SSH service,
+host-resource and network-policy causes are not separated without another
+client or console access. No server service/process was modified or stopped.
+Next safe check is an independent user connection; if that also fails,an
+administrator needs an existing session/console for host and SSH-log inspection.
