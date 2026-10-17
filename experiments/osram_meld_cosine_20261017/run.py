@@ -105,9 +105,11 @@ class UASelection:
         self.state._epoch_models = {}
 
 
-def state_factory(config):
+def state_factory(config, *, paired_control=True):
     def factory(base, capture, output, variant, control):
-        Parent = _original_state(base, capture, output, variant, control)
+        # A new seed without a same-seed control must not compare against seed66
+        # or claim paired initialization/masks. Existing paired default is intact.
+        Parent = _original_state(base, capture, output, variant if paired_control else 'W0', control)
 
         class ObservedState(Parent):
             def bind(self, model, optimizer, **kwargs):
@@ -145,15 +147,17 @@ def state_factory(config):
                 super().commit_epoch(**kwargs)
                 self.ua.prune()
                 trace = json.loads((output/'MASK_TRACE.json').read_text())
-                reference = json.loads((control/'MASK_TRACE.json').read_text())
-                for phase in ('train','selection'):
-                    left, right = trace[phase][str(epoch)], reference[phase][str(epoch)]
-                    hashes = lambda x: x['sha256'] if phase == 'train' else {k:v['sha256'] for k,v in x.items()}
-                    if hashes(left) != hashes(right):
-                        raise ValueError(f'Paired {phase} masks differ at epoch {epoch}')
+                if paired_control:
+                    reference = json.loads((control/'MASK_TRACE.json').read_text())
+                    for phase in ('train','selection'):
+                        left, right = trace[phase][str(epoch)], reference[phase][str(epoch)]
+                        hashes = lambda x: x['sha256'] if phase == 'train' else {k:v['sha256'] for k,v in x.items()}
+                        if hashes(left) != hashes(right):
+                            raise ValueError(f'Paired {phase} masks differ at epoch {epoch}')
                 progress = json.loads((output/'EPOCH_STATUS.json').read_text())
                 progress.update(best_ua=original.aggregate(self.ua.scores), learning_rates=rates,
-                    initialization_equal=True, paired_masks_equal_through_epoch=epoch)
+                    initialization_equal=True if paired_control else None,
+                    paired_masks_equal_through_epoch=epoch if paired_control else None)
                 write_json(output/'EPOCH_STATUS.json', progress)
                 write_json(output/'EVALUATION_HISTORY.json', self.ua.rows)
                 write_json(output/'LEARNING_RATES.json', self.lr_rows)
