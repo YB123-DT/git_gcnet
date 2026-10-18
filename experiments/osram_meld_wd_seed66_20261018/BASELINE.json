@@ -1,0 +1,1221 @@
+{
+  "baseline_id": "meld-flat1600-lr1e-5-wd1e-5-seeds66-68-20261018",
+  "accepted_by_user": "2026-10-18",
+  "scope": "current MELD Flat baseline; other datasets unchanged",
+  "protocol": "INTERNAL TEST-ORACLE SCREEN; ACC-selected per-rate BEST; same-forward UA/WF1",
+  "selection": "per-rate test ACC; not one deployed checkpoint across rates",
+  "aggregation": "equal mean of 8 rates within each seed, then equal mean over seeds66/67/68",
+  "config_without_seed": {
+    "b2_base_checkpoint": null,
+    "b2_pretrain_checkpoint": null,
+    "backbone_lr_multiplier": 1.0,
+    "backbone_type": "osram",
+    "base_model": "LSTM",
+    "batch_size": 32,
+    "beta_mode": "embedded",
+    "checkpoint_selection": "test-oracle-per-rate",
+    "classification_completion": false,
+    "classifier_lr_multiplier": 1.0,
+    "completion_path": "none",
+    "completion_write_to_memory": false,
+    "core20_aux_weight": 1.0,
+    "core20_method": "none",
+    "dataset": "MELD",
+    "device": "cuda",
+    "disable_unused_aux_modules": true,
+    "dropout": 0.5,
+    "ema_tau": 0.996,
+    "emotion_loss_mode": "sample-mean",
+    "epochs": 50,
+    "evaluate_test": true,
+    "evaluation_protocol": "official",
+    "fixed_missing_rate": null,
+    "fold": 1,
+    "fusion_type": "mean",
+    "gap_residual_strength": 1.0,
+    "gradient_clip_norm": 1.0,
+    "graph_branch_mode": "both",
+    "graph_message_calibration": "none",
+    "graph_second_layer": "graphconv",
+    "group_dro_eta": 0.1,
+    "hidden": 200,
+    "history_contrast_temperature": 0.1,
+    "history_contrast_weight": 0.1,
+    "history_drop_prob": 0.2,
+    "history_task_view2_weight": 0.5,
+    "initial_backbone_checkpoint": null,
+    "jepa_contrastive_source": "contrastive",
+    "jepa_rate_weighting": "uniform",
+    "jepa_regression_aggregation": "target",
+    "jepa_weight": 0.1,
+    "joint_pretrain_checkpoint": null,
+    "joint_pretrain_freeze": true,
+    "latent_dim": 256,
+    "learning_rate": 1e-05,
+    "local_context_residual": false,
+    "local_fusion_dropout": 0.2,
+    "local_fusion_hidden_dim": 256,
+    "lr_schedule": "constant",
+    "missing_mask_protocol": "gcnet-random-mask-v1",
+    "mmoe_variant": "dual-gate",
+    "mosi_task_mode": "regression",
+    "node_interaction_residual": false,
+    "num_experts": 4,
+    "optimizer": "adam",
+    "osram_ablation": "full",
+    "osram_adapter_hidden_dim": 0,
+    "osram_base_first_gap": false,
+    "osram_bidirectional": false,
+    "osram_ced_block": false,
+    "osram_counterfactual_readout": "none",
+    "osram_decision_correction": false,
+    "osram_emotion_ablation": "full",
+    "osram_forward_slot_reuse": false,
+    "osram_gap_increment_filter": false,
+    "osram_gap_read": "residual",
+    "osram_hierarchical_evidence_gate": false,
+    "osram_hierarchical_feature_only": false,
+    "osram_history_input_gate": false,
+    "osram_history_query_adapter": false,
+    "osram_history_recency": false,
+    "osram_key_dim": 64,
+    "osram_local_evidence_gate": false,
+    "osram_local_evidence_gate_gap_only": false,
+    "osram_local_evidence_gate_reg_type": "l2",
+    "osram_local_evidence_gate_reg_weight": 0.001,
+    "osram_local_skip_gate": false,
+    "osram_meaningful_block": "none",
+    "osram_memory_only_adapter": false,
+    "osram_num_heads": 8,
+    "osram_output_dim": 1600,
+    "osram_post_grn": false,
+    "osram_predictor_mode": "structured",
+    "osram_query_availability": true,
+    "osram_read_ridge": 0.001,
+    "osram_readout_candidate": "none",
+    "osram_readout_fusion": "flat",
+    "osram_relation_block": false,
+    "osram_relation_dim": 128,
+    "osram_relation_dual_readout": false,
+    "osram_relation_mode": "pairwise",
+    "osram_relation_out_dim": 64,
+    "osram_shift_filter_depth": 1,
+    "osram_shift_filter_width": 128,
+    "osram_value_dim": 64,
+    "osram_write_ridge": 0.001,
+    "osram_write_step": 0.6,
+    "paired_history_views": false,
+    "postgraph_bilstm_ablation": "none",
+    "postgraph_sequence_mode": "independent",
+    "predictor_dropout": 0.1,
+    "pretrained_learning_rate": null,
+    "projector_dropout": 0.1,
+    "projector_lr_multiplier": 1.0,
+    "readout_rank": 8,
+    "readout_type": "shared",
+    "recurrent_padding_mode": "legacy",
+    "representation_type": "slot",
+    "simple_regression_predictor": false,
+    "target_private_rank": 0,
+    "target_space": "all-modalities",
+    "task_regression_loss": "mse",
+    "task_smooth_l1_beta": 1.0,
+    "teacher_checkpoint": null,
+    "teacher_mode": "ema",
+    "temperature": 0.03,
+    "text_core": false,
+    "text_subspace_checkpoint": null,
+    "time_attention": false,
+    "top_k": 2,
+    "train_missing_rates": [
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7
+    ],
+    "train_rate_mode": "cyclic",
+    "training_objective": "emotion-only",
+    "uniform_forced_text_probability": 0.25,
+    "validation_fraction": 0.1,
+    "warmup_ratio": 0.05,
+    "weight_decay": 1e-05,
+    "window_future": 2,
+    "window_past": 2
+  },
+  "aggregate": {
+    "N_seeds": 3,
+    "high": {
+      "ACC": 57.49255002128565,
+      "UA": 32.27912449069652,
+      "WF1": 53.20844365547023
+    },
+    "high_sample_std": {
+      "ACC": 0.4071517659079694,
+      "UA": 0.26667335866113046,
+      "WF1": 0.42554835447912975
+    },
+    "mean": {
+      "ACC": 61.55651340996169,
+      "UA": 37.727516415083656,
+      "WF1": 58.50876476707808
+    },
+    "mean_sample_std": {
+      "ACC": 0.20114942528735824,
+      "UA": 0.6197923068952331,
+      "WF1": 0.3300589911336085
+    },
+    "seeds": [
+      66,
+      67,
+      68
+    ],
+    "weight_decay": 1e-05
+  },
+  "source_aggregate": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/RESULTS.json",
+  "source_aggregate_sha256": "07218284e27611240ebddd3c5e9fe028deb93d3158ae1b62fc3e7d31110985cc",
+  "protected_best_checkpoints": 24,
+  "runs": [
+    {
+      "seed": 66,
+      "output": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1",
+      "summary_sha256": "a97b0922017389f606fb42998a507c9d8e173ff7cfac3f3879c7ffa03832aa16",
+      "last_training": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/last_training.pt",
+      "identity": {
+        "config_sha256": "49296bf6b157913bdcb0a76e5f1bc6295d825646a83a81c65f3a292a7cd3b350",
+        "control_mask_trace_sha256": "800070dbae729b8b051a1e6ce42515d740dc1a69c08a79fa1b3dfd6a2ffda21a",
+        "control_summary_sha256": "f19af8f30bb74bbd8610018e2b118a3da56765f3aeb3424c96384f8bab4f5fdd",
+        "dataset_sha256": "a0349614b2b58e8b2db768f0144aa36b96fb2348ca436a6879ee2623cc2d2f80",
+        "experiment_git_sha": "3628d1e69d611f7d6a8a0d6896b435a63f805a9c",
+        "numerical_commit": "b4a313841f098487a6482d2712bdac94aa8e319e",
+        "source_manifest_sha256": "68cfcdc1cf9d3833fce381751576fa012d200da2d6c407badac8548d69e6cbe6"
+      },
+      "environment": {
+        "cuda": "11.7",
+        "executable": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "numpy": "1.26.4",
+        "python": "3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]",
+        "sklearn": "1.3.2",
+        "torch": "1.13.1+cu117"
+      },
+      "testbest": {
+        "high": {
+          "ACC": 57.931034482758626,
+          "CE": 1.2790390165738403,
+          "UA": 32.48972707698631,
+          "WF1": 53.69944997470037
+        },
+        "mean": {
+          "ACC": 61.78639846743295,
+          "CE": 1.1955178196328455,
+          "UA": 38.420204950577386,
+          "WF1": 58.8898215764228
+        },
+        "rates": {
+          "0.0": {
+            "ACC": 67.5095785440613,
+            "CE": 1.0810355071251514,
+            "N": 2610,
+            "UA": 44.32954875192087,
+            "WF1": 65.69132268643372,
+            "availability_sha256": "c417a7dbc8c1d96fdc86780cc7fea8709c74ac014bfcf9f4c419566d1e8181d5",
+            "checkpoint_sha256": "a57760a4d488f914d1f6a160c5ee648f02a58a135c01277ae4acaa152585b554",
+            "epoch": 8,
+            "path": "selection_versions/epoch_000008_0p0.npz",
+            "recall": [
+              85.03184713375796,
+              61.56583629893239,
+              2.0,
+              33.65384615384615,
+              64.42786069651741,
+              10.294117647058822,
+              53.333333333333336
+            ],
+            "sha256": "360b519353d3a3692a61f0130b9cb054301d279d2c50626cb0be626437f057ae",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.1": {
+            "ACC": 65.7088122605364,
+            "CE": 1.1092321825904399,
+            "N": 2610,
+            "UA": 45.58131953108365,
+            "WF1": 64.24504806787029,
+            "availability_sha256": "ab8df1b366c5a0cac4f0f64f0031f06579340163ea7631406838c5d2866be4a4",
+            "checkpoint_sha256": "367e8379e2d2e361aeb9f29d08d056db36b2c65e0ee733cc94b41c954ef902b9",
+            "epoch": 16,
+            "path": "selection_versions/epoch_000016_0p1.npz",
+            "recall": [
+              83.67834394904459,
+              56.93950177935944,
+              10.0,
+              25.961538461538463,
+              61.19402985074627,
+              29.411764705882355,
+              51.8840579710145
+            ],
+            "sha256": "e8710a60c92347baf241a27afd282cd423ff38d0286e58d7aeee76c9615d4bde",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.2": {
+            "ACC": 64.09961685823755,
+            "CE": 1.129380909294095,
+            "N": 2610,
+            "UA": 40.92772382956338,
+            "WF1": 61.87952972088498,
+            "availability_sha256": "05900e85527c75bfb3176c28c1bda0edae90682c220f6998a3da0bcf47c48356",
+            "checkpoint_sha256": "09b2b1a15433bc0a740988394c7b365a2b025388a4e69251f03591f3f0bd3fb9",
+            "epoch": 11,
+            "path": "selection_versions/epoch_000011_0p2.npz",
+            "recall": [
+              85.90764331210191,
+              52.313167259786475,
+              8.0,
+              30.288461538461537,
+              50.99502487562189,
+              10.294117647058822,
+              48.69565217391305
+            ],
+            "sha256": "fb833bcc869ed50cd9a02207866290be5ccc91a47c323fe36e60cd40b570d545",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.3": {
+            "ACC": 62.26053639846744,
+            "CE": 1.1781686262492528,
+            "N": 2610,
+            "UA": 40.20722661291216,
+            "WF1": 59.99570736112173,
+            "availability_sha256": "13f6324729c6d651b76b3b6de58462844f937cee3f3edc147a21fb0146953e76",
+            "checkpoint_sha256": "6f031b515723b441129e16a2e6217410e0eceee2c468e1cbe7b7c3d8276bdb7d",
+            "epoch": 21,
+            "path": "selection_versions/epoch_000021_0p3.npz",
+            "recall": [
+              84.95222929936305,
+              49.46619217081851,
+              14.000000000000002,
+              24.519230769230766,
+              48.00995024875622,
+              14.705882352941178,
+              45.79710144927536
+            ],
+            "sha256": "b2d899dda00e7a65f7d57b428bf203ea87a9e38ea9be079f242242b20c50e21f",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.4": {
+            "ACC": 60.91954022988506,
+            "CE": 1.2292082820823038,
+            "N": 2610,
+            "UA": 38.84663964818005,
+            "WF1": 58.208614850970534,
+            "availability_sha256": "8fb7a651d78c231ff512efcfaf361f9b5fa06be6a5aefae15027e1761ac238d7",
+            "checkpoint_sha256": "2b3f0905f20235294a4183b503fb439d1f8f97052088198cc4d884bc8db13ee9",
+            "epoch": 35,
+            "path": "selection_versions/epoch_000035_0p4.npz",
+            "recall": [
+              85.50955414012739,
+              45.55160142348754,
+              12.0,
+              19.71153846153846,
+              44.776119402985074,
+              22.058823529411764,
+              42.31884057971014
+            ],
+            "sha256": "36a35afd0cfb3e563ed43144ffdf43467437e8f5b95af0c8ab3d5f6cde8836e7",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.5": {
+            "ACC": 59.77011494252874,
+            "CE": 1.1950277321713403,
+            "N": 2610,
+            "UA": 33.18792886517624,
+            "WF1": 55.67235134164568,
+            "availability_sha256": "07b9bda75f4b679d7205de2433d37139e71323ffef7564c31a85bf1fd86a88cf",
+            "checkpoint_sha256": "89137190a92dfdb30186e6a337533ded69cee091dbfbb6aa48d3623e2eb699ea",
+            "epoch": 13,
+            "path": "selection_versions/epoch_000013_0p5.npz",
+            "recall": [
+              89.171974522293,
+              36.654804270462634,
+              4.0,
+              18.75,
+              41.04477611940299,
+              5.88235294117647,
+              36.811594202898554
+            ],
+            "sha256": "ee5bfc615828d774336e69c113ad5464e09074d78a68b6a47ac58e6041d6c06e",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.6": {
+            "ACC": 57.43295019157089,
+            "CE": 1.307519277766337,
+            "N": 2610,
+            "UA": 32.25542549605658,
+            "WF1": 53.14109949138557,
+            "availability_sha256": "6f4a90742be8af01173161aab170d991630d3fbefec515d009f65a70c77bdf89",
+            "checkpoint_sha256": "0d4d46b37d8d08489935ef44eba3c157ca569eefa65fa402f90779f387c41f6c",
+            "epoch": 24,
+            "path": "selection_versions/epoch_000024_0p6.npz",
+            "recall": [
+              87.34076433121018,
+              33.45195729537366,
+              8.0,
+              11.538461538461538,
+              38.308457711442784,
+              13.23529411764706,
+              33.91304347826087
+            ],
+            "sha256": "548e7105bb65a5b8c24d03d0fce17533fee002a174f0f5f1b4c842a6e8e7bcee",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.7": {
+            "ACC": 56.59003831417625,
+            "CE": 1.3345700397838443,
+            "N": 2610,
+            "UA": 32.02582686972612,
+            "WF1": 52.28489909106987,
+            "availability_sha256": "a992bc6396880c30c29a34a2c6e8b41a79f69cf22041b7d8d8d9d2e629f9df99",
+            "checkpoint_sha256": "ef65cea544004967e0b17f213e4b5bf69f250e4dd87a98bc0d8ceb9512c4e6e7",
+            "epoch": 46,
+            "path": "selection_versions/epoch_000046_0p7.npz",
+            "recall": [
+              87.34076433121018,
+              28.11387900355872,
+              10.0,
+              15.865384615384615,
+              31.343283582089555,
+              14.705882352941178,
+              36.811594202898554
+            ],
+            "sha256": "b8a26c6f988770293de857b04605c88f6ce03ff68c335caada4fd7ec3008c0d3",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          }
+        }
+      },
+      "artifacts": {
+        "0.0": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/best_miss_0p0.pt",
+          "checkpoint_sha256": "a57760a4d488f914d1f6a160c5ee648f02a58a135c01277ae4acaa152585b554",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/selection_versions/epoch_000008_0p0.npz",
+          "prediction_sha256": "360b519353d3a3692a61f0130b9cb054301d279d2c50626cb0be626437f057ae",
+          "availability_sha256": "c417a7dbc8c1d96fdc86780cc7fea8709c74ac014bfcf9f4c419566d1e8181d5",
+          "epoch": 8
+        },
+        "0.1": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/best_miss_0p1.pt",
+          "checkpoint_sha256": "367e8379e2d2e361aeb9f29d08d056db36b2c65e0ee733cc94b41c954ef902b9",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/selection_versions/epoch_000016_0p1.npz",
+          "prediction_sha256": "e8710a60c92347baf241a27afd282cd423ff38d0286e58d7aeee76c9615d4bde",
+          "availability_sha256": "ab8df1b366c5a0cac4f0f64f0031f06579340163ea7631406838c5d2866be4a4",
+          "epoch": 16
+        },
+        "0.2": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/best_miss_0p2.pt",
+          "checkpoint_sha256": "09b2b1a15433bc0a740988394c7b365a2b025388a4e69251f03591f3f0bd3fb9",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/selection_versions/epoch_000011_0p2.npz",
+          "prediction_sha256": "fb833bcc869ed50cd9a02207866290be5ccc91a47c323fe36e60cd40b570d545",
+          "availability_sha256": "05900e85527c75bfb3176c28c1bda0edae90682c220f6998a3da0bcf47c48356",
+          "epoch": 11
+        },
+        "0.3": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/best_miss_0p3.pt",
+          "checkpoint_sha256": "6f031b515723b441129e16a2e6217410e0eceee2c468e1cbe7b7c3d8276bdb7d",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/selection_versions/epoch_000021_0p3.npz",
+          "prediction_sha256": "b2d899dda00e7a65f7d57b428bf203ea87a9e38ea9be079f242242b20c50e21f",
+          "availability_sha256": "13f6324729c6d651b76b3b6de58462844f937cee3f3edc147a21fb0146953e76",
+          "epoch": 21
+        },
+        "0.4": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/best_miss_0p4.pt",
+          "checkpoint_sha256": "2b3f0905f20235294a4183b503fb439d1f8f97052088198cc4d884bc8db13ee9",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/selection_versions/epoch_000035_0p4.npz",
+          "prediction_sha256": "36a35afd0cfb3e563ed43144ffdf43467437e8f5b95af0c8ab3d5f6cde8836e7",
+          "availability_sha256": "8fb7a651d78c231ff512efcfaf361f9b5fa06be6a5aefae15027e1761ac238d7",
+          "epoch": 35
+        },
+        "0.5": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/best_miss_0p5.pt",
+          "checkpoint_sha256": "89137190a92dfdb30186e6a337533ded69cee091dbfbb6aa48d3623e2eb699ea",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/selection_versions/epoch_000013_0p5.npz",
+          "prediction_sha256": "ee5bfc615828d774336e69c113ad5464e09074d78a68b6a47ac58e6041d6c06e",
+          "availability_sha256": "07b9bda75f4b679d7205de2433d37139e71323ffef7564c31a85bf1fd86a88cf",
+          "epoch": 13
+        },
+        "0.6": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/best_miss_0p6.pt",
+          "checkpoint_sha256": "0d4d46b37d8d08489935ef44eba3c157ca569eefa65fa402f90779f387c41f6c",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/selection_versions/epoch_000024_0p6.npz",
+          "prediction_sha256": "548e7105bb65a5b8c24d03d0fce17533fee002a174f0f5f1b4c842a6e8e7bcee",
+          "availability_sha256": "6f4a90742be8af01173161aab170d991630d3fbefec515d009f65a70c77bdf89",
+          "epoch": 24
+        },
+        "0.7": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/best_miss_0p7.pt",
+          "checkpoint_sha256": "ef65cea544004967e0b17f213e4b5bf69f250e4dd87a98bc0d8ceb9512c4e6e7",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_wd_seed66_20261018/runs_v1/S66_WD1/selection_versions/epoch_000046_0p7.npz",
+          "prediction_sha256": "b8a26c6f988770293de857b04605c88f6ce03ff68c335caada4fd7ec3008c0d3",
+          "availability_sha256": "a992bc6396880c30c29a34a2c6e8b41a79f69cf22041b7d8d8d9d2e629f9df99",
+          "epoch": 46
+        }
+      },
+      "verified_checkpoint_and_prediction_hashes": true
+    },
+    {
+      "seed": 67,
+      "output": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1",
+      "summary_sha256": "7aab9d1de941a449e95c5a8f1f2148f91b8056efc248a6796147d3ae727d2256",
+      "last_training": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/last_training.pt",
+      "identity": {
+        "config_sha256": "e24a04a7e14bc79b4d24804d3375641c1782f0581446b74a8e5f7d21771ba30b",
+        "control_mask_trace_sha256": "9aa5f3eebe091b91dded3a8f962c1bd3d951d617d771eb2774c277b3f0891636",
+        "control_summary_sha256": "f4f201b88da043788f875b42cf31d2f5ae48c20f059da5929d2745485b4a54ee",
+        "dataset_sha256": "a0349614b2b58e8b2db768f0144aa36b96fb2348ca436a6879ee2623cc2d2f80",
+        "experiment_git_sha": "b222968a10b037902c5ae5c8441718f1dd054663",
+        "numerical_commit": "b4a313841f098487a6482d2712bdac94aa8e319e",
+        "source_manifest_sha256": "68cfcdc1cf9d3833fce381751576fa012d200da2d6c407badac8548d69e6cbe6"
+      },
+      "environment": {
+        "cuda": "11.7",
+        "executable": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "numpy": "1.26.4",
+        "python": "3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]",
+        "sklearn": "1.3.2",
+        "torch": "1.13.1+cu117"
+      },
+      "testbest": {
+        "high": {
+          "ACC": 57.12643678160919,
+          "CE": 1.2794926717146595,
+          "UA": 32.368372916661265,
+          "WF1": 52.94632731262781
+        },
+        "mean": {
+          "ACC": 61.47030651340996,
+          "CE": 1.1891815415113722,
+          "UA": 37.22535350826181,
+          "WF1": 58.32421287201838
+        },
+        "rates": {
+          "0.0": {
+            "ACC": 66.8199233716475,
+            "CE": 1.0710674919889243,
+            "N": 2610,
+            "UA": 44.11380119398634,
+            "WF1": 65.12310009803718,
+            "availability_sha256": "c417a7dbc8c1d96fdc86780cc7fea8709c74ac014bfcf9f4c419566d1e8181d5",
+            "checkpoint_sha256": "dee7434bef4065db6e6d6369635be2e8a6c745e4b8563beea8c97e2249a63a37",
+            "epoch": 16,
+            "path": "selection_versions/epoch_000016_0p0.npz",
+            "recall": [
+              86.62420382165605,
+              59.07473309608541,
+              4.0,
+              36.05769230769231,
+              58.457711442786064,
+              16.176470588235293,
+              48.40579710144928
+            ],
+            "sha256": "87769f75a9d0dc0643f67f07ac20c1bc825813c7b58e5714ef44325567f95d55",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.1": {
+            "ACC": 65.97701149425286,
+            "CE": 1.1009191736755282,
+            "N": 2610,
+            "UA": 42.79674620237417,
+            "WF1": 63.91163236620188,
+            "availability_sha256": "ba56584aee823ad8a63ee0004f0097f6d697b4a9a29c046eacc99b463f0eb3db",
+            "checkpoint_sha256": "b465eb8d1f5d21f4ea7ed0f10582a753472415eb6c6c5e2c3699c8d9ef5167e8",
+            "epoch": 16,
+            "path": "selection_versions/epoch_000016_0p1.npz",
+            "recall": [
+              87.34076433121018,
+              55.871886120996436,
+              2.0,
+              32.69230769230769,
+              56.46766169154229,
+              19.11764705882353,
+              46.08695652173913
+            ],
+            "sha256": "2427b946d459b45246174ba44728af86956ae7396ca8d4f85ca780116b5e59d9",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.2": {
+            "ACC": 64.09961685823755,
+            "CE": 1.1257758453371935,
+            "N": 2610,
+            "UA": 38.94481597588786,
+            "WF1": 61.40595014325866,
+            "availability_sha256": "d887716fe5a84f7674c305cc9ca8d537e6169ab3b87736e63fde9dd6a30625b8",
+            "checkpoint_sha256": "5bd89874d28d52379ef93e8aea100a4d5dd51d3e2572f0de6ac78702dbaa3fbf",
+            "epoch": 13,
+            "path": "selection_versions/epoch_000013_0p2.npz",
+            "recall": [
+              87.10191082802548,
+              50.5338078291815,
+              2.0,
+              23.076923076923077,
+              51.243781094527364,
+              7.352941176470589,
+              51.30434782608696
+            ],
+            "sha256": "05cb3c112ad49d5bb30d50fac2a863c7308006ca73b16a5a00c7384c5f4439e4",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.3": {
+            "ACC": 62.337164750957854,
+            "CE": 1.1582646144486104,
+            "N": 2610,
+            "UA": 37.59508446332852,
+            "WF1": 59.46341064798063,
+            "availability_sha256": "1c74bcf3f74e544f9aa3a83671765267e35f5adead12d91eb731da1a2c1a800a",
+            "checkpoint_sha256": "176b8e1269c711e6a05e1294901ce475730e87573da422d2a5e1dd562f945c19",
+            "epoch": 12,
+            "path": "selection_versions/epoch_000012_0p3.npz",
+            "recall": [
+              85.98726114649682,
+              47.330960854092524,
+              2.0,
+              23.557692307692307,
+              50.24875621890548,
+              8.823529411764707,
+              45.21739130434783
+            ],
+            "sha256": "51a57ff7cc3dfe623556a83cb638934fa91597048fc62d47b6dd02526be56da7",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.4": {
+            "ACC": 61.149425287356316,
+            "CE": 1.2189471914967427,
+            "N": 2610,
+            "UA": 37.24726148053384,
+            "WF1": 57.85062778278528,
+            "availability_sha256": "043360114626b7398c7059e7b9fc6c01aabd5a055a17dca0cb67887f0b5f1863",
+            "checkpoint_sha256": "30a1b4fb5ca5141399f7a89834a3de2adaa644947d02d50e3c9145e82b519f9f",
+            "epoch": 29,
+            "path": "selection_versions/epoch_000029_0p4.npz",
+            "recall": [
+              88.45541401273886,
+              40.213523131672595,
+              10.0,
+              18.75,
+              43.03482587064676,
+              19.11764705882353,
+              41.15942028985507
+            ],
+            "sha256": "d762d34a5fc27d91de69c51ff2cd29485278e8f279ead3f4ab657cdaec80d62b",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.5": {
+            "ACC": 59.00383141762452,
+            "CE": 1.2447271460243812,
+            "N": 2610,
+            "UA": 34.3333244767935,
+            "WF1": 55.21961908408342,
+            "availability_sha256": "5bcc49fc00b478ca6f64e2b0449ef6193f3e3c2b28aac49d4935e82d6c598ee6",
+            "checkpoint_sha256": "1a225c8b7dfebc78bdfe202f0088f6356a8b318a65283a4ccbe749d9462feb1c",
+            "epoch": 29,
+            "path": "selection_versions/epoch_000029_0p5.npz",
+            "recall": [
+              87.42038216560509,
+              34.16370106761566,
+              6.0,
+              15.865384615384615,
+              36.069651741293534,
+              16.176470588235293,
+              44.63768115942029
+            ],
+            "sha256": "5eb6015a0582eaf6c6d558e1e79b69875522b771343534cc1801de0d7a068b24",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.6": {
+            "ACC": 56.85823754789272,
+            "CE": 1.2873944866737845,
+            "N": 2610,
+            "UA": 32.52086038128272,
+            "WF1": 52.78027100637175,
+            "availability_sha256": "2411894ed71128aa44af0a31750aef3bac8fc7107cf0737bb0f93a453183231b",
+            "checkpoint_sha256": "fdb524e9bd3c908bf28dad02348904e66b5b7c3f9acbc3cf41578a078a2c51ee",
+            "epoch": 30,
+            "path": "selection_versions/epoch_000030_0p6.npz",
+            "recall": [
+              86.06687898089172,
+              29.181494661921707,
+              12.0,
+              12.980769230769232,
+              33.33333333333333,
+              11.76470588235294,
+              42.31884057971014
+            ],
+            "sha256": "0f7f558b2e196d68e66ddc589b102ffcf44dfd51fbf846f8750c77cfb28a5d30",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.7": {
+            "ACC": 55.51724137931034,
+            "CE": 1.306356382445813,
+            "N": 2610,
+            "UA": 30.25093389190756,
+            "WF1": 50.83909184742825,
+            "availability_sha256": "fd4a563f5f8fcd4523b23981d5e4dff85c1dbd8a27cc9a8a71ec723984dd5d1b",
+            "checkpoint_sha256": "499905d6db6801ba01e23d59aaee8ae7e8203b9137af041786191583799883f6",
+            "epoch": 24,
+            "path": "selection_versions/epoch_000024_0p7.npz",
+            "recall": [
+              87.18152866242038,
+              28.11387900355872,
+              10.0,
+              12.980769230769232,
+              31.592039800995025,
+              10.294117647058822,
+              31.594202898550726
+            ],
+            "sha256": "7a8444bdc3af086a210c33e3d5d4d05fbfb008e1951730e37011cb63d1e583a3",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          }
+        }
+      },
+      "artifacts": {
+        "0.0": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/best_miss_0p0.pt",
+          "checkpoint_sha256": "dee7434bef4065db6e6d6369635be2e8a6c745e4b8563beea8c97e2249a63a37",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/selection_versions/epoch_000016_0p0.npz",
+          "prediction_sha256": "87769f75a9d0dc0643f67f07ac20c1bc825813c7b58e5714ef44325567f95d55",
+          "availability_sha256": "c417a7dbc8c1d96fdc86780cc7fea8709c74ac014bfcf9f4c419566d1e8181d5",
+          "epoch": 16
+        },
+        "0.1": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/best_miss_0p1.pt",
+          "checkpoint_sha256": "b465eb8d1f5d21f4ea7ed0f10582a753472415eb6c6c5e2c3699c8d9ef5167e8",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/selection_versions/epoch_000016_0p1.npz",
+          "prediction_sha256": "2427b946d459b45246174ba44728af86956ae7396ca8d4f85ca780116b5e59d9",
+          "availability_sha256": "ba56584aee823ad8a63ee0004f0097f6d697b4a9a29c046eacc99b463f0eb3db",
+          "epoch": 16
+        },
+        "0.2": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/best_miss_0p2.pt",
+          "checkpoint_sha256": "5bd89874d28d52379ef93e8aea100a4d5dd51d3e2572f0de6ac78702dbaa3fbf",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/selection_versions/epoch_000013_0p2.npz",
+          "prediction_sha256": "05cb3c112ad49d5bb30d50fac2a863c7308006ca73b16a5a00c7384c5f4439e4",
+          "availability_sha256": "d887716fe5a84f7674c305cc9ca8d537e6169ab3b87736e63fde9dd6a30625b8",
+          "epoch": 13
+        },
+        "0.3": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/best_miss_0p3.pt",
+          "checkpoint_sha256": "176b8e1269c711e6a05e1294901ce475730e87573da422d2a5e1dd562f945c19",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/selection_versions/epoch_000012_0p3.npz",
+          "prediction_sha256": "51a57ff7cc3dfe623556a83cb638934fa91597048fc62d47b6dd02526be56da7",
+          "availability_sha256": "1c74bcf3f74e544f9aa3a83671765267e35f5adead12d91eb731da1a2c1a800a",
+          "epoch": 12
+        },
+        "0.4": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/best_miss_0p4.pt",
+          "checkpoint_sha256": "30a1b4fb5ca5141399f7a89834a3de2adaa644947d02d50e3c9145e82b519f9f",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/selection_versions/epoch_000029_0p4.npz",
+          "prediction_sha256": "d762d34a5fc27d91de69c51ff2cd29485278e8f279ead3f4ab657cdaec80d62b",
+          "availability_sha256": "043360114626b7398c7059e7b9fc6c01aabd5a055a17dca0cb67887f0b5f1863",
+          "epoch": 29
+        },
+        "0.5": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/best_miss_0p5.pt",
+          "checkpoint_sha256": "1a225c8b7dfebc78bdfe202f0088f6356a8b318a65283a4ccbe749d9462feb1c",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/selection_versions/epoch_000029_0p5.npz",
+          "prediction_sha256": "5eb6015a0582eaf6c6d558e1e79b69875522b771343534cc1801de0d7a068b24",
+          "availability_sha256": "5bcc49fc00b478ca6f64e2b0449ef6193f3e3c2b28aac49d4935e82d6c598ee6",
+          "epoch": 29
+        },
+        "0.6": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/best_miss_0p6.pt",
+          "checkpoint_sha256": "fdb524e9bd3c908bf28dad02348904e66b5b7c3f9acbc3cf41578a078a2c51ee",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/selection_versions/epoch_000030_0p6.npz",
+          "prediction_sha256": "0f7f558b2e196d68e66ddc589b102ffcf44dfd51fbf846f8750c77cfb28a5d30",
+          "availability_sha256": "2411894ed71128aa44af0a31750aef3bac8fc7107cf0737bb0f93a453183231b",
+          "epoch": 30
+        },
+        "0.7": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/best_miss_0p7.pt",
+          "checkpoint_sha256": "499905d6db6801ba01e23d59aaee8ae7e8203b9137af041786191583799883f6",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S67_WD1/selection_versions/epoch_000024_0p7.npz",
+          "prediction_sha256": "7a8444bdc3af086a210c33e3d5d4d05fbfb008e1951730e37011cb63d1e583a3",
+          "availability_sha256": "fd4a563f5f8fcd4523b23981d5e4dff85c1dbd8a27cc9a8a71ec723984dd5d1b",
+          "epoch": 24
+        }
+      },
+      "verified_checkpoint_and_prediction_hashes": true
+    },
+    {
+      "seed": 68,
+      "output": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1",
+      "summary_sha256": "bade7bc364f3485f3970ec3d16e7c1253b532d6f087c08447727f58aa96404f1",
+      "last_training": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/last_training.pt",
+      "identity": {
+        "config_sha256": "c0cdc91eba5f360b1409a1f12bc640640177e6f3d7092fc2ca768dd3f8d55f59",
+        "control_mask_trace_sha256": "00e6bcd5162c40500c02608ce40bd68716167cd35e88c7826e9820e98f1d2d60",
+        "control_summary_sha256": "c98a56adc16effb7f7f6378a8c178a098619ad32ac748aacdd1c26334a5e39d4",
+        "dataset_sha256": "a0349614b2b58e8b2db768f0144aa36b96fb2348ca436a6879ee2623cc2d2f80",
+        "experiment_git_sha": "b222968a10b037902c5ae5c8441718f1dd054663",
+        "numerical_commit": "b4a313841f098487a6482d2712bdac94aa8e319e",
+        "source_manifest_sha256": "68cfcdc1cf9d3833fce381751576fa012d200da2d6c407badac8548d69e6cbe6"
+      },
+      "environment": {
+        "cuda": "11.7",
+        "executable": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "numpy": "1.26.4",
+        "python": "3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]",
+        "sklearn": "1.3.2",
+        "torch": "1.13.1+cu117"
+      },
+      "testbest": {
+        "high": {
+          "ACC": 57.42017879948914,
+          "CE": 1.2758242103155009,
+          "UA": 31.979273478441964,
+          "WF1": 52.97955367908251
+        },
+        "mean": {
+          "ACC": 61.412835249042146,
+          "CE": 1.1848894768964797,
+          "UA": 37.53699078641177,
+          "WF1": 58.31225985279305
+        },
+        "rates": {
+          "0.0": {
+            "ACC": 66.62835249042146,
+            "CE": 1.0269830227021577,
+            "N": 2610,
+            "UA": 41.46423915540325,
+            "WF1": 64.25002219228499,
+            "availability_sha256": "c417a7dbc8c1d96fdc86780cc7fea8709c74ac014bfcf9f4c419566d1e8181d5",
+            "checkpoint_sha256": "0bad40f4513fb18886342b8b59e9be0f59279aa539520b621d60d0ed6efcda3c",
+            "epoch": 5,
+            "path": "selection_versions/epoch_000005_0p0.npz",
+            "recall": [
+              84.95222929936305,
+              59.07473309608541,
+              0.0,
+              25.48076923076923,
+              63.93034825870647,
+              0.0,
+              56.811594202898554
+            ],
+            "sha256": "c506a4e64f90473b00f9cf396ac4811ff7b124f76fdd5e80d0638c5f5ddf4435",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.1": {
+            "ACC": 65.24904214559388,
+            "CE": 1.1110754651334946,
+            "N": 2610,
+            "UA": 45.074755533013935,
+            "WF1": 64.00330456721105,
+            "availability_sha256": "904462a79b3da9795ca331c7eec1c32cf49fc54efbd3800318f930292c9284df",
+            "checkpoint_sha256": "1fc6e734fa9d3c52170c562562838447a87f81cf78a39ed5f2e3c336b9a312c5",
+            "epoch": 35,
+            "path": "selection_versions/epoch_000035_0p1.npz",
+            "recall": [
+              83.28025477707006,
+              51.95729537366548,
+              16.0,
+              30.288461538461537,
+              60.94527363184079,
+              20.588235294117645,
+              52.46376811594203
+            ],
+            "sha256": "06bf4d7530e49979726e377b68c89b67d4f3bef2698c4ef7e7b81ac3d7967cce",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.2": {
+            "ACC": 63.86973180076628,
+            "CE": 1.135659330428112,
+            "N": 2610,
+            "UA": 43.06224691077574,
+            "WF1": 62.32289186212547,
+            "availability_sha256": "3929e9e306ce09b603fdbeaffa9739f640993c1ed93813fae0cf0ec84a4cb418",
+            "checkpoint_sha256": "f274e0cb7284c48830df2c9e1beb38d52d0a3a95b49067cbd44499f9656d22fa",
+            "epoch": 39,
+            "path": "selection_versions/epoch_000039_0p2.npz",
+            "recall": [
+              82.96178343949045,
+              56.22775800711744,
+              12.0,
+              28.846153846153843,
+              54.47761194029851,
+              17.647058823529413,
+              49.275362318840585
+            ],
+            "sha256": "7c9508a3a978267ad8c8f03e158cb2be4227a6b85e267bd052b3ac4e6b0a7192",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.3": {
+            "ACC": 62.720306513409966,
+            "CE": 1.1680242044103495,
+            "N": 2610,
+            "UA": 40.622267901100486,
+            "WF1": 60.48522710097638,
+            "availability_sha256": "96464107bfedca2d4fc44441eeea78dcd1dea664b602c6b7b4fe0cc32b80a004",
+            "checkpoint_sha256": "d27e7b2e8b1eb5c8b7c6e98557a3f38ce7a2ad9aa0b7dcd33fe337fa02f5a92f",
+            "epoch": 31,
+            "path": "selection_versions/epoch_000031_0p3.npz",
+            "recall": [
+              85.98726114649682,
+              46.97508896797153,
+              12.0,
+              26.923076923076923,
+              49.004975124378106,
+              19.11764705882353,
+              44.34782608695652
+            ],
+            "sha256": "948b51bc51bf2c6792e59dd18ed3737783b03d04e7c2ff077f7e69d36ba75c77",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.4": {
+            "ACC": 60.57471264367816,
+            "CE": 1.2099011615512207,
+            "N": 2610,
+            "UA": 34.13459635567486,
+            "WF1": 56.497972062498924,
+            "availability_sha256": "8021d04b537c895725ff6a2b079984ea46c9c25151a525eac48e6afddc8b653b",
+            "checkpoint_sha256": "7adf2ef12370855c3e7b7410112244584dcd0120610f13c4f04e0abc7b40d30e",
+            "epoch": 13,
+            "path": "selection_versions/epoch_000013_0p4.npz",
+            "recall": [
+              89.88853503184714,
+              44.128113879003564,
+              4.0,
+              17.78846153846154,
+              39.55223880597015,
+              7.352941176470589,
+              36.231884057971016
+            ],
+            "sha256": "b8a84496db92c678bff5633f67d3a0f746d0ff3f7dcf7084e607efb3716dc8fb",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.5": {
+            "ACC": 58.9655172413793,
+            "CE": 1.2164024026398974,
+            "N": 2610,
+            "UA": 34.24911681601534,
+            "WF1": 55.199669209191114,
+            "availability_sha256": "14484e647d8d713a5cbcdc266554aee0cef4d9d5a506fdb3eaf684954ff32a51",
+            "checkpoint_sha256": "899b3a1eb882e392cd3d1af78cb9f1be80afea273c55811dc711f051f588a096",
+            "epoch": 22,
+            "path": "selection_versions/epoch_000022_0p5.npz",
+            "recall": [
+              87.73885350318471,
+              34.16370106761566,
+              8.0,
+              16.826923076923077,
+              38.308457711442784,
+              14.705882352941178,
+              40.0
+            ],
+            "sha256": "1794cce4897bed6f23903172ff4a915a19878668e7656bb148c7dcface35f077",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.6": {
+            "ACC": 57.1647509578544,
+            "CE": 1.2970171420297139,
+            "N": 2610,
+            "UA": 32.51305435997875,
+            "WF1": 52.88958892391332,
+            "availability_sha256": "84f98ae99ec73efdf16829c98fdf4d0c843fbe9ec08d71a45e5cd9fa6a6e0ae2",
+            "checkpoint_sha256": "d9be628f984a10c24bc8ec08d41b128680078169e73a61ed76bcd8afb312fa23",
+            "epoch": 32,
+            "path": "selection_versions/epoch_000032_0p6.npz",
+            "recall": [
+              87.57961783439491,
+              27.75800711743772,
+              10.0,
+              13.942307692307693,
+              35.32338308457712,
+              16.176470588235293,
+              36.811594202898554
+            ],
+            "sha256": "20463333620bb7c62ad59d23063fca3d50f81021522a04ac1e326261d490b865",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.7": {
+            "ACC": 56.13026819923371,
+            "CE": 1.3140530862768913,
+            "N": 2610,
+            "UA": 29.17564925933179,
+            "WF1": 50.849402904143105,
+            "availability_sha256": "a66f869b4f95b5266c60bc44f8b1b3f0737fd535f7fcbf9fc6b14f61f30d2919",
+            "checkpoint_sha256": "a1b51522e708d4e8889eb9ba7db8ce4434800c4cc71b4cecbc74ed22d8039aea",
+            "epoch": 19,
+            "path": "selection_versions/epoch_000019_0p7.npz",
+            "recall": [
+              88.69426751592357,
+              26.690391459074732,
+              4.0,
+              8.653846153846153,
+              30.845771144278604,
+              8.823529411764707,
+              36.52173913043478
+            ],
+            "sha256": "da0b3c228920778d99e83e6a31019c5d1fb0ce80566c97e0953ad9a374cc3d68",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          }
+        }
+      },
+      "artifacts": {
+        "0.0": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/best_miss_0p0.pt",
+          "checkpoint_sha256": "0bad40f4513fb18886342b8b59e9be0f59279aa539520b621d60d0ed6efcda3c",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/selection_versions/epoch_000005_0p0.npz",
+          "prediction_sha256": "c506a4e64f90473b00f9cf396ac4811ff7b124f76fdd5e80d0638c5f5ddf4435",
+          "availability_sha256": "c417a7dbc8c1d96fdc86780cc7fea8709c74ac014bfcf9f4c419566d1e8181d5",
+          "epoch": 5
+        },
+        "0.1": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/best_miss_0p1.pt",
+          "checkpoint_sha256": "1fc6e734fa9d3c52170c562562838447a87f81cf78a39ed5f2e3c336b9a312c5",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/selection_versions/epoch_000035_0p1.npz",
+          "prediction_sha256": "06bf4d7530e49979726e377b68c89b67d4f3bef2698c4ef7e7b81ac3d7967cce",
+          "availability_sha256": "904462a79b3da9795ca331c7eec1c32cf49fc54efbd3800318f930292c9284df",
+          "epoch": 35
+        },
+        "0.2": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/best_miss_0p2.pt",
+          "checkpoint_sha256": "f274e0cb7284c48830df2c9e1beb38d52d0a3a95b49067cbd44499f9656d22fa",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/selection_versions/epoch_000039_0p2.npz",
+          "prediction_sha256": "7c9508a3a978267ad8c8f03e158cb2be4227a6b85e267bd052b3ac4e6b0a7192",
+          "availability_sha256": "3929e9e306ce09b603fdbeaffa9739f640993c1ed93813fae0cf0ec84a4cb418",
+          "epoch": 39
+        },
+        "0.3": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/best_miss_0p3.pt",
+          "checkpoint_sha256": "d27e7b2e8b1eb5c8b7c6e98557a3f38ce7a2ad9aa0b7dcd33fe337fa02f5a92f",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/selection_versions/epoch_000031_0p3.npz",
+          "prediction_sha256": "948b51bc51bf2c6792e59dd18ed3737783b03d04e7c2ff077f7e69d36ba75c77",
+          "availability_sha256": "96464107bfedca2d4fc44441eeea78dcd1dea664b602c6b7b4fe0cc32b80a004",
+          "epoch": 31
+        },
+        "0.4": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/best_miss_0p4.pt",
+          "checkpoint_sha256": "7adf2ef12370855c3e7b7410112244584dcd0120610f13c4f04e0abc7b40d30e",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/selection_versions/epoch_000013_0p4.npz",
+          "prediction_sha256": "b8a84496db92c678bff5633f67d3a0f746d0ff3f7dcf7084e607efb3716dc8fb",
+          "availability_sha256": "8021d04b537c895725ff6a2b079984ea46c9c25151a525eac48e6afddc8b653b",
+          "epoch": 13
+        },
+        "0.5": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/best_miss_0p5.pt",
+          "checkpoint_sha256": "899b3a1eb882e392cd3d1af78cb9f1be80afea273c55811dc711f051f588a096",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/selection_versions/epoch_000022_0p5.npz",
+          "prediction_sha256": "1794cce4897bed6f23903172ff4a915a19878668e7656bb148c7dcface35f077",
+          "availability_sha256": "14484e647d8d713a5cbcdc266554aee0cef4d9d5a506fdb3eaf684954ff32a51",
+          "epoch": 22
+        },
+        "0.6": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/best_miss_0p6.pt",
+          "checkpoint_sha256": "d9be628f984a10c24bc8ec08d41b128680078169e73a61ed76bcd8afb312fa23",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/selection_versions/epoch_000032_0p6.npz",
+          "prediction_sha256": "20463333620bb7c62ad59d23063fca3d50f81021522a04ac1e326261d490b865",
+          "availability_sha256": "84f98ae99ec73efdf16829c98fdf4d0c843fbe9ec08d71a45e5cd9fa6a6e0ae2",
+          "epoch": 32
+        },
+        "0.7": {
+          "checkpoint": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/best_miss_0p7.pt",
+          "checkpoint_sha256": "a1b51522e708d4e8889eb9ba7db8ce4434800c4cc71b4cecbc74ed22d8039aea",
+          "selected_predictions": "/home/qinjinghui/remote_experiments/osram_meld_fixed_lr_wd_20261018/runs_v1/S68_WD1/selection_versions/epoch_000019_0p7.npz",
+          "prediction_sha256": "da0b3c228920778d99e83e6a31019c5d1fb0ce80566c97e0953ad9a374cc3d68",
+          "availability_sha256": "a66f869b4f95b5266c60bc44f8b1b3f0737fd535f7fcbf9fc6b14f61f30d2919",
+          "epoch": 19
+        }
+      },
+      "verified_checkpoint_and_prediction_hashes": true
+    }
+  ]
+}

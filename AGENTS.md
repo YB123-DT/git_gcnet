@@ -1,6 +1,16 @@
 # OSRAM task delivery agreement
 
-- 当前 MELD Flat baseline 更新（用户指定，2026-10-14）：采用原代码复跑
+- 当前 MELD Flat baseline（用户指定，2026-10-18）：原 cfg84 no-JEPA
+  Flat1600 + Local Skip，Adam lr1e-5、weight_decay1e-5、constant LR，
+  50epochs、batch32、gcnet-random-mask-v1、seeds66/67/68。八率 Test-best
+  ACC61.557、UA37.728、W-F1 58.509；UA/W-F1 必须来自 ACC 选中的同次预测。
+  权重与 exact mask/预测 SHA256、逐种子/逐率结果及完整配置见
+  `experiments/osram_meld_wd_seed66_20261018/BASELINE.md` 与 `BASELINE.json`。
+  本基线24个BEST和三个last_training必须保留，不清理、不覆盖旧基线权重。
+  B1/B2旧实验使用wd2e-4，不得改标为本新baseline上的配对实验；其他数据集不变。
+  本登记不授权新增训练，不改变源码默认值；继续明确标记Test-oracle内部探索。
+
+- 历史 MELD Flat baseline（用户指定，2026-10-14）：采用原代码复跑
   seeds66/67/68 的八率 Test-best ACC 平均60.693，对应 UA36.255/W-F1 57.045。
   GCNet missing、50epoch、原1600 Flat 与 Local Skip 均保留；不修改其他数据集
   baseline。完整权重/mask索引与重现边界见

@@ -1,5 +1,10 @@
 # Complete the four WD settings with seed66
 
+Current user-selected MELD baseline (2026-10-18): LR1e-5, WD1e-5,
+seeds66/67/68, ACC61.557 / UA37.728 / W-F1 58.509. See [BASELINE.md](BASELINE.md)
+and [BASELINE.json](BASELINE.json) for the accepted configuration and24 protected
+BEST checkpoints. Historical results remain unchanged; no new training is added.
+
 INTERNAL TEST-ORACLE SCREEN. New budget: exactly4 from-scratch seed66 runs,
 WD0/1e-5/1e-4/5e-4. All same original Flat1600 + Local Skip, Adam lr1e-5,
 50epochs,batch32,constantLR,emotion-only,no added module. Missing protocol is
