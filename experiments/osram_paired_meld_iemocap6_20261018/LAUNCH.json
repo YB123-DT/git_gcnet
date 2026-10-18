@@ -1,0 +1,498 @@
+{
+  "status": "running",
+  "snapshot_unix": 1792318707.193397,
+  "server": "biggpu",
+  "source_commit": "654f67f18a9cfb4297080e8b9eb9a7dbb35c74bf",
+  "output": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1",
+  "code_root": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/code_654f67f",
+  "tmux": "paired_transfer_1018_resume",
+  "scheduler_pid": 1206014,
+  "planned_training_jobs": 6,
+  "seed": 66,
+  "methods": [
+    "paired_task_only_rho05"
+  ],
+  "gpus": {
+    "0": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+    "3": "GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a"
+  },
+  "capacity": {
+    "0": 3,
+    "3": 3
+  },
+  "recovery_events": [
+    {
+      "at": "2026-10-18T10:16:56.624373+00:00",
+      "helper": "experiments/osram_meld_alternate_features_20261017/worker.py",
+      "helper_sha256": "66fc911607d06ebc98b7e7ab407aaf786185586eebcd8cb2ac4ab4e6b46a48d1",
+      "helper_source_commit": "654f67f18a9cfb4297080e8b9eb9a7dbb35c74bf",
+      "reason": "Deployment archive omitted a committed orchestration helper; no numerical change",
+      "requeued": [
+        "IEMOCAPSix_seed66_fold1",
+        "IEMOCAPSix_seed66_fold2",
+        "IEMOCAPSix_seed66_fold3",
+        "IEMOCAPSix_seed66_fold4",
+        "IEMOCAPSix_seed66_fold5"
+      ],
+      "training_process_preserved": 1196840,
+      "training_restarted": false
+    }
+  ],
+  "extra_committed_deployment_dependency": {
+    "experiments/osram_meld_alternate_features_20261017/worker.py": "66fc911607d06ebc98b7e7ab407aaf786185586eebcd8cb2ac4ab4e6b46a48d1"
+  },
+  "jobs": [
+    {
+      "id": "IEMOCAPSix_seed66_fold1",
+      "dataset": "IEMOCAPSix",
+      "seed": 66,
+      "fold": 1,
+      "status": "running",
+      "pid": 1209832,
+      "gpu": 3,
+      "gpu_uuid": "GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a",
+      "command": [
+        "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "-u",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/code_654f67f/experiments/osram_paired_meld_iemocap6_20261018/worker.py",
+        "--job",
+        "IEMOCAPSix_seed66_fold1",
+        "--output-root",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1",
+        "--config",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/IEMOCAPSix_seed66_fold1.json",
+        "--gpu-uuid",
+        "GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a",
+        "--commit",
+        "654f67f18a9cfb4297080e8b9eb9a7dbb35c74bf"
+      ],
+      "log": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/logs/IEMOCAPSix_seed66_fold1.attempt1.log",
+      "attempts": 1,
+      "failures": [
+        {
+          "at": "2026-10-18T10:15:11.404560+00:00",
+          "attempt": 0,
+          "gpu": null,
+          "log": null,
+          "pid": null,
+          "reason": "Real first-epoch integration failed; dependent jobs not launched",
+          "returncode": null
+        }
+      ],
+      "output": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/IEMOCAPSix_seed66_fold1",
+      "config_path": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/IEMOCAPSix_seed66_fold1.json",
+      "first_epoch_integration": {
+        "actual_drop_ratio": 0.18802372051050664,
+        "anchor_count": 3364,
+        "epoch": 1,
+        "finite_task_gradients": true,
+        "inert_projector_has_no_gradient": true,
+        "observed_before": 15514,
+        "observed_dropped": 2917,
+        "original_mask_trace_equal": false,
+        "peak_memory_mib": 3490.9794921875,
+        "status": "complete"
+      },
+      "initialization": {
+        "inert_projector_parameters": 442752,
+        "matched_to_accepted_baseline": false,
+        "parameters": 13518054,
+        "sha256": "46dc1ec74a63ba007fcce28a5255ebb7f81977ccb3cfef7212caead7ec80934c",
+        "total_parameters": 13960806
+      },
+      "progress": {
+        "epoch": 1,
+        "epochs": 100,
+        "loss": 4.386142671108246,
+        "peak_memory_mib": 3490.9794921875,
+        "paired": {
+          "actual_drop_ratio": 0.18802372051050664,
+          "anchor_count": 3364,
+          "observed_before": 15514,
+          "observed_dropped": 2917
+        },
+        "actual_optimizer_lrs": [
+          0.001,
+          0.001,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "id": "IEMOCAPSix_seed66_fold2",
+      "dataset": "IEMOCAPSix",
+      "seed": 66,
+      "fold": 2,
+      "status": "running",
+      "pid": 1209877,
+      "gpu": 0,
+      "gpu_uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+      "command": [
+        "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "-u",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/code_654f67f/experiments/osram_paired_meld_iemocap6_20261018/worker.py",
+        "--job",
+        "IEMOCAPSix_seed66_fold2",
+        "--output-root",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1",
+        "--config",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/IEMOCAPSix_seed66_fold2.json",
+        "--gpu-uuid",
+        "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+        "--commit",
+        "654f67f18a9cfb4297080e8b9eb9a7dbb35c74bf"
+      ],
+      "log": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/logs/IEMOCAPSix_seed66_fold2.attempt1.log",
+      "attempts": 1,
+      "failures": [
+        {
+          "at": "2026-10-18T10:15:11.404721+00:00",
+          "attempt": 0,
+          "gpu": null,
+          "log": null,
+          "pid": null,
+          "reason": "Real first-epoch integration failed; dependent jobs not launched",
+          "returncode": null
+        }
+      ],
+      "output": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/IEMOCAPSix_seed66_fold2",
+      "config_path": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/IEMOCAPSix_seed66_fold2.json",
+      "first_epoch_integration": {
+        "actual_drop_ratio": 0.1870746135742001,
+        "anchor_count": 3395,
+        "epoch": 1,
+        "finite_task_gradients": true,
+        "inert_projector_has_no_gradient": true,
+        "observed_before": 15721,
+        "observed_dropped": 2941,
+        "original_mask_trace_equal": false,
+        "peak_memory_mib": 3502.568359375,
+        "status": "complete"
+      },
+      "initialization": {
+        "inert_projector_parameters": 442752,
+        "matched_to_accepted_baseline": false,
+        "parameters": 13518054,
+        "sha256": "46dc1ec74a63ba007fcce28a5255ebb7f81977ccb3cfef7212caead7ec80934c",
+        "total_parameters": 13960806
+      },
+      "progress": {
+        "epoch": 1,
+        "epochs": 100,
+        "loss": 4.7729103565216064,
+        "peak_memory_mib": 3502.568359375,
+        "paired": {
+          "actual_drop_ratio": 0.1870746135742001,
+          "anchor_count": 3395,
+          "observed_before": 15721,
+          "observed_dropped": 2941
+        },
+        "actual_optimizer_lrs": [
+          0.001,
+          0.001,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "id": "IEMOCAPSix_seed66_fold3",
+      "dataset": "IEMOCAPSix",
+      "seed": 66,
+      "fold": 3,
+      "status": "running",
+      "pid": 1209919,
+      "gpu": 3,
+      "gpu_uuid": "GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a",
+      "command": [
+        "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "-u",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/code_654f67f/experiments/osram_paired_meld_iemocap6_20261018/worker.py",
+        "--job",
+        "IEMOCAPSix_seed66_fold3",
+        "--output-root",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1",
+        "--config",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/IEMOCAPSix_seed66_fold3.json",
+        "--gpu-uuid",
+        "GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a",
+        "--commit",
+        "654f67f18a9cfb4297080e8b9eb9a7dbb35c74bf"
+      ],
+      "log": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/logs/IEMOCAPSix_seed66_fold3.attempt1.log",
+      "attempts": 1,
+      "failures": [
+        {
+          "at": "2026-10-18T10:15:11.404872+00:00",
+          "attempt": 0,
+          "gpu": null,
+          "log": null,
+          "pid": null,
+          "reason": "Real first-epoch integration failed; dependent jobs not launched",
+          "returncode": null
+        }
+      ],
+      "output": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/IEMOCAPSix_seed66_fold3",
+      "config_path": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/IEMOCAPSix_seed66_fold3.json",
+      "first_epoch_integration": {
+        "actual_drop_ratio": 0.18868048268625393,
+        "anchor_count": 3227,
+        "epoch": 1,
+        "finite_task_gradients": true,
+        "inert_projector_has_no_gradient": true,
+        "observed_before": 15248,
+        "observed_dropped": 2877,
+        "original_mask_trace_equal": false,
+        "peak_memory_mib": 3500.1337890625,
+        "status": "complete"
+      },
+      "initialization": {
+        "inert_projector_parameters": 442752,
+        "matched_to_accepted_baseline": false,
+        "parameters": 13518054,
+        "sha256": "46dc1ec74a63ba007fcce28a5255ebb7f81977ccb3cfef7212caead7ec80934c",
+        "total_parameters": 13960806
+      },
+      "progress": {
+        "epoch": 1,
+        "epochs": 100,
+        "loss": 4.846515238285065,
+        "peak_memory_mib": 3500.1337890625,
+        "paired": {
+          "actual_drop_ratio": 0.18868048268625393,
+          "anchor_count": 3227,
+          "observed_before": 15248,
+          "observed_dropped": 2877
+        },
+        "actual_optimizer_lrs": [
+          0.001,
+          0.001,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "id": "IEMOCAPSix_seed66_fold4",
+      "dataset": "IEMOCAPSix",
+      "seed": 66,
+      "fold": 4,
+      "status": "running",
+      "pid": 1209962,
+      "gpu": 0,
+      "gpu_uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+      "command": [
+        "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "-u",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/code_654f67f/experiments/osram_paired_meld_iemocap6_20261018/worker.py",
+        "--job",
+        "IEMOCAPSix_seed66_fold4",
+        "--output-root",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1",
+        "--config",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/IEMOCAPSix_seed66_fold4.json",
+        "--gpu-uuid",
+        "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+        "--commit",
+        "654f67f18a9cfb4297080e8b9eb9a7dbb35c74bf"
+      ],
+      "log": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/logs/IEMOCAPSix_seed66_fold4.attempt1.log",
+      "attempts": 1,
+      "failures": [
+        {
+          "at": "2026-10-18T10:15:11.405021+00:00",
+          "attempt": 0,
+          "gpu": null,
+          "log": null,
+          "pid": null,
+          "reason": "Real first-epoch integration failed; dependent jobs not launched",
+          "returncode": null
+        }
+      ],
+      "output": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/IEMOCAPSix_seed66_fold4",
+      "config_path": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/IEMOCAPSix_seed66_fold4.json",
+      "first_epoch_integration": {
+        "actual_drop_ratio": 0.18740157480314962,
+        "anchor_count": 3312,
+        "epoch": 1,
+        "finite_task_gradients": true,
+        "inert_projector_has_no_gradient": true,
+        "observed_before": 15240,
+        "observed_dropped": 2856,
+        "original_mask_trace_equal": false,
+        "peak_memory_mib": 3016.83447265625,
+        "status": "complete"
+      },
+      "initialization": {
+        "inert_projector_parameters": 442752,
+        "matched_to_accepted_baseline": false,
+        "parameters": 13518054,
+        "sha256": "46dc1ec74a63ba007fcce28a5255ebb7f81977ccb3cfef7212caead7ec80934c",
+        "total_parameters": 13960806
+      },
+      "progress": {
+        "epoch": 1,
+        "epochs": 100,
+        "loss": 5.491746485233307,
+        "peak_memory_mib": 3016.83447265625,
+        "paired": {
+          "actual_drop_ratio": 0.18740157480314962,
+          "anchor_count": 3312,
+          "observed_before": 15240,
+          "observed_dropped": 2856
+        },
+        "actual_optimizer_lrs": [
+          0.001,
+          0.001,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "id": "IEMOCAPSix_seed66_fold5",
+      "dataset": "IEMOCAPSix",
+      "seed": 66,
+      "fold": 5,
+      "status": "running",
+      "pid": 1206046,
+      "gpu": 0,
+      "gpu_uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+      "command": [
+        "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "-u",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/code_654f67f/experiments/osram_paired_meld_iemocap6_20261018/worker.py",
+        "--job",
+        "IEMOCAPSix_seed66_fold5",
+        "--output-root",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1",
+        "--config",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/IEMOCAPSix_seed66_fold5.json",
+        "--gpu-uuid",
+        "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+        "--commit",
+        "654f67f18a9cfb4297080e8b9eb9a7dbb35c74bf"
+      ],
+      "log": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/logs/IEMOCAPSix_seed66_fold5.attempt2.log",
+      "attempts": 2,
+      "failures": [
+        {
+          "at": "2026-10-18T10:15:11.404306+00:00",
+          "attempt": 1,
+          "gpu": 0,
+          "log": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/logs/IEMOCAPSix_seed66_fold5.attempt1.log",
+          "pid": 1196847,
+          "reason": "worker exited 1; complete SUMMARY.json missing or unsuccessful",
+          "returncode": 1
+        }
+      ],
+      "output": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/IEMOCAPSix_seed66_fold5",
+      "config_path": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/IEMOCAPSix_seed66_fold5.json",
+      "first_epoch_integration": {
+        "actual_drop_ratio": 0.1871868528291803,
+        "anchor_count": 3228,
+        "epoch": 1,
+        "finite_task_gradients": true,
+        "inert_projector_has_no_gradient": true,
+        "observed_before": 14969,
+        "observed_dropped": 2802,
+        "original_mask_trace_equal": false,
+        "peak_memory_mib": 3603.6689453125,
+        "status": "complete"
+      },
+      "initialization": {
+        "inert_projector_parameters": 442752,
+        "matched_to_accepted_baseline": false,
+        "parameters": 13518054,
+        "sha256": "46dc1ec74a63ba007fcce28a5255ebb7f81977ccb3cfef7212caead7ec80934c",
+        "total_parameters": 13960806
+      },
+      "progress": {
+        "epoch": 3,
+        "epochs": 100,
+        "loss": 2.761794865131378,
+        "peak_memory_mib": 3603.6689453125,
+        "paired": {
+          "actual_drop_ratio": 0.15808045165843332,
+          "anchor_count": 3860,
+          "observed_before": 11336,
+          "observed_dropped": 1792
+        },
+        "actual_optimizer_lrs": [
+          0.001,
+          0.001,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "id": "MELD_seed66_fold1",
+      "dataset": "MELD",
+      "seed": 66,
+      "fold": 1,
+      "status": "running",
+      "pid": 1196840,
+      "gpu": 3,
+      "gpu_uuid": "GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a",
+      "command": [
+        "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "-u",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/code_654f67f/experiments/osram_paired_meld_iemocap6_20261018/worker.py",
+        "--job",
+        "MELD_seed66_fold1",
+        "--output-root",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1",
+        "--config",
+        "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/MELD_seed66_fold1.json",
+        "--gpu-uuid",
+        "GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a",
+        "--commit",
+        "654f67f18a9cfb4297080e8b9eb9a7dbb35c74bf"
+      ],
+      "log": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/logs/MELD_seed66_fold1.attempt1.log",
+      "attempts": 1,
+      "failures": [],
+      "output": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/MELD_seed66_fold1",
+      "config_path": "/home/qinjinghui/remote_experiments/osram_paired_meld_iemocap6_20261018/runs_v1/queue/configs/MELD_seed66_fold1.json",
+      "first_epoch_integration": {
+        "actual_drop_ratio": 0.15065836480555272,
+        "anchor_count": 3791,
+        "epoch": 1,
+        "finite_task_gradients": true,
+        "inert_projector_has_no_gradient": true,
+        "observed_before": 19594,
+        "observed_dropped": 2952,
+        "original_mask_trace_equal": true,
+        "peak_memory_mib": 890.81298828125,
+        "status": "complete"
+      },
+      "initialization": {
+        "inert_projector_parameters": 442752,
+        "matched_to_accepted_baseline": true,
+        "parameters": 13290795,
+        "sha256": "c2ea3d6fdf2d6e559283a5bd15e4e2b3bea239b2e95aba161f5a271102402008",
+        "total_parameters": 13733547
+      },
+      "progress": {
+        "epoch": 5,
+        "epochs": 50,
+        "loss": 1.1500248060081943,
+        "peak_memory_mib": 893.7158203125,
+        "paired": {
+          "actual_drop_ratio": 0.15819667969741585,
+          "anchor_count": 3733,
+          "observed_before": 19697,
+          "observed_dropped": 3116
+        },
+        "actual_optimizer_lrs": [
+          0.00001,
+          0.00001,
+          0.00001,
+          0.00001
+        ]
+      }
+    }
+  ]
+}
