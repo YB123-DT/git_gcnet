@@ -1,4 +1,6 @@
 import importlib
+import inspect
+import types
 
 import pytest
 
@@ -45,3 +47,16 @@ def test_render_has_all_rates_and_separate_ua_from_acc_same_epoch():
     assert 'INTERNAL TEST-ORACLE SCREEN' in rendered
     assert '0.7' in rendered and 'UA' in rendered and 'Flat' in rendered
     assert 'B1' in rendered and 'B2' in rendered
+
+
+def test_smoke_evaluator_keeps_capture_signature(tmp_path):
+    def train(model, loader, optimizer, epoch):
+        pass
+
+    def evaluate(model, loader, schedule, collect=False):
+        return model, list(loader), schedule, collect
+
+    trainer = types.SimpleNamespace(train_epoch=train, evaluate_rate=evaluate)
+    runner().observe_training(trainer, tmp_path, None, smoke=True)
+    assert inspect.signature(trainer.evaluate_rate) == inspect.signature(evaluate)
+    assert trainer.evaluate_rate('model', [1, 2], 'schedule') == ('model', [1], 'schedule', False)

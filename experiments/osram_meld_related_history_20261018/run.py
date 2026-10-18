@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+from functools import wraps
 import hashlib
 import importlib.util
 import inspect
@@ -151,6 +152,7 @@ def observe_training(trainer, output, integration, *, smoke=False):
         evaluate = trainer.evaluate_rate
         eval_signature = inspect.signature(evaluate)
 
+        @wraps(evaluate)
         def small_eval(*args, **kwargs):
             bound = eval_signature.bind(*args, **kwargs)
             bound.arguments['loader'] = list(itertools.islice(bound.arguments['loader'], 1))
