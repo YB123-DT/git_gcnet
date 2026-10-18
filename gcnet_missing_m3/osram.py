@@ -865,8 +865,31 @@ class OSRAMBackbone(nn.Module):
         osram_counterfactual_readout: str = 'none',
         osram_history_recency: bool = False,
         osram_causal_gru_history: bool = False,
+        osram_source_tracking: bool = False,
+        osram_tasr: bool = False,
+        osram_tasr_source_mode: str = 'real',
     ) -> None:
         super().__init__()
+        self.osram_tasr = bool(osram_tasr)
+        self.osram_source_tracking = bool(osram_source_tracking or osram_tasr)
+        self.osram_tasr_source_mode = osram_tasr_source_mode
+        self.last_source_trace = None
+        if osram_tasr_source_mode not in ('real', 'neutral'):
+            raise ValueError('TASR source mode must be real or neutral')
+        if self.osram_source_tracking and (
+            bidirectional or forward_slot_reuse or beta_mode != 'embedded'
+            or osram_readout_fusion != 'flat' or osram_causal_gru_history
+            or osram_post_grn or osram_local_skip_gate or osram_memory_only_adapter
+            or osram_history_input_gate or osram_local_evidence_gate
+            or osram_hierarchical_evidence_gate or osram_hierarchical_feature_only
+            or history_query_adapter or osram_relation_block or osram_relation_dual_readout
+            or osram_gap_increment_filter or osram_decision_correction
+            or osram_readout_candidate != 'none' or osram_meaningful_block != 'none'
+            or osram_base_first_gap or osram_counterfactual_readout != 'none'
+            or osram_history_recency or osram_ablation != 'full'
+            or osram_emotion_ablation != 'full'
+        ):
+            raise ValueError('TASR source tracking requires plain causal embedded-beta Flat OSRAM')
         from .meaningful_input_structured import validate_rpca_config
         from .meaningful_input_representation import validate_mbt_config
         validate_mbt_config(osram_mbt_bottlenecks, osram_mbt_rounds,
@@ -1318,6 +1341,13 @@ class OSRAMBackbone(nn.Module):
                          "value_projectors", "query_projector", "alpha_logits", "beta_logits"):
                 delattr(self, name)
 
+        if self.osram_tasr:
+            from .tasr import TASRAdapter
+            # No baseline/downstream initialization or sampler RNG changes.
+            with torch.random.fork_rng(devices=[]):
+                self.tasr = TASRAdapter(self.latent_dim, self.num_heads * self.value_dim,
+                                        source_mode=self.osram_tasr_source_mode)
+
     def _causal_gru_forward(self, node, availability, valid):
         safe_node = torch.where(valid[..., None], node, torch.zeros_like(node))
         forward = self.causal_gru_history(safe_node, valid)
@@ -1497,6 +1527,8 @@ class OSRAMBackbone(nn.Module):
         values: torch.Tensor,
         availability: torch.Tensor,
         beta: torch.Tensor | None = None,
+        *,
+        return_write_terms: bool = False,
     ) -> torch.Tensor:
         """Apply one permutation-invariant, multi-slot block-delta update."""
 
@@ -1554,8 +1586,14 @@ class OSRAMBackbone(nn.Module):
         # Keep the legacy arithmetic path exact at the default step. The fixed
         # scalar scales the correction, without detaching the write gradients.
         if self.write_step == 1.0:
-            return memory + correction
-        return memory + self.write_step * correction
+            updated = memory + correction
+        else:
+            updated = memory + self.write_step * correction
+        if return_write_terms:
+            if self.beta_mode != 'embedded':
+                raise ValueError('source tracking requires embedded beta')
+            return updated, (k_bar, v_bar, solved)
+        return updated
 
     def _scan(
         self,
@@ -1570,6 +1608,7 @@ class OSRAMBackbone(nn.Module):
         post_write_observer=None,
         write_mask_override=None,
         write_node_collector=None,
+        source_tracker=None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, list[float]]]:
         if hasattr(self, 'core20_memory'):
             if reverse or any(x is not None for x in (retention_diagnostics, write_completion, post_write_observer)):
@@ -1618,6 +1657,8 @@ class OSRAMBackbone(nn.Module):
             ).unsqueeze(2)
             decayed = memory * alpha.view(1, self.num_heads, 1, 1)
             memory = torch.where(active.view(batch, 1, 1, 1), decayed, memory)
+            if source_tracker is not None:
+                source_tracker.decay(alpha, active)
             read_memory = memory
 
             base_read = (
@@ -1665,6 +1706,10 @@ class OSRAMBackbone(nn.Module):
                     * missing[:, modality_index].unsqueeze(-1)
                     * identity_mask[time_index].unsqueeze(-1)
                 )
+                if source_tracker is not None:
+                    source_tracker.read(time_index, modality_index, residual_query,
+                                        gap[time_index, :, modality_index],
+                                        active & ~availability[time_index, :, modality_index].bool())
 
             write_keys, write_values, write_mask = slot_keys, slot_values, availability[time_index]
             if write_mask_override is not None:
@@ -1685,10 +1730,15 @@ class OSRAMBackbone(nn.Module):
                 write_values,
                 write_mask,
                 beta=beta,
+                **({'return_write_terms': True} if source_tracker is not None else {}),
             )
+            if source_tracker is not None:
+                memory_candidate, write_terms = memory_candidate
             memory = torch.where(
                 active.view(batch, 1, 1, 1), memory_candidate, memory
             )
+            if source_tracker is not None:
+                source_tracker.update(time_index, *write_terms, self.write_step, active, memory)
             if post_write_observer is not None:
                 # Differentiable read-only observer: its return is ignored and
                 # a clone prevents callback mutation of persistent memory.
@@ -1800,16 +1850,30 @@ class OSRAMBackbone(nn.Module):
         if hasattr(self, 'core20_value'):
             values, self.core20_value.auxiliary_loss = self.core20_value.transform_values(
                 values, availability, valid, reconstruction_targets=core20_reconstruction_targets)
+        source_tracker = None
+        if self.osram_source_tracking:
+            if (write_completion is not None or write_mask_override is not None
+                    or write_node_collector is not None or context_read_residual is not None
+                    or read_node is not node or write_node is not node
+                    or hasattr(self, 'core20_memory') or hasattr(self, 'core20_value')):
+                raise ValueError('TASR source tracking requires unchanged observed-only CHM')
+            from .tasr import JointSourceTracker
+            template = queries.new_zeros(availability.shape[1], self.num_heads,
+                                          self.value_dim, self.key_dim)
+            source_tracker = JointSourceTracker(availability, valid, template)
         base_forward, gap_forward, diag_forward = self._scan(
             keys, values, queries, availability, valid, reverse=False,
             retention_diagnostics=(memory_retention_diagnostics
                                    if collect_memory_retention_diagnostics else None),
             write_completion=write_completion,
             post_write_observer=post_write_observer,
+            **({'source_tracker': source_tracker} if source_tracker is not None else {}),
             **({'write_mask_override': write_mask_override,
                 'write_node_collector': write_node_collector}
                if write_mask_override is not None or write_node_collector is not None else {}),
         )
+        if source_tracker is not None:
+            self.last_source_trace = source_tracker.finish()
         if self.bidirectional:
             base_backward, gap_backward, diag_backward = self._scan(
                 keys, values, queries, availability, valid, reverse=True
@@ -1856,6 +1920,18 @@ class OSRAMBackbone(nn.Module):
             local_input = read_node + residual
         local = local_input + self.local_path(local_input)
         local = local * valid.unsqueeze(-1).to(local.dtype)
+        if self.osram_tasr:
+            if (self.osram_ablation in ('local-only', 'local-base')
+                    or self.osram_emotion_ablation in ('local-only', 'local-base')):
+                # Frozen readout interventions may switch ablations at runtime.
+                # Never reintroduce a disabled Gap through its source trace.
+                self.tasr.last_diagnostics = {'bypassed_by_gap_ablation': True}
+                self.tasr.last_gamma = None
+            else:
+                trace = self.last_source_trace
+                emotion_gap = emotion_gap + self.tasr(
+                    local, emotion_gap, trace['source_gap'], availability, umask,
+                    trace['trajectory'])
         if hasattr(self, 'core20_readout'):
             hidden = self.core20_readout(local, emotion_base, emotion_gap, availability, umask)
         elif self.osram_decision_correction:
@@ -2164,6 +2240,10 @@ class OSRAMBackbone(nn.Module):
                 'mean_distance': float(valid_recency[valid_recency > 0].mean())
                 if torch.any(valid_recency > 0) else 0.0,
             }
+        if self.osram_source_tracking:
+            diagnostics['source_tracking'] = self.last_source_trace['diagnostics']
+        if self.osram_tasr:
+            diagnostics['tasr'] = self.tasr.last_diagnostics
         self.last_diagnostics = diagnostics
         if self.osram_meaningful_block != 'none':
             diagnostics['meaningful_block'] = self.meaningful_block.last_diagnostics

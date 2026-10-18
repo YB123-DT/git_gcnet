@@ -1302,6 +1302,9 @@ class MissingM3GraphModel(GraphModel):
         osram_counterfactual_readout='none',
         osram_history_recency=False,
         osram_causal_gru_history=False,
+        osram_source_tracking=False,
+        osram_tasr=False,
+        osram_tasr_source_mode='real',
     ) -> None:
         from .meaningful_input_structured import validate_rpca_config
         from .meaningful_input_representation import validate_mbt_config
@@ -1806,6 +1809,9 @@ class MissingM3GraphModel(GraphModel):
                 osram_counterfactual_readout=osram_counterfactual_readout,
                 osram_history_recency=osram_history_recency,
                 osram_causal_gru_history=osram_causal_gru_history,
+                osram_source_tracking=osram_source_tracking,
+                osram_tasr=osram_tasr,
+                osram_tasr_source_mode=osram_tasr_source_mode,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,

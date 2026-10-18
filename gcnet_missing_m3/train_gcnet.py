@@ -123,6 +123,9 @@ class TrainConfig:
     osram_counterfactual_readout: str = 'none'
     osram_history_recency: bool = False
     osram_causal_gru_history: bool = False
+    osram_source_tracking: bool = False
+    osram_tasr: bool = False
+    osram_tasr_source_mode: str = 'real'
     osram_num_heads: int = 4
     osram_key_dim: int = 32
     osram_value_dim: int = 32
@@ -3447,6 +3450,9 @@ def run_experiment(
         osram_counterfactual_readout=config_value.osram_counterfactual_readout,
         osram_history_recency=config_value.osram_history_recency,
         osram_causal_gru_history=config_value.osram_causal_gru_history,
+        osram_source_tracking=config_value.osram_source_tracking,
+        osram_tasr=config_value.osram_tasr,
+        osram_tasr_source_mode=config_value.osram_tasr_source_mode,
         osram_num_heads=config_value.osram_num_heads,
         osram_key_dim=config_value.osram_key_dim,
         osram_value_dim=config_value.osram_value_dim,
@@ -4188,6 +4194,11 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Append strict-past modality coverage and recency to original Flat.')
     parser.add_argument('--osram-causal-gru-history', action='store_true',
                         help='Replace CHM with strictly past ordinary single-layer GRU-256 Base; Gap stays zero.')
+    parser.add_argument('--osram-source-tracking', action='store_true',
+                        help='Audit additive Value-slot sources of the original joint write (no trainable parameters).')
+    parser.add_argument('--osram-tasr', action='store_true',
+                        help='Trajectory-conditioned source Gap correction; original CHM and Flat remain intact.')
+    parser.add_argument('--osram-tasr-source-mode', choices=('real', 'neutral'), default='real')
     parser.add_argument('--missing-mask-protocol',
                         choices=('conversation-mask-v2', 'gcnet-random-mask-v1', 'gcnet-legacy-fixed-v1'),
                         default='conversation-mask-v2')
@@ -4583,6 +4594,9 @@ def main(argv=None) -> None:
         osram_counterfactual_readout=args.osram_counterfactual_readout,
         osram_history_recency=args.osram_history_recency,
         osram_causal_gru_history=args.osram_causal_gru_history,
+        osram_source_tracking=args.osram_source_tracking,
+        osram_tasr=args.osram_tasr,
+        osram_tasr_source_mode=args.osram_tasr_source_mode,
         osram_num_heads=args.osram_num_heads,
         osram_key_dim=args.osram_key_dim,
         osram_value_dim=args.osram_value_dim,
