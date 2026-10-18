@@ -1,6 +1,9 @@
 # 已验证的远程启动
 
-INTERNAL TEST-ORACLE FEATURE-SOURCE DIAGNOSTIC — RUNNING, NOT FINAL RESULTS.
+INTERNAL TEST-ORACLE FEATURE-SOURCE DIAGNOSTIC — historical launch snapshot.
+
+完成更新：正式任务已完成 50/50 epoch，无错误，结果见 `RESULT.md`。
+以下 RUNNING/前两轮描述是启动当时证据，不是当前实时进度。
 
 - 服务器 biggpu；原环境 `/data2/yb/conda_envs/cmerc-repro/bin/python`。
 - 启动脚本固定于源码提交 `9c9ec92ae82927e5970258e81b794dc2dc959377`。

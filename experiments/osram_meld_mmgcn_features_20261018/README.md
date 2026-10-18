@@ -2,6 +2,9 @@
 
 INTERNAL TEST-ORACLE FEATURE-SOURCE DIAGNOSTIC
 
+完成更新：seed66 已训练 50/50 epoch。八率 ACC57.826/UA30.562/W-F1 53.540；
+完整结果与核验见 `RESULT.md`、`FINAL_SUMMARY.json`。下文启动说明保留作复现记录。
+
 用户要求：下载 ACL-IJCNLP 2021 MMGCN 发布的三模态 MELD 特征，与 ECERC
 比较；不同则运行一次 MELD。本轮仅 seed66，不调参、不加模块、不扩大种子。
 
