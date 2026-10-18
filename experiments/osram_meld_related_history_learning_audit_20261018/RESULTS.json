@@ -1,0 +1,4172 @@
+{
+  "status": "complete",
+  "training": false,
+  "new_inference": false,
+  "device": "CPU only",
+  "source": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1",
+  "models": {
+    "B1": {
+      "config": {
+        "b2_base_checkpoint": null,
+        "b2_pretrain_checkpoint": null,
+        "backbone_lr_multiplier": 1,
+        "backbone_type": "osram",
+        "base_model": "LSTM",
+        "batch_size": 32,
+        "beta_mode": "embedded",
+        "checkpoint_selection": "test-oracle-per-rate",
+        "classification_completion": false,
+        "classifier_lr_multiplier": 1,
+        "completion_path": "none",
+        "completion_write_to_memory": false,
+        "core20_aux_weight": 1,
+        "core20_method": "none",
+        "dataset": "MELD",
+        "device": "cuda",
+        "disable_unused_aux_modules": true,
+        "dropout": 0.5,
+        "ema_tau": 0.996,
+        "emotion_loss_mode": "sample-mean",
+        "epochs": 50,
+        "evaluate_test": true,
+        "evaluation_protocol": "official",
+        "fixed_missing_rate": null,
+        "fold": 1,
+        "fusion_type": "mean",
+        "gap_residual_strength": 1,
+        "gradient_clip_norm": 1,
+        "graph_branch_mode": "both",
+        "graph_message_calibration": "none",
+        "graph_second_layer": "graphconv",
+        "group_dro_eta": 0.1,
+        "hidden": 200,
+        "history_contrast_temperature": 0.1,
+        "history_contrast_weight": 0.1,
+        "history_drop_prob": 0.2,
+        "history_task_view2_weight": 0.5,
+        "initial_backbone_checkpoint": null,
+        "jepa_contrastive_source": "contrastive",
+        "jepa_rate_weighting": "uniform",
+        "jepa_regression_aggregation": "target",
+        "jepa_weight": 0.1,
+        "joint_pretrain_checkpoint": null,
+        "joint_pretrain_freeze": true,
+        "latent_dim": 256,
+        "learning_rate": 0.00001,
+        "local_context_residual": false,
+        "local_fusion_dropout": 0.2,
+        "local_fusion_hidden_dim": 256,
+        "lr_schedule": "constant",
+        "missing_mask_protocol": "gcnet-random-mask-v1",
+        "mmoe_variant": "dual-gate",
+        "mosi_task_mode": "regression",
+        "node_interaction_residual": false,
+        "num_experts": 4,
+        "optimizer": "adam",
+        "osram_ablation": "full",
+        "osram_adapter_hidden_dim": 0,
+        "osram_base_first_gap": false,
+        "osram_bidirectional": false,
+        "osram_ced_block": false,
+        "osram_counterfactual_readout": "none",
+        "osram_decision_correction": false,
+        "osram_emotion_ablation": "full",
+        "osram_forward_slot_reuse": false,
+        "osram_gap_increment_filter": false,
+        "osram_gap_read": "residual",
+        "osram_hierarchical_evidence_gate": false,
+        "osram_hierarchical_feature_only": false,
+        "osram_history_input_gate": false,
+        "osram_history_query_adapter": false,
+        "osram_history_recency": false,
+        "osram_key_dim": 64,
+        "osram_local_evidence_gate": false,
+        "osram_local_evidence_gate_gap_only": false,
+        "osram_local_evidence_gate_reg_type": "l2",
+        "osram_local_evidence_gate_reg_weight": 0.001,
+        "osram_local_skip_gate": false,
+        "osram_meaningful_block": "none",
+        "osram_memory_only_adapter": false,
+        "osram_num_heads": 8,
+        "osram_output_dim": 1600,
+        "osram_post_grn": false,
+        "osram_predictor_mode": "structured",
+        "osram_query_availability": true,
+        "osram_read_ridge": 0.001,
+        "osram_readout_candidate": "none",
+        "osram_readout_fusion": "flat",
+        "osram_relation_block": false,
+        "osram_relation_dim": 128,
+        "osram_relation_dual_readout": false,
+        "osram_relation_mode": "pairwise",
+        "osram_relation_out_dim": 64,
+        "osram_shift_filter_depth": 1,
+        "osram_shift_filter_width": 128,
+        "osram_value_dim": 64,
+        "osram_write_ridge": 0.001,
+        "osram_write_step": 0.6,
+        "paired_history_views": false,
+        "postgraph_bilstm_ablation": "none",
+        "postgraph_sequence_mode": "independent",
+        "predictor_dropout": 0.1,
+        "pretrained_learning_rate": null,
+        "projector_dropout": 0.1,
+        "projector_lr_multiplier": 1,
+        "readout_rank": 8,
+        "readout_type": "shared",
+        "recurrent_padding_mode": "legacy",
+        "representation_type": "slot",
+        "seed": 66,
+        "simple_regression_predictor": false,
+        "target_private_rank": 0,
+        "target_space": "all-modalities",
+        "task_regression_loss": "mse",
+        "task_smooth_l1_beta": 1,
+        "teacher_checkpoint": null,
+        "teacher_mode": "ema",
+        "temperature": 0.03,
+        "text_core": false,
+        "text_subspace_checkpoint": null,
+        "time_attention": false,
+        "top_k": 2,
+        "train_missing_rates": [
+          0,
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6,
+          0.7
+        ],
+        "train_rate_mode": "cyclic",
+        "training_objective": "emotion-only",
+        "uniform_forced_text_probability": 0.25,
+        "validation_fraction": 0.1,
+        "warmup_ratio": 0.05,
+        "weight_decay": 0.0002,
+        "window_future": 2,
+        "window_past": 2
+      },
+      "branch": {
+        "attention_dim": 128,
+        "input_dim": 2435,
+        "kind": "B1",
+        "relation_weight": 0,
+        "window": 8
+      },
+      "identity": {
+        "branch": {
+          "attention_dim": 128,
+          "input_dim": 2435,
+          "kind": "B1",
+          "relation_weight": 0,
+          "window": 8
+        },
+        "config_sha256": "c1ad8a1fdcd8522cb62aa1d857c64f224c3abf7d19949de01cbc7ec1b5beba7e",
+        "dataset_sha256": "a0349614b2b58e8b2db768f0144aa36b96fb2348ca436a6879ee2623cc2d2f80",
+        "numerical_commit": "b4a313841f098487a6482d2712bdac94aa8e319e",
+        "smoke": false
+      },
+      "environment": {
+        "cuda": "11.7",
+        "executable": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "numpy": "1.26.4",
+        "python": "3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]",
+        "sklearn": "1.3.2",
+        "torch": "1.13.1+cu117"
+      },
+      "optimizer_steps": 1650,
+      "all_tensors_nonzero_steps": 1646,
+      "best_epochs": {
+        "0.0": 8,
+        "0.1": 13,
+        "0.2": 11,
+        "0.3": 21,
+        "0.4": 35,
+        "0.5": 13,
+        "0.6": 24,
+        "0.7": 46
+      },
+      "best_test_metrics": {
+        "high": {
+          "ACC": 57.86717752234994,
+          "CE": 1.2784046389085144,
+          "UA": 32.45968937812389,
+          "WF1": 53.64136368407636
+        },
+        "mean": {
+          "ACC": 61.79597701149426,
+          "CE": 1.194127312645303,
+          "UA": 38.50153610254431,
+          "WF1": 58.93592752786506
+        },
+        "rates": {
+          "0.0": {
+            "ACC": 67.66283524904215,
+            "CE": 1.080091501542244,
+            "N": 2610,
+            "UA": 44.43787287956098,
+            "WF1": 65.84357045977946,
+            "availability_sha256": "c417a7dbc8c1d96fdc86780cc7fea8709c74ac014bfcf9f4c419566d1e8181d5",
+            "checkpoint_sha256": "057aaacf1dd2387c6c184aeaee9b881ed2999fe4c236117c4a0f23a09be2517a",
+            "epoch": 8,
+            "path": "selection_versions/epoch_000008_0p0.npz",
+            "recall": [
+              85.11146496815286,
+              61.56583629893239,
+              2,
+              33.17307692307692,
+              64.42786069651741,
+              10.294117647058822,
+              54.492753623188406
+            ],
+            "sha256": "25a84f758917c5e07315bbacbf440e64e88f981411bd656dd34fbe8eb5211ade",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.1": {
+            "ACC": 65.55555555555556,
+            "CE": 1.102531209178416,
+            "N": 2610,
+            "UA": 45.73931362252672,
+            "WF1": 64.3118366910135,
+            "availability_sha256": "8b9c25a85460b236a473e2bee430ce497351cf63373cbe8023a1620aca9818e6",
+            "checkpoint_sha256": "990a276e1310c82252b5cae5187d70dbba1ec1349bb8d4c470e03fb4895013b5",
+            "epoch": 13,
+            "path": "selection_versions/epoch_000013_0p1.npz",
+            "recall": [
+              83.20063694267516,
+              58.00711743772242,
+              14.000000000000002,
+              32.69230769230769,
+              57.46268656716418,
+              22.058823529411764,
+              52.7536231884058
+            ],
+            "sha256": "64c8f4bdd08caa039ccc0d36a00462ce37babf3b5c21108fda116e2a664423aa",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.2": {
+            "ACC": 64.09961685823755,
+            "CE": 1.1290569857363384,
+            "N": 2610,
+            "UA": 40.93083465439123,
+            "WF1": 61.878502835284976,
+            "availability_sha256": "05900e85527c75bfb3176c28c1bda0edae90682c220f6998a3da0bcf47c48356",
+            "checkpoint_sha256": "ee1909a101369a3ce446d6b95d0099b606d71977863a7bdaee96eba508ca1106",
+            "epoch": 11,
+            "path": "selection_versions/epoch_000011_0p2.npz",
+            "recall": [
+              85.98726114649682,
+              52.313167259786475,
+              8,
+              30.76923076923077,
+              50.74626865671642,
+              10.294117647058822,
+              48.40579710144928
+            ],
+            "sha256": "b2e62c443c07480ffe830713fbe755076b7b04dc76917d7730ea957e536394af",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.3": {
+            "ACC": 62.490421455938694,
+            "CE": 1.1773171768613155,
+            "N": 2610,
+            "UA": 40.54082869071521,
+            "WF1": 60.226009882422524,
+            "availability_sha256": "13f6324729c6d651b76b3b6de58462844f937cee3f3edc147a21fb0146953e76",
+            "checkpoint_sha256": "36a613c49d63bf457a9f2c859351eafd39a4b23775c7cf37b2e390aefeb4bd10",
+            "epoch": 21,
+            "path": "selection_versions/epoch_000021_0p3.npz",
+            "recall": [
+              85.27070063694268,
+              49.46619217081851,
+              16,
+              24.03846153846154,
+              48.507462686567166,
+              14.705882352941178,
+              45.79710144927536
+            ],
+            "sha256": "306894addaa1ac1e5bad483706eb4c6617f26f86ec3e50fa0c4e0eac9334d143",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.4": {
+            "ACC": 60.95785440613027,
+            "CE": 1.2288077111185662,
+            "N": 2610,
+            "UA": 38.98437083878864,
+            "WF1": 58.303409302191014,
+            "availability_sha256": "8fb7a651d78c231ff512efcfaf361f9b5fa06be6a5aefae15027e1761ac238d7",
+            "checkpoint_sha256": "b7448c8c0dc9de9cee6918f41471a5479aa5a0342b72cfee60cb5352c4d23493",
+            "epoch": 35,
+            "path": "selection_versions/epoch_000035_0p4.npz",
+            "recall": [
+              85.42993630573248,
+              45.55160142348754,
+              12,
+              20.673076923076923,
+              44.27860696517413,
+              22.058823529411764,
+              42.89855072463768
+            ],
+            "sha256": "58e251a8e4e403dfd01ac512b3cd6448fee66f90d29a5d1cf0dd53250d0e655b",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.5": {
+            "ACC": 59.69348659003831,
+            "CE": 1.1941810179549186,
+            "N": 2610,
+            "UA": 33.19832562847252,
+            "WF1": 55.623117341485,
+            "availability_sha256": "07b9bda75f4b679d7205de2433d37139e71323ffef7564c31a85bf1fd86a88cf",
+            "checkpoint_sha256": "e2ec30a51f599cd15e5baf6154a250c3f234d7d0ab30345d22fe1fa05fe11226",
+            "epoch": 13,
+            "path": "selection_versions/epoch_000013_0p5.npz",
+            "recall": [
+              89.01273885350318,
+              36.654804270462634,
+              4,
+              19.230769230769234,
+              40.79601990049751,
+              5.88235294117647,
+              36.811594202898554
+            ],
+            "sha256": "6374ba0233fde60769b29690af976eab68571f289b50e353517b56a4722eccf9",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.6": {
+            "ACC": 57.43295019157089,
+            "CE": 1.3074606648292586,
+            "N": 2610,
+            "UA": 32.21596063152429,
+            "WF1": 53.12152701972745,
+            "availability_sha256": "6f4a90742be8af01173161aab170d991630d3fbefec515d009f65a70c77bdf89",
+            "checkpoint_sha256": "d39fd43fde4abac339b4aae97a82551201c0dc46deff989e73cfd7c35f7f1f5e",
+            "epoch": 24,
+            "path": "selection_versions/epoch_000024_0p6.npz",
+            "recall": [
+              87.42038216560509,
+              33.096085409252666,
+              8,
+              11.538461538461538,
+              38.308457711442784,
+              13.23529411764706,
+              33.91304347826087
+            ],
+            "sha256": "192ae85a69ddaa66f5b0d61ff7eb13dd803d615c16a20cc59934c04bd6fc926c",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.7": {
+            "ACC": 56.47509578544061,
+            "CE": 1.3335722339413663,
+            "N": 2610,
+            "UA": 31.96478187437487,
+            "WF1": 52.17944669101661,
+            "availability_sha256": "a992bc6396880c30c29a34a2c6e8b41a79f69cf22041b7d8d8d9d2e629f9df99",
+            "checkpoint_sha256": "ee6123df88890b5c8e227ab9f62ce48b86e573e118ad53c33b0f626f330953a2",
+            "epoch": 46,
+            "path": "selection_versions/epoch_000046_0p7.npz",
+            "recall": [
+              87.26114649681529,
+              28.11387900355872,
+              10,
+              16.346153846153847,
+              31.094527363184078,
+              14.705882352941178,
+              36.231884057971016
+            ],
+            "sha256": "957dbda840b8b03389f8f2b9cd9247cfc24e8f89003a4dd3208fbfbdf17fdb2a",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          }
+        }
+      },
+      "epoch_records": [
+        {
+          "epoch": 1,
+          "logged_train_loss": 1.5686118602752686,
+          "train_ACC": 44.59905896486135,
+          "task_test_CE_mean": 1.3986685689952638,
+          "test_ACC_mean": 50.03352490421455,
+          "test_WF1_mean": 35.52309181905834,
+          "output_weight_norm": 0.05282168835401535,
+          "branch_preclip_gradient_mean": 0.2660724997068896,
+          "branch_preclip_gradient_min": 0.10696474462747574,
+          "branch_preclip_gradient_max": 0.8207157254219055,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 32,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 2,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.5686118602752686
+        },
+        {
+          "epoch": 2,
+          "logged_train_loss": 1.3366222128723606,
+          "train_ACC": 54.47992792071279,
+          "task_test_CE_mean": 1.2607711388005152,
+          "test_ACC_mean": 58.28065134099617,
+          "test_WF1_mean": 50.64228178527167,
+          "output_weight_norm": 0.07851652801036835,
+          "branch_preclip_gradient_mean": 0.15114875769976413,
+          "branch_preclip_gradient_min": 0.06936980783939362,
+          "branch_preclip_gradient_max": 0.29545074701309204,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.3366222128723606
+        },
+        {
+          "epoch": 3,
+          "logged_train_loss": 1.2179628953789219,
+          "train_ACC": 60.00600660726799,
+          "task_test_CE_mean": 1.2485194785727394,
+          "test_ACC_mean": 59.51628352490421,
+          "test_WF1_mean": 52.93055586907439,
+          "output_weight_norm": 0.10075929015874863,
+          "branch_preclip_gradient_mean": 0.1411615562709895,
+          "branch_preclip_gradient_min": 0.06292309612035751,
+          "branch_preclip_gradient_max": 0.3240744173526764,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.2179628953789219
+        },
+        {
+          "epoch": 4,
+          "logged_train_loss": 1.154407728802074,
+          "train_ACC": 61.65782360596657,
+          "task_test_CE_mean": 1.2306325162450473,
+          "test_ACC_mean": 59.827586206896555,
+          "test_WF1_mean": 54.06443970026709,
+          "output_weight_norm": 0.11414048075675964,
+          "branch_preclip_gradient_mean": 0.15775750092033183,
+          "branch_preclip_gradient_min": 0.057649027556180954,
+          "branch_preclip_gradient_max": 0.2601427733898163,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.154407728802074
+        },
+        {
+          "epoch": 5,
+          "logged_train_loss": 1.1320752736293909,
+          "train_ACC": 62.10831915106617,
+          "task_test_CE_mean": 1.201781179342005,
+          "test_ACC_mean": 60.50287356321839,
+          "test_WF1_mean": 55.88519544768592,
+          "output_weight_norm": 0.12399077415466309,
+          "branch_preclip_gradient_mean": 0.13613894536639704,
+          "branch_preclip_gradient_min": 0.0675116628408432,
+          "branch_preclip_gradient_max": 0.2178824543952942,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.1320752736293909
+        },
+        {
+          "epoch": 6,
+          "logged_train_loss": 1.1114836046189973,
+          "train_ACC": 62.57883672039243,
+          "task_test_CE_mean": 1.1996539624200926,
+          "test_ACC_mean": 60.622605363984675,
+          "test_WF1_mean": 55.99862920409253,
+          "output_weight_norm": 0.13272631168365479,
+          "branch_preclip_gradient_mean": 0.1375343898932139,
+          "branch_preclip_gradient_min": 0.06275095790624619,
+          "branch_preclip_gradient_max": 0.3080828785896301,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 32,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.1114836046189973
+        },
+        {
+          "epoch": 7,
+          "logged_train_loss": 1.0943282896822148,
+          "train_ACC": 63.23956351987186,
+          "task_test_CE_mean": 1.21297196050485,
+          "test_ACC_mean": 60.53639846743295,
+          "test_WF1_mean": 56.191765911448975,
+          "output_weight_norm": 0.141420379281044,
+          "branch_preclip_gradient_mean": 0.13050410027305284,
+          "branch_preclip_gradient_min": 0.058731559664011,
+          "branch_preclip_gradient_max": 0.24449780583381653,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.0943282896822148
+        },
+        {
+          "epoch": 8,
+          "logged_train_loss": 1.0837462147076924,
+          "train_ACC": 64.14055461007108,
+          "task_test_CE_mean": 1.2173271187477641,
+          "test_ACC_mean": 60.54118773946361,
+          "test_WF1_mean": 56.32179062448307,
+          "output_weight_norm": 0.14685331284999847,
+          "branch_preclip_gradient_mean": 0.14508442332347235,
+          "branch_preclip_gradient_min": 0.05953175574541092,
+          "branch_preclip_gradient_max": 0.2373407483100891,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.0837462147076924
+        },
+        {
+          "epoch": 9,
+          "logged_train_loss": 1.0671240308068015,
+          "train_ACC": 63.81019121033137,
+          "task_test_CE_mean": 1.194554162522157,
+          "test_ACC_mean": 60.49808429118774,
+          "test_WF1_mean": 56.770151474107635,
+          "output_weight_norm": 0.15243247151374817,
+          "branch_preclip_gradient_mean": 0.1476995168310223,
+          "branch_preclip_gradient_min": 0.0641980692744255,
+          "branch_preclip_gradient_max": 0.2847225069999695,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.0671240308068015
+        },
+        {
+          "epoch": 10,
+          "logged_train_loss": 1.0404954101100112,
+          "train_ACC": 64.91140254279708,
+          "task_test_CE_mean": 1.2014053935805957,
+          "test_ACC_mean": 60.541187739463595,
+          "test_WF1_mean": 56.59644578432474,
+          "output_weight_norm": 0.1586240530014038,
+          "branch_preclip_gradient_mean": 0.13782071435090268,
+          "branch_preclip_gradient_min": 0.07273264974355698,
+          "branch_preclip_gradient_max": 0.25452667474746704,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.0404954101100112
+        },
+        {
+          "epoch": 11,
+          "logged_train_loss": 1.0536297487490105,
+          "train_ACC": 64.69116027630393,
+          "task_test_CE_mean": 1.1907902268899813,
+          "test_ACC_mean": 60.82854406130268,
+          "test_WF1_mean": 57.30144569045369,
+          "output_weight_norm": 0.1645352691411972,
+          "branch_preclip_gradient_mean": 0.14455750990997662,
+          "branch_preclip_gradient_min": 0.07580044865608215,
+          "branch_preclip_gradient_max": 0.27377331256866455,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.0536297487490105
+        },
+        {
+          "epoch": 12,
+          "logged_train_loss": 1.0401125207091824,
+          "train_ACC": 65.0815897487236,
+          "task_test_CE_mean": 1.1998891159892082,
+          "test_ACC_mean": 60.60344827586206,
+          "test_WF1_mean": 57.132433847887384,
+          "output_weight_norm": 0.17105068266391754,
+          "branch_preclip_gradient_mean": 0.13346572242902988,
+          "branch_preclip_gradient_min": 0.07061334699392319,
+          "branch_preclip_gradient_max": 0.2561096251010895,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.0401125207091824
+        },
+        {
+          "epoch": 13,
+          "logged_train_loss": 1.0324690956057925,
+          "train_ACC": 64.93142456702373,
+          "task_test_CE_mean": 1.1931047754155264,
+          "test_ACC_mean": 60.82854406130268,
+          "test_WF1_mean": 57.66645958396176,
+          "output_weight_norm": 0.17629612982273102,
+          "branch_preclip_gradient_mean": 0.1405837226546172,
+          "branch_preclip_gradient_min": 0.06639796495437622,
+          "branch_preclip_gradient_max": 0.273294061422348,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.0324690956057925
+        },
+        {
+          "epoch": 14,
+          "logged_train_loss": 1.03224630428083,
+          "train_ACC": 64.59105015517069,
+          "task_test_CE_mean": 1.196793984207842,
+          "test_ACC_mean": 60.296934865900376,
+          "test_WF1_mean": 57.260822948718605,
+          "output_weight_norm": 0.18081089854240417,
+          "branch_preclip_gradient_mean": 0.14157076541221503,
+          "branch_preclip_gradient_min": 0.07243537902832031,
+          "branch_preclip_gradient_max": 0.27164390683174133,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.03224630428083
+        },
+        {
+          "epoch": 15,
+          "logged_train_loss": 1.0320900841192766,
+          "train_ACC": 65.44198618480328,
+          "task_test_CE_mean": 1.21455014248689,
+          "test_ACC_mean": 60.15325670498085,
+          "test_WF1_mean": 56.81209925943489,
+          "output_weight_norm": 0.18592673540115356,
+          "branch_preclip_gradient_mean": 0.13851180762955637,
+          "branch_preclip_gradient_min": 0.06820466369390488,
+          "branch_preclip_gradient_max": 0.21892951428890228,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.0320900841192766
+        },
+        {
+          "epoch": 16,
+          "logged_train_loss": 1.025931219259898,
+          "train_ACC": 64.73120432475723,
+          "task_test_CE_mean": 1.2003003888660007,
+          "test_ACC_mean": 60.421455938697314,
+          "test_WF1_mean": 57.446701515678754,
+          "output_weight_norm": 0.19004443287849426,
+          "branch_preclip_gradient_mean": 0.1366120156916705,
+          "branch_preclip_gradient_min": 0.06543987989425659,
+          "branch_preclip_gradient_max": 0.32187169790267944,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.025931219259898
+        },
+        {
+          "epoch": 17,
+          "logged_train_loss": 1.0016123544086108,
+          "train_ACC": 65.83241565722294,
+          "task_test_CE_mean": 1.2027912189563115,
+          "test_ACC_mean": 60.02394636015327,
+          "test_WF1_mean": 57.45221461951484,
+          "output_weight_norm": 0.1967371255159378,
+          "branch_preclip_gradient_mean": 0.12862431009610495,
+          "branch_preclip_gradient_min": 0.0681287869811058,
+          "branch_preclip_gradient_max": 0.2686392068862915,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.0016123544086108
+        },
+        {
+          "epoch": 18,
+          "logged_train_loss": 1.011529508865241,
+          "train_ACC": 65.23175493042346,
+          "task_test_CE_mean": 1.2066404910551176,
+          "test_ACC_mean": 60.737547892720315,
+          "test_WF1_mean": 57.59929722691744,
+          "output_weight_norm": 0.19927743077278137,
+          "branch_preclip_gradient_mean": 0.1319657385800824,
+          "branch_preclip_gradient_min": 0.06903406232595444,
+          "branch_preclip_gradient_max": 0.2952829897403717,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.011529508865241
+        },
+        {
+          "epoch": 19,
+          "logged_train_loss": 1.012279212474823,
+          "train_ACC": 65.41195314846331,
+          "task_test_CE_mean": 1.2042745773990948,
+          "test_ACC_mean": 59.401340996168585,
+          "test_WF1_mean": 57.03891391649809,
+          "output_weight_norm": 0.20425592362880707,
+          "branch_preclip_gradient_mean": 0.1395863468448321,
+          "branch_preclip_gradient_min": 0.060761548578739166,
+          "branch_preclip_gradient_max": 0.3056967556476593,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.012279212474823
+        },
+        {
+          "epoch": 20,
+          "logged_train_loss": 0.9877065221468607,
+          "train_ACC": 66.13274602062269,
+          "task_test_CE_mean": 1.2091890565223165,
+          "test_ACC_mean": 60.36398467432951,
+          "test_WF1_mean": 57.44440488721565,
+          "output_weight_norm": 0.20966608822345734,
+          "branch_preclip_gradient_mean": 0.1280000214323853,
+          "branch_preclip_gradient_min": 0.06500952690839767,
+          "branch_preclip_gradient_max": 0.2454373836517334,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9877065221468607
+        },
+        {
+          "epoch": 21,
+          "logged_train_loss": 0.9930381178855896,
+          "train_ACC": 65.78236059665632,
+          "task_test_CE_mean": 1.2062906556659274,
+          "test_ACC_mean": 60.287356321839084,
+          "test_WF1_mean": 57.49464847897827,
+          "output_weight_norm": 0.21576516330242157,
+          "branch_preclip_gradient_mean": 0.13066290228655844,
+          "branch_preclip_gradient_min": 0.075440913438797,
+          "branch_preclip_gradient_max": 0.21825101971626282,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9930381178855896
+        },
+        {
+          "epoch": 22,
+          "logged_train_loss": 1.0137011751984104,
+          "train_ACC": 65.76233857242967,
+          "task_test_CE_mean": 1.20926034450531,
+          "test_ACC_mean": 60.57471264367816,
+          "test_WF1_mean": 57.74772690190682,
+          "output_weight_norm": 0.21864761412143707,
+          "branch_preclip_gradient_mean": 0.12245936093456818,
+          "branch_preclip_gradient_min": 0.05658791586756706,
+          "branch_preclip_gradient_max": 0.19333355128765106,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.0137011751984104
+        },
+        {
+          "epoch": 23,
+          "logged_train_loss": 1.009028100606167,
+          "train_ACC": 66.07267994794273,
+          "task_test_CE_mean": 1.1973642897274759,
+          "test_ACC_mean": 60.66091954022988,
+          "test_WF1_mean": 58.15324671612473,
+          "output_weight_norm": 0.2241142988204956,
+          "branch_preclip_gradient_mean": 0.14171328689112808,
+          "branch_preclip_gradient_min": 0.06867295503616333,
+          "branch_preclip_gradient_max": 0.268294095993042,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 32,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 1.009028100606167
+        },
+        {
+          "epoch": 24,
+          "logged_train_loss": 0.995809276898702,
+          "train_ACC": 66.1027129842827,
+          "task_test_CE_mean": 1.2077889740467072,
+          "test_ACC_mean": 60.522030651341,
+          "test_WF1_mean": 57.82104313930018,
+          "output_weight_norm": 0.2305031716823578,
+          "branch_preclip_gradient_mean": 0.13771491407444983,
+          "branch_preclip_gradient_min": 0.06665436178445816,
+          "branch_preclip_gradient_max": 0.23816634714603424,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.995809276898702
+        },
+        {
+          "epoch": 25,
+          "logged_train_loss": 0.9762765295577772,
+          "train_ACC": 66.52317549304234,
+          "task_test_CE_mean": 1.2175927493307326,
+          "test_ACC_mean": 60.320881226053636,
+          "test_WF1_mean": 57.8952942813232,
+          "output_weight_norm": 0.23543940484523773,
+          "branch_preclip_gradient_mean": 0.13362165845253252,
+          "branch_preclip_gradient_min": 0.052835915237665176,
+          "branch_preclip_gradient_max": 0.20814187824726105,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9762765295577772
+        },
+        {
+          "epoch": 26,
+          "logged_train_loss": 0.9632503805738507,
+          "train_ACC": 67.47422164380819,
+          "task_test_CE_mean": 1.2222292075554528,
+          "test_ACC_mean": 60.09578544061303,
+          "test_WF1_mean": 57.2835012429024,
+          "output_weight_norm": 0.24022148549556732,
+          "branch_preclip_gradient_mean": 0.12118624116886746,
+          "branch_preclip_gradient_min": 0.05613776668906212,
+          "branch_preclip_gradient_max": 0.22428865730762482,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9632503805738507
+        },
+        {
+          "epoch": 27,
+          "logged_train_loss": 0.9782059228781498,
+          "train_ACC": 66.75342877164881,
+          "task_test_CE_mean": 1.2081382332576647,
+          "test_ACC_mean": 60.09578544061303,
+          "test_WF1_mean": 57.72071012746586,
+          "output_weight_norm": 0.24491028487682343,
+          "branch_preclip_gradient_mean": 0.12881044749960754,
+          "branch_preclip_gradient_min": 0.06449533998966217,
+          "branch_preclip_gradient_max": 0.2902967929840088,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9782059228781498
+        },
+        {
+          "epoch": 28,
+          "logged_train_loss": 0.9772213318131187,
+          "train_ACC": 66.4631094203624,
+          "task_test_CE_mean": 1.2217787090275023,
+          "test_ACC_mean": 60.30172413793103,
+          "test_WF1_mean": 57.30978303285601,
+          "output_weight_norm": 0.2515336275100708,
+          "branch_preclip_gradient_mean": 0.1221576603976163,
+          "branch_preclip_gradient_min": 0.06632565706968307,
+          "branch_preclip_gradient_max": 0.24496829509735107,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9772213318131187
+        },
+        {
+          "epoch": 29,
+          "logged_train_loss": 0.9696693727464387,
+          "train_ACC": 67.00370407448193,
+          "task_test_CE_mean": 1.2272383951478534,
+          "test_ACC_mean": 59.88026819923372,
+          "test_WF1_mean": 57.070944334933586,
+          "output_weight_norm": 0.25822415947914124,
+          "branch_preclip_gradient_mean": 0.12949323654174805,
+          "branch_preclip_gradient_min": 0.06739071011543274,
+          "branch_preclip_gradient_max": 0.22685223817825317,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9696693727464387
+        },
+        {
+          "epoch": 30,
+          "logged_train_loss": 0.95982681982445,
+          "train_ACC": 66.60326358994895,
+          "task_test_CE_mean": 1.2206094182199902,
+          "test_ACC_mean": 60.21551724137931,
+          "test_WF1_mean": 57.567500548508676,
+          "output_weight_norm": 0.26174426078796387,
+          "branch_preclip_gradient_mean": 0.13336821329413037,
+          "branch_preclip_gradient_min": 0.07089265435934067,
+          "branch_preclip_gradient_max": 0.23125280439853668,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.95982681982445
+        },
+        {
+          "epoch": 31,
+          "logged_train_loss": 0.9700821023998838,
+          "train_ACC": 66.57323055360898,
+          "task_test_CE_mean": 1.226268243458536,
+          "test_ACC_mean": 59.96647509578544,
+          "test_WF1_mean": 57.22972682896602,
+          "output_weight_norm": 0.2666136622428894,
+          "branch_preclip_gradient_mean": 0.14284332570704547,
+          "branch_preclip_gradient_min": 0.0732024684548378,
+          "branch_preclip_gradient_max": 0.22610865533351898,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 32,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9700821023998838
+        },
+        {
+          "epoch": 32,
+          "logged_train_loss": 0.9760661558671431,
+          "train_ACC": 66.33296626288919,
+          "task_test_CE_mean": 1.2241936069395807,
+          "test_ACC_mean": 59.84674329501917,
+          "test_WF1_mean": 57.311604472211286,
+          "output_weight_norm": 0.270772248506546,
+          "branch_preclip_gradient_mean": 0.13410249262145071,
+          "branch_preclip_gradient_min": 0.07545909285545349,
+          "branch_preclip_gradient_max": 0.2265119105577469,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9760661558671431
+        },
+        {
+          "epoch": 33,
+          "logged_train_loss": 0.9516238208973047,
+          "train_ACC": 67.60436480128142,
+          "task_test_CE_mean": 1.2274539437558916,
+          "test_ACC_mean": 60.225095785440615,
+          "test_WF1_mean": 57.46781479511933,
+          "output_weight_norm": 0.27539974451065063,
+          "branch_preclip_gradient_mean": 0.1300163786068107,
+          "branch_preclip_gradient_min": 0.06623558700084686,
+          "branch_preclip_gradient_max": 0.3079668879508972,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9516238208973047
+        },
+        {
+          "epoch": 34,
+          "logged_train_loss": 0.9636563116853888,
+          "train_ACC": 66.95364901391531,
+          "task_test_CE_mean": 1.218918604983224,
+          "test_ACC_mean": 59.92816091954023,
+          "test_WF1_mean": 57.69893518720769,
+          "output_weight_norm": 0.28039973974227905,
+          "branch_preclip_gradient_mean": 0.12442435978940039,
+          "branch_preclip_gradient_min": 0.07423984259366989,
+          "branch_preclip_gradient_max": 0.22038929164409637,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9636563116853888
+        },
+        {
+          "epoch": 35,
+          "logged_train_loss": 0.9503229368816722,
+          "train_ACC": 67.18390229252176,
+          "task_test_CE_mean": 1.2256576038069196,
+          "test_ACC_mean": 60.292145593869726,
+          "test_WF1_mean": 57.520302496567766,
+          "output_weight_norm": 0.2838895916938782,
+          "branch_preclip_gradient_mean": 0.13821164247664539,
+          "branch_preclip_gradient_min": 0.06549303233623505,
+          "branch_preclip_gradient_max": 0.27892693877220154,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9503229368816722
+        },
+        {
+          "epoch": 36,
+          "logged_train_loss": 0.9541857621886514,
+          "train_ACC": 66.79347282010212,
+          "task_test_CE_mean": 1.2234481043285794,
+          "test_ACC_mean": 59.97605363984674,
+          "test_WF1_mean": 57.57426350064154,
+          "output_weight_norm": 0.28930285573005676,
+          "branch_preclip_gradient_mean": 0.1420275584766359,
+          "branch_preclip_gradient_min": 0.07138150930404663,
+          "branch_preclip_gradient_max": 0.2668732702732086,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9541857621886514
+        },
+        {
+          "epoch": 37,
+          "logged_train_loss": 0.9529189828670386,
+          "train_ACC": 67.54429872860146,
+          "task_test_CE_mean": 1.220169602168931,
+          "test_ACC_mean": 60.30172413793103,
+          "test_WF1_mean": 57.615633060739476,
+          "output_weight_norm": 0.29516273736953735,
+          "branch_preclip_gradient_mean": 0.1374002159996466,
+          "branch_preclip_gradient_min": 0.07288391143083572,
+          "branch_preclip_gradient_max": 0.23989780247211456,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9529189828670386
+        },
+        {
+          "epoch": 38,
+          "logged_train_loss": 0.9356934554649122,
+          "train_ACC": 68.0448493342677,
+          "task_test_CE_mean": 1.2258032047086291,
+          "test_ACC_mean": 60.306513409961696,
+          "test_WF1_mean": 57.74576617066166,
+          "output_weight_norm": 0.29997578263282776,
+          "branch_preclip_gradient_mean": 0.13247357895880035,
+          "branch_preclip_gradient_min": 0.07925522327423096,
+          "branch_preclip_gradient_max": 0.21704860031604767,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9356934554649122
+        },
+        {
+          "epoch": 39,
+          "logged_train_loss": 0.955935487241456,
+          "train_ACC": 67.26399038942837,
+          "task_test_CE_mean": 1.2413626727130678,
+          "test_ACC_mean": 59.97605363984674,
+          "test_WF1_mean": 57.30976941839495,
+          "output_weight_norm": 0.3051410913467407,
+          "branch_preclip_gradient_mean": 0.13144734118020895,
+          "branch_preclip_gradient_min": 0.06992322206497192,
+          "branch_preclip_gradient_max": 0.2193472981452942,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.955935487241456
+        },
+        {
+          "epoch": 40,
+          "logged_train_loss": 0.9452669060591495,
+          "train_ACC": 67.71448593452799,
+          "task_test_CE_mean": 1.241918424765269,
+          "test_ACC_mean": 60.48371647509578,
+          "test_WF1_mean": 57.850731932410916,
+          "output_weight_norm": 0.3108236491680145,
+          "branch_preclip_gradient_mean": 0.13426098611318704,
+          "branch_preclip_gradient_min": 0.08517508208751678,
+          "branch_preclip_gradient_max": 0.20348531007766724,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9452669060591495
+        },
+        {
+          "epoch": 41,
+          "logged_train_loss": 0.911246859666073,
+          "train_ACC": 68.82570827910702,
+          "task_test_CE_mean": 1.2455747524897258,
+          "test_ACC_mean": 59.73180076628353,
+          "test_WF1_mean": 57.028573245874256,
+          "output_weight_norm": 0.3163433372974396,
+          "branch_preclip_gradient_mean": 0.13469325502713522,
+          "branch_preclip_gradient_min": 0.08670361340045929,
+          "branch_preclip_gradient_max": 0.24125805497169495,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.911246859666073
+        },
+        {
+          "epoch": 42,
+          "logged_train_loss": 0.9181967865337025,
+          "train_ACC": 68.0048052858144,
+          "task_test_CE_mean": 1.252926962243186,
+          "test_ACC_mean": 59.736590038314176,
+          "test_WF1_mean": 57.383119541253535,
+          "output_weight_norm": 0.3214510679244995,
+          "branch_preclip_gradient_mean": 0.13702808027014587,
+          "branch_preclip_gradient_min": 0.08518610149621964,
+          "branch_preclip_gradient_max": 0.2818399667739868,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9181967865337025
+        },
+        {
+          "epoch": 43,
+          "logged_train_loss": 0.9288285808129744,
+          "train_ACC": 67.77455200720793,
+          "task_test_CE_mean": 1.2441429363356695,
+          "test_ACC_mean": 59.396551724137936,
+          "test_WF1_mean": 57.23221544377076,
+          "output_weight_norm": 0.3264172375202179,
+          "branch_preclip_gradient_mean": 0.1503998569466851,
+          "branch_preclip_gradient_min": 0.0768878310918808,
+          "branch_preclip_gradient_max": 0.3534901738166809,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9288285808129744
+        },
+        {
+          "epoch": 44,
+          "logged_train_loss": 0.9093698479912498,
+          "train_ACC": 68.08489338272099,
+          "task_test_CE_mean": 1.2493817665510707,
+          "test_ACC_mean": 60.01436781609194,
+          "test_WF1_mean": 57.46339977958526,
+          "output_weight_norm": 0.3321477472782135,
+          "branch_preclip_gradient_mean": 0.1431077935478904,
+          "branch_preclip_gradient_min": 0.09304400533437729,
+          "branch_preclip_gradient_max": 0.2543683648109436,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9093698479912498
+        },
+        {
+          "epoch": 45,
+          "logged_train_loss": 0.9088576201236609,
+          "train_ACC": 68.03483832215437,
+          "task_test_CE_mean": 1.241426623529858,
+          "test_ACC_mean": 59.97605363984675,
+          "test_WF1_mean": 57.57533406693938,
+          "output_weight_norm": 0.3363970220088959,
+          "branch_preclip_gradient_mean": 0.1415399107517618,
+          "branch_preclip_gradient_min": 0.07200633734464645,
+          "branch_preclip_gradient_max": 0.4276750683784485,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9088576201236609
+        },
+        {
+          "epoch": 46,
+          "logged_train_loss": 0.9215933174797983,
+          "train_ACC": 68.05486034638102,
+          "task_test_CE_mean": 1.2568472060892317,
+          "test_ACC_mean": 60.253831417624525,
+          "test_WF1_mean": 57.588730346354296,
+          "output_weight_norm": 0.3399773836135864,
+          "branch_preclip_gradient_mean": 0.12051436463088701,
+          "branch_preclip_gradient_min": 0.06665818393230438,
+          "branch_preclip_gradient_max": 0.19353751838207245,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9215933174797983
+        },
+        {
+          "epoch": 47,
+          "logged_train_loss": 0.9227196664521189,
+          "train_ACC": 68.67554309740714,
+          "task_test_CE_mean": 1.2572693063153162,
+          "test_ACC_mean": 59.73180076628353,
+          "test_WF1_mean": 57.400369185496594,
+          "output_weight_norm": 0.34484267234802246,
+          "branch_preclip_gradient_mean": 0.13458782276420883,
+          "branch_preclip_gradient_min": 0.07197395712137222,
+          "branch_preclip_gradient_max": 0.2973991632461548,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9227196664521189
+        },
+        {
+          "epoch": 48,
+          "logged_train_loss": 0.9178696870803833,
+          "train_ACC": 68.5353889278206,
+          "task_test_CE_mean": 1.265874778230985,
+          "test_ACC_mean": 59.31513409961686,
+          "test_WF1_mean": 57.22588640351729,
+          "output_weight_norm": 0.34952157735824585,
+          "branch_preclip_gradient_mean": 0.14707273335167856,
+          "branch_preclip_gradient_min": 0.10249564051628113,
+          "branch_preclip_gradient_max": 0.22917407751083374,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.9178696870803833
+        },
+        {
+          "epoch": 49,
+          "logged_train_loss": 0.887162654688864,
+          "train_ACC": 68.96586244869356,
+          "task_test_CE_mean": 1.2554312182797325,
+          "test_ACC_mean": 59.89942528735632,
+          "test_WF1_mean": 57.71741685925149,
+          "output_weight_norm": 0.3549425005912781,
+          "branch_preclip_gradient_mean": 0.13154055110432886,
+          "branch_preclip_gradient_min": 0.06769679486751556,
+          "branch_preclip_gradient_max": 0.23445729911327362,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.887162654688864
+        },
+        {
+          "epoch": 50,
+          "logged_train_loss": 0.8990456326441332,
+          "train_ACC": 68.42526779457403,
+          "task_test_CE_mean": 1.2943817062510385,
+          "test_ACC_mean": 59.4204980842912,
+          "test_WF1_mean": 56.810972361364506,
+          "output_weight_norm": 0.36040377616882324,
+          "branch_preclip_gradient_mean": 0.1355237572482138,
+          "branch_preclip_gradient_min": 0.07727430760860443,
+          "branch_preclip_gradient_max": 0.27221953868865967,
+          "gradient_tensor_count": 13,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 13,
+          "aux_BCE_batch_mean": null,
+          "online_train_CE_approx": 0.8990456326441332
+        }
+      ],
+      "window_means": {
+        "1-5": {
+          "logged_train_loss": 1.281935994191603,
+          "train_ACC": 56.57022724997498,
+          "task_test_CE_mean": 1.268074576391114,
+          "test_ACC_mean": 57.632183908045974,
+          "test_WF1_mean": 49.80911292427148,
+          "branch_preclip_gradient_mean": 0.1704558519928744,
+          "online_train_CE_approx": 1.281935994191603
+        },
+        "6-10": {
+          "logged_train_loss": 1.0794355099851434,
+          "train_ACC": 63.73610972069276,
+          "task_test_CE_mean": 1.2051825195550918,
+          "test_ACC_mean": 60.547892720306514,
+          "test_WF1_mean": 56.37575659969139,
+          "branch_preclip_gradient_mean": 0.13972862893433283,
+          "online_train_CE_approx": 1.0794355099851434
+        },
+        "11-20": {
+          "logged_train_loss": 1.0229606570619525,
+          "train_ACC": 65.20772850135148,
+          "task_test_CE_mean": 1.201832397778829,
+          "test_ACC_mean": 60.36590038314176,
+          "test_WF1_mean": 57.31547934962811,
+          "branch_preclip_gradient_mean": 0.13634779606804703,
+          "online_train_CE_approx": 1.0229606570619525
+        },
+        "21-30": {
+          "logged_train_loss": 0.9836027027982654,
+          "train_ACC": 66.4540995094604,
+          "task_test_CE_mean": 1.2138290976484616,
+          "test_ACC_mean": 60.29549808429119,
+          "test_WF1_mean": 57.606439880429974,
+          "branch_preclip_gradient_mean": 0.13011879215412067,
+          "online_train_CE_approx": 0.9836027027982654
+        },
+        "31-40": {
+          "logged_train_loss": 0.95557519215526,
+          "train_ACC": 67.20092101311442,
+          "task_test_CE_mean": 1.2275194011628627,
+          "test_ACC_mean": 60.13026819923372,
+          "test_WF1_mean": 57.532454786292064,
+          "branch_preclip_gradient_mean": 0.13472078799298315,
+          "online_train_CE_approx": 0.95557519215526
+        },
+        "41-50": {
+          "logged_train_loss": 0.9124890653472958,
+          "train_ACC": 68.33817198918811,
+          "task_test_CE_mean": 1.2563257256315814,
+          "test_ACC_mean": 59.747605363984675,
+          "test_WF1_mean": 57.342601723340735,
+          "branch_preclip_gradient_mean": 0.13760081256429355,
+          "online_train_CE_approx": 0.9124890653472958
+        }
+      },
+      "parameter_snapshots": [
+        {
+          "epoch": 8,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000008_4bf0c2c57b4740bb8cfaf7f2e455763c_model.pt",
+          "sha256": "b93745fa1d38f1f32675e73c1491b0db808b3ab2852ac2e02434388a2d5fb569",
+          "groups": {
+            "query": {
+              "norm": 5.85254901765838
+            },
+            "key": {
+              "norm": 6.149987728650236
+            },
+            "value": {
+              "norm": 6.17402112603755
+            },
+            "speaker_bias": {
+              "norm": 0.001430552365741879
+            },
+            "distance_bias": {
+              "norm": 0.0009318320599095418
+            },
+            "availability_bias": {
+              "norm": 0.0005717199226766323
+            },
+            "fusion": {
+              "norm": 5.7873438688756575
+            },
+            "output": {
+              "norm": 0.14691559126399334
+            }
+          },
+          "output_weight_norm": 0.1468532532453537
+        },
+        {
+          "epoch": 11,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000011_e623fd3f744c4af28b3d033e3770d2b6_model.pt",
+          "sha256": "2627360ff2b7039200dea22d2e03e859c981ceed4f2abfa8ce3f77ff0ef4e19f",
+          "groups": {
+            "query": {
+              "norm": 5.6123623015305295,
+              "delta_norm": 0.26461851407292425,
+              "delta_over_reference_norm": 0.04521423285384097
+            },
+            "key": {
+              "norm": 6.004727151949566,
+              "delta_norm": 0.16203342527891165,
+              "delta_over_reference_norm": 0.026346950990497966
+            },
+            "value": {
+              "norm": 6.037027293983346,
+              "delta_norm": 0.14675001359608647,
+              "delta_over_reference_norm": 0.023768952292242927
+            },
+            "speaker_bias": {
+              "norm": 0.0016337946767012834,
+              "delta_norm": 0.00020324231095940475,
+              "delta_over_reference_norm": 0.14207261182921052
+            },
+            "distance_bias": {
+              "norm": 0.0010757592610736774,
+              "delta_norm": 0.00040054090371685727,
+              "delta_over_reference_norm": 0.42984237283673205
+            },
+            "availability_bias": {
+              "norm": 0.0005050237062493445,
+              "delta_norm": 0.0004088317663734323,
+              "delta_over_reference_norm": 0.7150909915110123
+            },
+            "fusion": {
+              "norm": 5.59275437415032,
+              "delta_norm": 0.22621161841365098,
+              "delta_over_reference_norm": 0.03908729523231155
+            },
+            "output": {
+              "norm": 0.16460345663067757,
+              "delta_norm": 0.03475526254434015,
+              "delta_over_reference_norm": 0.23656619590420633
+            }
+          },
+          "output_weight_norm": 0.16453510522842407
+        },
+        {
+          "epoch": 13,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000013_d98b2fc401884e9f90a920c316ef23f7_model.pt",
+          "sha256": "1683ac49aa2557531c29ced4de90a4bbc7a8cbe881a8ec7c325e0d15fabbbaee",
+          "groups": {
+            "query": {
+              "norm": 5.456727231352702,
+              "delta_norm": 0.1705118997672001,
+              "delta_over_reference_norm": 0.03038148476635237
+            },
+            "key": {
+              "norm": 5.90948541980267,
+              "delta_norm": 0.10574154951128259,
+              "delta_over_reference_norm": 0.0176097176167199
+            },
+            "value": {
+              "norm": 5.947567585693774,
+              "delta_norm": 0.09557205192220543,
+              "delta_over_reference_norm": 0.01583097893518801
+            },
+            "speaker_bias": {
+              "norm": 0.0018489144964066644,
+              "delta_norm": 0.0002151198197054441,
+              "delta_over_reference_norm": 0.1316688215313458
+            },
+            "distance_bias": {
+              "norm": 0.0012148048020455362,
+              "delta_norm": 0.00028740298480973585,
+              "delta_over_reference_norm": 0.26716291944620496
+            },
+            "availability_bias": {
+              "norm": 0.0006193668159445718,
+              "delta_norm": 0.00034477360658142825,
+              "delta_over_reference_norm": 0.6826879655649347
+            },
+            "fusion": {
+              "norm": 5.475085399386584,
+              "delta_norm": 0.1400781554575014,
+              "delta_over_reference_norm": 0.02504636286280368
+            },
+            "output": {
+              "norm": 0.17637389660528133,
+              "delta_norm": 0.024902123362366285,
+              "delta_over_reference_norm": 0.15128554328138702
+            }
+          },
+          "output_weight_norm": 0.17629586160182953
+        },
+        {
+          "epoch": 21,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000021_989ff553c7ab4325a48b2d765b575170_model.pt",
+          "sha256": "980dc0d98b9b8fe1d54635c962cb1ba1e7db37040bd860ff27db8a917e085260",
+          "groups": {
+            "query": {
+              "norm": 4.8673644803064,
+              "delta_norm": 0.6396907225221292,
+              "delta_over_reference_norm": 0.11722974145503555
+            },
+            "key": {
+              "norm": 5.540457357246703,
+              "delta_norm": 0.40656262514994745,
+              "delta_over_reference_norm": 0.06879831258869971
+            },
+            "value": {
+              "norm": 5.603553741287589,
+              "delta_norm": 0.3653472753985301,
+              "delta_over_reference_norm": 0.06142801576182728
+            },
+            "speaker_bias": {
+              "norm": 0.002189225602713084,
+              "delta_norm": 0.00034031110630642,
+              "delta_over_reference_norm": 0.18405994813054316
+            },
+            "distance_bias": {
+              "norm": 0.0014103953555402557,
+              "delta_norm": 0.0006355820682073043,
+              "delta_over_reference_norm": 0.5231968684492242
+            },
+            "availability_bias": {
+              "norm": 0.0007036107808758651,
+              "delta_norm": 0.0002719675744463194,
+              "delta_over_reference_norm": 0.4391058213726747
+            },
+            "fusion": {
+              "norm": 5.07679683599356,
+              "delta_norm": 0.4706831326081101,
+              "delta_over_reference_norm": 0.08596818100058208
+            },
+            "output": {
+              "norm": 0.21588125826155835,
+              "delta_norm": 0.066235302537908,
+              "delta_over_reference_norm": 0.3755391461704808
+            }
+          },
+          "output_weight_norm": 0.2157648354768753
+        },
+        {
+          "epoch": 24,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000024_1b57bb48c45c47f4ad2c97ba83785e85_model.pt",
+          "sha256": "14ea0376236b50ab3b43dd802862339bd47a040627aa07d250583f4347ac4437",
+          "groups": {
+            "query": {
+              "norm": 4.659099472162489,
+              "delta_norm": 0.2244000324171024,
+              "delta_over_reference_norm": 0.046102985162717144
+            },
+            "key": {
+              "norm": 5.406697973855423,
+              "delta_norm": 0.14644023396741307,
+              "delta_over_reference_norm": 0.02643107319937675
+            },
+            "value": {
+              "norm": 5.479719855004928,
+              "delta_norm": 0.13122351406335314,
+              "delta_over_reference_norm": 0.02341790944137541
+            },
+            "speaker_bias": {
+              "norm": 0.0020320084735082106,
+              "delta_norm": 0.0001572171292048735,
+              "delta_over_reference_norm": 0.07181403735185446
+            },
+            "distance_bias": {
+              "norm": 0.001326284530435112,
+              "delta_norm": 0.00046158783612725246,
+              "delta_over_reference_norm": 0.32727549357991187
+            },
+            "availability_bias": {
+              "norm": 0.0006622049263597758,
+              "delta_norm": 0.00011874141147437948,
+              "delta_over_reference_norm": 0.16876007972272458
+            },
+            "fusion": {
+              "norm": 4.951888924377403,
+              "delta_norm": 0.15709787150627938,
+              "delta_over_reference_norm": 0.03094428959466809
+            },
+            "output": {
+              "norm": 0.2306333427712951,
+              "delta_norm": 0.03137408047058232,
+              "delta_over_reference_norm": 0.14533026499488888
+            }
+          },
+          "output_weight_norm": 0.2305029183626175
+        },
+        {
+          "epoch": 35,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000035_b8c91bc1f96f4033a823f45457bfb9b8_model.pt",
+          "sha256": "c8ae3a047de752efc190f083488f7e4a7f56c33a0ed551b91b5591f13adb7031",
+          "groups": {
+            "query": {
+              "norm": 3.949110183359722,
+              "delta_norm": 0.7588597330060541,
+              "delta_over_reference_norm": 0.16287691163070073
+            },
+            "key": {
+              "norm": 4.935919302330631,
+              "delta_norm": 0.5120397961395,
+              "delta_over_reference_norm": 0.09470471600513192
+            },
+            "value": {
+              "norm": 5.0472418565046935,
+              "delta_norm": 0.45571253097012543,
+              "delta_over_reference_norm": 0.08316347240888569
+            },
+            "speaker_bias": {
+              "norm": 0.0015556854534720312,
+              "delta_norm": 0.00047632302003619353,
+              "delta_over_reference_norm": 0.2344099575597901
+            },
+            "distance_bias": {
+              "norm": 0.0012959653615753658,
+              "delta_norm": 0.00038639657645010315,
+              "delta_over_reference_norm": 0.2913376184244105
+            },
+            "availability_bias": {
+              "norm": 0.0006254924215118631,
+              "delta_norm": 0.0004446341984361749,
+              "delta_over_reference_norm": 0.6714450176026103
+            },
+            "fusion": {
+              "norm": 4.577111136490496,
+              "delta_norm": 0.4647897395463406,
+              "delta_over_reference_norm": 0.09386109960145728
+            },
+            "output": {
+              "norm": 0.28405853980573803,
+              "delta_norm": 0.0761001640329079,
+              "delta_over_reference_norm": 0.32996167474523297
+            }
+          },
+          "output_weight_norm": 0.2838892340660095
+        },
+        {
+          "epoch": 46,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000046_0aa106664bf845a5bd0fb8e3dde5d64e_model.pt",
+          "sha256": "bcae2e1f8433543779e6c35584dc79fee7943578f4f07a5edda24c346c7fb2c8",
+          "groups": {
+            "query": {
+              "norm": 3.3156716183133663,
+              "delta_norm": 0.670900751027437,
+              "delta_over_reference_norm": 0.16988656175115005
+            },
+            "key": {
+              "norm": 4.493395277049645,
+              "delta_norm": 0.47770139934715283,
+              "delta_over_reference_norm": 0.09678063397867807
+            },
+            "value": {
+              "norm": 4.645469744037535,
+              "delta_norm": 0.42174739435427117,
+              "delta_over_reference_norm": 0.08355997321799413
+            },
+            "speaker_bias": {
+              "norm": 0.001447495645797456,
+              "delta_norm": 0.00010818980767457601,
+              "delta_over_reference_norm": 0.06954478325494036
+            },
+            "distance_bias": {
+              "norm": 0.0016017088953344935,
+              "delta_norm": 0.00037592671486121445,
+              "delta_over_reference_norm": 0.2900746624927079
+            },
+            "availability_bias": {
+              "norm": 0.0005976987106221661,
+              "delta_norm": 0.000474246238880348,
+              "delta_over_reference_norm": 0.758196618488292
+            },
+            "fusion": {
+              "norm": 4.297957120054964,
+              "delta_norm": 0.36285295995380806,
+              "delta_over_reference_norm": 0.07927554064855544
+            },
+            "output": {
+              "norm": 0.34017346468811765,
+              "delta_norm": 0.07345063152869667,
+              "delta_over_reference_norm": 0.2585756850645226
+            }
+          },
+          "output_weight_norm": 0.3399769961833954
+        },
+        {
+          "epoch": 50,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/last_training.pt",
+          "sha256": "593c1039bbe9c38d9d686eb00e86038238f31a83a409d12ca5dd308ff6a6752b",
+          "groups": {
+            "query": {
+              "norm": 3.102732013381304,
+              "delta_norm": 0.22449048572304925,
+              "delta_over_reference_norm": 0.06770588633781661
+            },
+            "key": {
+              "norm": 4.338925595814281,
+              "delta_norm": 0.16610036633134778,
+              "delta_over_reference_norm": 0.03696544730433975
+            },
+            "value": {
+              "norm": 4.506223597982761,
+              "delta_norm": 0.14606841054060618,
+              "delta_over_reference_norm": 0.03144319489500177
+            },
+            "speaker_bias": {
+              "norm": 0.0014553874785449938,
+              "delta_norm": 0.000007891832747537912,
+              "delta_over_reference_norm": 0.005452059749160858
+            },
+            "distance_bias": {
+              "norm": 0.0016573872248602914,
+              "delta_norm": 0.00033451823893136174,
+              "delta_over_reference_norm": 0.20885083419699838
+            },
+            "availability_bias": {
+              "norm": 0.0006077922677391207,
+              "delta_norm": 0.00012531059686868043,
+              "delta_over_reference_norm": 0.209655123294879
+            },
+            "fusion": {
+              "norm": 4.212741281914162,
+              "delta_norm": 0.12392472835113186,
+              "delta_over_reference_norm": 0.028833402681678465
+            },
+            "output": {
+              "norm": 0.360613568258725,
+              "delta_norm": 0.0339289669073362,
+              "delta_over_reference_norm": 0.09974019266447899
+            }
+          },
+          "output_weight_norm": 0.3604036271572113
+        }
+      ],
+      "parameter_update_first_retained_to_epoch50": {
+        "query": {
+          "norm": 3.102732013381304,
+          "delta_norm": 2.9271855129593605,
+          "delta_over_reference_norm": 0.5001556593763541
+        },
+        "key": {
+          "norm": 4.338925595814281,
+          "delta_norm": 1.9665796333044014,
+          "delta_over_reference_norm": 0.31976968411545353
+        },
+        "value": {
+          "norm": 4.506223597982761,
+          "delta_norm": 1.7561879592614988,
+          "delta_over_reference_norm": 0.28444799967644585
+        },
+        "speaker_bias": {
+          "norm": 0.0014553874785449938,
+          "delta_norm": 0.00002483511280433563,
+          "delta_over_reference_norm": 0.017360505913012306
+        },
+        "distance_bias": {
+          "norm": 0.0016573872248602914,
+          "delta_norm": 0.0009865334518653387,
+          "delta_over_reference_norm": 1.0587030585330013
+        },
+        "availability_bias": {
+          "norm": 0.0006077922677391207,
+          "delta_norm": 0.0007309873955010207,
+          "delta_over_reference_norm": 1.2785760413573535
+        },
+        "fusion": {
+          "norm": 4.212741281914162,
+          "delta_norm": 1.8755522550470778,
+          "delta_over_reference_norm": 0.3240782468679285
+        },
+        "output": {
+          "norm": 0.360613568258725,
+          "delta_norm": 0.25767761996379773,
+          "delta_over_reference_norm": 1.7539160939071168
+        }
+      },
+      "first_retained_epoch": 8,
+      "validation_recorded": false
+    },
+    "B2": {
+      "config": {
+        "b2_base_checkpoint": null,
+        "b2_pretrain_checkpoint": null,
+        "backbone_lr_multiplier": 1,
+        "backbone_type": "osram",
+        "base_model": "LSTM",
+        "batch_size": 32,
+        "beta_mode": "embedded",
+        "checkpoint_selection": "test-oracle-per-rate",
+        "classification_completion": false,
+        "classifier_lr_multiplier": 1,
+        "completion_path": "none",
+        "completion_write_to_memory": false,
+        "core20_aux_weight": 1,
+        "core20_method": "none",
+        "dataset": "MELD",
+        "device": "cuda",
+        "disable_unused_aux_modules": true,
+        "dropout": 0.5,
+        "ema_tau": 0.996,
+        "emotion_loss_mode": "sample-mean",
+        "epochs": 50,
+        "evaluate_test": true,
+        "evaluation_protocol": "official",
+        "fixed_missing_rate": null,
+        "fold": 1,
+        "fusion_type": "mean",
+        "gap_residual_strength": 1,
+        "gradient_clip_norm": 1,
+        "graph_branch_mode": "both",
+        "graph_message_calibration": "none",
+        "graph_second_layer": "graphconv",
+        "group_dro_eta": 0.1,
+        "hidden": 200,
+        "history_contrast_temperature": 0.1,
+        "history_contrast_weight": 0.1,
+        "history_drop_prob": 0.2,
+        "history_task_view2_weight": 0.5,
+        "initial_backbone_checkpoint": null,
+        "jepa_contrastive_source": "contrastive",
+        "jepa_rate_weighting": "uniform",
+        "jepa_regression_aggregation": "target",
+        "jepa_weight": 0.1,
+        "joint_pretrain_checkpoint": null,
+        "joint_pretrain_freeze": true,
+        "latent_dim": 256,
+        "learning_rate": 0.00001,
+        "local_context_residual": false,
+        "local_fusion_dropout": 0.2,
+        "local_fusion_hidden_dim": 256,
+        "lr_schedule": "constant",
+        "missing_mask_protocol": "gcnet-random-mask-v1",
+        "mmoe_variant": "dual-gate",
+        "mosi_task_mode": "regression",
+        "node_interaction_residual": false,
+        "num_experts": 4,
+        "optimizer": "adam",
+        "osram_ablation": "full",
+        "osram_adapter_hidden_dim": 0,
+        "osram_base_first_gap": false,
+        "osram_bidirectional": false,
+        "osram_ced_block": false,
+        "osram_counterfactual_readout": "none",
+        "osram_decision_correction": false,
+        "osram_emotion_ablation": "full",
+        "osram_forward_slot_reuse": false,
+        "osram_gap_increment_filter": false,
+        "osram_gap_read": "residual",
+        "osram_hierarchical_evidence_gate": false,
+        "osram_hierarchical_feature_only": false,
+        "osram_history_input_gate": false,
+        "osram_history_query_adapter": false,
+        "osram_history_recency": false,
+        "osram_key_dim": 64,
+        "osram_local_evidence_gate": false,
+        "osram_local_evidence_gate_gap_only": false,
+        "osram_local_evidence_gate_reg_type": "l2",
+        "osram_local_evidence_gate_reg_weight": 0.001,
+        "osram_local_skip_gate": false,
+        "osram_meaningful_block": "none",
+        "osram_memory_only_adapter": false,
+        "osram_num_heads": 8,
+        "osram_output_dim": 1600,
+        "osram_post_grn": false,
+        "osram_predictor_mode": "structured",
+        "osram_query_availability": true,
+        "osram_read_ridge": 0.001,
+        "osram_readout_candidate": "none",
+        "osram_readout_fusion": "flat",
+        "osram_relation_block": false,
+        "osram_relation_dim": 128,
+        "osram_relation_dual_readout": false,
+        "osram_relation_mode": "pairwise",
+        "osram_relation_out_dim": 64,
+        "osram_shift_filter_depth": 1,
+        "osram_shift_filter_width": 128,
+        "osram_value_dim": 64,
+        "osram_write_ridge": 0.001,
+        "osram_write_step": 0.6,
+        "paired_history_views": false,
+        "postgraph_bilstm_ablation": "none",
+        "postgraph_sequence_mode": "independent",
+        "predictor_dropout": 0.1,
+        "pretrained_learning_rate": null,
+        "projector_dropout": 0.1,
+        "projector_lr_multiplier": 1,
+        "readout_rank": 8,
+        "readout_type": "shared",
+        "recurrent_padding_mode": "legacy",
+        "representation_type": "slot",
+        "seed": 66,
+        "simple_regression_predictor": false,
+        "target_private_rank": 0,
+        "target_space": "all-modalities",
+        "task_regression_loss": "mse",
+        "task_smooth_l1_beta": 1,
+        "teacher_checkpoint": null,
+        "teacher_mode": "ema",
+        "temperature": 0.03,
+        "text_core": false,
+        "text_subspace_checkpoint": null,
+        "time_attention": false,
+        "top_k": 2,
+        "train_missing_rates": [
+          0,
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6,
+          0.7
+        ],
+        "train_rate_mode": "cyclic",
+        "training_objective": "emotion-only",
+        "uniform_forced_text_probability": 0.25,
+        "validation_fraction": 0.1,
+        "warmup_ratio": 0.05,
+        "weight_decay": 0.0002,
+        "window_future": 2,
+        "window_past": 2
+      },
+      "branch": {
+        "attention_dim": 128,
+        "input_dim": 2564,
+        "kind": "B2",
+        "relation_weight": 0.05,
+        "window": 8
+      },
+      "identity": {
+        "branch": {
+          "attention_dim": 128,
+          "input_dim": 2564,
+          "kind": "B2",
+          "relation_weight": 0.05,
+          "window": 8
+        },
+        "config_sha256": "c1ad8a1fdcd8522cb62aa1d857c64f224c3abf7d19949de01cbc7ec1b5beba7e",
+        "dataset_sha256": "a0349614b2b58e8b2db768f0144aa36b96fb2348ca436a6879ee2623cc2d2f80",
+        "numerical_commit": "b4a313841f098487a6482d2712bdac94aa8e319e",
+        "smoke": false
+      },
+      "environment": {
+        "cuda": "11.7",
+        "executable": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+        "numpy": "1.26.4",
+        "python": "3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]",
+        "sklearn": "1.3.2",
+        "torch": "1.13.1+cu117"
+      },
+      "optimizer_steps": 1650,
+      "all_tensors_nonzero_steps": 1648,
+      "best_epochs": {
+        "0.0": 8,
+        "0.1": 10,
+        "0.2": 11,
+        "0.3": 21,
+        "0.4": 35,
+        "0.5": 13,
+        "0.6": 24,
+        "0.7": 46
+      },
+      "best_test_metrics": {
+        "high": {
+          "ACC": 57.84163473818646,
+          "CE": 1.2785990793542181,
+          "UA": 32.38782712973671,
+          "WF1": 53.608389570965606
+        },
+        "mean": {
+          "ACC": 61.75766283524905,
+          "CE": 1.1926698739516874,
+          "UA": 38.00500016285428,
+          "WF1": 58.80853818067018
+        },
+        "rates": {
+          "0.0": {
+            "ACC": 67.62452107279694,
+            "CE": 1.0797988360413182,
+            "N": 2610,
+            "UA": 44.45964361919938,
+            "WF1": 65.8240537852434,
+            "availability_sha256": "c417a7dbc8c1d96fdc86780cc7fea8709c74ac014bfcf9f4c419566d1e8181d5",
+            "checkpoint_sha256": "6b0eace0a95c589788d36c796296462a5858c628feb976be810fd099d2354925",
+            "epoch": 8,
+            "path": "selection_versions/epoch_000008_0p0.npz",
+            "recall": [
+              85.03184713375796,
+              61.56583629893239,
+              2,
+              33.65384615384615,
+              64.17910447761194,
+              10.294117647058822,
+              54.492753623188406
+            ],
+            "sha256": "43efc93e0f0211f5a14cfff4bf211154435d687f4bcc1813262f92779b5726a8",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.1": {
+            "ACC": 65.59386973180077,
+            "CE": 1.091685038632391,
+            "N": 2610,
+            "UA": 42.43322149936977,
+            "WF1": 63.689316051025266,
+            "availability_sha256": "db08a556f4645bae1b85593decc574469744a80dc758959b10040d72f0daf571",
+            "checkpoint_sha256": "85b4c78993232435fae438ed40e1a2924e9be650a0230c12d65061567b071568",
+            "epoch": 10,
+            "path": "selection_versions/epoch_000010_0p1.npz",
+            "recall": [
+              84.55414012738854,
+              56.58362989323843,
+              4,
+              34.61538461538461,
+              57.46268656716418,
+              7.352941176470589,
+              52.46376811594203
+            ],
+            "sha256": "71a4c4ae29588a84b5bca9a9030d95d3c1c70c3e5031afc1e57e19c8a88aae64",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.2": {
+            "ACC": 64.06130268199234,
+            "CE": 1.1285546551318915,
+            "N": 2610,
+            "UA": 40.949494569201796,
+            "WF1": 61.8731621434653,
+            "availability_sha256": "05900e85527c75bfb3176c28c1bda0edae90682c220f6998a3da0bcf47c48356",
+            "checkpoint_sha256": "7fe3565aded8d3b73886ca2261041cf73deef4491c7dcd65974349e8f2ab8d0f",
+            "epoch": 11,
+            "path": "selection_versions/epoch_000011_0p2.npz",
+            "recall": [
+              85.828025477707,
+              52.313167259786475,
+              8,
+              30.76923076923077,
+              50.74626865671642,
+              10.294117647058822,
+              48.69565217391305
+            ],
+            "sha256": "714bbab0c35040443add2c679323b18706d5d3be7d00997b9077b5c0660d9fdb",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.3": {
+            "ACC": 62.37547892720306,
+            "CE": 1.1771776109022831,
+            "N": 2610,
+            "UA": 40.458381508971506,
+            "WF1": 60.09850685541588,
+            "availability_sha256": "13f6324729c6d651b76b3b6de58462844f937cee3f3edc147a21fb0146953e76",
+            "checkpoint_sha256": "4289f44db077e9124f45183eddd5b87ec59b2e87b8135e9e1495a787372833a6",
+            "epoch": 21,
+            "path": "selection_versions/epoch_000021_0p3.npz",
+            "recall": [
+              85.19108280254777,
+              49.46619217081851,
+              16,
+              24.03846153846154,
+              48.00995024875622,
+              14.705882352941178,
+              45.79710144927536
+            ],
+            "sha256": "19c9ca44f857446c668632f7ff96737f0c20305b374b4e97a5bee44a2bd05309",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.4": {
+            "ACC": 60.88122605363985,
+            "CE": 1.2283456128429604,
+            "N": 2610,
+            "UA": 38.5757787168817,
+            "WF1": 58.15809789731484,
+            "availability_sha256": "8fb7a651d78c231ff512efcfaf361f9b5fa06be6a5aefae15027e1761ac238d7",
+            "checkpoint_sha256": "ca191e2cf0299ae215cdee5a45ec3b366b13e56b736398b2d9b7657548b93e0d",
+            "epoch": 35,
+            "path": "selection_versions/epoch_000035_0p4.npz",
+            "recall": [
+              85.58917197452229,
+              45.55160142348754,
+              10,
+              20.192307692307693,
+              44.02985074626866,
+              22.058823529411764,
+              42.608695652173914
+            ],
+            "sha256": "f5a2ff32a9ddd65af1204ae1a177adce67ba366525b89a5c7553ae04fe6e8c14",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.5": {
+            "ACC": 59.73180076628353,
+            "CE": 1.1941312584792854,
+            "N": 2610,
+            "UA": 33.20969960481464,
+            "WF1": 55.65552200003411,
+            "availability_sha256": "07b9bda75f4b679d7205de2433d37139e71323ffef7564c31a85bf1fd86a88cf",
+            "checkpoint_sha256": "7fb493eae1ee66c4cd39e32dc5483a52fa5eb99b94b3e11e3b57ab56ed78d8cb",
+            "epoch": 13,
+            "path": "selection_versions/epoch_000013_0p5.npz",
+            "recall": [
+              89.09235668789809,
+              36.654804270462634,
+              4,
+              19.230769230769234,
+              40.79601990049751,
+              5.88235294117647,
+              36.811594202898554
+            ],
+            "sha256": "a1652febde320a8952215bcf5e1873eb2a5f0748f9199e6c0415be3735ab2650",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.6": {
+            "ACC": 57.31800766283525,
+            "CE": 1.307621836271668,
+            "N": 2610,
+            "UA": 32.15180481134521,
+            "WF1": 53.018206065882566,
+            "availability_sha256": "6f4a90742be8af01173161aab170d991630d3fbefec515d009f65a70c77bdf89",
+            "checkpoint_sha256": "ec1688894095357c68414a6567bdc6588c5fdae83222d81230cf1bea5c4f15f0",
+            "epoch": 24,
+            "path": "selection_versions/epoch_000024_0p6.npz",
+            "recall": [
+              87.26114649681529,
+              33.096085409252666,
+              8,
+              11.538461538461538,
+              38.308457711442784,
+              13.23529411764706,
+              33.6231884057971
+            ],
+            "sha256": "052f54a90dbc7bafd52d9e663fd426455195fda82f4bf03d999acd841399cf42",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          },
+          "0.7": {
+            "ACC": 56.47509578544061,
+            "CE": 1.334044143311701,
+            "N": 2610,
+            "UA": 31.801976973050294,
+            "WF1": 52.15144064698013,
+            "availability_sha256": "a992bc6396880c30c29a34a2c6e8b41a79f69cf22041b7d8d8d9d2e629f9df99",
+            "checkpoint_sha256": "a3f5c66a2bc8db52699ac5808f84903881a405c50c9903134577da72ee9d7d56",
+            "epoch": 46,
+            "path": "selection_versions/epoch_000046_0p7.npz",
+            "recall": [
+              87.26114649681529,
+              28.11387900355872,
+              10,
+              16.346153846153847,
+              30.845771144278604,
+              13.23529411764706,
+              36.811594202898554
+            ],
+            "sha256": "e902829df4bb87527d2fd2c1f18a59cb380cab64c21d94aa0ed778ecb63b1073",
+            "support": [
+              1256,
+              281,
+              50,
+              208,
+              402,
+              68,
+              345
+            ]
+          }
+        }
+      },
+      "epoch_records": [
+        {
+          "epoch": 1,
+          "logged_train_loss": 1.6038935834711248,
+          "train_ACC": 44.59905896486135,
+          "task_test_CE_mean": 1.3987590256664488,
+          "test_ACC_mean": 50.02873563218391,
+          "test_WF1_mean": 35.5108786582546,
+          "output_weight_norm": 0.05335566774010658,
+          "branch_preclip_gradient_mean": 0.2684316091013677,
+          "branch_preclip_gradient_min": 0.10797376930713654,
+          "branch_preclip_gradient_max": 0.829603910446167,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 32,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 6,
+          "aux_BCE_batch_mean": 0.7059288404204629,
+          "online_train_CE_approx": 1.5685971414501017
+        },
+        {
+          "epoch": 2,
+          "logged_train_loss": 1.3713712692260742,
+          "train_ACC": 54.46991690859946,
+          "task_test_CE_mean": 1.2608277400334675,
+          "test_ACC_mean": 58.28544061302683,
+          "test_WF1_mean": 50.6399576441741,
+          "output_weight_norm": 0.0815720409154892,
+          "branch_preclip_gradient_mean": 0.15280883578640042,
+          "branch_preclip_gradient_min": 0.07122532278299332,
+          "branch_preclip_gradient_max": 0.29450517892837524,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6946452187769341,
+          "online_train_CE_approx": 1.3366390082872275
+        },
+        {
+          "epoch": 3,
+          "logged_train_loss": 1.2522934530720566,
+          "train_ACC": 60.00600660726799,
+          "task_test_CE_mean": 1.248526492052608,
+          "test_ACC_mean": 59.501915708812255,
+          "test_WF1_mean": 52.925823171277095,
+          "output_weight_norm": 0.10419183224439621,
+          "branch_preclip_gradient_mean": 0.14246502699274005,
+          "branch_preclip_gradient_min": 0.06615080684423447,
+          "branch_preclip_gradient_max": 0.3211592733860016,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6852086945013567,
+          "online_train_CE_approx": 1.2180330183469887
+        },
+        {
+          "epoch": 4,
+          "logged_train_loss": 1.1885447736942407,
+          "train_ACC": 61.64781259385323,
+          "task_test_CE_mean": 1.2307658990224204,
+          "test_ACC_mean": 59.822796934865906,
+          "test_WF1_mean": 54.05906298589479,
+          "output_weight_norm": 0.11763598769903183,
+          "branch_preclip_gradient_mean": 0.159153301268816,
+          "branch_preclip_gradient_min": 0.06103482469916344,
+          "branch_preclip_gradient_max": 0.2599252462387085,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.680062447533463,
+          "online_train_CE_approx": 1.1545416513175675
+        },
+        {
+          "epoch": 5,
+          "logged_train_loss": 1.1659640326644436,
+          "train_ACC": 62.10831915106617,
+          "task_test_CE_mean": 1.2019419827395015,
+          "test_ACC_mean": 60.51245210727969,
+          "test_WF1_mean": 55.89672224645925,
+          "output_weight_norm": 0.12886817753314972,
+          "branch_preclip_gradient_mean": 0.13711712735168863,
+          "branch_preclip_gradient_min": 0.06904792040586472,
+          "branch_preclip_gradient_max": 0.2187633365392685,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6754823778614854,
+          "online_train_CE_approx": 1.1321899137713693
+        },
+        {
+          "epoch": 6,
+          "logged_train_loss": 1.1452236374219258,
+          "train_ACC": 62.65892481729903,
+          "task_test_CE_mean": 1.1996919603811371,
+          "test_ACC_mean": 60.61781609195401,
+          "test_WF1_mean": 55.98867918596366,
+          "output_weight_norm": 0.1372157484292984,
+          "branch_preclip_gradient_mean": 0.1390752327261549,
+          "branch_preclip_gradient_min": 0.063505619764328,
+          "branch_preclip_gradient_max": 0.30937764048576355,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6704449906493678,
+          "online_train_CE_approx": 1.1117013878894575
+        },
+        {
+          "epoch": 7,
+          "logged_train_loss": 1.1277921976465168,
+          "train_ACC": 63.28961858043848,
+          "task_test_CE_mean": 1.2129947476916842,
+          "test_ACC_mean": 60.57950191570881,
+          "test_WF1_mean": 56.23325096214998,
+          "output_weight_norm": 0.14563480019569397,
+          "branch_preclip_gradient_mean": 0.13153854881723723,
+          "branch_preclip_gradient_min": 0.061483774334192276,
+          "branch_preclip_gradient_max": 0.246610626578331,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6675217241951914,
+          "online_train_CE_approx": 1.0944161114367572
+        },
+        {
+          "epoch": 8,
+          "logged_train_loss": 1.1169147870757363,
+          "train_ACC": 64.06046651316449,
+          "task_test_CE_mean": 1.2171516484684415,
+          "test_ACC_mean": 60.526819923371654,
+          "test_WF1_mean": 56.3059262722249,
+          "output_weight_norm": 0.1511279046535492,
+          "branch_preclip_gradient_mean": 0.1459505632519722,
+          "branch_preclip_gradient_min": 0.06263688951730728,
+          "branch_preclip_gradient_max": 0.23594853281974792,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6640257546395967,
+          "online_train_CE_approx": 1.0837134993437565
+        },
+        {
+          "epoch": 9,
+          "logged_train_loss": 1.1001915967825688,
+          "train_ACC": 63.770147161878064,
+          "task_test_CE_mean": 1.1944311004545953,
+          "test_ACC_mean": 60.53639846743295,
+          "test_WF1_mean": 56.80396726874714,
+          "output_weight_norm": 0.15730804204940796,
+          "branch_preclip_gradient_mean": 0.1482290429147807,
+          "branch_preclip_gradient_min": 0.06691519916057587,
+          "branch_preclip_gradient_max": 0.28593501448631287,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6614954363216053,
+          "online_train_CE_approx": 1.0671168249664886
+        },
+        {
+          "epoch": 10,
+          "logged_train_loss": 1.0735262397563818,
+          "train_ACC": 64.9214135549104,
+          "task_test_CE_mean": 1.2011784447564018,
+          "test_ACC_mean": 60.555555555555564,
+          "test_WF1_mean": 56.61055871096949,
+          "output_weight_norm": 0.16359426081180573,
+          "branch_preclip_gradient_mean": 0.13857184260180502,
+          "branch_preclip_gradient_min": 0.07513570040464401,
+          "branch_preclip_gradient_max": 0.2528577446937561,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6594283815586206,
+          "online_train_CE_approx": 1.0405548206784507
+        },
+        {
+          "epoch": 11,
+          "logged_train_loss": 1.0866027655023518,
+          "train_ACC": 64.69116027630393,
+          "task_test_CE_mean": 1.1904057272606425,
+          "test_ACC_mean": 60.80459770114942,
+          "test_WF1_mean": 57.278519002663295,
+          "output_weight_norm": 0.16849224269390106,
+          "branch_preclip_gradient_mean": 0.1450156443046801,
+          "branch_preclip_gradient_min": 0.07653766870498657,
+          "branch_preclip_gradient_max": 0.2741926908493042,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6568998224807509,
+          "online_train_CE_approx": 1.0537577743783142
+        },
+        {
+          "epoch": 12,
+          "logged_train_loss": 1.0731539527575176,
+          "train_ACC": 65.06156772449695,
+          "task_test_CE_mean": 1.1997046652767394,
+          "test_ACC_mean": 60.63218390804598,
+          "test_WF1_mean": 57.16372631753561,
+          "output_weight_norm": 0.1745600402355194,
+          "branch_preclip_gradient_mean": 0.1340233992898103,
+          "branch_preclip_gradient_min": 0.07121924310922623,
+          "branch_preclip_gradient_max": 0.2599145174026489,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6566535812435728,
+          "online_train_CE_approx": 1.0403212736953389
+        },
+        {
+          "epoch": 13,
+          "logged_train_loss": 1.065010180979064,
+          "train_ACC": 64.91140254279708,
+          "task_test_CE_mean": 1.1928594319356813,
+          "test_ACC_mean": 60.79980842911878,
+          "test_WF1_mean": 57.64524333011496,
+          "output_weight_norm": 0.17986281216144562,
+          "branch_preclip_gradient_mean": 0.14100175734722253,
+          "branch_preclip_gradient_min": 0.06828994303941727,
+          "branch_preclip_gradient_max": 0.27353009581565857,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6536622589284723,
+          "online_train_CE_approx": 1.0323270680326404
+        },
+        {
+          "epoch": 14,
+          "logged_train_loss": 1.0649355451265972,
+          "train_ACC": 64.62108319151066,
+          "task_test_CE_mean": 1.196681737071938,
+          "test_ACC_mean": 60.229885057471265,
+          "test_WF1_mean": 57.20791531551701,
+          "output_weight_norm": 0.18411198258399963,
+          "branch_preclip_gradient_mean": 0.1422009736751065,
+          "branch_preclip_gradient_min": 0.07398749887943268,
+          "branch_preclip_gradient_max": 0.27258846163749695,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.653525628826835,
+          "online_train_CE_approx": 1.0322592636852554
+        },
+        {
+          "epoch": 15,
+          "logged_train_loss": 1.0647808132749614,
+          "train_ACC": 65.47201922114326,
+          "task_test_CE_mean": 1.2142647372351751,
+          "test_ACC_mean": 60.18678160919541,
+          "test_WF1_mean": 56.832155314155116,
+          "output_weight_norm": 0.1904066950082779,
+          "branch_preclip_gradient_mean": 0.13894530205112515,
+          "branch_preclip_gradient_min": 0.06820174306631088,
+          "branch_preclip_gradient_max": 0.21701735258102417,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6525504011096377,
+          "online_train_CE_approx": 1.0321532932194795
+        },
+        {
+          "epoch": 16,
+          "logged_train_loss": 1.0584244204289985,
+          "train_ACC": 64.73120432475723,
+          "task_test_CE_mean": 1.200164226194223,
+          "test_ACC_mean": 60.368773946360164,
+          "test_WF1_mean": 57.39181054690074,
+          "output_weight_norm": 0.1935405433177948,
+          "branch_preclip_gradient_mean": 0.13711159066720444,
+          "branch_preclip_gradient_min": 0.06648317724466324,
+          "branch_preclip_gradient_max": 0.3234345018863678,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6504228187329841,
+          "online_train_CE_approx": 1.0259032794923493
+        },
+        {
+          "epoch": 17,
+          "logged_train_loss": 1.0339895233963474,
+          "train_ACC": 65.74231654820302,
+          "task_test_CE_mean": 1.2026967340045505,
+          "test_ACC_mean": 60.023946360153246,
+          "test_WF1_mean": 57.45810588348067,
+          "output_weight_norm": 0.2000686228275299,
+          "branch_preclip_gradient_mean": 0.1288596470699166,
+          "branch_preclip_gradient_min": 0.06764209270477295,
+          "branch_preclip_gradient_max": 0.26685526967048645,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6492630423921527,
+          "online_train_CE_approx": 1.0015263712767397
+        },
+        {
+          "epoch": 18,
+          "logged_train_loss": 1.0439408873066758,
+          "train_ACC": 65.25177695465013,
+          "task_test_CE_mean": 1.2065041446023517,
+          "test_ACC_mean": 60.727969348659,
+          "test_WF1_mean": 57.58717869505527,
+          "output_weight_norm": 0.20262987911701202,
+          "branch_preclip_gradient_mean": 0.13235007565129886,
+          "branch_preclip_gradient_min": 0.07042059302330017,
+          "branch_preclip_gradient_max": 0.2951691746711731,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.648522189169219,
+          "online_train_CE_approx": 1.0115147778482148
+        },
+        {
+          "epoch": 19,
+          "logged_train_loss": 1.0446030623985059,
+          "train_ACC": 65.41195314846331,
+          "task_test_CE_mean": 1.204268914129999,
+          "test_ACC_mean": 59.458812260536384,
+          "test_WF1_mean": 57.10085212630596,
+          "output_weight_norm": 0.20755858719348907,
+          "branch_preclip_gradient_mean": 0.14006697950941144,
+          "branch_preclip_gradient_min": 0.06129810959100723,
+          "branch_preclip_gradient_max": 0.3057669401168823,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6484065814451738,
+          "online_train_CE_approx": 1.0121827333262472
+        },
+        {
+          "epoch": 20,
+          "logged_train_loss": 1.0201156031001697,
+          "train_ACC": 66.07267994794273,
+          "task_test_CE_mean": 1.209082422984971,
+          "test_ACC_mean": 60.35440613026819,
+          "test_WF1_mean": 57.430631624654325,
+          "output_weight_norm": 0.21317382156848907,
+          "branch_preclip_gradient_mean": 0.1286053235332171,
+          "branch_preclip_gradient_min": 0.06642140448093414,
+          "branch_preclip_gradient_max": 0.24913716316223145,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6471545154398138,
+          "online_train_CE_approx": 0.987757877328179
+        },
+        {
+          "epoch": 21,
+          "logged_train_loss": 1.0255755511197178,
+          "train_ACC": 65.75232756031635,
+          "task_test_CE_mean": 1.206069881717364,
+          "test_ACC_mean": 60.296934865900376,
+          "test_WF1_mean": 57.50835120988459,
+          "output_weight_norm": 0.21878543496131897,
+          "branch_preclip_gradient_mean": 0.13107839768583124,
+          "branch_preclip_gradient_min": 0.07599249482154846,
+          "branch_preclip_gradient_max": 0.21849747002124786,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6467061729142161,
+          "online_train_CE_approx": 0.993240242474007
+        },
+        {
+          "epoch": 22,
+          "logged_train_loss": 1.0458991148255088,
+          "train_ACC": 65.78236059665632,
+          "task_test_CE_mean": 1.2092186659574509,
+          "test_ACC_mean": 60.59865900383142,
+          "test_WF1_mean": 57.77553058012879,
+          "output_weight_norm": 0.22232511639595032,
+          "branch_preclip_gradient_mean": 0.12272386614120367,
+          "branch_preclip_gradient_min": 0.056913673877716064,
+          "branch_preclip_gradient_max": 0.1935490369796753,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6459593989632346,
+          "online_train_CE_approx": 1.013601144877347
+        },
+        {
+          "epoch": 23,
+          "logged_train_loss": 1.0412746234373613,
+          "train_ACC": 66.03263589948943,
+          "task_test_CE_mean": 1.1970559540722105,
+          "test_ACC_mean": 60.60823754789272,
+          "test_WF1_mean": 58.10026321125592,
+          "output_weight_norm": 0.22768013179302216,
+          "branch_preclip_gradient_mean": 0.14206532637278238,
+          "branch_preclip_gradient_min": 0.07027766108512878,
+          "branch_preclip_gradient_max": 0.2661953866481781,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6450734246860851,
+          "online_train_CE_approx": 1.009020952203057
+        },
+        {
+          "epoch": 24,
+          "logged_train_loss": 1.028069075309869,
+          "train_ACC": 66.0927019721694,
+          "task_test_CE_mean": 1.2077015058861837,
+          "test_ACC_mean": 60.49808429118774,
+          "test_WF1_mean": 57.79492670452741,
+          "output_weight_norm": 0.23285143077373505,
+          "branch_preclip_gradient_mean": 0.13832039747274283,
+          "branch_preclip_gradient_min": 0.06736116111278534,
+          "branch_preclip_gradient_max": 0.24256516993045807,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6445098898627541,
+          "online_train_CE_approx": 0.9958435808167312
+        },
+        {
+          "epoch": 25,
+          "logged_train_loss": 1.0082200169563293,
+          "train_ACC": 66.59325257783561,
+          "task_test_CE_mean": 1.2172299491034613,
+          "test_ACC_mean": 60.32088122605364,
+          "test_WF1_mean": 57.91168376714732,
+          "output_weight_norm": 0.2382381707429886,
+          "branch_preclip_gradient_mean": 0.13428842152158418,
+          "branch_preclip_gradient_min": 0.05305761471390724,
+          "branch_preclip_gradient_max": 0.20697171986103058,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.641387863592668,
+          "online_train_CE_approx": 0.9761506237766959
+        },
+        {
+          "epoch": 26,
+          "logged_train_loss": 0.9953130555875374,
+          "train_ACC": 67.47422164380819,
+          "task_test_CE_mean": 1.2223158942328558,
+          "test_ACC_mean": 60.07183908045977,
+          "test_WF1_mean": 57.27168703095323,
+          "output_weight_norm": 0.2418389469385147,
+          "branch_preclip_gradient_mean": 0.12150073649756836,
+          "branch_preclip_gradient_min": 0.05655144527554512,
+          "branch_preclip_gradient_max": 0.2259053736925125,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 32,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6413993907697273,
+          "online_train_CE_approx": 0.963243086049051
+        },
+        {
+          "epoch": 27,
+          "logged_train_loss": 1.0101197109077915,
+          "train_ACC": 66.73340674742217,
+          "task_test_CE_mean": 1.2081173070602946,
+          "test_ACC_mean": 60.06226053639847,
+          "test_WF1_mean": 57.695915422868815,
+          "output_weight_norm": 0.24548311531543732,
+          "branch_preclip_gradient_mean": 0.12921873412349008,
+          "branch_preclip_gradient_min": 0.06576599180698395,
+          "branch_preclip_gradient_max": 0.2901470959186554,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6390121019247806,
+          "online_train_CE_approx": 0.9781691058115525
+        },
+        {
+          "epoch": 28,
+          "logged_train_loss": 1.0092044111454126,
+          "train_ACC": 66.61327460206226,
+          "task_test_CE_mean": 1.2217791949709258,
+          "test_ACC_mean": 60.27777777777777,
+          "test_WF1_mean": 57.293236673405254,
+          "output_weight_norm": 0.2509896755218506,
+          "branch_preclip_gradient_mean": 0.12239565632560036,
+          "branch_preclip_gradient_min": 0.06441152095794678,
+          "branch_preclip_gradient_max": 0.24276040494441986,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6411797440413273,
+          "online_train_CE_approx": 0.9771454239433462
+        },
+        {
+          "epoch": 29,
+          "logged_train_loss": 1.0015616073752895,
+          "train_ACC": 67.05375913504855,
+          "task_test_CE_mean": 1.2272302226887808,
+          "test_ACC_mean": 59.88984674329502,
+          "test_WF1_mean": 57.08897272417528,
+          "output_weight_norm": 0.2568817436695099,
+          "branch_preclip_gradient_mean": 0.12946875799785962,
+          "branch_preclip_gradient_min": 0.06769254803657532,
+          "branch_preclip_gradient_max": 0.22732990980148315,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6409514636704416,
+          "online_train_CE_approx": 0.9695140341917674
+        },
+        {
+          "epoch": 30,
+          "logged_train_loss": 0.9920489571311257,
+          "train_ACC": 66.63329662628892,
+          "task_test_CE_mean": 1.2205025263958507,
+          "test_ACC_mean": 60.268199233716466,
+          "test_WF1_mean": 57.618255147576704,
+          "output_weight_norm": 0.26007479429244995,
+          "branch_preclip_gradient_mean": 0.13362736435550632,
+          "branch_preclip_gradient_min": 0.07250146567821503,
+          "branch_preclip_gradient_max": 0.23035268485546112,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6406856359857501,
+          "online_train_CE_approx": 0.9600146753318383
+        },
+        {
+          "epoch": 31,
+          "logged_train_loss": 1.00170376625928,
+          "train_ACC": 66.6232856141756,
+          "task_test_CE_mean": 1.2261652830574248,
+          "test_ACC_mean": 60.00000000000001,
+          "test_WF1_mean": 57.267504879903285,
+          "output_weight_norm": 0.265367329120636,
+          "branch_preclip_gradient_mean": 0.14322219360055347,
+          "branch_preclip_gradient_min": 0.07391513139009476,
+          "branch_preclip_gradient_max": 0.2306002825498581,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6384811401367188,
+          "online_train_CE_approx": 0.969779709252444
+        },
+        {
+          "epoch": 32,
+          "logged_train_loss": 1.0080827619090225,
+          "train_ACC": 66.28291120232255,
+          "task_test_CE_mean": 1.224055292705695,
+          "test_ACC_mean": 59.856321839080465,
+          "test_WF1_mean": 57.32831382656741,
+          "output_weight_norm": 0.2693786919116974,
+          "branch_preclip_gradient_mean": 0.13450356550288922,
+          "branch_preclip_gradient_min": 0.0754312202334404,
+          "branch_preclip_gradient_max": 0.22638843953609467,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6374201359170856,
+          "online_train_CE_approx": 0.9762117551131682
+        },
+        {
+          "epoch": 33,
+          "logged_train_loss": 0.9834542274475098,
+          "train_ACC": 67.56432075282811,
+          "task_test_CE_mean": 1.2273177173402574,
+          "test_ACC_mean": 60.21551724137931,
+          "test_WF1_mean": 57.459302693051086,
+          "output_weight_norm": 0.27457284927368164,
+          "branch_preclip_gradient_mean": 0.1304572606177041,
+          "branch_preclip_gradient_min": 0.06555069237947464,
+          "branch_preclip_gradient_max": 0.30952927470207214,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6372930028221824,
+          "online_train_CE_approx": 0.9515895773064007
+        },
+        {
+          "epoch": 34,
+          "logged_train_loss": 0.9953630313728795,
+          "train_ACC": 66.9936930623686,
+          "task_test_CE_mean": 1.2188144707017474,
+          "test_ACC_mean": 59.980842911877396,
+          "test_WF1_mean": 57.752301083952005,
+          "output_weight_norm": 0.2791215181350708,
+          "branch_preclip_gradient_mean": 0.12491301266532956,
+          "branch_preclip_gradient_min": 0.07536151260137558,
+          "branch_preclip_gradient_max": 0.22145776450634003,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.638176881905758,
+          "online_train_CE_approx": 0.9634541872775916
+        },
+        {
+          "epoch": 35,
+          "logged_train_loss": 0.9818371299541357,
+          "train_ACC": 67.2339573530884,
+          "task_test_CE_mean": 1.2257839209503598,
+          "test_ACC_mean": 60.296934865900376,
+          "test_WF1_mean": 57.51219282030732,
+          "output_weight_norm": 0.2835090458393097,
+          "branch_preclip_gradient_mean": 0.13859025501843655,
+          "branch_preclip_gradient_min": 0.06454925984144211,
+          "branch_preclip_gradient_max": 0.28261807560920715,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6362940289757468,
+          "online_train_CE_approx": 0.9500224285053485
+        },
+        {
+          "epoch": 36,
+          "logged_train_loss": 0.9859977147795937,
+          "train_ACC": 66.8335168685554,
+          "task_test_CE_mean": 1.2235862844520144,
+          "test_ACC_mean": 59.92816091954023,
+          "test_WF1_mean": 57.53051975743685,
+          "output_weight_norm": 0.2873857915401459,
+          "branch_preclip_gradient_mean": 0.1426270098397226,
+          "branch_preclip_gradient_min": 0.07368917018175125,
+          "branch_preclip_gradient_max": 0.26708918809890747,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6367561979727312,
+          "online_train_CE_approx": 0.9541599048809571
+        },
+        {
+          "epoch": 37,
+          "logged_train_loss": 0.9845877813570427,
+          "train_ACC": 67.57433176494143,
+          "task_test_CE_mean": 1.220222075780233,
+          "test_ACC_mean": 60.277777777777786,
+          "test_WF1_mean": 57.585491716179384,
+          "output_weight_norm": 0.2922472655773163,
+          "branch_preclip_gradient_mean": 0.1373917322718736,
+          "branch_preclip_gradient_min": 0.07288428395986557,
+          "branch_preclip_gradient_max": 0.24077756702899933,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6342847058267305,
+          "online_train_CE_approx": 0.9528735460657062
+        },
+        {
+          "epoch": 38,
+          "logged_train_loss": 0.967427651087443,
+          "train_ACC": 68.0448493342677,
+          "task_test_CE_mean": 1.225937094953325,
+          "test_ACC_mean": 60.292145593869726,
+          "test_WF1_mean": 57.742893243487124,
+          "output_weight_norm": 0.29714635014533997,
+          "branch_preclip_gradient_mean": 0.1324297126495477,
+          "branch_preclip_gradient_min": 0.07522349059581757,
+          "branch_preclip_gradient_max": 0.21603144705295563,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6359134153886274,
+          "online_train_CE_approx": 0.9356319803180116
+        },
+        {
+          "epoch": 39,
+          "logged_train_loss": 0.9873853813518177,
+          "train_ACC": 67.20392431674841,
+          "task_test_CE_mean": 1.2414464569754071,
+          "test_ACC_mean": 59.971264367816104,
+          "test_WF1_mean": 57.2986629335139,
+          "output_weight_norm": 0.3015187978744507,
+          "branch_preclip_gradient_mean": 0.13141055630915094,
+          "branch_preclip_gradient_min": 0.0696534812450409,
+          "branch_preclip_gradient_max": 0.2185843288898468,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6356861519091057,
+          "online_train_CE_approx": 0.9556010737563625
+        },
+        {
+          "epoch": 40,
+          "logged_train_loss": 0.9767803116278215,
+          "train_ACC": 67.71448593452799,
+          "task_test_CE_mean": 1.241877042584949,
+          "test_ACC_mean": 60.483716475095804,
+          "test_WF1_mean": 57.85170454244347,
+          "output_weight_norm": 0.3066355586051941,
+          "branch_preclip_gradient_mean": 0.13423999963384686,
+          "branch_preclip_gradient_min": 0.08355914056301117,
+          "branch_preclip_gradient_max": 0.2060331404209137,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6364360614256426,
+          "online_train_CE_approx": 0.9449585085565394
+        },
+        {
+          "epoch": 41,
+          "logged_train_loss": 0.9426458785028169,
+          "train_ACC": 68.85574131544699,
+          "task_test_CE_mean": 1.2462021857500076,
+          "test_ACC_mean": 59.76532567049808,
+          "test_WF1_mean": 57.04594280110222,
+          "output_weight_norm": 0.3119197189807892,
+          "branch_preclip_gradient_mean": 0.134947629589023,
+          "branch_preclip_gradient_min": 0.08706365525722504,
+          "branch_preclip_gradient_max": 0.24097886681556702,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6321821881063057,
+          "online_train_CE_approx": 0.9110367690975016
+        },
+        {
+          "epoch": 42,
+          "logged_train_loss": 0.9498477000178713,
+          "train_ACC": 68.05486034638102,
+          "task_test_CE_mean": 1.2529471069574356,
+          "test_ACC_mean": 59.66475095785441,
+          "test_WF1_mean": 57.31292596422476,
+          "output_weight_norm": 0.31731319427490234,
+          "branch_preclip_gradient_mean": 0.1370645183505434,
+          "branch_preclip_gradient_min": 0.0867529883980751,
+          "branch_preclip_gradient_max": 0.2823960483074188,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6357258829203519,
+          "online_train_CE_approx": 0.9180614058718537
+        },
+        {
+          "epoch": 43,
+          "logged_train_loss": 0.9606805805004004,
+          "train_ACC": 67.6444088497347,
+          "task_test_CE_mean": 1.2443589915831885,
+          "test_ACC_mean": 59.42049808429118,
+          "test_WF1_mean": 57.240324525060835,
+          "output_weight_norm": 0.3210979104042053,
+          "branch_preclip_gradient_mean": 0.1507092197284554,
+          "branch_preclip_gradient_min": 0.07751639932394028,
+          "branch_preclip_gradient_max": 0.35448020696640015,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6321721365957549,
+          "online_train_CE_approx": 0.9290719736706127
+        },
+        {
+          "epoch": 44,
+          "logged_train_loss": 0.9408519538966092,
+          "train_ACC": 68.23505856442085,
+          "task_test_CE_mean": 1.2497877809736464,
+          "test_ACC_mean": 60,
+          "test_WF1_mean": 57.46496361501223,
+          "output_weight_norm": 0.32634687423706055,
+          "branch_preclip_gradient_mean": 0.14249503906026031,
+          "branch_preclip_gradient_min": 0.09369517117738724,
+          "branch_preclip_gradient_max": 0.25351062417030334,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6339138403083339,
+          "online_train_CE_approx": 0.9091562618811926
+        },
+        {
+          "epoch": 45,
+          "logged_train_loss": 0.9402522805965308,
+          "train_ACC": 68.07488237060767,
+          "task_test_CE_mean": 1.241907333334287,
+          "test_ACC_mean": 59.92337164750958,
+          "test_WF1_mean": 57.52417554428082,
+          "output_weight_norm": 0.33074772357940674,
+          "branch_preclip_gradient_mean": 0.14103426287571588,
+          "branch_preclip_gradient_min": 0.0714125782251358,
+          "branch_preclip_gradient_max": 0.4256623387336731,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6328976244637461,
+          "online_train_CE_approx": 0.9086073993733434
+        },
+        {
+          "epoch": 46,
+          "logged_train_loss": 0.9531033165527113,
+          "train_ACC": 68.07488237060767,
+          "task_test_CE_mean": 1.257285745607482,
+          "test_ACC_mean": 60.263409961685824,
+          "test_WF1_mean": 57.60148735165248,
+          "output_weight_norm": 0.33559107780456543,
+          "branch_preclip_gradient_mean": 0.12119027385205934,
+          "branch_preclip_gradient_min": 0.0664840042591095,
+          "branch_preclip_gradient_max": 0.19364942610263824,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6316685676574707,
+          "online_train_CE_approx": 0.9215198881698378
+        },
+        {
+          "epoch": 47,
+          "logged_train_loss": 0.9539248311158383,
+          "train_ACC": 68.59545500050055,
+          "task_test_CE_mean": 1.2576883998182085,
+          "test_ACC_mean": 59.84195402298851,
+          "test_WF1_mean": 57.51136683600144,
+          "output_weight_norm": 0.3404372036457062,
+          "branch_preclip_gradient_mean": 0.13473703870267578,
+          "branch_preclip_gradient_min": 0.07209464907646179,
+          "branch_preclip_gradient_max": 0.3010353446006775,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6322968945358739,
+          "online_train_CE_approx": 0.9223099863890446
+        },
+        {
+          "epoch": 48,
+          "logged_train_loss": 0.9491931669639818,
+          "train_ACC": 68.46531184302734,
+          "task_test_CE_mean": 1.2664718412690692,
+          "test_ACC_mean": 59.35344827586208,
+          "test_WF1_mean": 57.27014191975728,
+          "output_weight_norm": 0.34591424465179443,
+          "branch_preclip_gradient_mean": 0.14710911769758572,
+          "branch_preclip_gradient_min": 0.10356388241052628,
+          "branch_preclip_gradient_max": 0.23093633353710175,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6319708697723619,
+          "online_train_CE_approx": 0.9175946234753637
+        },
+        {
+          "epoch": 49,
+          "logged_train_loss": 0.9183673009727941,
+          "train_ACC": 68.99589548503353,
+          "task_test_CE_mean": 1.255674006210433,
+          "test_ACC_mean": 59.94252873563218,
+          "test_WF1_mean": 57.760416542515,
+          "output_weight_norm": 0.3506348431110382,
+          "branch_preclip_gradient_mean": 0.13189719527056723,
+          "branch_preclip_gradient_min": 0.068656325340271,
+          "branch_preclip_gradient_max": 0.23528586328029633,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6291285988056299,
+          "online_train_CE_approx": 0.8869108710325125
+        },
+        {
+          "epoch": 50,
+          "logged_train_loss": 0.9303504373088027,
+          "train_ACC": 68.46531184302734,
+          "task_test_CE_mean": 1.295000081260999,
+          "test_ACC_mean": 59.40613026819924,
+          "test_WF1_mean": 56.79270201380581,
+          "output_weight_norm": 0.3555612862110138,
+          "branch_preclip_gradient_mean": 0.13560266815351718,
+          "branch_preclip_gradient_min": 0.07742820680141449,
+          "branch_preclip_gradient_max": 0.27387523651123047,
+          "gradient_tensor_count": 17,
+          "all_tensors_nonzero_steps": 33,
+          "optimizer_steps": 33,
+          "first_step_nonzero_tensors": 17,
+          "aux_BCE_batch_mean": 0.6308808362845219,
+          "online_train_CE_approx": 0.8988063954945766
+        }
+      ],
+      "window_means": {
+        "1-5": {
+          "logged_train_loss": 1.316413422425588,
+          "train_ACC": 56.56622284512964,
+          "task_test_CE_mean": 1.2681642279028893,
+          "test_ACC_mean": 57.63026819923372,
+          "test_WF1_mean": 49.80648894121197,
+          "branch_preclip_gradient_mean": 0.17199518010020257,
+          "aux_BCE_batch_mean": 0.6882655158187404,
+          "online_train_CE_approx": 1.282000146634651
+        },
+        "6-10": {
+          "logged_train_loss": 1.1127296917366258,
+          "train_ACC": 63.74011412553809,
+          "task_test_CE_mean": 1.205089580350452,
+          "test_ACC_mean": 60.5632183908046,
+          "test_WF1_mean": 56.388476480011036,
+          "branch_preclip_gradient_mean": 0.14067304606239,
+          "aux_BCE_batch_mean": 0.6645832574728764,
+          "online_train_CE_approx": 1.079500528862982
+        },
+        "11-20": {
+          "logged_train_loss": 1.055555675427119,
+          "train_ACC": 65.19671638802683,
+          "task_test_CE_mean": 1.2016632740696271,
+          "test_ACC_mean": 60.35871647509578,
+          "test_WF1_mean": 57.30961381563829,
+          "branch_preclip_gradient_mean": 0.13681806930989932,
+          "aux_BCE_batch_mean": 0.6517060839768613,
+          "online_train_CE_approx": 1.0229703712282758
+        },
+        "21-30": {
+          "logged_train_loss": 1.0157286123795943,
+          "train_ACC": 66.47612373610971,
+          "task_test_CE_mean": 1.2137221102085378,
+          "test_ACC_mean": 60.28927203065134,
+          "test_WF1_mean": 57.60588224719233,
+          "branch_preclip_gradient_mean": 0.1304687658494169,
+          "aux_BCE_batch_mean": 0.6426865086410984,
+          "online_train_CE_approx": 0.9835942869475394
+        },
+        "31-40": {
+          "logged_train_loss": 0.9872619757146546,
+          "train_ACC": 67.20692762038242,
+          "task_test_CE_mean": 1.2275205639501412,
+          "test_ACC_mean": 60.13026819923372,
+          "test_WF1_mean": 57.53288874968418,
+          "branch_preclip_gradient_mean": 0.13497852981090547,
+          "aux_BCE_batch_mean": 0.6366741722280329,
+          "online_train_CE_approx": 0.9554282671032529
+        },
+        "41-50": {
+          "logged_train_loss": 0.9439217446428356,
+          "train_ACC": 68.34618079887876,
+          "task_test_CE_mean": 1.2567323472764758,
+          "test_ACC_mean": 59.75814176245211,
+          "test_WF1_mean": 57.35244471134129,
+          "branch_preclip_gradient_mean": 0.13767869632804033,
+          "aux_BCE_batch_mean": 0.6322837439450351,
+          "online_train_CE_approx": 0.9123075574455839
+        }
+      },
+      "parameter_snapshots": [
+        {
+          "epoch": 8,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000008_6f21332fa65a4cca98a268e80883b0bf_model.pt",
+          "sha256": "d49738c88b0c76bd4179245df4abbecff9b8b63a667f31dd76cc83d728e3e151",
+          "groups": {
+            "query": {
+              "norm": 5.852560684122543
+            },
+            "key": {
+              "norm": 6.149990240663721
+            },
+            "value": {
+              "norm": 6.174756696920983
+            },
+            "speaker_bias": {
+              "norm": 0.00021555646558345357
+            },
+            "distance_bias": {
+              "norm": 0.0004322751761392957
+            },
+            "availability_bias": {
+              "norm": 0.0005047152375863034
+            },
+            "fusion": {
+              "norm": 5.7582463912773205
+            },
+            "output": {
+              "norm": 0.15118904949673806
+            },
+            "relation": {
+              "norm": 6.241348625004262
+            }
+          },
+          "output_weight_norm": 0.15112775564193726
+        },
+        {
+          "epoch": 10,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000010_9995a901212e48b289196240123de0bd_model.pt",
+          "sha256": "f7ce087ef349e90a72b37b78ce5376fbeab919c2fbc183f80294b339d6313911",
+          "groups": {
+            "query": {
+              "norm": 5.691523356761113,
+              "delta_norm": 0.1776485087444283,
+              "delta_over_reference_norm": 0.03035397979321638
+            },
+            "key": {
+              "norm": 6.05282575237938,
+              "delta_norm": 0.10849473545535784,
+              "delta_over_reference_norm": 0.017641448394176452
+            },
+            "value": {
+              "norm": 6.083309689106419,
+              "delta_norm": 0.09794542417758376,
+              "delta_over_reference_norm": 0.015862232146964406
+            },
+            "speaker_bias": {
+              "norm": 0.0002603079399414817,
+              "delta_norm": 0.00004475147435802919,
+              "delta_over_reference_norm": 0.20760905610926095
+            },
+            "distance_bias": {
+              "norm": 0.0004935178495811118,
+              "delta_norm": 0.00017323900710700823,
+              "delta_over_reference_norm": 0.4007609427268707
+            },
+            "availability_bias": {
+              "norm": 0.0007213963258107817,
+              "delta_norm": 0.0002774877079880971,
+              "delta_over_reference_norm": 0.5497906290983504
+            },
+            "fusion": {
+              "norm": 5.620010008715177,
+              "delta_norm": 0.16312847822074034,
+              "delta_over_reference_norm": 0.02832954117209188
+            },
+            "output": {
+              "norm": 0.16366275220162932,
+              "delta_norm": 0.026150706833374223,
+              "delta_over_reference_norm": 0.17296693722476528
+            },
+            "relation": {
+              "norm": 6.156831672653901,
+              "delta_norm": 0.11014085628482602,
+              "delta_over_reference_norm": 0.01764696428646474
+            }
+          },
+          "output_weight_norm": 0.1635940968990326
+        },
+        {
+          "epoch": 11,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000011_1feb28b0cd6c4dc991688018c3ee95e2_model.pt",
+          "sha256": "6037367844e5716dac444bfc85af104f7ce5211685c5b8de8ebbe0cc632a6445",
+          "groups": {
+            "query": {
+              "norm": 5.6123804261405645,
+              "delta_norm": 0.08700156078554175,
+              "delta_over_reference_norm": 0.01528616423618648
+            },
+            "key": {
+              "norm": 6.004731466534936,
+              "delta_norm": 0.05354840247854611,
+              "delta_over_reference_norm": 0.008846843551955235
+            },
+            "value": {
+              "norm": 6.038178675139633,
+              "delta_norm": 0.04831054208248399,
+              "delta_over_reference_norm": 0.007941489838828237
+            },
+            "speaker_bias": {
+              "norm": 0.0002953161865653626,
+              "delta_norm": 0.000035008246623883277,
+              "delta_over_reference_norm": 0.13448781712825694
+            },
+            "distance_bias": {
+              "norm": 0.0005449301922385428,
+              "delta_norm": 0.00023123594526592585,
+              "delta_over_reference_norm": 0.4685462652712447
+            },
+            "availability_bias": {
+              "norm": 0.000753878169529905,
+              "delta_norm": 0.0001114603027985255,
+              "delta_over_reference_norm": 0.15450633557532276
+            },
+            "fusion": {
+              "norm": 5.554926187409231,
+              "delta_norm": 0.07923943735152578,
+              "delta_over_reference_norm": 0.014099518902750347
+            },
+            "output": {
+              "norm": 0.16855953887225944,
+              "delta_norm": 0.01704167888627626,
+              "delta_over_reference_norm": 0.1041268013462296
+            },
+            "relation": {
+              "norm": 6.11426041621755,
+              "delta_norm": 0.054744074301842346,
+              "delta_over_reference_norm": 0.00889159834351049
+            }
+          },
+          "output_weight_norm": 0.16849203407764435
+        },
+        {
+          "epoch": 13,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000013_f65595c8669246b3a46f1e5580bef6bd_model.pt",
+          "sha256": "1f8736726e0bd642bbae3f4967569ce66e8466be4dc6058fe92375dad5acc4d5",
+          "groups": {
+            "query": {
+              "norm": 5.456751865642726,
+              "delta_norm": 0.170505001840279,
+              "delta_over_reference_norm": 0.03038015759696626
+            },
+            "key": {
+              "norm": 5.9094914441368305,
+              "delta_norm": 0.10574020520700787,
+              "delta_over_reference_norm": 0.017609481089422615
+            },
+            "value": {
+              "norm": 5.948999082119952,
+              "delta_norm": 0.0951743982310692,
+              "delta_over_reference_norm": 0.01576210366594829
+            },
+            "speaker_bias": {
+              "norm": 0.0002666551050967585,
+              "delta_norm": 0.00002866108146860432,
+              "delta_over_reference_norm": 0.09705218600423968
+            },
+            "distance_bias": {
+              "norm": 0.0004972446384170117,
+              "delta_norm": 0.0002971147193478866,
+              "delta_over_reference_norm": 0.5452344604496145
+            },
+            "availability_bias": {
+              "norm": 0.0007125967379802443,
+              "delta_norm": 0.00022854806768172423,
+              "delta_over_reference_norm": 0.3031631328762838
+            },
+            "fusion": {
+              "norm": 5.43187736739079,
+              "delta_norm": 0.14728099999568695,
+              "delta_over_reference_norm": 0.026513583624119676
+            },
+            "output": {
+              "norm": 0.17993963377193392,
+              "delta_norm": 0.02516996891093986,
+              "delta_over_reference_norm": 0.14932390702619672
+            },
+            "relation": {
+              "norm": 6.028899863808967,
+              "delta_norm": 0.10811442618061111,
+              "delta_over_reference_norm": 0.017682339125407037
+            }
+          },
+          "output_weight_norm": 0.1798626184463501
+        },
+        {
+          "epoch": 21,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000021_d247d7473c5c48058317b58422168c61_model.pt",
+          "sha256": "9d2851c8df44a176351ffff3306448e510de966e06ddfdbd3e99ee2a5d3634e0",
+          "groups": {
+            "query": {
+              "norm": 4.867408277197242,
+              "delta_norm": 0.6396458571683602,
+              "delta_over_reference_norm": 0.11722099023702248
+            },
+            "key": {
+              "norm": 5.540467397558674,
+              "delta_norm": 0.4065522385978694,
+              "delta_over_reference_norm": 0.06879648484832562
+            },
+            "value": {
+              "norm": 5.6054910414533285,
+              "delta_norm": 0.3645889158841091,
+              "delta_over_reference_norm": 0.06128575762936346
+            },
+            "speaker_bias": {
+              "norm": 0.0002567957986033097,
+              "delta_norm": 0.000009859306493576084,
+              "delta_over_reference_norm": 0.03697400239158569
+            },
+            "distance_bias": {
+              "norm": 0.0008586375544776365,
+              "delta_norm": 0.000550506527701025,
+              "delta_over_reference_norm": 1.1071140544693927
+            },
+            "availability_bias": {
+              "norm": 0.000618549138836236,
+              "delta_norm": 0.0003259822461339975,
+              "delta_over_reference_norm": 0.4574568318372444
+            },
+            "fusion": {
+              "norm": 5.016603374439818,
+              "delta_norm": 0.49463499278471207,
+              "delta_over_reference_norm": 0.09106151691754977
+            },
+            "output": {
+              "norm": 0.21889881686151846,
+              "delta_norm": 0.061906141566868876,
+              "delta_over_reference_norm": 0.34403838814817395
+            },
+            "relation": {
+              "norm": 5.687891020260927,
+              "delta_norm": 0.4158926487354222,
+              "delta_over_reference_norm": 0.06898317406663106
+            }
+          },
+          "output_weight_norm": 0.21878522634506226
+        },
+        {
+          "epoch": 24,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000024_a9cab02f09524b2ea99777e5d4804f24_model.pt",
+          "sha256": "ac3c01d0c63981edf5b9300943f54cfebb516d090b64d3786601c307c38aad21",
+          "groups": {
+            "query": {
+              "norm": 4.6591469461099235,
+              "delta_norm": 0.2243899314046052,
+              "delta_over_reference_norm": 0.04610049509424217
+            },
+            "key": {
+              "norm": 5.406709293371145,
+              "delta_norm": 0.14643566323381285,
+              "delta_over_reference_norm": 0.02643020032900791
+            },
+            "value": {
+              "norm": 5.481688272242972,
+              "delta_norm": 0.13113084913588516,
+              "delta_over_reference_norm": 0.023393284935459824
+            },
+            "speaker_bias": {
+              "norm": 0.00019903747340666155,
+              "delta_norm": 0.00005775832519664825,
+              "delta_over_reference_norm": 0.2249192763697491
+            },
+            "distance_bias": {
+              "norm": 0.000978965254297043,
+              "delta_norm": 0.0004246554748648264,
+              "delta_over_reference_norm": 0.4945689513000292
+            },
+            "availability_bias": {
+              "norm": 0.0006022529316285482,
+              "delta_norm": 0.0002003053546638266,
+              "delta_over_reference_norm": 0.32383094905069204
+            },
+            "fusion": {
+              "norm": 4.886644310967818,
+              "delta_norm": 0.16469793356191811,
+              "delta_over_reference_norm": 0.03283056707274755
+            },
+            "output": {
+              "norm": 0.23297890211140393,
+              "delta_norm": 0.03169646583461458,
+              "delta_over_reference_norm": 0.1447996215286383
+            },
+            "relation": {
+              "norm": 5.561681326026937,
+              "delta_norm": 0.15194340561742375,
+              "delta_over_reference_norm": 0.026713487490562626
+            }
+          },
+          "output_weight_norm": 0.23285120725631714
+        },
+        {
+          "epoch": 35,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000035_1596f0b637e84c38be14e4d87a519a1a_model.pt",
+          "sha256": "c7f4b933ccd15c8f2c96f8dd5b749af26ad84e7b2c9934fe2c5dbe1650b45daa",
+          "groups": {
+            "query": {
+              "norm": 3.9491669366780227,
+              "delta_norm": 0.7588415290857053,
+              "delta_over_reference_norm": 0.16287134487554364
+            },
+            "key": {
+              "norm": 4.935932739636988,
+              "delta_norm": 0.512034104465878,
+              "delta_over_reference_norm": 0.0947034650251408
+            },
+            "value": {
+              "norm": 5.048834858366028,
+              "delta_norm": 0.4559100991919146,
+              "delta_over_reference_norm": 0.08316965076260482
+            },
+            "speaker_bias": {
+              "norm": 0.0002664237295997756,
+              "delta_norm": 0.0004654612132961945,
+              "delta_over_reference_norm": 2.338560700804274
+            },
+            "distance_bias": {
+              "norm": 0.001239243300128422,
+              "delta_norm": 0.0005616357821628687,
+              "delta_over_reference_norm": 0.5737034891663826
+            },
+            "availability_bias": {
+              "norm": 0.0007159748207627454,
+              "delta_norm": 0.0004182075908165446,
+              "delta_over_reference_norm": 0.6944052388183021
+            },
+            "fusion": {
+              "norm": 4.49811830817071,
+              "delta_norm": 0.48681212493681103,
+              "delta_over_reference_norm": 0.099620945163573
+            },
+            "output": {
+              "norm": 0.2836764897020886,
+              "delta_norm": 0.07285190242704351,
+              "delta_over_reference_norm": 0.3126974235298258
+            },
+            "relation": {
+              "norm": 5.119299667800661,
+              "delta_norm": 0.5316447234356284,
+              "delta_over_reference_norm": 0.09559064827171895
+            }
+          },
+          "output_weight_norm": 0.2835087180137634
+        },
+        {
+          "epoch": 46,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000046_22d74e705a364c4ebd60e86caadb83b9_model.pt",
+          "sha256": "a5dded3ad2d64c56f6f4ad105f1b31ba1c824a01ee89a7b06bc16c40bcf68eeb",
+          "groups": {
+            "query": {
+              "norm": 3.315732420265884,
+              "delta_norm": 0.6708916997511296,
+              "delta_over_reference_norm": 0.16988182837251067
+            },
+            "key": {
+              "norm": 4.493410503639131,
+              "delta_norm": 0.47769832389986056,
+              "delta_over_reference_norm": 0.09677974743533331
+            },
+            "value": {
+              "norm": 4.646305804235943,
+              "delta_norm": 0.4222195393724056,
+              "delta_over_reference_norm": 0.08362712412206921
+            },
+            "speaker_bias": {
+              "norm": 0.0005167993057664618,
+              "delta_norm": 0.0002503755761667016,
+              "delta_over_reference_norm": 0.9397645492870259
+            },
+            "distance_bias": {
+              "norm": 0.0011646970085264837,
+              "delta_norm": 0.0003098858845829819,
+              "delta_over_reference_norm": 0.2500605688575186
+            },
+            "availability_bias": {
+              "norm": 0.0006142267242044099,
+              "delta_norm": 0.0004216682574602187,
+              "delta_over_reference_norm": 0.5889428583689651
+            },
+            "fusion": {
+              "norm": 4.209655609892904,
+              "delta_norm": 0.379529968981494,
+              "delta_over_reference_norm": 0.08437527494376662
+            },
+            "output": {
+              "norm": 0.3357884839189576,
+              "delta_norm": 0.07025113705595228,
+              "delta_over_reference_norm": 0.24764525650232286
+            },
+            "relation": {
+              "norm": 4.705541243748025,
+              "delta_norm": 0.4952937540023436,
+              "delta_over_reference_norm": 0.09675029518542139
+            }
+          },
+          "output_weight_norm": 0.33559083938598633
+        },
+        {
+          "epoch": 50,
+          "file": "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/last_training.pt",
+          "sha256": "9d4f9a56d5765fab89310fc249e258acbbf872e47931e664105affced357bf7e",
+          "groups": {
+            "query": {
+              "norm": 3.1027912174130123,
+              "delta_norm": 0.22448480012394978,
+              "delta_over_reference_norm": 0.06770293005306763
+            },
+            "key": {
+              "norm": 4.338940487991462,
+              "delta_norm": 0.16609865989013575,
+              "delta_over_reference_norm": 0.0369649422761654
+            },
+            "value": {
+              "norm": 4.506722360387486,
+              "delta_norm": 0.14634107680712538,
+              "delta_over_reference_norm": 0.031496221508646546
+            },
+            "speaker_bias": {
+              "norm": 0.0005307770775845298,
+              "delta_norm": 0.00001397777181812081,
+              "delta_over_reference_norm": 0.027046808426707276
+            },
+            "distance_bias": {
+              "norm": 0.0012110463792358095,
+              "delta_norm": 0.00043349627294821943,
+              "delta_over_reference_norm": 0.3721966054473319
+            },
+            "availability_bias": {
+              "norm": 0.000621968139250998,
+              "delta_norm": 0.00009168588831480592,
+              "delta_over_reference_norm": 0.1492704317506927
+            },
+            "fusion": {
+              "norm": 4.1218570700459205,
+              "delta_norm": 0.12913545305205645,
+              "delta_over_reference_norm": 0.030676013674035853
+            },
+            "output": {
+              "norm": 0.3557727454858106,
+              "delta_norm": 0.033398943845100844,
+              "delta_over_reference_norm": 0.09946423252907526
+            },
+            "relation": {
+              "norm": 4.562313175236192,
+              "delta_norm": 0.17241299779215952,
+              "delta_over_reference_norm": 0.036640417937306255
+            }
+          },
+          "output_weight_norm": 0.3555609881877899
+        }
+      ],
+      "parameter_update_first_retained_to_epoch50": {
+        "query": {
+          "norm": 3.1027912174130123,
+          "delta_norm": 2.927104151764326,
+          "delta_over_reference_norm": 0.5001407605572189
+        },
+        "key": {
+          "norm": 4.338940487991462,
+          "delta_norm": 1.9665497023997542,
+          "delta_over_reference_norm": 0.3197646866814409
+        },
+        "value": {
+          "norm": 4.506722360387486,
+          "delta_norm": 1.7554760474577744,
+          "delta_over_reference_norm": 0.28429882076700047
+        },
+        "speaker_bias": {
+          "norm": 0.0005307770775845298,
+          "delta_norm": 0.0007463335534577492,
+          "delta_over_reference_norm": 3.4623575379083356
+        },
+        "distance_bias": {
+          "norm": 0.0012110463792358095,
+          "delta_norm": 0.0008497344193465279,
+          "delta_over_reference_norm": 1.9657256910646905
+        },
+        "availability_bias": {
+          "norm": 0.000621968139250998,
+          "delta_norm": 0.0005054974030604248,
+          "delta_over_reference_norm": 1.001549716386337
+        },
+        "fusion": {
+          "norm": 4.1218570700459205,
+          "delta_norm": 1.9715653570475005,
+          "delta_over_reference_norm": 0.3423898914839868
+        },
+        "output": {
+          "norm": 0.3557727454858106,
+          "delta_norm": 0.24761489371189455,
+          "delta_over_reference_norm": 1.637783255706207
+        },
+        "relation": {
+          "norm": 4.562313175236192,
+          "delta_norm": 2.014294190189002,
+          "delta_over_reference_norm": 0.3227338050176017
+        }
+      },
+      "first_retained_epoch": 8,
+      "validation_recorded": false
+    }
+  },
+  "created_unix": 1792312903.0738766,
+  "limits": [
+    "No task-validation or per-epoch heldout-relation curves saved.",
+    "Historical individual Q/K/V gradient magnitudes are not saved.",
+    "Gradient records are branch-level pre-global-clip norms and nonzero tensor counts.",
+    "B2 logged classification_loss includes CE+.05 auxiliary BCE.",
+    "Checkpoint parameter differences include normal optimizer weight decay.",
+    "Task test masks can differ by epoch; no fixed-mask epoch evaluation added.",
+    "This audit concerns wd2e-4 B1/B2, not current wd1e-5 baseline."
+  ],
+  "matched_original_Flat_wd2e-4": [
+    {
+      "epoch": 1,
+      "logged_train_loss": 1.569028164401199,
+      "test_CE_mean": 1.3992802484167948,
+      "test_ACC_mean": 50.01915708812261
+    },
+    {
+      "epoch": 2,
+      "logged_train_loss": 1.337233886574254,
+      "test_CE_mean": 1.2610590391688876,
+      "test_ACC_mean": 58.26628352490422
+    },
+    {
+      "epoch": 3,
+      "logged_train_loss": 1.2185520638119092,
+      "test_CE_mean": 1.248457842402988,
+      "test_ACC_mean": 59.4971264367816
+    },
+    {
+      "epoch": 4,
+      "logged_train_loss": 1.1548490975842332,
+      "test_CE_mean": 1.2309605106711388,
+      "test_ACC_mean": 59.84195402298851
+    },
+    {
+      "epoch": 5,
+      "logged_train_loss": 1.1324462998997082,
+      "test_CE_mean": 1.2021441012620926,
+      "test_ACC_mean": 60.4837164750958
+    },
+    {
+      "epoch": 6,
+      "logged_train_loss": 1.111837914495757,
+      "test_CE_mean": 1.1999424654576514,
+      "test_ACC_mean": 60.62739463601533
+    },
+    {
+      "epoch": 7,
+      "logged_train_loss": 1.0946347550912336,
+      "test_CE_mean": 1.213212283121215,
+      "test_ACC_mean": 60.57950191570881
+    },
+    {
+      "epoch": 8,
+      "logged_train_loss": 1.083951305259358,
+      "test_CE_mean": 1.21717442986038,
+      "test_ACC_mean": 60.502873563218394
+    },
+    {
+      "epoch": 9,
+      "logged_train_loss": 1.0672449415380305,
+      "test_CE_mean": 1.1946853771805763,
+      "test_ACC_mean": 60.46934865900383
+    },
+    {
+      "epoch": 10,
+      "logged_train_loss": 1.0408121437737436,
+      "test_CE_mean": 1.2014177441596985,
+      "test_ACC_mean": 60.541187739463595
+    },
+    {
+      "epoch": 11,
+      "logged_train_loss": 1.0538995229836665,
+      "test_CE_mean": 1.1908878336350124,
+      "test_ACC_mean": 60.838122605363985
+    },
+    {
+      "epoch": 12,
+      "logged_train_loss": 1.0403694329839763,
+      "test_CE_mean": 1.2000920267568693,
+      "test_ACC_mean": 60.62260536398468
+    },
+    {
+      "epoch": 13,
+      "logged_train_loss": 1.0326119625207149,
+      "test_CE_mean": 1.1933493845992618,
+      "test_ACC_mean": 60.84291187739465
+    },
+    {
+      "epoch": 14,
+      "logged_train_loss": 1.0324684724663242,
+      "test_CE_mean": 1.1968701316250696,
+      "test_ACC_mean": 60.26819923371648
+    },
+    {
+      "epoch": 15,
+      "logged_train_loss": 1.032307409878933,
+      "test_CE_mean": 1.2146246019336913,
+      "test_ACC_mean": 60.234674329501914
+    },
+    {
+      "epoch": 16,
+      "logged_train_loss": 1.0261722170945369,
+      "test_CE_mean": 1.2002210782633886,
+      "test_ACC_mean": 60.36877394636016
+    },
+    {
+      "epoch": 17,
+      "logged_train_loss": 1.0018100575967268,
+      "test_CE_mean": 1.2029975288444095,
+      "test_ACC_mean": 60.03831417624521
+    },
+    {
+      "epoch": 18,
+      "logged_train_loss": 1.0116070653453018,
+      "test_CE_mean": 1.206736454533206,
+      "test_ACC_mean": 60.723180076628346
+    },
+    {
+      "epoch": 19,
+      "logged_train_loss": 1.0126455968076533,
+      "test_CE_mean": 1.204284249080552,
+      "test_ACC_mean": 59.401340996168585
+    },
+    {
+      "epoch": 20,
+      "logged_train_loss": 0.9880776369210446,
+      "test_CE_mean": 1.2091184324688382,
+      "test_ACC_mean": 60.36398467432951
+    },
+    {
+      "epoch": 21,
+      "logged_train_loss": 0.9934130581942472,
+      "test_CE_mean": 1.2063532256417804,
+      "test_ACC_mean": 60.30172413793103
+    },
+    {
+      "epoch": 22,
+      "logged_train_loss": 1.014068365097046,
+      "test_CE_mean": 1.209217357966635,
+      "test_ACC_mean": 60.58429118773947
+    },
+    {
+      "epoch": 23,
+      "logged_train_loss": 1.0093018593210163,
+      "test_CE_mean": 1.1974648344847891,
+      "test_ACC_mean": 60.593869731800766
+    },
+    {
+      "epoch": 24,
+      "logged_train_loss": 0.9962177926843817,
+      "test_CE_mean": 1.2078136106332142,
+      "test_ACC_mean": 60.541187739463595
+    },
+    {
+      "epoch": 25,
+      "logged_train_loss": 0.9765634410309069,
+      "test_CE_mean": 1.2176895489295323,
+      "test_ACC_mean": 60.27777777777777
+    },
+    {
+      "epoch": 26,
+      "logged_train_loss": 0.9638264088919668,
+      "test_CE_mean": 1.2222919629679785,
+      "test_ACC_mean": 60.06226053639846
+    },
+    {
+      "epoch": 27,
+      "logged_train_loss": 0.9785761598384741,
+      "test_CE_mean": 1.2079533826973703,
+      "test_ACC_mean": 60.08141762452108
+    },
+    {
+      "epoch": 28,
+      "logged_train_loss": 0.977786822752519,
+      "test_CE_mean": 1.2217741550670729,
+      "test_ACC_mean": 60.253831417624525
+    },
+    {
+      "epoch": 29,
+      "logged_train_loss": 0.9700466195742289,
+      "test_CE_mean": 1.2272487448321447,
+      "test_ACC_mean": 59.88026819923372
+    },
+    {
+      "epoch": 30,
+      "logged_train_loss": 0.9603342739018527,
+      "test_CE_mean": 1.2205439748035536,
+      "test_ACC_mean": 60.229885057471265
+    },
+    {
+      "epoch": 31,
+      "logged_train_loss": 0.9704652049324729,
+      "test_CE_mean": 1.2261322107579973,
+      "test_ACC_mean": 60.009578544061306
+    },
+    {
+      "epoch": 32,
+      "logged_train_loss": 0.9766862663355741,
+      "test_CE_mean": 1.224276889529493,
+      "test_ACC_mean": 59.81800766283525
+    },
+    {
+      "epoch": 33,
+      "logged_train_loss": 0.9521740729158575,
+      "test_CE_mean": 1.227322194311354,
+      "test_ACC_mean": 60.20593869731802
+    },
+    {
+      "epoch": 34,
+      "logged_train_loss": 0.964173132723028,
+      "test_CE_mean": 1.2187720702754126,
+      "test_ACC_mean": 59.90421455938697
+    },
+    {
+      "epoch": 35,
+      "logged_train_loss": 0.9508424726399508,
+      "test_CE_mean": 1.2252951628632016,
+      "test_ACC_mean": 60.253831417624525
+    },
+    {
+      "epoch": 36,
+      "logged_train_loss": 0.9548238425543814,
+      "test_CE_mean": 1.223249442047543,
+      "test_ACC_mean": 59.94252873563218
+    },
+    {
+      "epoch": 37,
+      "logged_train_loss": 0.9534723541953347,
+      "test_CE_mean": 1.2200082341829936,
+      "test_ACC_mean": 60.31609195402299
+    },
+    {
+      "epoch": 38,
+      "logged_train_loss": 0.9363930333744396,
+      "test_CE_mean": 1.2257599549161062,
+      "test_ACC_mean": 60.31130268199233
+    },
+    {
+      "epoch": 39,
+      "logged_train_loss": 0.9564260063749371,
+      "test_CE_mean": 1.241083938214514,
+      "test_ACC_mean": 60
+    },
+    {
+      "epoch": 40,
+      "logged_train_loss": 0.9458204291083596,
+      "test_CE_mean": 1.241451910800404,
+      "test_ACC_mean": 60.47892720306513
+    },
+    {
+      "epoch": 41,
+      "logged_train_loss": 0.9118798736369971,
+      "test_CE_mean": 1.2456068015760846,
+      "test_ACC_mean": 59.73659003831418
+    },
+    {
+      "epoch": 42,
+      "logged_train_loss": 0.9188661051518989,
+      "test_CE_mean": 1.2524555308951273,
+      "test_ACC_mean": 59.70306513409962
+    },
+    {
+      "epoch": 43,
+      "logged_train_loss": 0.9298622481750719,
+      "test_CE_mean": 1.2441647615697649,
+      "test_ACC_mean": 59.43486590038314
+    },
+    {
+      "epoch": 44,
+      "logged_train_loss": 0.9100022839777397,
+      "test_CE_mean": 1.2492158288757007,
+      "test_ACC_mean": 60.09099616858238
+    },
+    {
+      "epoch": 45,
+      "logged_train_loss": 0.9094545154860525,
+      "test_CE_mean": 1.2414621909459431,
+      "test_ACC_mean": 59.96647509578544
+    },
+    {
+      "epoch": 46,
+      "logged_train_loss": 0.9219390388691064,
+      "test_CE_mean": 1.2567919707960553,
+      "test_ACC_mean": 60.268199233716466
+    },
+    {
+      "epoch": 47,
+      "logged_train_loss": 0.9234245708494475,
+      "test_CE_mean": 1.2572520706388686,
+      "test_ACC_mean": 59.7844827586207
+    },
+    {
+      "epoch": 48,
+      "logged_train_loss": 0.9185356064276262,
+      "test_CE_mean": 1.2659442176421483,
+      "test_ACC_mean": 59.324712643678154
+    },
+    {
+      "epoch": 49,
+      "logged_train_loss": 0.8877656170816133,
+      "test_CE_mean": 1.255135127239757,
+      "test_ACC_mean": 59.95689655172413
+    },
+    {
+      "epoch": 50,
+      "logged_train_loss": 0.8999021215872332,
+      "test_CE_mean": 1.2941786663399804,
+      "test_ACC_mean": 59.45402298850574
+    }
+  ],
+  "source_inputs_unchanged": true,
+  "source_hashes": {
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/SUMMARY.json": "5fa87f7bbc3c54f48182e64b31e4abdc9193882916c4a233857b36387b521633",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/history.json": "dae0ea901a6504dc2773498de9465f702700a502b0646bb59987dd7955f99176",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/last_training.pt": "593c1039bbe9c38d9d686eb00e86038238f31a83a409d12ca5dd308ff6a6752b",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_001.json": "03123501955d64c065be0f5ba255cd5c230628666c4115029e507fad00a472f1",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_002.json": "7cb794ecb5f34582b86bf0d466a9a35b1cf42464a67f7d4467b97cc1d87a5dd2",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_003.json": "8f4deda53a074b0d763cba220b74d8ebb833acf3c5cc79bf881db913a2ecfcfb",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_004.json": "edb005f43a499ed280da9cea2d1d2f57b09653d771f144d112f2d7514df07685",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_005.json": "43ff38930458cc24b37b3baae37ba3c157cac08d72367d036bb72d4a246af6f2",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_006.json": "3f2b8921a6aa45076c3e53713ec5776697e8b8a2ccc092be2f4c9a0fe21ba8ba",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_007.json": "b56712e8fa836b3a0abac1cdfe06f5f357c94ff60f94fb7e6b8a3ebccbd7b8df",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_008.json": "1bfb7ac4300f36a54589fe26f2c1e5f89054265b045718d578e42a309cff19f2",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_009.json": "d54de9097c9be6bea537d3f1591e946cca4a585f270de08038847b7322b10a32",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_010.json": "2f701f3bae97d72b6ed768dda94bd223d50fd22c57614754b55dd0c741689098",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_011.json": "cb917962d51c8389353b6168c15f4b7598709f7b9b7d1bd5750c5f87981b5e52",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_012.json": "3d375d610f1de6ba40cc377d1863a9ac421136172f5aac64ce71a6f41729290f",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_013.json": "178ccaf36f93837ecc2e0b3d5c587ac114aec486cfed84ef92ddcb90eb6e7f6f",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_014.json": "e8f8071048e9d3e122fff8c90b740591fd0db35abd541a65f0801e16093b9690",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_015.json": "f10b6db33d825a8a98e048a6616cb56ae3ad061d80b1ea660694ddbc15bbbe43",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_016.json": "e35565d3e4fc782be62dead3e218440d26bed614bfef2b00295313dd740b091e",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_017.json": "b8c301dafc1e025ddad36c868a8fd7d287051a60c31fb22ee75e1810e390cde0",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_018.json": "7c559541bdb980c3313faafbcf97cc9fc4de9bb61d45c8a939d94b77861d3941",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_019.json": "30b4dd144b94b0e359b647d2a88c4147c9d4870dbd9719dfa1c0eebd1398926c",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_020.json": "dd1b413363cea7759e944432c44c58ebd3afe3a43b9c4b271fe1d9193765e5c7",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_021.json": "68cd4b3d97a872fe3ec0aca08f58aa75356f8961fb6df6d4ef6e5fb45bcb20a8",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_022.json": "f47bf8f8d368085332b9013d43f8c013694369a8f61e1fbdc974d7c6a9d9cffd",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_023.json": "bb4c30b15b03f5ea68f91ecb11ce60fc9ea208ef2df58938baed7490223c607c",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_024.json": "dff7e84f479b5f115ee43b048f845aa2ff1eddf806425ed8fef958b2718c227f",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_025.json": "8fe395c9fa44b2649e8b93c59f5dbf06d193ab48e8c2fff31d68cbf3167d87e5",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_026.json": "7963d1444769fff82a85f2be05d710d46a13ed36b3df729816d1f104fb2fb015",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_027.json": "e3fa9fe2d14355497d23b34c3f4adb0e0884645edb797d95bfd8c1714550685d",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_028.json": "12c97dd94cd17493f36b935c0da3df499b192c2d155cc0051625577406ae5687",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_029.json": "a22f4828483dd93819376d0cfcbccc651f4f8b54cbec6a086f2c3e67e3b43daa",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_030.json": "193de5bd15a24c4024e46fe29d937908bdc30d76a6e941b5cbeb7c3f9aa12d24",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_031.json": "04711e0db596ee90c8ec69cf894088e8a21dcb4218df1944879a5b673dd28839",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_032.json": "ddcde50ffc853e59dfc16f5c0c76baecbcd0600130642656a0819163e035cc3c",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_033.json": "3d72fb399ebda8ecf24b6b4ca2d491e68d8ce056d7c27fbe95a7154daff8262f",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_034.json": "740fbbdb6e9ebc940aaa27560ff3d5ae651635492f343fac1cbd4141a7b218b0",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_035.json": "11a6386d15fad62619559dcbcc7538cac1016af47db9ac9d9a7e514362db58cc",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_036.json": "6ee7341ebe71f93de345bbbf7913e98d974106a36b1c3368269989cdab278023",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_037.json": "27c7ebfc66b681a66d40921789fafccdd2be98c970c28acac2b822f925233fc9",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_038.json": "c8963d60d405d501aa9372a2d3a766a55351ff9e3e5b17fbefecbbea7a5ed443",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_039.json": "b3ce8e5a7adbc4eb2f975f2448f89e663c28aae63c411f7a78b7b7541e6540b6",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_040.json": "dc224a5102b9016c790f429950bbc1e0b2ac594d033a902719a4e5ff4aaac946",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_041.json": "08709723ea6343c525f74e865b676646c84754977e97f8cedb6abda9672b1462",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_042.json": "8afff415270152f36ef35676bab709419417047c086e6a77ecdf3319625b63d4",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_043.json": "7d93379d54a72596ea7f828320676b737a194533cdcb5b1d7f925a597bc105b0",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_044.json": "793e9b018df4cde305311d0ce1a343e87aba0094ac35dc09be82b8bd79466b34",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_045.json": "7c3e37f73668748e2a192b9270249ebe07a62f02908e3e8d05ef442f7cbfb11b",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_046.json": "88b3c75200c41c63b2264eb88fdf75a19ed96ce26b1bb5297fa8bc5b604c0ee5",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_047.json": "e3d337aa70cbe8f61910dc067a1a94f0be12975945f8560d76b542903b0ee12d",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_048.json": "e8dfa7bf0a65949ea551e11a48b30c314293aca6b412e87a9d37eb261338a863",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_049.json": "5186385e189268385e5c777b620a1060f491c464aecd150c00d2db349d46e1d1",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/diagnostics/epoch_050.json": "67e4b43c7ea8582d9af69b2f4379dc7a66875b829d345672b5771ff7be3df561",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000008_4bf0c2c57b4740bb8cfaf7f2e455763c_model.pt": "b93745fa1d38f1f32675e73c1491b0db808b3ab2852ac2e02434388a2d5fb569",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000011_e623fd3f744c4af28b3d033e3770d2b6_model.pt": "2627360ff2b7039200dea22d2e03e859c981ceed4f2abfa8ce3f77ff0ef4e19f",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000013_d98b2fc401884e9f90a920c316ef23f7_model.pt": "1683ac49aa2557531c29ced4de90a4bbc7a8cbe881a8ec7c325e0d15fabbbaee",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000021_989ff553c7ab4325a48b2d765b575170_model.pt": "980dc0d98b9b8fe1d54635c962cb1ba1e7db37040bd860ff27db8a917e085260",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000024_1b57bb48c45c47f4ad2c97ba83785e85_model.pt": "14ea0376236b50ab3b43dd802862339bd47a040627aa07d250583f4347ac4437",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000035_b8c91bc1f96f4033a823f45457bfb9b8_model.pt": "c8ae3a047de752efc190f083488f7e4a7f56c33a0ed551b91b5591f13adb7031",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B1/training_versions/epoch_000046_0aa106664bf845a5bd0fb8e3dde5d64e_model.pt": "bcae2e1f8433543779e6c35584dc79fee7943578f4f07a5edda24c346c7fb2c8",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/SUMMARY.json": "a3364ca82d0066e8aebd2c65eea72934e79a10246ab490e235cea78ae2bc8fc2",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/history.json": "131a6b58e58022e9bd448a36b735dc3623e1286cb4919efb591393ae080467b7",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/last_training.pt": "9d4f9a56d5765fab89310fc249e258acbbf872e47931e664105affced357bf7e",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_001.json": "8b4aef45b1b33624fedda2936081cdc0546c4617eff18781888f4b78c2180d54",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_002.json": "2cfe9565a09342945cd4aec6c5e985828258a4feb8788b02db31e88609267198",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_003.json": "31d9f851c8742e16d9c4e920f03fd0f618a00aeea0285be72a2fa49d04e37434",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_004.json": "44ab42315ae2bfa88c9a6d88a77d5fbab49f53c13bc956a6c22ded211cd188ba",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_005.json": "f453bd81ad4da0dfd410a43d0edc209afad7b3dd24000908c0c6eb27a53c4f95",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_006.json": "906ac26ee0bf2549eb597fe459bc7affe8feb068f226efd4f8a42ff3fbcd7f2c",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_007.json": "8d1a155622a13785ce18cdc458079507594611e3b8d27a65e71ceb2bf87addce",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_008.json": "25a62da67cab9c20bd6bb10968328cadc482f1666f4a7f3b551579c561b0dd1d",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_009.json": "1f994aa104b01f3985dbd5e690ccede76eda81b503987e21427a581b21df51c1",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_010.json": "2b8e5febbf56c8169986c44aad7583d33b5e0fdcc898cb9701c8c3a3f306f422",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_011.json": "967fb42b073afdd7aaafd1b83a269713ce89cf96eef5f63522c2e5f2deb4d199",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_012.json": "1522e3fc6cfd97f59ac1ad3c813d362a649c91f18e63d447e976f00aabce264f",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_013.json": "d63e95d52e46a5ddc0f1198b5d03abbc8b2b98a56336bdc479781de46fa79dac",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_014.json": "e039ee214362d05872f200af350e594626b42ee5463fc8ee58d6af5863f7518e",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_015.json": "47950f3b47350346a0608160e31d03281b27ceee214e391db71ad6b9d14f161f",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_016.json": "d47dad69d06e24d2b563a345fd071f1eda1ea3fdfee997e8921c784d81ec4bfb",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_017.json": "50667e804613bd776a222ba4e6bba77910ea824b2bbf0b5ea76c2e7ffb3e8413",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_018.json": "f8d29d6887f8957d03a6f306a9785de292e7c21e43c3feab2677ea961e75730a",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_019.json": "1c22b688b1bdd0b45159e41c793bf85d0df1857a50be0b92cafa24ac429bfc72",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_020.json": "a9bab878afe8cf435a14633a2976bc8bb88b73ce97d80a682d52f3e610777eac",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_021.json": "862a9202f0c088e60f10fce50ac989be5af388761ede3c645954e6cc57bceb5c",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_022.json": "a264dbeb0c1c6fb0bdd91d1db35334c36eaca8f289a192f0b3dd07a8218338ca",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_023.json": "d6f5bb2e4022ca9251cee8623a4f57b8a56a1d950a30d240661b41b38976cf41",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_024.json": "86635956d1a06957a71cacbc68f595f99878df70e0a51f60097a279ee6f291fc",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_025.json": "e1befca46385d294d9d65b3475de6cabe50a26c00c3a972e94d278056b0de673",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_026.json": "059a2aecb75cca6d5b1ce4dc114b772627278908a828b397ec830c27c24ff866",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_027.json": "602e62bff0f2d7b06112b3da017bfc6be30829522c47b56c9ad32efe854e9c46",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_028.json": "1439ca734baa93574332df93cc754b562f11f35db848f7908eb37d7733ab2239",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_029.json": "a739b2348c9794978b3d187a3fb82ce2e2460d20581ca057ba39d212c816cad5",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_030.json": "4861025e9d1a799e898247e4d3bbeb6d285d47f9b8dfc60b1a6b16a001136227",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_031.json": "9974ac519f790758f8ecdbce702edd0d7b20c7e111c446799ec49a3df4563d2a",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_032.json": "c415d5ad3cccb8263967dc7c921d75b5186dadb375bddb1575fa7cda2ca84885",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_033.json": "0bf051a1bb5109c5d9e2302cab575e635c706257fb6d2067d9d8d44aec7df788",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_034.json": "f33fad4a87287a087d08d972dc7a0f7558205522bf60edb8c598b74a7a16e666",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_035.json": "d165e5c294b7961488cb623abcb8d615aa2b60db62cae1d354c9ac05cf6e5962",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_036.json": "3c399fd9de528b6daed92e6d7a5409fe5d3d9064bc94fa2ddf408ffe6487f3a3",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_037.json": "c766dafe907491b642744ad81dcf508fb65e1eea96c2972fd81f6093186eb5aa",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_038.json": "046446f38d6d79d3f694ffeea7c9be8125d869323a6b0349bf2c6bf7270c75ec",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_039.json": "c34753255d372d0d998ac946cd33f9393fa25ca22b051abc30a94dfe53b114d7",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_040.json": "b8fc71bd5c79164c86bd30cd922063f8113987e5a1e078245528bef5017e7c26",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_041.json": "e2d2b17bdf2d84c3f9461492b482ba30226c82b285b1fb1d9a27f59c60c6a861",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_042.json": "f131bc459bf054badd19558000694452aa2205b8c8f8ec050e4fda4b9e64c9be",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_043.json": "881194231fffd6ffa7c41b4f6c3b01f7a5e8804a9b73a962f012c4efb0174616",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_044.json": "f581cbed88d88d99d4a45b01126555c89c238bbfa87d8090b542337a1d4ac800",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_045.json": "a54e25c8641fec7231635eb3f83a31d3477ab61999b3efb7c06669d136104209",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_046.json": "fc2559a7a6c0748f3602a5fec1dc04b9ff3616b36e605cce82bbd53ce3176b95",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_047.json": "7cdc523c529b30935d0554fadc6a08ea73a199c8d7bb76bea4c525781b5a9383",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_048.json": "1071e27161718a120812dcf45658ecbed42719cb73db25a05089dccaa7545327",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_049.json": "5811ca6ed1cde574acdecf2fccae2aa1a3804b3fa66e1c2494df3b59417c06f7",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/diagnostics/epoch_050.json": "fc8f5fa7f3647b3717aeb434d12fc19f82dc12fb46cfaf03d633d716395b2c31",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000008_6f21332fa65a4cca98a268e80883b0bf_model.pt": "d49738c88b0c76bd4179245df4abbecff9b8b63a667f31dd76cc83d728e3e151",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000010_9995a901212e48b289196240123de0bd_model.pt": "f7ce087ef349e90a72b37b78ce5376fbeab919c2fbc183f80294b339d6313911",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000011_1feb28b0cd6c4dc991688018c3ee95e2_model.pt": "6037367844e5716dac444bfc85af104f7ce5211685c5b8de8ebbe0cc632a6445",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000013_f65595c8669246b3a46f1e5580bef6bd_model.pt": "1f8736726e0bd642bbae3f4967569ce66e8466be4dc6058fe92375dad5acc4d5",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000021_d247d7473c5c48058317b58422168c61_model.pt": "9d2851c8df44a176351ffff3306448e510de966e06ddfdbd3e99ee2a5d3634e0",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000024_a9cab02f09524b2ea99777e5d4804f24_model.pt": "ac3c01d0c63981edf5b9300943f54cfebb516d090b64d3786601c307c38aad21",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000035_1596f0b637e84c38be14e4d87a519a1a_model.pt": "c7f4b933ccd15c8f2c96f8dd5b749af26ad84e7b2c9934fe2c5dbe1650b45daa",
+    "/home/qinjinghui/remote_experiments/osram_meld_related_history_20261018/runs_v1/B2/training_versions/epoch_000046_22d74e705a364c4ebd60e86caadb83b9_model.pt": "a5dded3ad2d64c56f6f4ad105f1b31ba1c824a01ee89a7b06bc16c40bcf68eeb",
+    "/home/qinjinghui/remote_experiments/osram_meld_optimizer_screen_20261018/runs_v1/O6/history.json": "1d4dab2b762a6b97d9168c2168d446d88b30b2562938f36addfb8b11ba27560e"
+  }
+}
