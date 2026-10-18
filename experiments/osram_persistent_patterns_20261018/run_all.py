@@ -13,9 +13,28 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from experiments.osram_persistent_patterns_20261018.analysis import render_report
-from experiments.osram_persistent_patterns_20261018.run import write, check_source
+from experiments.osram_persistent_patterns_20261018.run import write, check_source, sha
 
 DATASETS = ('MELD', 'IEMOCAPFour', 'IEMOCAPSix')
+
+
+def reuse_meld(source, destination, manifest):
+    """Reuse a complete unchanged MELD evaluation after an IEMOCAP-only guard fix."""
+    row = json.loads((source/'RESULTS.json').read_text())
+    if row['status'] != 'complete' or not row['source_inputs_unchanged'] or row['dataset'] != 'MELD':
+        raise ValueError('Require a complete frozen MELD result')
+    # Only IEMOCAP source-adapter/config checks may differ, never MELD numerics.
+    for name in ('run.py', 'evaluate.py', 'analysis.py'):
+        key = 'experiments/osram_persistent_patterns_20261018/'+name
+        if row['manifest']['files'][key] != manifest['files'][key]:
+            raise ValueError('Cannot reuse MELD after evaluator changes')
+    key = 'experiments/osram_meld_wd_seed66_20261018/BASELINE.json'
+    if row['manifest']['files'][key] != manifest['files'][key]:
+        raise ValueError('Cannot reuse a different MELD baseline')
+    if any(sha(path) != digest for path,digest in row['source_hashes'].items()):
+        raise ValueError('Reused MELD source input changed')
+    destination.mkdir()
+    write(destination/'RESULTS.json', dict(row, reused_complete_result=str(source)))
 
 
 def summarize(root):
@@ -67,8 +86,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--commit', required=True)
+    parser.add_argument('--reuse-meld', type=Path)
     args = parser.parse_args()
-    check_source()
+    manifest = check_source()
     if args.output.exists():
         raise FileExistsError('New independent finite evaluation root required')
     if shutil.disk_usage(args.output.parent).free < 2*2**30:
@@ -80,6 +100,11 @@ def main():
     try:
         env = dict(os.environ, OMP_NUM_THREADS='2', OPENBLAS_NUM_THREADS='2')
         for name in DATASETS:
+            if name == 'MELD' and args.reuse_meld is not None:
+                reuse_meld(args.reuse_meld, args.output/name, manifest)
+                record['workers'][name] = dict(reused=str(args.reuse_meld), returncode=0)
+                write(args.output/'RUNNER.json', record)
+                continue
             log = (args.output/f'{name}.log').open('w')
             command = [sys.executable,'-u',str(Path(__file__).with_name('run.py')),
                 '--dataset',name,'--output',str(args.output/name),'--commit',args.commit]

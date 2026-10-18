@@ -182,7 +182,9 @@ def test_builder_uses_original_file_and_original_fivefold_loader(retained_source
     fake_torch.device = lambda name: name
     monkeypatch.setitem(sys.modules, 'torch', fake_torch)
     trainer = ModuleType('gcnet_missing_m3.train_gcnet')
-    trainer.TrainConfig = lambda **kwargs: SimpleNamespace(**kwargs)
+    # The real historical dataclass restores rate lists to tuples in __post_init__.
+    trainer.TrainConfig = lambda **kwargs: SimpleNamespace(
+        **dict(kwargs, train_missing_rates=tuple(kwargs['train_missing_rates'])))
     trainer._dataset_shape = lambda dataset: {'num_classes': classes}
     monkeypatch.setitem(sys.modules, trainer.__name__, trainer)
     def loader(identifier):

@@ -80,3 +80,22 @@ def test_single_fold_and_compact_report_include_protocol_and_all_patterns():
     for pattern in PATTERNS:
         assert f'| {pattern} |' in report
     assert '10.000 ± 10.000' in report
+def test_completed_meld_reuse_rejects_changed_evaluator(tmp_path):
+    import json
+    import pytest
+    from experiments.osram_persistent_patterns_20261018.run_all import reuse_meld
+    source = tmp_path/'source'
+    source.mkdir()
+    files = {'experiments/osram_persistent_patterns_20261018/'+name: name
+             for name in ('run.py','evaluate.py','analysis.py')}
+    files['experiments/osram_meld_wd_seed66_20261018/BASELINE.json'] = 'baseline'
+    row = dict(status='complete',source_inputs_unchanged=True,dataset='MELD',
+               manifest=dict(files=files),source_hashes={})
+    (source/'RESULTS.json').write_text(json.dumps(row))
+    reuse_meld(source,tmp_path/'copied',dict(files=files))
+    assert json.loads((tmp_path/'copied/RESULTS.json').read_text())['reused_complete_result'] == str(source)
+    changed = dict(files)
+    changed['experiments/osram_persistent_patterns_20261018/evaluate.py'] = 'modified'
+    with pytest.raises(ValueError,match='evaluator'):
+        reuse_meld(source,tmp_path/'forbidden',dict(files=changed))
+

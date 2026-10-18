@@ -169,8 +169,11 @@ def build_model_and_loader(source, device, cache_root):
     require_replication_environment(torch)
     classes, seed, fold = source['classes'], source['seed'], source['fold']
     config = TrainConfig(**source['expected_config'])
-    _validate_config(asdict(config), classes, seed, fold)
-    if asdict(config) != source['effective_config'] or _dataset_shape(config.dataset)['num_classes'] != classes:
+    # Compare the JSON representation used by the original trainer: its
+    # dataclass restores train_missing_rates to a tuple without changing values.
+    effective = json.loads(json.dumps(asdict(config)))
+    _validate_config(effective, classes, seed, fold)
+    if effective != source['effective_config'] or _dataset_shape(config.dataset)['num_classes'] != classes:
         raise ValueError('Original effective config or IEMOCAP class count changed')
     label = DATA_ROOT/'IEMOCAP'/f'IEMOCAP_features_raw_{classes}way.pkl'
     if sha256(label) != LABEL_HASHES[classes]:
