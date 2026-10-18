@@ -2,6 +2,9 @@
 
 INTERNAL SINGLE-RATE TEST-ORACLE SCREEN
 
+八组已全部完成50/50轮；最终逐率 ACC/UA/W-F1、选中 epoch 和比较边界见
+RESULT.md，精确指标及选点产物 hash 见 FINAL_SUMMARY.json。
+
 用户授权一轮 MELD 固定率训练。默认解释为 ECERC 原 Flat、seed66；本轮不延续
 MMGCN 特征，也不引入余弦、模块或其他调参。当前仅授权下列 8 组，不扩展种子。
 

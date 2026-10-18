@@ -1,6 +1,9 @@
 # 八个固定率模型：实际启动记录
 
-INTERNAL SINGLE-RATE TEST-ORACLE SCREEN — RUNNING，非最终分数。
+INTERNAL SINGLE-RATE TEST-ORACLE SCREEN。
+
+完成更新：八组均已完成50/50轮，无失败。最终结果见 RESULT.md 和
+FINAL_SUMMARY.json；下方表格仅保留历史启动现场，不是当前进度。
 
 已按用户“写完代码就启动”的授权部署并运行，没有等待二次确认。
 
