@@ -1,0 +1,152 @@
+{
+  "source_commit": "442596a5e247e84ada56b056eaa56c15b6c18253",
+  "performance_evidence": false,
+  "failed_smoke_v1": "Preserved; capture signature lost in small_eval. Fixed by functools.wraps, no model change.",
+  "models": {
+    "B1": {
+      "summary": {
+        "status": "smoke-complete",
+        "parameters": 13973629,
+        "added_parameters": 682834,
+        "seconds": 16.049014201853424,
+        "peak_memory_mib": 579.21337890625,
+        "original_initialization_equal": true,
+        "branch": {
+          "attention_dim": 128,
+          "input_dim": 2435,
+          "kind": "B1",
+          "relation_weight": 0,
+          "window": 8
+        },
+        "environment": {
+          "cuda": "11.7",
+          "executable": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+          "numpy": "1.26.4",
+          "python": "3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]",
+          "sklearn": "1.3.2",
+          "torch": "1.13.1+cu117"
+        },
+        "gpu": {
+          "host_index": 0,
+          "logical_device": "cuda:0",
+          "uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45"
+        }
+      },
+      "zero_init": {
+        "logits_exact": true,
+        "passed": true,
+        "real_batch": true,
+        "rng_exact": true
+      },
+      "parameters": {
+        "added": 682834,
+        "original": 13290795,
+        "original_initialization_equal": true,
+        "total": 13973629
+      },
+      "diagnostics": {
+        "auxiliary_relation_losses": [],
+        "branch_output_weight_norm": 0.008279587142169476,
+        "epoch": 1,
+        "optimizer": {
+          "rates": [
+            0.00001,
+            0.00001,
+            0.00001
+          ],
+          "weight_decay": [
+            0.0002,
+            0.0002,
+            0.0002
+          ]
+        },
+        "steps": [
+          {
+            "gradient_norm": 0.8207157254219055,
+            "gradient_tensors": 13,
+            "nonzero_tensors": 2
+          },
+          {
+            "gradient_norm": 0.6194926500320435,
+            "gradient_tensors": 13,
+            "nonzero_tensors": 13
+          }
+        ]
+      }
+    },
+    "B2": {
+      "summary": {
+        "status": "smoke-complete",
+        "parameters": 14056958,
+        "added_parameters": 766163,
+        "seconds": 16.209024351090193,
+        "peak_memory_mib": 598.4580078125,
+        "original_initialization_equal": true,
+        "branch": {
+          "attention_dim": 128,
+          "input_dim": 2564,
+          "kind": "B2",
+          "relation_weight": 0.05,
+          "window": 8
+        },
+        "environment": {
+          "cuda": "11.7",
+          "executable": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+          "numpy": "1.26.4",
+          "python": "3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]",
+          "sklearn": "1.3.2",
+          "torch": "1.13.1+cu117"
+        },
+        "gpu": {
+          "host_index": 0,
+          "logical_device": "cuda:0",
+          "uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45"
+        }
+      },
+      "zero_init": {
+        "logits_exact": true,
+        "passed": true,
+        "real_batch": true,
+        "rng_exact": true
+      },
+      "parameters": {
+        "added": 766163,
+        "original": 13290795,
+        "original_initialization_equal": true,
+        "total": 14056958
+      },
+      "diagnostics": {
+        "auxiliary_relation_losses": [
+          0.6972005367279053,
+          0.7137767672538757
+        ],
+        "branch_output_weight_norm": 0.008113173767924309,
+        "epoch": 1,
+        "optimizer": {
+          "rates": [
+            0.00001,
+            0.00001,
+            0.00001
+          ],
+          "weight_decay": [
+            0.0002,
+            0.0002,
+            0.0002
+          ]
+        },
+        "steps": [
+          {
+            "gradient_norm": 0.829603910446167,
+            "gradient_tensors": 17,
+            "nonzero_tensors": 6
+          },
+          {
+            "gradient_norm": 0.623096764087677,
+            "gradient_tensors": 17,
+            "nonzero_tensors": 17
+          }
+        ]
+      }
+    }
+  }
+}
