@@ -141,6 +141,7 @@ def fit_probe(
     device: str = "cpu",
     batch_size: int = 256,
     learning_rate: float = 1e-3,
+    classes: int = 7,
 ) -> dict:
     """Fit one internal Test-oracle probe and save enough to recompute metrics."""
     if epochs < 1:
@@ -153,7 +154,7 @@ def fit_probe(
     x_test = torch.as_tensor(transform(test_x, normalizer), device=device)
     y_train = torch.as_tensor(train_y, dtype=torch.long, device=device)
     y_test = torch.as_tensor(test_y, dtype=torch.long, device=device)
-    model = MeldProbe(train_x.shape[1]).to(device)
+    model = MeldProbe(train_x.shape[1], classes=classes).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
     generator = torch.Generator().manual_seed(seed)
     best_key = None
