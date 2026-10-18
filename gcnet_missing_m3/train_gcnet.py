@@ -665,8 +665,8 @@ class TrainConfig:
                     "causal mean/Flat OSRAM checkpoint at write step 0.6"
                 )
         if self.checkpoint_selection == "test-oracle-per-rate":
-            if self.train_rate_mode == "fixed" or not self.evaluate_test:
-                raise ValueError("test-oracle-per-rate requires all eight rates and test evaluation")
+            if not self.evaluate_test:
+                raise ValueError("test-oracle-per-rate requires test evaluation")
         step = float(self.osram_write_step)
         if not math.isfinite(step) or not 0.0 <= step <= 1.0:
             raise ValueError("osram_write_step must be finite and between zero and one")
@@ -3280,10 +3280,10 @@ def run_experiment(
     if training_state is not None and (
         config_value.checkpoint_selection != 'test-oracle-per-rate'
         or config_value.training_objective != 'emotion-only'
-        or config_value.train_rate_mode != 'cyclic'
+        or config_value.train_rate_mode not in {'cyclic', 'fixed'}
         or config_value.emotion_loss_mode not in ('sample-mean', 'pattern-groupdro-author')
     ):
-        raise ValueError('Complete-state recovery currently supports the fixed cfg84 screening protocol only')
+        raise ValueError('Complete-state recovery supports cfg84 cyclic or fixed-rate emotion screening only')
     if config_value.osram_history_query_adapter and (
         config_value.backbone_type != 'osram' or config_value.osram_bidirectional
         or config_value.completion_path != 'none'

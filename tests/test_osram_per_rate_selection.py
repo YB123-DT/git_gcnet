@@ -12,8 +12,10 @@ from gcnet_missing_m3.mixed_rate import MISSING_RATES
 
 
 @pytest.mark.parametrize("fusion", ["flat", "local-gated"])
-def test_per_rate_oracle_restores_independent_earliest_maxima(monkeypatch, tmp_path, fusion):
+@pytest.mark.parametrize("fixed_rate", [None, 0.5])
+def test_per_rate_oracle_restores_independent_earliest_maxima(monkeypatch, tmp_path, fusion, fixed_rate):
     calls = []
+    protocol_rates = MISSING_RATES if fixed_rate is None else (fixed_rate,)
 
     class Model(torch.nn.Module):
         def __init__(self, *args, **kwargs):
@@ -51,18 +53,21 @@ def test_per_rate_oracle_restores_independent_earliest_maxima(monkeypatch, tmp_p
     result = trainer.run_experiment(trainer.TrainConfig(
         dataset="CMUMOSI", fold=1, epochs=3, device="cpu",
         backbone_type="osram", osram_readout_fusion=fusion,
+        train_rate_mode="cyclic" if fixed_rate is None else "fixed",
+        fixed_missing_rate=fixed_rate,
         checkpoint_selection="test-oracle-per-rate"), "a", "t", "v", tmp_path)
     expected = {format(rate, ".1f"): (1 if rate == MISSING_RATES[0] else 2)
-                for rate in MISSING_RATES}
+                for rate in protocol_rates}
     assert result["selected_epoch_by_rate"] == expected
     assert result["best_epoch"] is None
     assert result["best_selection_mean_weighted_f1"] is None
     assert result["selection_protocol"] == "per-rate-test-oracle"
     assert result["selection_split"] == "test"
     assert not (tmp_path / "best.pt").exists()
-    assert len(calls) == 4 * len(MISSING_RATES)
+    assert len(calls) == 4 * len(protocol_rates)
     assert all(split == "test" for split, *_ in calls)
-    for rate in MISSING_RATES:
+    assert {rate for _, rate, *_ in calls} == set(protocol_rates)
+    for rate in protocol_rates:
         key = format(rate, ".1f")
         suffix = key.replace(".", "p")
         checkpoint = torch.load(tmp_path / f"best_miss_{suffix}.pt", weights_only=False)
@@ -101,11 +106,10 @@ def test_local_gated_config_requires_per_rate_protocol_and_is_backward_compatibl
 
 
 @pytest.mark.parametrize("options", [
-    {"train_rate_mode": "fixed", "fixed_missing_rate": 0.5},
     {"evaluate_test": False},
 ])
 def test_per_rate_selection_cannot_silently_reduce_evaluation(options):
-    with pytest.raises(ValueError, match="all eight rates and test evaluation"):
+    with pytest.raises(ValueError, match="requires test evaluation"):
         trainer.TrainConfig(checkpoint_selection="test-oracle-per-rate", **options)
 
 
