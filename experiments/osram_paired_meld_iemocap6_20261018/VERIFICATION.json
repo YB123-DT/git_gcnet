@@ -1,0 +1,29 @@
+{
+  "status": "passed",
+  "jobs": 6,
+  "selected_prediction_sets": 48,
+  "persistent_prediction_sets": 42,
+  "complete_last_states": 6,
+  "history_epochs": 550,
+  "aggregation_recomputed": true,
+  "all_prediction_metrics_recomputed": true,
+  "maximum_selected_replay_logit_error": 0,
+  "source_commit": "654f67f18a9cfb4297080e8b9eb9a7dbb35c74bf",
+  "checks": [
+    "All six queue and run statuses complete",
+    "Each original epoch budget reached",
+    "Exact half/half task CE checked across all 550 history records",
+    "All 48 BEST checkpoint hashes verified",
+    "Selected mask/prediction hashes and matching labels/logits checked",
+    "ACC/UA/WF1/CE independently recomputed for all 48 selected and 42 persistent sets",
+    "All persistent availability fixed to the intended observed set",
+    "Fivefold and condition means recomputed from individual results",
+    "Six last_training states include matching identity, final epoch, optimizer state and one-device CUDA RNG"
+  ],
+  "limitations": [
+    "Seed66 only, not three-seed evidence",
+    "Test-oracle exploratory selection",
+    "Random per-rate BEST masks can differ between Flat and paired selected epochs",
+    "No inference or training repeated by this audit"
+  ]
+}
