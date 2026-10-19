@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -22,7 +23,20 @@ def parser():
     result.add_argument('--gpu-uuid',required=True)
     result.add_argument('--resume',action='store_true')
     result.add_argument('--adapter-checkpoint',type=Path)
+    result.add_argument('--adapter-learning-rate',type=float,default=None,
+                        help='Only adapter Adam LR; omitted preserves the original3e-4 protocol')
     return result
+
+
+def training_protocol(args):
+    from experiments.osram_tasr_20261018.protocol import TRAINING_PROTOCOL
+    protocol = dict(TRAINING_PROTOCOL)
+    if args.adapter_learning_rate is not None:
+        rate = args.adapter_learning_rate
+        if not math.isfinite(rate) or rate <= 0:
+            raise ValueError('Adapter learning rate must be positive and finite')
+        protocol['learning_rate'] = rate
+    return protocol
 
 
 def build_validation_masks(bundle):
@@ -145,6 +159,7 @@ def evaluate_all(bundle,output):
 
 def main():
     args=parser().parse_args()
+    protocol=training_protocol(args)
     if args.output.exists() and not args.resume: raise FileExistsError('Independent new output required; --resume only same-source training')
     if args.resume and args.phase!='train': raise ValueError('--resume is only for adapter training')
     args.output.mkdir(parents=True,exist_ok=args.resume)
@@ -166,13 +181,13 @@ def main():
         from gcnet_modality_jepa.train_gcnet import reset_training_stochasticity
         model=bundle['model']; backbone_before=h.backbone_digest(model)
         names=h.attach_tasr(model,args.mode)
-        optimizer=torch.optim.Adam(model.osram.tasr.parameters(),lr=TRAINING_PROTOCOL['learning_rate'],
-                                   weight_decay=TRAINING_PROTOCOL['weight_decay'])
+        optimizer=torch.optim.Adam(model.osram.tasr.parameters(),lr=protocol['learning_rate'],
+                                   weight_decay=protocol['weight_decay'])
         source_files=('gcnet_missing_m3/osram.py','gcnet_missing_m3/tasr.py','gcnet_missing_m3/model.py',
             'gcnet_missing_m3/train_gcnet.py','gcnet_modality_jepa/gcnet_legacy_random_mask.py',
             'experiments/osram_tasr_20261018/run.py','experiments/osram_tasr_20261018/runner_helpers.py',
             'experiments/osram_tasr_20261018/protocol.py')
-        identity=dict(case=bundle['case'],training=dict(TRAINING_PROTOCOL),mode=args.mode,
+        identity=dict(case=bundle['case'],training=protocol,mode=args.mode,
                       source_hashes={name:h.sha(ROOT/name) for name in source_files},split=bundle['split'])
         with h.isolated_rng(66+76194):
             _,zero_arrays,_=h.collect(model,bundle['test_loader'],bundle['trainer'],bundle['dimensions'],
@@ -209,7 +224,7 @@ def main():
                 h.restore_checkpoint(model,optimizer,state,identity=identity)
                 start,history,best_key=state['epoch'],state['history'],state['best_key']
             torch.cuda.reset_peak_memory_stats()
-            for epoch in range(start,TRAINING_PROTOCOL['epochs']):
+            for epoch in range(start,protocol['epochs']):
                 report=train_epoch(bundle,optimizer,epoch)
                 metrics=validation_scores(bundle,masks)
                 key=validation_key(metrics)

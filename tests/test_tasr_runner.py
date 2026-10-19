@@ -107,6 +107,23 @@ def test_runner_parser_does_not_allow_scope_expansion():
             '--mode', 'real', '--output', '/tmp/new', '--gpu-uuid', 'GPU-example'])
 
 
+def test_adapter_learning_rate_override_changes_only_rate_and_not_global_protocol():
+    runner = importlib.import_module('experiments.osram_tasr_20261018.run')
+    from experiments.osram_tasr_20261018.protocol import TRAINING_PROTOCOL
+    original = dict(TRAINING_PROTOCOL)
+    arguments = ['--phase', 'train', '--dataset', 'MELD', '--mode', 'real',
+                 '--output', '/tmp/new', '--gpu-uuid', 'GPU-example']
+    assert runner.training_protocol(runner.parser().parse_args(arguments)) == original
+    args = runner.parser().parse_args(arguments + ['--adapter-learning-rate', '1e-5'])
+    changed = runner.training_protocol(args)
+    assert changed == dict(original, learning_rate=1e-5)
+    assert TRAINING_PROTOCOL == original
+    assert changed is not TRAINING_PROTOCOL
+    for invalid in ('0', '-1e-5', 'nan', 'inf'):
+        with pytest.raises(ValueError):
+            runner.training_protocol(SimpleNamespace(adapter_learning_rate=float(invalid)))
+
+
 def test_training_uses_raw_full_second_view_and_one_shared_optimizer_step():
     runner = importlib.import_module('experiments.osram_tasr_20261018.run')
     model = TinyModel()
