@@ -64,3 +64,15 @@ verified here. Initial real GPU gradient/update/recovery evidence remains in
 SMOKE.json, but it cannot replace checking the trained final branch contribution.
 Persistent and paired replay values are not invented or inferred from random
 metrics. No additional seed, LR search or experiment was launched.
+
+## Follow-up: saved-artifact verification completed
+
+The preceding SSH limitation was resolved on2026-10-19. See
+[FINAL_BRANCH_CHECK.md](FINAL_BRANCH_CHECK.md) for the completed read-only check.
+All eight selected joint-versus-original Flat class prediction arrays are equal
+after exact identity/label/mask alignment; logits differ slightly. The trained
+TASR score weights are nonzero and all12 Adapter parameter tensors have nonzero,
+finite gradients in the last saved audit. Same-joint-checkpoint on/off replay
+has zero corrections/harms across all random and Persistent conditions; one
+wrong-to-wrong class change occurs at random0.7. The branch is not disconnected,
+but no classification gain is demonstrated. No further experiment was launched.

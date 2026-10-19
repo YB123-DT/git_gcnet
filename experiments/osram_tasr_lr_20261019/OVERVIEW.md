@@ -62,8 +62,13 @@ No classification gain in that run; metrics/selected epochs match at every
 rate. This table uses a different evaluation/selection protocol than frozen
 fixed-anchor rows. It is NOT legitimate to call61.786−61.336 a TASR gain, nor
 to compare seed66 directly against the accepted three-seed mean61.557.
-Final joint sample-level prediction equality/learned-weight checks have not
-yet been verified; equal aggregate scores do not prove an inactive module.
+Final joint artifact checks are now verified in
+../osram_tasr_joint_20261019/FINAL_BRANCH_CHECK.md: all eight selected class
+prediction arrays match original Flat after exact identity/label/mask alignment.
+The Adapter learned nonzero weights and has nonzero finite gradients; its
+same-checkpoint on/off replay produces zero corrections/harms, with only one
+wrong-to-wrong class change at random0.7. It is not an entirely inactive module,
+but its small numerical contribution yields no measured classification benefit.
 
 ## Sources and verification
 
