@@ -31,6 +31,24 @@ reporting a macro it is over the explicitly named seven nonempty rates, not the
 original8-rate benchmark. Whole-dataset baseline numbers do not apply to this
 selected Text-missing/history-Text-seen cohort.
 
+## Executed frozen replay
+
+Implementation snapshot: `0535a222dc4da7152f634a0f6bda743c96a5e69b`.
+On biggpu, from the immutable source directory:
+
+```bash
+/data2/yb/conda_envs/cmerc-repro/bin/python -u \
+  -m experiments.osram_meld_base_text_gap_text_20261019.run \
+  --gpu-uuid GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049 \
+  --source-commit 0535a222dc4da7152f634a0f6bda743c96a5e69b \
+  --output /home/qinjinghui/remote_experiments/osram_meld_base_text_gap_text_20261019/runs_v1/MELD_seed66
+```
+
+Completed, not merely launched. See `RESULT.md` for all four metrics per rate,
+`INTERPRETATION.md` for the conditional comparison and limitations, `SUMMARY.json`
+for per-class/availability details, and `VERIFICATION.json` for execution evidence.
+The existing output is immutable; this command intentionally refuses to overwrite it.
+
 Run on biggpu/cmerc-repro, healthy GPU UUID, independent immutable source/output.
 Keep all old protected checkpoints and artifacts. Frozen input removal may be
 OOD; results describe this fixed classifier, not information absence or a proved
