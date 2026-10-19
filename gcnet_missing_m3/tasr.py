@@ -39,7 +39,7 @@ def strict_past_trajectory(availability: torch.Tensor, umask: torch.Tensor) -> t
 class JointSourceTracker:
     """Reuse Kbar/Vbar/P from one real joint solve to track additive sources."""
 
-    def __init__(self, availability, valid, memory_template):
+    def __init__(self, availability, valid, memory_template, *, audit=False):
         if memory_template.ndim != 4 or valid.shape != availability.shape[:2]:
             raise ValueError('invalid memory template or valid mask')
         length, batch = availability.shape[:2]
@@ -51,6 +51,15 @@ class JointSourceTracker:
             length, batch, 3, 3, memory_template.shape[1] * memory_template.shape[2])
         self.trajectory = strict_past_trajectory(availability, valid.transpose(0, 1))
         self._errors = {'memory': [], 'gap': []}
+        self.audit = bool(audit)
+        if self.audit:
+            # Audit-only summaries: never retain a time sequence of full
+            # memory matrices, and never feed these values back into CHM.
+            self.source_base = memory_template.new_zeros(
+                length, batch, 3, memory_template.shape[1] * memory_template.shape[2])
+            self.state_source_norms = memory_template.new_zeros(length, batch, 3)
+            self.state_joint_norm = memory_template.new_zeros(length, batch)
+            self._errors.update(base=[], prewrite_memory=[])
 
     def decay(self, alpha, active):
         decayed = self.states * alpha.view(1, 1, -1, 1, 1)
@@ -73,6 +82,30 @@ class JointSourceTracker:
         self._record_error('gap', reads.sum(1), original_gap, active_missing)
         return reads
 
+    def read_base(self, time_index, query, original_base, active, memory):
+        """Record Base and state norms after decay, strictly before writing.
+
+        ``query`` is the existing Base task query; ``memory`` is the original
+        shared state, not a reconstructed replacement. Sources are additive
+        joint-Value-slot contributions, not isolated modality memories.
+        """
+        if not self.audit:
+            raise ValueError('Base source capture requires audit=True')
+        with torch.no_grad():
+            reads = (self.states.detach() @ query.detach()[:, None, :, :, None]).squeeze(-1)
+            reads = reads.reshape(reads.shape[0], 3, -1)
+            reads = torch.where(active[:, None, None], reads, torch.zeros_like(reads))
+            self.source_base[time_index] = reads
+            norms = self.states.detach().flatten(2).norm(dim=-1)
+            self.state_source_norms[time_index] = torch.where(
+                active[:, None], norms, torch.zeros_like(norms))
+            joint_norm = memory.detach().flatten(1).norm(dim=-1)
+            self.state_joint_norm[time_index] = torch.where(
+                active, joint_norm, torch.zeros_like(joint_norm))
+            self._record_error('base', reads.sum(1), original_base, active)
+            self._record_error('prewrite_memory', self.states.detach().sum(1), memory, active)
+        return reads
+
     def update(self, time_index, k_bar, v_bar, solved, write_step, active, memory):
         # v_s p_s is the source's injection; ALL sources share the same joint
         # erasure operator Kbar P, including when that source is not observed.
@@ -89,8 +122,13 @@ class JointSourceTracker:
             maximum = torch.stack(values).amax(0).cpu().tolist() if values else [0., 0.]
             diagnostics[kind + '_sum_max_abs_error'] = maximum[0]
             diagnostics[kind + '_sum_max_relative_error'] = maximum[1]
-        return dict(source_gap=self.source_gap, trajectory=self.trajectory,
-                    final_sources=self.states, diagnostics=diagnostics)
+        trace = dict(source_gap=self.source_gap, trajectory=self.trajectory,
+                     final_sources=self.states, diagnostics=diagnostics)
+        if self.audit:
+            trace.update(source_base=self.source_base,
+                         state_source_norms=self.state_source_norms,
+                         state_joint_norm=self.state_joint_norm)
+        return trace
 
 
 class TASRAdapter(nn.Module):

@@ -1666,6 +1666,9 @@ class OSRAMBackbone(nn.Module):
                 @ queries[time_index, :, 0].unsqueeze(-1)
             ).squeeze(-1)
             base[time_index] = base_read.reshape(batch, -1) * identity_mask[time_index].unsqueeze(-1)
+            if source_tracker is not None and source_tracker.audit:
+                source_tracker.read_base(time_index, queries[time_index, :, 0],
+                                         base[time_index], active, read_memory)
 
             missing = 1.0 - availability[time_index].to(dtype)
             for modality_index, name in enumerate(MODALITIES):
@@ -1851,6 +1854,8 @@ class OSRAMBackbone(nn.Module):
             values, self.core20_value.auxiliary_loss = self.core20_value.transform_values(
                 values, availability, valid, reconstruction_targets=core20_reconstruction_targets)
         source_tracker = None
+        if getattr(self, 'osram_source_audit', False) and not self.osram_source_tracking:
+            raise ValueError('source audit requires source tracking to be enabled')
         if self.osram_source_tracking:
             if (write_completion is not None or write_mask_override is not None
                     or write_node_collector is not None or context_read_residual is not None
@@ -1860,7 +1865,9 @@ class OSRAMBackbone(nn.Module):
             from .tasr import JointSourceTracker
             template = queries.new_zeros(availability.shape[1], self.num_heads,
                                           self.value_dim, self.key_dim)
-            source_tracker = JointSourceTracker(availability, valid, template)
+            source_tracker = JointSourceTracker(
+                availability, valid, template,
+                audit=getattr(self, 'osram_source_audit', False))
         base_forward, gap_forward, diag_forward = self._scan(
             keys, values, queries, availability, valid, reverse=False,
             retention_diagnostics=(memory_retention_diagnostics
