@@ -1,0 +1,44 @@
+{
+  "recorded_at_utc": "2026-10-19 14:13:27",
+  "user_instruction": "启动 (resume explicitly authorized)",
+  "status_at_record": "local_deployment_watcher_running_waiting_for_ssh",
+  "model_training_started": false,
+  "numerical_source_commit": "00b75520eaa5f3623379a72b7a619d2aa85a96ce",
+  "deployment_controller_commit": "a156d3dad764334b43bce5e84d5b388d6c16eb3c",
+  "source_archive_sha256": "9876cd748ef37e6e774553fc7ddde7310d194de5262f32a93249f9c0d9f6ef3c",
+  "gate_script_sha256": "c8f7301ef2ebd4da9bd2b619ed810d52abbc90052a514f99487b4ec832c17e01",
+  "local_watcher": {
+    "tmux": "osram_deploy_00b7552",
+    "shell_pid": 4122665,
+    "python_pid": 4122666,
+    "verified_alive": true,
+    "state": "/data2/yb/paper/.osram_resume_source.BHsWsU/DEPLOYMENT_STATE.json",
+    "log": "/data2/yb/paper/.osram_resume_source.BHsWsU/deploy.log",
+    "attempt_limit": 60,
+    "interval_seconds": 60,
+    "runtime_artifacts_must_be_preserved_until_deployment": "/data2/yb/paper/.osram_resume_source.BHsWsU"
+  },
+  "remote_gate": {
+    "server": "biggpu / user22",
+    "tmux_after_successful_deployment": "router_ram_00b7552",
+    "state": "/home/qinjinghui/remote_experiments/osram_text_path_router_3seed_20261019/RESOURCE_GATE_STATE.json",
+    "log": "/home/qinjinghui/remote_experiments/osram_text_path_router_3seed_20261019/resource_gate_00b7552.log",
+    "minimum_available_gib": 64,
+    "stable_positive_checks": 2,
+    "check_interval_seconds": 30,
+    "deployment_confirmed_at_record": false
+  },
+  "resource_evidence": {
+    "2026-10-19T14:03:15Z": {"ram_total_gib_rounded": 502, "ram_used_gib_rounded": 500, "ram_available_gib_rounded": 1.6, "swap_total_gib": 8, "swap_used_gib_rounded": 8},
+    "2026-10-19T14:07:15Z": {"ram_available_gib_rounded": 1.1, "swap_free_kib_rounded": 156},
+    "gpu_host_indices_verified_idle": [1, 3, 7],
+    "gpu4_forbidden": true
+  },
+  "approved_runs": {
+    "MELD": {"new_seeds": [67, 68], "modes": ["flat", "joint"], "epochs": 50, "host_gpu": 3},
+    "IEMOCAPSix": {"new_seeds": [67, 68], "fold": 5, "modes": ["flat", "joint"], "epochs": 100, "host_gpu": 1},
+    "CMUMOSI": {"seed": 66, "modes": ["flat", "joint"], "epochs": 150, "host_gpu": 7, "real_smoke_required_before_train": true},
+    "seed66_classification_results": "Reuse existing four completed jobs; do not retrain"
+  },
+  "safety": "Waiting is not GPU training. No killing other processes, clearing swap/cache, changing batch/masks, or automatic model retries. SSH retries stop at the recorded limit."
+}
