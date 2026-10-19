@@ -198,12 +198,31 @@ def restore(model, optimizer, state, identity):
     h.restore_rng(state['rng'])
 
 
-def prepare_fresh(bundle, mode):
+def seed_training_loader(bundle, seed=66):
+    """Vary training order only; keep the accepted seed66 split/eval banks."""
+    if seed not in (66, 67, 68):
+        raise ValueError('Approved training seeds are 66, 67, 68')
+    loader = bundle['train_loader']
+    if seed != 66:
+        from gcnet_modality_jepa.protocol import SeedBundle
+        from gcnet_modality_jepa.train_gcnet import _build_protocol_loader
+        metadata = loader.protocol_metadata
+        loader = _build_protocol_loader(loader.dataset, loader.sampler.indices,
+            bundle['cfg'].dataset, metadata['fold'], metadata['split'],
+            loader.batch_size, loader.num_workers, SeedBundle(seed), metadata['split_hash'],
+            metadata['evaluation_protocol'])
+        bundle['train_loader'] = loader
+    return dict(training_seed=seed, split_seed=66, evaluation_seed=66,
+                train_loader=copy.deepcopy(loader.protocol_metadata))
+
+
+def prepare_fresh(bundle, mode, seed=66):
     """Protected model is a data/protocol parity gate, never initialization."""
     import gc
     import torch
     from experiments.osram_meld_flat_source_combinations_20261013.evaluate import _build_model
-    cfg = replace(bundle['cfg'], checkpoint_selection='validation', checkpoint_selection_metric='accuracy', evaluate_test=True)
+    seed_protocol = seed_training_loader(bundle, seed)
+    cfg = replace(bundle['cfg'], seed=seed, checkpoint_selection='validation', checkpoint_selection_metric='accuracy', evaluate_test=True)
     if (cfg.learning_rate != (1e-5 if cfg.dataset == 'MELD' else 1e-3)
             or cfg.epochs != (50 if cfg.dataset == 'MELD' else 100) or cfg.weight_decay != 1e-5):
         raise ValueError('Protected baseline LR/epoch/weight-decay differs from the approved one-stage protocol')
@@ -215,7 +234,7 @@ def prepare_fresh(bundle, mode):
     # Canonical factory resets missing_m3_model_init:fold seed before construction.
     backbone = _build_model(cfg, bundle['dimensions'], device).requires_grad_(True).train()
     model = wrap_model(backbone, mode)
-    bundle.update(model=model, cfg=cfg)
+    bundle.update(model=model, cfg=cfg, seed_protocol=seed_protocol)
     return model
 
 
@@ -224,6 +243,7 @@ def main():
     parser.add_argument('--phase', choices=('smoke', 'train'), required=True)
     parser.add_argument('--mode', choices=('flat', 'joint'), required=True)
     parser.add_argument('--dataset', choices=('MELD', 'IEMOCAPSix'), required=True)
+    parser.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--source-commit', required=True)
     parser.add_argument('--output', type=Path, required=True)
@@ -246,13 +266,13 @@ def main():
     if args.resume and path.exists() and json.loads(path.read_text()).get('status') == 'complete':
         raise ValueError('Completed run must not be silently repeated')
     summary = dict(status='preflight', dataset=args.dataset, mode=args.mode, phase=args.phase,
-                   source_commit=args.source_commit, pid=os.getpid(), seed=66)
+                   source_commit=args.source_commit, pid=os.getpid(), seed=args.seed)
     try:
         bundle = h.setup_case(args.dataset, args.gpu_uuid, args.output)
         # Dataset paths must be installed by setup_case before importing trainer.
         from gcnet_modality_jepa.train_gcnet import reset_training_stochasticity
         protected_backbone_sha256 = h.backbone_digest(bundle['model'])
-        model = prepare_fresh(bundle, args.mode)
+        model = prepare_fresh(bundle, args.mode, seed=args.seed)
         backbone = model.backbone if args.mode == 'joint' else model
         initial_backbone_sha256 = h.backbone_digest(backbone)
         if protected_backbone_sha256 == initial_backbone_sha256:
@@ -264,12 +284,14 @@ def main():
                        for rate, rows in masks.items()}
         sources = ('gcnet_missing_m3/osram.py', 'gcnet_missing_m3/tasr.py', 'gcnet_missing_m3/model.py',
                    'gcnet_missing_m3/train_gcnet.py', 'gcnet_modality_jepa/gcnet_legacy_random_mask.py',
+                   'gcnet_modality_jepa/protocol.py', 'gcnet_modality_jepa/train_gcnet.py',
                    'experiments/osram_text_path_router_20261019/router.py',
                    'experiments/osram_text_path_router_joint_20261019/joint.py',
                    'experiments/osram_text_path_router_joint_20261019/run.py')
         identity = dict(source_commit=args.source_commit, source_hashes={p:h.sha(ROOT/p) for p in sources},
             mode=args.mode, config=asdict(bundle['cfg']), split=bundle['split'], validation_mask_hashes=mask_hashes,
             test_masks={rate:ref['mask_sha256'] for rate, ref in bundle['references'].items()},
+            seed_protocol=bundle['seed_protocol'],
             original_reference_case=bundle['case'], initialization='canonical-fresh-factory-no-checkpoint-weights',
             router_learning_rate=3e-4 if args.mode == 'joint' else None, selection='validation-eight-rate-ACC-then-lower-CE')
         summary.update(identity=identity, environment=bundle['environment'], gpu=bundle['gpu'],
@@ -279,7 +301,7 @@ def main():
             protected_backbone_sha256=protected_backbone_sha256, protected_weights_excluded_from_initialization=True)
         h.write_json(args.output/'config.json', identity['config'])
         h.write_json(path, summary)
-        reset_training_stochasticity(66, bundle['case']['fold'])
+        reset_training_stochasticity(args.seed, bundle['case']['fold'])
         torch.cuda.reset_peak_memory_stats()
         if args.phase == 'smoke':
             backbone = model.backbone if args.mode == 'joint' else model
