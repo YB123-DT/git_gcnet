@@ -1,0 +1,34 @@
+{
+  "source_commit": "00b75520eaa5f3623379a72b7a619d2aa85a96ce",
+  "archive": "/home/qinjinghui/remote_experiments/osram_text_path_router_3seed_20261019/source_00b7552.tar.gz",
+  "archive_sha256": "9876cd748ef37e6e774553fc7ddde7310d194de5262f32a93249f9c0d9f6ef3c",
+  "source_directory": "/home/qinjinghui/remote_experiments/osram_text_path_router_3seed_20261019/source_00b7552",
+  "minimum_available_gib": 64,
+  "memory_policy": "Conservative engineering reserve; require two positive checks, recheck before each queue; no swap/cache manipulation or killing jobs",
+  "jobs": [
+    {
+      "name": "MELD-IEMOCAP6-seed67-68-paired-eight-jobs",
+      "output": "/home/qinjinghui/remote_experiments/osram_text_path_router_3seed_20261019/execution_v1",
+      "log": "/home/qinjinghui/remote_experiments/osram_text_path_router_3seed_20261019/orchestrator_v1.log",
+      "command": [
+        "/data2/yb/conda_envs/cmerc-repro/bin/python", "-u", "-m",
+        "experiments.osram_text_path_router_3seed_20261019.run",
+        "--output", "/home/qinjinghui/remote_experiments/osram_text_path_router_3seed_20261019/execution_v1",
+        "--source-commit", "00b75520eaa5f3623379a72b7a619d2aa85a96ce",
+        "--gpus", "GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a", "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049"
+      ]
+    },
+    {
+      "name": "MOSI-seed66-scalar-smoke-then-paired150",
+      "output": "/home/qinjinghui/remote_experiments/osram_text_path_router_joint_mosi_20261019/execution_v1",
+      "log": "/home/qinjinghui/remote_experiments/osram_text_path_router_joint_mosi_20261019/orchestrator_v1.log",
+      "command": [
+        "/data2/yb/reproduction_workspace/envs/s0/bin/python", "-u", "-m",
+        "experiments.osram_text_path_router_joint_mosi_20261019.orchestrate",
+        "--output", "/home/qinjinghui/remote_experiments/osram_text_path_router_joint_mosi_20261019/execution_v1",
+        "--source-commit", "00b75520eaa5f3623379a72b7a619d2aa85a96ce",
+        "--gpu-uuid", "GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e"
+      ]
+    }
+  ]
+}
