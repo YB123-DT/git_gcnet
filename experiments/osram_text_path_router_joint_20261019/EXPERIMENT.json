@@ -1,0 +1,40 @@
+{
+  "experiment": "one-stage-conditional-historical-text-probability-router",
+  "status_at_record": "four_training_jobs_running",
+  "source_commit": "79619b8a2fd9f6c7e82bc67546aa8f9ac82105db",
+  "source_archive_sha256": "47e957a19c04722892bd2348654faf848b5193d4c4b4299671279a5b306d83e2",
+  "server": "biggpu / user22",
+  "python": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+  "source_directory": "/home/qinjinghui/remote_experiments/osram_text_path_router_joint_20261019/source_79619b8",
+  "execution_directory": "/home/qinjinghui/remote_experiments/osram_text_path_router_joint_20261019/execution_v1",
+  "tmux_session": "text_joint_79619b8",
+  "queue_log": "/home/qinjinghui/remote_experiments/osram_text_path_router_joint_20261019/orchestrator_v1.log",
+  "scope": "MELD seed66 Flat/Joint, IEMOCAP-6 seed66 fold5 Flat/Joint; no HPO or extra seeds",
+  "gpus": {
+    "MELD": {"host_index": 0, "uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45", "our_process_limit": 2},
+    "IEMOCAPSix": {"host_index": 1, "uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049", "our_process_limit": 2}
+  },
+  "local_related_tests_passed": 61,
+  "remote_related_tests_passed": 61,
+  "test_warning": "Pre-existing optional torch-sparse/libcusparse.so.11 import; optional implementation disabled",
+  "real_gpu_smoke": {
+    "MELD": {"status": "complete", "batches": 3, "valid_utterances": 888, "eligible_utterances": 84, "peak_allocated_mib": 1230.0908203125, "seconds": 14.539061912000761},
+    "IEMOCAPSix": {"status": "complete", "batches": 3, "valid_utterances": 4645, "eligible_utterances": 488, "peak_allocated_mib": 5382.26708984375, "seconds": 21.317118752005626}
+  },
+  "smoke_checks": {
+    "finite_gradients": true,
+    "original_backbone_changed": true,
+    "router_changed": true,
+    "original_backbone_connected_and_nonzero_parameter_tensors": 72,
+    "router_connected_and_nonzero_parameter_tensors_after_three_steps": 12,
+    "full_checkpoint_reloaded": true,
+    "performance_proven": false
+  },
+  "launch_pairing_checks": {
+    "MELD": {"initial_backbone_sha256": "368b7c9f26ed6280926864d90174547939c369b32f306b3327819cd74cc9a12b", "initialization_exact": true, "validation_masks_exact": true, "matched_training_mask_epochs_checked": 1},
+    "IEMOCAPSix": {"initial_backbone_sha256": "46dc1ec74a63ba007fcce28a5255ebb7f81977ccb3cfef7212caead7ec80934c", "initialization_exact": true, "validation_masks_exact": true, "matched_training_mask_epochs_checked": 3}
+  },
+  "selection": "One checkpoint per run, mean eight-rate validation ACC then lower CE; original saved test masks replayed after selection",
+  "results": "Training not complete at this record; no final performance claim. Queue automatically generates paired report after all four finish.",
+  "protected_checkpoints": "Verified as input-protocol parity gate only, discarded before fresh initialization; never overwritten."
+}
