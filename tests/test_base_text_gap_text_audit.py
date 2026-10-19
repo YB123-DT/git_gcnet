@@ -98,3 +98,31 @@ def test_report_preserves_four_equal_cohorts_and_empty_na(tmp_path):
     rows=list(csv.DictReader((tmp_path/'METRICS.csv').open()))
     assert len(rows)==4 and all(row['N']=='2' for row in rows)
     assert '同样本' in (tmp_path/'RESULT.md').read_text()
+
+
+def test_six_class_summary_uses_six_class_ua_and_preserves_meld_default():
+    module=api()
+    arrays=dict(labels=np.array([0,5]),availability=np.array([[1,0,0],[0,0,1]]),
+                trajectory=np.tile([1.,.5,1.,1.],(2,3,1)))
+    arrays.update({name:np.eye(6)[[0,5]] for name in module.CONDITIONS})
+    result=module.summarize_arrays(arrays,classes=6)
+    assert result['N']==2
+    assert result['metrics']['full']['ACC']==100
+    assert result['metrics']['full']['UA']==pytest.approx(100*2/6)
+    assert len(result['metrics']['full']['class_recall'])==6
+    assert '6-class' in result['definition']
+    with pytest.raises(ValueError):
+        module.summarize_arrays(arrays)
+
+
+def test_iemocap_report_names_dataset_and_fold_not_meld(tmp_path):
+    from experiments.osram_meld_base_text_gap_text_20261019.run import write_report
+    arrays=dict(labels=np.array([0,5]),availability=np.array([[1,0,0],[0,0,1]]),
+                trajectory=np.tile([1.,.5,1.,1.],(2,3,1)))
+    arrays.update({name:np.eye(6)[[0,5]] for name in api().CONDITIONS})
+    result=api().summarize_arrays(arrays,classes=6)
+    write_report(tmp_path,dict(source_commit='test',dataset='IEMOCAPSix',
+        anchor={'fold':5},rates={'0.3':result}))
+    report=(tmp_path/'RESULT.md').read_text()
+    assert 'IEMOCAP-6' in report and 'fold5' in report
+    assert '# MELD' not in report

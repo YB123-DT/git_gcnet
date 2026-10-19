@@ -57,14 +57,16 @@ def replay_four(osram, head, local, emotion_input, source_reads, umask, selected
     return result
 
 
-def summarize_arrays(arrays):
+def summarize_arrays(arrays, classes=7):
     labels=np.asarray(arrays['labels'])
     selected=eligible_mask(arrays['availability'],arrays['trajectory'])
-    classes=np.arange(7)
+    if not isinstance(classes,(int,np.integer)) or classes<2:
+        raise ValueError('Need an explicit integer class count >=2')
+    classes=np.arange(classes)
     if labels.shape!=(len(selected),) or not np.isin(labels,classes).all():
-        raise ValueError('Invalid aligned seven-class labels')
+        raise ValueError('Invalid aligned labels for the specified class count')
     logits={name:np.asarray(arrays[name],dtype=np.float64) for name in CONDITIONS}
-    if any(v.shape!=(len(labels),7) or not np.isfinite(v).all() for v in logits.values()):
+    if any(v.shape!=(len(labels),len(classes)) or not np.isfinite(v).all() for v in logits.values()):
         raise ValueError('All four logits must be aligned and finite')
 
     def cohort(mask):
@@ -91,5 +93,5 @@ def summarize_arrays(arrays):
     out=cohort(np.ones(len(labels),dtype=bool))
     bits=np.asarray(arrays['availability']).astype(int)@np.array([1,2,4])
     out['by_current_availability']={name:cohort(bits==value) for name,value in (('A',1),('V',4),('AV',5))}
-    out['definition']='Same cohort: current Text missing AND strictly-past Text ever seen; seven-class metrics; corrections/harms are deletion versus original.'
+    out['definition']=f'Same cohort: current Text missing AND strictly-past Text ever seen; {len(classes)}-class metrics; corrections/harms are deletion versus original.'
     return out

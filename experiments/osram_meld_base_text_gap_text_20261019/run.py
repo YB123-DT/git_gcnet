@@ -1,4 +1,4 @@
-"""MELD same-cohort four-condition Text-source readout replay."""
+"""MELD / IEMOCAP-6 same-cohort four-condition Text-source readout replay."""
 from __future__ import annotations
 
 import argparse
@@ -65,8 +65,11 @@ def write_report(output,report):
     labels={'full':'① 原模型','without_base_text':'② 删Base←T',
             'without_gap_text':'③ 删Gap-T←T','without_both':'④ 同时删除'}
     fmt=lambda v:'N/A' if v is None else f'{v:.3f}'
-    lines=['# MELD Base←T / Gap-T←T 同样本四条件分析','','INTERNAL DIAGNOSTIC ONLY',
-        '',f"Source: `{report['source_commit']}`。seed66，固定原miss0.3 checkpoint，未训练。",
+    dataset=report.get('dataset','MELD')
+    title='IEMOCAP-6' if dataset=='IEMOCAPSix' else dataset
+    fold=f"，fold{report['anchor']['fold']}" if dataset=='IEMOCAPSix' else ''
+    lines=[f'# {title} Base←T / Gap-T←T 同样本四条件分析','','INTERNAL DIAGNOSTIC ONLY',
+        '',f"Source: `{report['source_commit']}`。seed66{fold}，固定原miss0.3 checkpoint，未训练。",
         '只纳入当前Text缺失且严格过去见过Text的有效话语。每个rate四条件用完全相同的样本。',
         '只移除指定Value来源项，不是删除整条Base/Gap，也不是删除原始历史Text；其他Gap的Text来源保留。',
         '原Local/Skip、Query、共享Memory读写和分类器不变。前三种预测在合格样本上逐位复现旧缓存。',
@@ -107,6 +110,7 @@ def write_report(output,report):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--dataset',choices=('MELD','IEMOCAPSix'),default='MELD')
     parser.add_argument('--gpu-uuid',required=True)
     parser.add_argument('--source-commit',required=True)
     parser.add_argument('--output',type=Path,required=True)
@@ -121,26 +125,27 @@ def main():
     lock=(args.output/'run.lock').open('a');fcntl.flock(lock.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
     path=args.output/'SUMMARY.json'
     if path.exists():raise RuntimeError('Independent output already used; inspect before any rerun')
-    report=dict(status='running',source_commit=args.source_commit,no_training=True,rates={},error=None)
+    report=dict(status='running',dataset=args.dataset,source_commit=args.source_commit,no_training=True,rates={},error=None)
     helper.write_json(path,report);tick=time.monotonic()
     try:
-        previous=json.loads((PREVIOUS/'SUMMARY.json').read_text())
+        previous_root=PREVIOUS.parent/args.dataset
+        previous=json.loads((previous_root/'SUMMARY.json').read_text())
         if previous['status']!='complete' or previous['source_commit']!='cb02830e794297e9d3654b5f0c9a4900c6ac0cdf':
             raise ValueError('Require completed original12-source audit')
-        bundle=helper.setup_case('MELD',args.gpu_uuid,args.output)
+        bundle=helper.setup_case(args.dataset,args.gpu_uuid,args.output)
         if previous['anchor']['checkpoint_sha256']!=bundle['case']['checkpoint_sha256']:
             raise ValueError('Wrong original fixed anchor')
         model=bundle['model'];digest=helper.backbone_digest(model)
         model.osram.osram_source_tracking=True;model.osram.osram_source_audit=True
         if model.osram.osram_tasr:raise ValueError('TASR must remain disabled')
         report.update(anchor=bundle['case'],environment=bundle['environment'],gpu=bundle['gpu'],
-                      previous_summary_sha256=helper.sha(PREVIOUS/'SUMMARY.json'),
+                      previous_summary_sha256=helper.sha(previous_root/'SUMMARY.json'),
                       source_files={str(p.relative_to(ROOT)):helper.sha(p) for p in
                           (Path(__file__),Path(__file__).with_name('audit.py'),ROOT/'gcnet_missing_m3/osram.py',ROOT/'gcnet_missing_m3/tasr.py')})
         torch.cuda.reset_peak_memory_stats()
         for rate in RATES:
             key='random_'+rate.replace('.','p')
-            old=json.loads((PREVIOUS/(key+'.json')).read_text());old_npz=PREVIOUS/(key+'.npz')
+            old=json.loads((previous_root/(key+'.json')).read_text());old_npz=previous_root/(key+'.npz')
             if helper.sha(old_npz)!=old['checks']['output_sha256']:raise ValueError('Old NPZ hash mismatch')
             with np.load(old_npz,allow_pickle=False) as z:
                 cached={name:z[name].copy() for name in ('labels','speakers','conversation_ids','utterance_indices',
@@ -154,7 +159,7 @@ def main():
                 arrays,checks=collect(bundle,cached)
             arrays['eligible']=chosen
             np.savez_compressed(args.output/(key+'.npz'),**arrays)
-            result=summarize_arrays(arrays)
+            result=summarize_arrays(arrays,classes=bundle['case']['classes'])
             result['checks']=dict(checks,cached_npz_sha256=old['checks']['output_sha256'],
                                  availability_sha256=old['checks']['availability_sha256'],
                                  output_sha256=helper.sha(args.output/(key+'.npz')))
