@@ -1,4 +1,21 @@
-# MOSI Router：已获重新启动授权，等待资源及真实检查
+# MOSI Router：资源已准入，preflight因历史源码快照缺失停止
+
+## 最新实测：2026-10-19 14:30–14:34 UTC
+
+资源恢复后，独立队列PID2742102在物理GPU7启动smoke子进程2742105。
+子进程在读取历史源码`SNAPSHOT.json`时退出1，尚未执行真实batch的
+forward/backward，Flat/Joint150均未启动。没有模型性能结果。
+
+缺失路径：
+`/data2/yb/remote_experiments/osram_new40_gpu0123_20261004/source_ad211c0/SNAPSHOT.json`。
+整个source目录不存在。原数据DATA.json和受保护Flat seed66权重目录仍存在。
+对/data2和/data1实验目录中三层内的SNAPSHOT.json检查，未找到code_commit
+为ad211c0的可复用快照；未绕过校验、伪造旧manifest、改基线或反复盲目提交。
+
+原始失败日志保留：
+`/home/qinjinghui/remote_experiments/osram_text_path_router_joint_mosi_20261019/execution_v1/smoke/joint.log`。
+后续须找回/可审计重建历史源码来源并通过精确重放，再使用独立运行目录。
+MELD/IEMOCAP八组不受此失败影响，继续正常训练。下文等待资源是先前状态记录。
 
 用户新增一组MOSI版本，对应原Flat150三种子均值80.747的模型配置；
 seed66历史Test-best为81.068095，不能误当80.7单种子。

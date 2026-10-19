@@ -1,4 +1,37 @@
-# 三种子补跑：已获重新启动授权，等待RAM准入
+# 三种子补跑：八组训练已启动
+
+## 最新实测：2026-10-19 14:30–14:34 UTC
+
+SSH已恢复，远程RAM准入队列成功运行。可用RAM从此前约1.1GiB恢复至
+337–340GiB；Swap仍接近满，不代表当前RAM依然不足。MELD四组在物理GPU3、
+IEMOCAP-6 fold5四组在物理GPU1，均已出现真实epoch日志，未重复运行seed66。
+数值源码为`00b75520eaa5f3623379a72b7a619d2aa85a96ce`。
+
+| 数据集 | seed67 Flat / Joint PID | seed68 Flat / Joint PID | 已观察进度 |
+|---|---|---|---|
+| MELD | 2735675 / 2735690 | 2735697 / 2735704 | 1–2/50 |
+| IEMOCAPSix fold5 | 2735708 / 2735716 | 2735720 / 2735727 | 3/100 |
+
+远程tmux为`router_ram_00b7552`，分类队列PID2735119。状态与逐作业日志位于：
+`/home/qinjinghui/remote_experiments/osram_text_path_router_3seed_20261019/execution_v1/`。
+MOSI独立队列已执行preflight但失败，尚未训练，详见对应STATUS；不能将其计入
+已启动训练数量。下文未启动/等待描述是历史记录，不代表本次最新状态。
+
+### 数据加载与RAM核查
+
+`dataloader_meld.py`通过`pickle.load`读入整个特征文件，并保存全划分的话语
+特征数组；IEMOCAP/MOSI的Dataset同样将预提取特征组装在CPU内存中。
+不是加载原始视频。MELD host/guest引用同一数组，不是完整复制两份。
+每个独立训练进程各自加载Dataset；三个split loader引用同一Dataset。
+本轮分类`runner_helpers.py:setup`及MOSI runner均指定`num_workers=0`，
+不会额外创建`pt_data_worker`。仅当前batch搬到GPU。
+
+本轮已运行分类进程的RSS约2.4–2.6GiB。另一个现存PID2483243所属账号
+`qinjinghui`，入口为`/data2/cby/Incomplete_fake_detection/train_fanvm.py`，
+RSS约116GiB、匿名RSS约116GiB；不是本轮Router实验。账号不等于实际操作者身份。
+此前瞬时118GiB级`pt_data_worker`已不在本次top进程列表，未确认其父进程，
+不能据此归属于该脚本，也不能把多个RSS相加或声称发现内存泄漏。
+没有停止或修改任何其他任务。
 
 2026-10-19，用户批准“跑3seed看看”，随后加一组原MOSI Flat150配置上的版本。
 
