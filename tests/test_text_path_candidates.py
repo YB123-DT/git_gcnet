@@ -81,3 +81,17 @@ def test_pack_view_scans_once_uses_actual_skip_input_and_flattens_batch_major(mo
     expected = (~av[..., 1].bool() & trajectory[..., 1, 3].bool()).transpose(0, 1)[valid]
     assert torch.equal(result['eligible'], expected)
     assert all(not value.requires_grad for value in result.values())
+def test_candidate_head_layout_matches_original_multiplicative_padding():
+    from test_source_evidence_runner import _fixture
+    from experiments.osram_text_path_router_20261019.candidates import candidate_readouts
+    osram,head,local,inputs,sources,umask,av=_fixture()
+    with torch.no_grad():
+        hidden=osram.emotion_norm(osram.local_skip(local)+osram.emotion_adapter(inputs))
+        reference=hidden*umask.T.bool()[...,None].to(hidden.dtype)
+        full=head(reference)
+    seen=[]
+    hook=head.register_forward_pre_hook(lambda module,args:seen.append(args[0].stride()))
+    selected=umask.T.bool()&~av[...,1].bool()
+    candidate_readouts(osram,head,local,inputs,sources[...,0,1,:],sources[...,2,1,:],umask,selected,full)
+    hook.remove()
+    assert seen==[reference.stride(),reference.stride()]

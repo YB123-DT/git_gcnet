@@ -36,7 +36,10 @@ def candidate_readouts(osram, head, local, emotion_input, base_text, gap_text,
         candidate[..., start:start + forward_dim] -= torch.where(
             eligible[..., None], source, torch.zeros_like(source))
         hidden = osram.emotion_norm(skip + osram.emotion_adapter(candidate))
-        hidden = torch.where(umask.T.bool()[..., None], hidden, torch.zeros_like(hidden))
+        # Match the original Flat padding operation AND head-input tensor layout.
+        # torch.where(condition-first) changes strides and can select a different
+        # CUDA GEMM path despite identical values (observed 1e-6 logit changes).
+        hidden = hidden * umask.T.bool()[..., None].to(hidden.dtype)
         logits = head(hidden)
         predictions.append(torch.where(eligible[..., None], logits, full_logits))
     return torch.stack(predictions, dim=-2)
