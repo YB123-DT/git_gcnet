@@ -122,3 +122,12 @@ MELD0.354，IEMOCAP0.400。MELD没有在这个条件下呈现比IEMOCAP更强的
 来源分解在浮点误差内成立；没有证明任何新Block有效，没有新增训练。
 它没有将写入、读取、决策的潜在可改善空间完全因果分离。后续不自动加Gate、
 改Missing或扩大训练/调参；也不把MELD的小净收益解释成历史完全无用。
+
+## 补充：Gap-A不能根据miss0.3单点定性
+
+已将全部八率12项的绝对ACC/移除差值整理为[ACC_PER_RATE.md](ACC_PER_RATE.md)，
+Gap-A跨率及当前观测组合复核见[GAP_A_REVIEW.md](GAP_A_REVIEW.md)。
+IEMOCAP-6中，“删Gap-A任一来源都提高ACC”只出现在miss0.3；删其历史A来源
+在其他六个非零rate都降低ACC。该现象不能推广为Gap-A普遍有害，更不能据此
+统一关闭该通道。不同rate的缺A目标样本不是同一批，跨率不能当严格配对干预。
+本次补充只读既有CSV/NPZ，无新推理、训练、Mask或权重变更。
