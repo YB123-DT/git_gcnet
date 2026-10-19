@@ -1,0 +1,20 @@
+{
+  "source_commit": "79619b8a2fd9f6c7e82bc67546aa8f9ac82105db",
+  "verification": "Read-only recomputation from existing saved predictions; no inference or training added",
+  "queue_complete": true,
+  "completed_train_jobs": 4,
+  "failed_train_jobs": 0,
+  "prediction_artifact_sha256_verified": 32,
+  "metrics_recomputed": ["ACC", "UA", "WF1", "CE"],
+  "absolute_metric_tolerance": 1e-10,
+  "all_metric_checks_passed": true,
+  "pairing": {
+    "MELD": {"initial_backbone_exact": true, "fixed_validation_masks_exact": true, "training_mask_epochs_exact": 50, "test_cohort_and_masks_exact_rates": 8},
+    "IEMOCAPSix": {"initial_backbone_exact": true, "fixed_validation_masks_exact": true, "training_mask_epochs_exact": 100, "test_cohort_and_masks_exact_rates": 8}
+  },
+  "within_joint_full_to_router": {
+    "MELD": {"eligible_condition_samples": 5713, "corrections": 3, "harms": 1},
+    "IEMOCAPSix": {"eligible_condition_samples": 4198, "corrections": 60, "harms": 43}
+  },
+  "limitations": ["seed66 only", "IEMOCAP-6 fold5 only", "One validation-selected checkpoint per model, not per-rate test-best", "Historical test-guided research and mask provenance", "No significance claim or automatic multi-seed expansion"]
+}
