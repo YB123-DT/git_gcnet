@@ -39,7 +39,10 @@ def strict_past_trajectory(availability: torch.Tensor, umask: torch.Tensor) -> t
 class JointSourceTracker:
     """Reuse Kbar/Vbar/P from one real joint solve to track additive sources."""
 
-    def __init__(self, availability, valid, memory_template, *, audit=False):
+    def __init__(self, availability, valid, memory_template, *, audit=False,
+                 differentiable_base=False):
+        if differentiable_base and not audit:
+            raise ValueError('differentiable Base source reads require audit=True')
         if memory_template.ndim != 4 or valid.shape != availability.shape[:2]:
             raise ValueError('invalid memory template or valid mask')
         length, batch = availability.shape[:2]
@@ -52,6 +55,7 @@ class JointSourceTracker:
         self.trajectory = strict_past_trajectory(availability, valid.transpose(0, 1))
         self._errors = {'memory': [], 'gap': []}
         self.audit = bool(audit)
+        self.differentiable_base = bool(differentiable_base)
         if self.audit:
             # Audit-only summaries: never retain a time sequence of full
             # memory matrices, and never feed these values back into CHM.
@@ -88,14 +92,19 @@ class JointSourceTracker:
         ``query`` is the existing Base task query; ``memory`` is the original
         shared state, not a reconstructed replacement. Sources are additive
         joint-Value-slot contributions, not isolated modality memories.
+        Base capture remains detached by default. Training-only consumers may
+        opt in to its existing write/query graph without changing the reads.
         """
         if not self.audit:
             raise ValueError('Base source capture requires audit=True')
-        with torch.no_grad():
-            reads = (self.states.detach() @ query.detach()[:, None, :, :, None]).squeeze(-1)
+        with torch.set_grad_enabled(torch.is_grad_enabled() and self.differentiable_base):
+            states = self.states if self.differentiable_base else self.states.detach()
+            address = query if self.differentiable_base else query.detach()
+            reads = (states @ address[:, None, :, :, None]).squeeze(-1)
             reads = reads.reshape(reads.shape[0], 3, -1)
             reads = torch.where(active[:, None, None], reads, torch.zeros_like(reads))
             self.source_base[time_index] = reads
+        with torch.no_grad():
             norms = self.states.detach().flatten(2).norm(dim=-1)
             self.state_source_norms[time_index] = torch.where(
                 active[:, None], norms, torch.zeros_like(norms))

@@ -10,14 +10,16 @@ from torch.nn import functional as F
 
 
 class TextPathRouter(nn.Module):
-    """Mix three classification probabilities using detached observed features."""
+    """Mix three probabilities; frozen inputs remain the backward-compatible default."""
 
-    def __init__(self, local_dim=256, context_dim=512, projection_dim=64, hidden_dim=64):
+    def __init__(self, local_dim=256, context_dim=512, projection_dim=64, hidden_dim=64,
+                 detach_inputs=True):
         super().__init__()
         if min(local_dim, context_dim, projection_dim, hidden_dim) < 1:
             raise ValueError('Router dimensions must be positive')
         self.local_dim = local_dim
         self.context_dim = context_dim
+        self.detach_inputs = bool(detach_inputs)
         # Creating this optional module must not change the baseline RNG stream.
         with torch.random.fork_rng(devices=[]):
             self.local_projection = nn.Linear(local_dim, projection_dim)
@@ -37,7 +39,9 @@ class TextPathRouter(nn.Module):
 
         ``text_trajectory`` holds strictly-past count, coverage, age and ever-seen.
         Its ever-seen flag defines eligibility upstream, not a label-dependent rule.
-        All inputs are detached: only this router can receive task gradients.
+        By default all inputs are detached, preserving frozen-router experiments.
+        ``detach_inputs=False`` allows one-stage gradients through both the
+        candidate logits and observed features. It adds no parameters or RNG use.
         """
         n = local.shape[0]
         if (local.shape != (n, self.local_dim)
@@ -47,9 +51,10 @@ class TextPathRouter(nn.Module):
                 or candidates.ndim != 3 or candidates.shape[:2] != (n, 3)
                 or eligible.shape != (n,) or eligible.dtype != torch.bool):
             raise ValueError('Expected aligned flat rows and three ordered candidate logits')
-        local, base_text, gap_text, text_trajectory, candidates = (
-            tensor.detach() for tensor in (local, base_text, gap_text, text_trajectory, candidates)
-        )
+        if self.detach_inputs:
+            local, base_text, gap_text, text_trajectory, candidates = (
+                tensor.detach() for tensor in (local, base_text, gap_text, text_trajectory, candidates)
+            )
         base_norm = torch.linalg.vector_norm(base_text, dim=-1)
         gap_norm = torch.linalg.vector_norm(gap_text, dim=-1)
         scalars = torch.stack((

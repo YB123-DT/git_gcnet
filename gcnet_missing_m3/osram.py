@@ -1854,6 +1854,9 @@ class OSRAMBackbone(nn.Module):
             values, self.core20_value.auxiliary_loss = self.core20_value.transform_values(
                 values, availability, valid, reconstruction_targets=core20_reconstruction_targets)
         source_tracker = None
+        if (getattr(self, 'osram_source_grad', False)
+                and not (self.osram_source_tracking and getattr(self, 'osram_source_audit', False))):
+            raise ValueError('source gradients require source tracking and source audit capture')
         if getattr(self, 'osram_source_audit', False) and not self.osram_source_tracking:
             raise ValueError('source audit requires source tracking to be enabled')
         if self.osram_source_tracking:
@@ -1867,7 +1870,9 @@ class OSRAMBackbone(nn.Module):
                                           self.value_dim, self.key_dim)
             source_tracker = JointSourceTracker(
                 availability, valid, template,
-                audit=getattr(self, 'osram_source_audit', False))
+                audit=getattr(self, 'osram_source_audit', False),
+                **({'differentiable_base': True}
+                   if getattr(self, 'osram_source_grad', False) else {}))
         base_forward, gap_forward, diag_forward = self._scan(
             keys, values, queries, availability, valid, reverse=False,
             retention_diagnostics=(memory_retention_diagnostics
