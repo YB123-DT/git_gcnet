@@ -21,8 +21,21 @@ def make_config():
     from experiments.osram_tasr_20261018.protocol import build_cases
     base = build_cases()['MELD']['expected_config']
     return TrainConfig(**dict(base, osram_source_tracking=True, osram_tasr=True,
-        osram_tasr_source_mode='real', checkpoint_selection='validation',
-        preserve_selection_artifacts=False))
+        osram_tasr_source_mode='real', checkpoint_selection='test-oracle-per-rate',
+        checkpoint_selection_metric='accuracy',preserve_selection_artifacts=True))
+
+
+def improved(metrics,previous):
+    return previous is None or metrics['ACC']>previous['ACC']
+
+
+def score_artifacts(artifacts):
+    import numpy as np
+    from experiments.osram_persistent_patterns_20261018.evaluate import classification_metrics
+    np.testing.assert_array_equal(artifacts['predictions'],artifacts['logits'].argmax(1))
+    scores=classification_metrics(artifacts['labels'],artifacts['logits'],7)
+    scores['mask_sha256']=hashlib.sha256(artifacts['availability'].tobytes()).hexdigest()
+    return scores
 
 
 def fresh_model(cfg, dimensions, device):
@@ -159,13 +172,41 @@ def run_epoch(bundle,optimizer,epoch,*,smoke=False):
     return report
 
 
-def evaluate(bundle,output):
-    from experiments.osram_tasr_20261018.run import evaluate_all
-    from experiments.osram_tasr_20261018.runner_helpers import write_json
-    result=evaluate_all(bundle,output)
+def evaluate(bundle,output,training_output):
+    """Separate fixed-mask replay; never overwrite exact Test-best scores."""
+    import torch
+    import numpy as np
+    from experiments.osram_tasr_20261018 import runner_helpers as h
+    from experiments.osram_tasr_20261018.protocol import RATES,PATTERNS
+    output.mkdir();model=bundle['model'];result={}
+    for group,names in (('random',RATES),('persistent',(*PATTERNS,'ATV'))):
+        conditions={}
+        for name in names:
+            rate=name if group=='random' else '0.3'
+            checkpoint=torch.load(training_output/f'best_miss_{rate.replace(".","p")}.pt',map_location='cpu',weights_only=False)
+            model.load_state_dict(checkpoint['model'],strict=True)
+            kwargs=dict(saved=bundle['selected'][rate],pattern=None if group=='random' else name)
+            rows=[]
+            for enabled in (False,True):
+                model.osram.osram_tasr=enabled;model.osram.osram_source_tracking=enabled
+                rows.append(h.collect(model,bundle['test_loader'],bundle['trainer'],bundle['dimensions'],7,**kwargs))
+            off,on=rows
+            conditions[name]=dict(F0=off[0],adapter=on[0],paired=h.paired_counts(off[1],on[1]),
+                selected_epoch=checkpoint['epoch'],diagnostics=on[2],
+                delta={m:on[0][m]-off[0][m] for m in ('ACC','UA','WF1','CE')})
+            for tag,arrays in (('branch_off',off[1]),('full',on[1])):
+                np.savez_compressed(output/f'{group}_{name.replace(".","p")}_{tag}.npz',**arrays)
+        result[group]=dict(conditions=conditions)
+        if group=='random':
+            for tag in ('F0','adapter'):result[group][tag]=h.aggregate_rates({n:row[tag] for n,row in conditions.items()})
+        else:
+            for scope,chosen in (('six',PATTERNS),('seven',(*PATTERNS,'ATV'))):
+                result[group][scope]={tag:{m:sum(conditions[n][tag][m] for n in chosen)/len(chosen)
+                    for m in ('ACC','UA','WF1','CE')} for tag in ('F0','adapter')}
     result['interpretation']={'F0':'Same jointly trained checkpoint, TASR branch disabled; NOT original trained Flat',
-        'adapter':'Jointly trained checkpoint with TASR enabled'}
-    write_json(output/'RESULTS.json',result)
+        'adapter':'Jointly trained checkpoint with TASR enabled',
+        'protocol':'PAIRED_MASK_REPLAY; random uses per-rate BEST, Persistent uses miss=.3 BEST; NOT exact Test-best scores'}
+    h.write_json(output/'RESULTS.json',result)
     return result
 
 
@@ -189,12 +230,11 @@ def main():
     import torch
     import fcntl
     from experiments.osram_tasr_20261018 import runner_helpers as h
-    from experiments.osram_tasr_20261018.run import build_validation_masks,validation_scores
-    from experiments.osram_tasr_20261018.protocol import validation_key
+    from experiments.osram_tasr_20261018.protocol import RATES
     lock=(args.output/'RUN.lock').open('a+')
     fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     tick=time.monotonic();summary=dict(status='preflight',pid=os.getpid(),phase=args.phase,
-        protocol='INTERNAL DIAGNOSTIC ONLY; from-scratch joint/random-only; validation selection',
+        protocol='INTERNAL TEST-ORACLE SCREEN; from-scratch joint/random-only; per-rate Test ACC-best',
         pretrained_model_loaded=False,source_commit=args.source_commit)
     try:
         bundle=setup(args.gpu_uuid,args.output);model=bundle['model'];cfg=bundle['cfg']
@@ -207,7 +247,7 @@ def main():
         identity=dict(config=asdict(cfg),split=bundle['split'],source_commit=args.source_commit,
             source_hashes={name:h.sha(ROOT/name) for name in files},dataset_sha256=bundle['case']['dataset_sha256'],
             pretrained_model_loaded=False,evaluation_references=bundle['references'],
-            checkpoint_selection='validation-random8-ACC-then-CE')
+            checkpoint_selection='test-oracle-per-rate-ACC; same-forward UA/WF1; earliest ACC tie')
         before=h.backbone_digest(model)
         # Train-data-only numerical parity gate; this is NOT a pretrained-model replay.
         with h.isolated_rng(66+88101),torch.no_grad():
@@ -246,32 +286,41 @@ def main():
             for name in ('encoder','writer_key','writer_value','query','flat','classifier','tasr'):
                 if not audit['last']['groups'][name]['nonzero']:raise RuntimeError('No real joint gradient: '+name)
         else:
-            masks=build_validation_masks(bundle)
-            summary['validation_mask_hashes']={r:hashlib.sha256(b''.join(x['availability'].numpy().tobytes() for x in rows)).hexdigest()
-                                               for r,rows in masks.items()}
-            start,history,best_key=0,[],None
+            start,history,best_by_rate=0,[],{}
+            test_schedules=bundle['trainer']._schedules(cfg,'test')
             if args.resume:
                 state=torch.load(args.output/'last.pt',map_location='cpu',weights_only=False)
                 restore_checkpoint(model,optimizer,state,identity=identity)
-                start,history,best_key=state['epoch'],state['history'],state['best_key']
+                start,history,best_by_rate=state['epoch'],state['history'],state['best_key']
             for epoch in range(start,cfg.epochs):
                 metrics=run_epoch(bundle,optimizer,epoch)
-                validation=validation_scores(bundle,masks);key=validation_key(validation)
-                metrics.update(epoch=epoch+1,validation=validation,validation_key=key,gradient_audit=copy.deepcopy(audit))
-                history.append(metrics);improved=best_key is None or tuple(key)>tuple(best_key)
-                if improved:best_key=key
-                state=checkpoint_payload(model,optimizer,epoch=epoch+1,identity=identity,history=history,best_key=best_key)
-                if improved:h.atomic_torch_save(args.output/'best.pt',state)
+                selection={}
+                for rate in RATES:
+                    raw_score,artifacts=bundle['trainer'].evaluate_rate(model,bundle['test_loader'],test_schedules[float(rate)],
+                        'MELD',bundle['dimensions'],torch.device('cuda:0'),collect=True,collect_identity=True)
+                    scores=score_artifacts(artifacts);selection[rate]=scores
+                    if abs(scores['ACC']-100*raw_score['accuracy'])>1e-8:
+                        raise RuntimeError('Test-best artifact/metric mismatch')
+                    if improved(scores,best_by_rate.get(rate)):
+                        artifact=bundle['trainer']._save_selection_artifacts(args.output,rate,epoch+1,artifacts)
+                        best_by_rate[rate]=dict(scores,epoch=epoch+1,selection_artifact=artifact)
+                        h.atomic_torch_save(args.output/f'best_miss_{rate.replace(".","p")}.pt',dict(
+                            model={k:v.detach().cpu().clone() for k,v in model.state_dict().items()},config=asdict(cfg),
+                            identity=identity,epoch=epoch+1,selection_split='test',selection_rate=float(rate),
+                            selection_metric='accuracy',selection_protocol='per-rate-test-oracle',
+                            selection_score=scores['ACC']/100,selection_metrics=scores,selection_artifact=artifact))
+                metrics.update(epoch=epoch+1,test_oracle=selection,gradient_audit=copy.deepcopy(audit))
+                history.append(metrics)
+                state=checkpoint_payload(model,optimizer,epoch=epoch+1,identity=identity,history=history,best_key=best_by_rate)
                 h.atomic_torch_save(args.output/'last.pt',state)
                 h.write_json(args.output/'history.json',history)
-                summary.update(epoch=epoch+1,validation_best_key=best_key,gradient_audit=audit,
+                summary.update(epoch=epoch+1,testbest=h.aggregate_rates(best_by_rate),gradient_audit=audit,
                     seconds=time.monotonic()-tick,peak_memory_mib=torch.cuda.max_memory_allocated()/2**20)
                 h.write_json(args.output/'SUMMARY.json',summary)
                 print(json.dumps(dict(event='joint_epoch_complete',epoch=epoch+1,task_CE=metrics['classification_loss'],
-                    validation=key,best=best_key)),flush=True)
-            state=torch.load(args.output/'best.pt',map_location='cpu',weights_only=False)
-            model.load_state_dict(state['model'],strict=True)
-            summary.update(selected_epoch=state['epoch'],evaluation=evaluate(bundle,args.output/'evaluation'))
+                    testbest=summary['testbest']['mean'])),flush=True)
+            summary.update(selected_epochs={r:v['epoch'] for r,v in best_by_rate.items()},
+                evaluation=evaluate(bundle,args.output/'paired_mask_replay',args.output))
         if any(h.sha(ROOT/name)!=digest for name,digest in identity['source_hashes'].items()):
             raise RuntimeError('Immutable joint source changed during execution')
         summary.update(status='complete',seconds=time.monotonic()-tick,gradient_audit=audit,

@@ -12,15 +12,15 @@ def api():
     return importlib.import_module('experiments.osram_tasr_joint_20261019.run')
 
 
-def test_joint_configuration_only_enables_tasr_and_declared_validation_protocol():
+def test_joint_configuration_only_enables_tasr_and_declared_testbest_protocol():
     from experiments.osram_tasr_20261018.protocol import build_cases
     base = build_cases()['MELD']['expected_config']
     cfg = api().make_config()
     from dataclasses import asdict
     from gcnet_missing_m3.train_gcnet import TrainConfig
     assert asdict(cfg) == asdict(TrainConfig(**dict(base, osram_source_tracking=True, osram_tasr=True,
-        osram_tasr_source_mode='real', checkpoint_selection='validation',
-        preserve_selection_artifacts=False)))
+        osram_tasr_source_mode='real', checkpoint_selection='test-oracle-per-rate',
+        checkpoint_selection_metric='accuracy',preserve_selection_artifacts=True)))
     assert cfg.initial_backbone_checkpoint is None
     assert cfg.epochs==50 and cfg.learning_rate==1e-5
     assert cfg.paired_history_views is False and cfg.training_objective=='emotion-only'
@@ -93,3 +93,10 @@ def test_original_trainer_joint_epoch_is_single_random_view(smoke):
     assert report['model_forward_count']==report['optimizer_steps']==report['random_batches']==2
     assert report['jepa_loss']==0
     assert model.training
+
+
+def test_testbest_selection_uses_acc_not_separate_ua_or_ce():
+    module=api()
+    assert module.improved({'ACC':60.,'UA':20.},None)
+    assert not module.improved({'ACC':60.,'UA':99.,'CE':0.}, {'ACC':60.,'UA':10.})
+    assert module.improved({'ACC':61.,'UA':1.}, {'ACC':60.,'UA':99.})
