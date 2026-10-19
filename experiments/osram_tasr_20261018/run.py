@@ -25,6 +25,8 @@ def parser():
     result.add_argument('--adapter-checkpoint',type=Path)
     result.add_argument('--adapter-learning-rate',type=float,default=None,
                         help='Only adapter Adam LR; omitted preserves the original3e-4 protocol')
+    result.add_argument('--random-only',action='store_true',
+                        help='Only original random-view task loss; no Persistent view is constructed')
     return result
 
 
@@ -36,6 +38,8 @@ def training_protocol(args):
         if not math.isfinite(rate) or rate <= 0:
             raise ValueError('Adapter learning rate must be positive and finite')
         protocol['learning_rate'] = rate
+    if getattr(args,'random_only',False):
+        protocol.update(random_weight=1.,persistent_weight=0.,persistent_sampling='disabled-random-only')
     return protocol
 
 
@@ -65,8 +69,8 @@ def validation_scores(bundle,masks):
             bundle['dimensions'],bundle['case']['classes'],batches=rows)[0] for rate,rows in masks.items()}
 
 
-def train_epoch(bundle,optimizer,epoch,*,max_batches=None):
-    """Unchanged random sampler + independent full-input persistent view."""
+def train_epoch(bundle,optimizer,epoch,*,max_batches=None,random_only=False):
+    """Original random sampler, optionally omitting the independent second view."""
     import numpy as np
     import torch
     from gcnet_missing_m3.mixed_rate import BalancedBatchRateSchedule
@@ -85,17 +89,21 @@ def train_epoch(bundle,optimizer,epoch,*,max_batches=None):
         data = trainer._move_batch(raw,device)
         rate = cycle.rate_for(epoch,index)
         view1 = trainer._prepare_view(data,schedules[rate],epoch,bundle['dimensions'])
-        availability,ids = persistent_availability(data[7],seed=66,epoch=epoch,batch_index=index)
-        # Critically, use RAW complete features, not View1's incomplete tensor.
-        view2 = trainer._prepare_view_from_primary_masks(data,availability,availability,bundle['dimensions'])
+        if not random_only:
+            availability,ids = persistent_availability(data[7],seed=66,epoch=epoch,batch_index=index)
+            # Critically, use RAW complete features, not View1's incomplete tensor.
+            view2 = trainer._prepare_view_from_primary_masks(data,availability,availability,bundle['dimensions'])
         optimizer.zero_grad(set_to_none=True)
         loss1 = trainer._task_loss(bundle['case']['dataset'],h.forward(model,view1),view1['labels'],view1['umask'])
         # Backpropagate first view before the second to bound live graph memory;
         # gradients add before the SAME clipping and single optimizer update.
-        (TRAINING_PROTOCOL['random_weight']*loss1).backward()
-        loss2 = trainer._task_loss(bundle['case']['dataset'],h.forward(model,view2),view2['labels'],view2['umask'])
-        (TRAINING_PROTOCOL['persistent_weight']*loss2).backward()
-        if not torch.isfinite(loss1) or not torch.isfinite(loss2): raise RuntimeError('Nonfinite task loss')
+        (loss1 if random_only else TRAINING_PROTOCOL['random_weight']*loss1).backward()
+        loss2 = None
+        if not random_only:
+            loss2 = trainer._task_loss(bundle['case']['dataset'],h.forward(model,view2),view2['labels'],view2['umask'])
+            (TRAINING_PROTOCOL['persistent_weight']*loss2).backward()
+        if not torch.isfinite(loss1) or (loss2 is not None and not torch.isfinite(loss2)):
+            raise RuntimeError('Nonfinite task loss')
         gradient = h.check_adapter_gradients(model)
         norm = float(torch.nn.utils.clip_grad_norm_(model.osram.tasr.parameters(),bundle['cfg'].gradient_clip_norm))
         if not np.isfinite(norm): raise RuntimeError('Nonfinite gradient norm')
@@ -103,20 +111,25 @@ def train_epoch(bundle,optimizer,epoch,*,max_batches=None):
         random_mask = view1['availability'].detach().cpu().numpy()
         digest.update(json.dumps([str(v) for v in data[-1]],separators=(',',':')).encode())
         digest.update(random_mask.tobytes())
-        counts = np.bincount(ids.cpu().numpy(),minlength=6); patterns += counts
+        if not random_only:
+            counts = np.bincount(ids.cpu().numpy(),minlength=6); patterns += counts
+            persistent_observed += int(availability.sum())
         observed += int(random_mask.sum()); valid_slots += int(data[7].sum())*3
-        persistent_observed += int(availability.sum())
-        reports.append(dict(random_CE=float(loss1.detach()),persistent_CE=float(loss2.detach()),
-            loss=.8*float(loss1.detach())+.2*float(loss2.detach()),gradient_norm=norm,**gradient))
+        reports.append(dict(random_CE=float(loss1.detach()),
+            persistent_CE=None if random_only else float(loss2.detach()),
+            loss=float(loss1.detach()) if random_only else .8*float(loss1.detach())+.2*float(loss2.detach()),
+            gradient_norm=norm,**gradient))
     if not reports: raise RuntimeError('No training minibatch')
     return dict(epoch=epoch+1,batches=len(reports),optimizer_steps=len(reports),
-                **{k:sum(row[k] for row in reports)/len(reports) for k in ('loss','random_CE','persistent_CE','gradient_norm')},
+                task_forward_batches=len(reports)*(1 if random_only else 2),
+                **{k:None if random_only and k=='persistent_CE' else sum(row[k] for row in reports)/len(reports)
+                   for k in ('loss','random_CE','persistent_CE','gradient_norm')},
                 nonzero_gradient_parameters_max=max(r['nonzero_parameters'] for r in reports),
                 original_random_mask_trace_sha256=digest.hexdigest(),
                 persistent_pattern_conversations={name:int(patterns[i]) for i,name in enumerate(PATTERNS)},
-                persistent_pattern_fraction={name:float(patterns[i]/patterns.sum()) for i,name in enumerate(PATTERNS)},
+                persistent_pattern_fraction={name:float(patterns[i]/max(1,patterns.sum())) for i,name in enumerate(PATTERNS)},
                 random_actual_missing_fraction=1-observed/max(1,valid_slots),
-                persistent_actual_missing_fraction=1-persistent_observed/max(1,valid_slots))
+                persistent_actual_missing_fraction=None if random_only else 1-persistent_observed/max(1,valid_slots))
 
 
 def evaluate_all(bundle,output):
@@ -205,7 +218,7 @@ def main():
         reset_training_stochasticity(66,bundle['case']['fold'])
         if args.phase=='smoke':
             torch.cuda.reset_peak_memory_stats()
-            report=train_epoch(bundle,optimizer,0,max_batches=3)
+            report=train_epoch(bundle,optimizer,0,max_batches=3,random_only=args.random_only)
             if report['nonzero_gradient_parameters_max']==0: raise RuntimeError('No real finite adapter update')
             state=h.checkpoint_payload(model,optimizer,epoch=1,identity=identity,history=[report],best_key=None)
             h.atomic_torch_save(args.output/'smoke.pt',state)
@@ -225,7 +238,7 @@ def main():
                 start,history,best_key=state['epoch'],state['history'],state['best_key']
             torch.cuda.reset_peak_memory_stats()
             for epoch in range(start,protocol['epochs']):
-                report=train_epoch(bundle,optimizer,epoch)
+                report=train_epoch(bundle,optimizer,epoch,random_only=args.random_only)
                 metrics=validation_scores(bundle,masks)
                 key=validation_key(metrics)
                 report.update(validation=metrics,validation_key=key)

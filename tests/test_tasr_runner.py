@@ -124,7 +124,8 @@ def test_adapter_learning_rate_override_changes_only_rate_and_not_global_protoco
             runner.training_protocol(SimpleNamespace(adapter_learning_rate=float(invalid)))
 
 
-def test_training_uses_raw_full_second_view_and_one_shared_optimizer_step():
+@pytest.mark.parametrize('random_only', [False, True])
+def test_training_uses_raw_full_second_view_and_one_shared_optimizer_step(random_only, monkeypatch):
     runner = importlib.import_module('experiments.osram_tasr_20261018.run')
     model = TinyModel()
     helpers().freeze_for_adapter(model)
@@ -154,12 +155,34 @@ def test_training_uses_raw_full_second_view_and_one_shared_optimizer_step():
                 dimensions=(1,1,1),case={'dataset':'MELD'})
     opt=torch.optim.Adam(model.osram.tasr.parameters(),lr=3e-4)
     before=model.encoder.weight.detach().clone()
-    report=runner.train_epoch(bundle,opt,0)
-    assert len(views)==2
+    if random_only:
+        def forbidden(*args, **kwargs):
+            raise AssertionError('Random-only must not construct a Persistent view')
+        monkeypatch.setattr('experiments.osram_tasr_20261018.protocol.persistent_availability', forbidden)
+    report=runner.train_epoch(bundle,opt,0,**({'random_only':True} if random_only else {}))
+    assert len(views)==(1 if random_only else 2)
     assert not views[0]['incomplete'][...,1:].count_nonzero()
-    assert views[1]['incomplete'][...,1:].count_nonzero()>0
+    if not random_only:
+        assert views[1]['incomplete'][...,1:].count_nonzero()>0
     assert report['batches']==report['optimizer_steps']==1
-    assert report['loss']==pytest.approx(.8*report['random_CE']+.2*report['persistent_CE'])
-    assert sum(report['persistent_pattern_conversations'].values())==64
+    if random_only:
+        assert report['loss']==report['random_CE']
+        assert report['persistent_CE'] is None
+        assert sum(report['persistent_pattern_conversations'].values())==0
+        assert report['task_forward_batches']==1
+    else:
+        assert report['loss']==pytest.approx(.8*report['random_CE']+.2*report['persistent_CE'])
+        assert sum(report['persistent_pattern_conversations'].values())==64
     assert all(int(state['step'])==1 for state in opt.state.values())
     assert torch.equal(before,model.encoder.weight)
+
+
+def test_random_only_configuration_records_loss_without_changing_defaults():
+    runner = importlib.import_module('experiments.osram_tasr_20261018.run')
+    from experiments.osram_tasr_20261018.protocol import TRAINING_PROTOCOL
+    args = runner.parser().parse_args(['--phase','train','--dataset','MELD','--mode','real',
+        '--output','/tmp/new','--gpu-uuid','GPU-test','--random-only','--adapter-learning-rate','1e-5'])
+    protocol = runner.training_protocol(args)
+    assert protocol == dict(TRAINING_PROTOCOL, learning_rate=1e-5, random_weight=1.,
+                            persistent_weight=0., persistent_sampling='disabled-random-only')
+    assert TRAINING_PROTOCOL['persistent_weight']==.2
