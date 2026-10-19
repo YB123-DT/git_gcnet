@@ -11,9 +11,9 @@ mixture, not a new Memory, query, TASR, or readout feature Gate.
   exact noneligible bypass, RNG isolation and finite parameter updates.
 - [x] Test-first candidate replay and runner: one causal scan, two extra readouts,
   no parameter changes, no gradient/optimizer step on empty eligibility.
-- [ ] Real GPU smoke on MELD and IEMOCAP-6, verify cached candidate parity and
+- [x] Real GPU smoke on MELD and IEMOCAP-6, verify cached candidate parity and
   checkpoint/optimizer/RNG restoration before the two finite training jobs.
-- [ ] Train seed66 once per dataset, 30 epochs; select one Router on validation,
+- [x] Train seed66 once per dataset, 30 epochs; select one Router on validation,
   replay fixed test masks at all eight rates, summarize and push small artifacts.
 
 Source anchors are exactly the fixed miss0.3 original Flat used by the completed
@@ -85,3 +85,30 @@ No oracle routing, threshold search, auxiliary loss, new seeds or other folds.
 A convex probability mixture cannot exceed the best candidate's probability for
 the true class, though its argmax may differ from all three candidates' argmax.
 Implementation success does not imply task gain or publication novelty.
+
+## Completed commands and artifacts
+
+Immutable source: `282b26ab8f691c24a4d2e7a6dd564eb119d771b3`; biggpu physicalGPU1.
+Two independent processes used the same source and UUID (not GPU4):
+
+```bash
+/data2/yb/conda_envs/cmerc-repro/bin/python -u \
+  -m experiments.osram_text_path_router_20261019.run \
+  --phase train --dataset MELD \
+  --gpu-uuid GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049 \
+  --source-commit 282b26ab8f691c24a4d2e7a6dd564eb119d771b3 \
+  --output /home/qinjinghui/remote_experiments/osram_text_path_router_20261019/runs_v2/MELD
+
+/data2/yb/conda_envs/cmerc-repro/bin/python -u \
+  -m experiments.osram_text_path_router_20261019.run \
+  --phase train --dataset IEMOCAPSix \
+  --gpu-uuid GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049 \
+  --source-commit 282b26ab8f691c24a4d2e7a6dd564eb119d771b3 \
+  --output /home/qinjinghui/remote_experiments/osram_text_path_router_20261019/runs_v2/IEMOCAPSix
+```
+
+Both finished30/30; existing outputs refuse accidental overwrite. Same-source
+Router recovery uses `--resume` and complete last.pt, not a protected Flat BEST.
+Results and exact same-mask comparisons: `RESULT.md`, `{MELD,IEMOCAPSix}/RESULT.md`
+and JSON/CSV. Router checkpoints and prediction NPZs remain remote. Full source,
+environment, anchor/Mask and output hashes are preserved in summaries/manifests.

@@ -22,3 +22,7 @@ selector, source contribution, probability mixture or test tolerance is changed.
 The corrected snapshot must pass real candidate parity before formal training.
 Keep both failed smoke directories and their logs for provenance; do not mix them
 with the corrected finite training runs or call them performance experiments.
+
+Completed verification: corrected source `282b26a` passed both real GPU smoke
+jobs, then all eight test-rate candidate parity gates for each dataset after the
+finite training runs. Original equality assertions remained unchanged throughout.

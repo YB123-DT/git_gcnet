@@ -1,0 +1,50 @@
+{
+  "experiment": "conditional-historical-text-three-probability-router-v2",
+  "source_commit": "282b26ab8f691c24a4d2e7a6dd564eb119d771b3",
+  "source_archive_sha256": "f56a5e8a68dc50ec1ad5d245f3d66c75b67cdaceab20fd030a6dd7088c6a15af",
+  "server": "biggpu / user22",
+  "host_gpu": 1,
+  "gpu_uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+  "logical_device": "cuda:0",
+  "python": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+  "source_directory": "/home/qinjinghui/remote_experiments/osram_text_path_router_20261019/source_282b26a",
+  "local_tests_passed": 49,
+  "remote_router_tests_passed": 21,
+  "router_parameters": 95439,
+  "training": {
+    "seed": 66,
+    "epochs": 30,
+    "optimizer": "adam",
+    "learning_rate": 0.0003,
+    "weight_decay": 0.00001,
+    "batch_size": 32,
+    "gradient_clip_norm": 1.0,
+    "missing_protocol": "gcnet-random-mask-v1",
+    "views": 1,
+    "backbone_frozen": true,
+    "selection": "validation-eight-rate-ACC-then-lower-CE",
+    "initial_weights_on_eligible": [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+    "bypass_weights": [1, 0, 0]
+  },
+  "jobs": {
+    "MELD": {
+      "tmux_session": "router_meld_282b26a",
+      "recorded_pid": 2254574,
+      "output": "/home/qinjinghui/remote_experiments/osram_text_path_router_20261019/runs_v2/MELD",
+      "log": "/home/qinjinghui/remote_experiments/osram_text_path_router_20261019/train2_MELD.log"
+    },
+    "IEMOCAPSix": {
+      "fold": 5,
+      "tmux_session": "router_iemo_282b26a",
+      "recorded_pid": 2254578,
+      "output": "/home/qinjinghui/remote_experiments/osram_text_path_router_20261019/runs_v2/IEMOCAPSix",
+      "log": "/home/qinjinghui/remote_experiments/osram_text_path_router_20261019/train2_IEMOCAPSix.log"
+    }
+  },
+  "failed_smoke_source": {
+    "source_commit": "84c841ea6cd082fba9fc5ce8d09bf7bd169332a9",
+    "source_archive_sha256": "eca07f9042ca7dff8bc61af83e666518c80e7b778db8036be1cec0e580625867",
+    "formal_training_started": false,
+    "reason": "Exact candidate parity rejected changed head-input layout; see NUMERICAL_CHECK.md. Preserved, not ranked or used for initialization."
+  }
+}
