@@ -57,3 +57,29 @@ GCNet missing protocol in response to the lower score.
 Separately,the contemporaneous IEMOCAP-6 numbers around54–56 were fold1
 intermediate training scores,not completedfivefoldmeans. Do not conflate them
 with this completedMOSI score.
+
+## Historical80.747 versus current GCNet: rate-aligned descriptive comparison
+
+Old source:seed66 `../osram_nested_low_lr_extend150_20261010/flat_FINAL_METRICS.json`
+(`selected_score_by_rate` fractions converted topercent); seeds67/68
+`../osram_complete150_20261011/FINAL_SUMMARY.json` exact finalFlat rows.
+New source:three completed remoteFlat summaries as above. All are150epoch
+per-rateTest-best W-F1, but oldconversation-mask-v2 and currentGCNet-v1 differ.
+
+| Rate | Old three-seed W-F1 | Current three-seed W-F1 | Current−old pp |
+|---:|---:|---:|---:|
+|0.0|88.418884|86.996056|-1.422828|
+|0.1|85.892071|84.233898|-1.658173|
+|0.2|83.431292|82.206283|-1.225009|
+|0.3|81.269567|81.107940|-0.161628|
+|0.4|79.137199|77.859529|-1.277670|
+|0.5|77.326586|75.842656|-1.483929|
+|0.6|76.346514|74.070255|-2.276259|
+|0.7|74.152811|68.810735|-5.342076|
+|Mean8|80.746866|78.890919|-1.855946|
+|High .5/.6/.7|75.941970|72.907882|-3.034088|
+
+Largest decrease israte.7:-5.342076pp. Rate0.0 also decreases1.422828pp;
+therefore the overall difference is not confined to evaluation at highmissing.
+Trainingavailability and samplerRNG also differ; no isolated causal attribution
+to the rate.7one-hot branch is justified by this table. No weights or masks changed.
