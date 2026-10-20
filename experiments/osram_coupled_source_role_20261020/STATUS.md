@@ -1,12 +1,15 @@
 # MOSI complete; MOSEI still running
 
-Observed2026-10-20T12:17:52Z: MOSI150/150complete,queuecomplete,workerexited
+Observed2026-10-20T13:37:29Z: MOSI150/150complete,queuecomplete,workerexited
 normally;8-rateW-F179.0506 versus originalFlat79.1280(−0.0774pp),high73.1139
 versus73.3381(−0.2242pp). Independent verification of8selectedNPZs matched
 ACC/W-F1/MSE exactly; all150training-mask/update/LR checks passed. Full results
 are in completed/CMUMOSI. All8BEST and complete last state remain preserved.
-MOSEI11/60running,current8-rateW-F181.3615; no failure or protocol mismatch.
-See rootRESULT.md. The following is the historical launch snapshot.
+MOSEI47/60running,current8-rateW-F183.2205 versus Flat83.2791(-.0586pp),
+high79.9627 versus80.1817(-.2191pp). No reported failure/protocol mismatch.
+All47training-mask/update/LR checks passed;14nonzero added gradient tensors.
+MOSEI is still residual mode,not the newer direct2*sigmoid MOSI variant.
+See rootRESULT.md and progress/CMUMOSEI. The following is the historical launch snapshot.
 
 ## Historical launch — final performance then pending
 

@@ -2,7 +2,7 @@
 
 INTERNAL TEST-ORACLE SCREEN
 
-Observed2026-10-20T12:17:52Z: MOSI completed150/150epochs; MOSEI running11/60,
+Observed2026-10-20T13:37:29Z: MOSI completed150/150epochs; MOSEI running47/60,
 without reported failure. Do not interpret the partial MOSEI score as final.
 
 ## Completed MOSI seed66
@@ -31,10 +31,15 @@ wall1662.781seconds,peakallocated3238.286MiB under shared-GPU conditions.
 
 ## MOSEI — still running at observation
 
-Epoch11/60 current per-rate best:8-rate ACC82.0859,W-F181.3615;
-high ACC78.8479,W-F177.6693. All11completedepochs passed the training
+Epoch47/60 current per-rate best:8-rate ACC83.3998,W-F183.2205;
+high ACC80.3522,W-F179.9627. All47completedepochs passed the training
 mask/update/LR pairing checks; all14new parameter tensors had nonzero gradients.
-Do not rank this partial result against a completed60epoch control.
+Completed Flat reference:8-rate ACC83.4927,W-F183.2791;high ACC80.5173,
+W-F180.1817. Current W-F1 deltas:-.0586pp overall/-.2191pp high.
+The Flat47epoch prefix already contains these same best scores. This is still
+partial method evidence,not a final60epoch ranking or multi-seed conclusion.
+This MOSEI run is the original source-role residual;no direct2*sigmoid MOSEI
+or extra MOSEI seeds were launched. Per-rate progress:progress/CMUMOSEI.
 
 Unchanged original GCNet random missing,scalarMSE,one-stage originalFlat1600
 plus source-role calibration,sourcef6bc52e. No Router despite legacy metric key.
