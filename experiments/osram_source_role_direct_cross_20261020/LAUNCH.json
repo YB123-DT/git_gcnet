@@ -1,0 +1,35 @@
+{
+  "status": "training",
+  "label": "INTERNAL TEST-ORACLE SCREEN",
+  "server": "biggpu",
+  "source_commit": "eb0e81e489a06a3f282dd5e57a1fb59f32ee8146",
+  "archive_sha256": "6ba4d1065d6138b7d51cf500104960a5f5d2023e1349a1edad29cbe75e920720",
+  "source": "/data2/yb/remote_experiments/osram_source_role_direct_cross_20261020/source_eb0e81e",
+  "output": "/data2/yb/remote_experiments/osram_source_role_direct_cross_20261020/execution_v1",
+  "controller_log": "/data2/yb/remote_experiments/osram_source_role_direct_cross_20261020/controller.log",
+  "tmux_socket": "osram_direct_cross",
+  "tmux_session": "direct_cross_eb0e81e",
+  "controller_pid": 3357504,
+  "physical_gpu": 1,
+  "gpu_uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+  "maximum_parallel": 6,
+  "formal_runs": 21,
+  "started_at_verified_snapshot": [
+    {"dataset":"CMUMOSEI","seed":66,"fold":1,"pid":3366618},
+    {"dataset":"MELD","seed":66,"fold":1,"pid":3367015},
+    {"dataset":"IEMOCAPSix","seed":66,"fold":1,"pid":3367054},
+    {"dataset":"IEMOCAPSix","seed":66,"fold":2,"pid":3367103},
+    {"dataset":"CMUMOSEI","seed":67,"fold":1,"pid":3368185},
+    {"dataset":"MELD","seed":67,"fold":1,"pid":3368223}
+  ],
+  "remaining_at_verified_snapshot": 15,
+  "gpu_snapshot": {"used_mib":17788,"utilization_percent":99},
+  "smokes": {
+    "CMUMOSEI":{"status":"complete","seconds":58.25646861997666,"peak_memory_mib":1792.9326171875,"initial_prediction_max_error":0.0,"source_role_parameters":96487,"full_checkpoint_reloaded":true},
+    "MELD":{"status":"complete","seconds":26.955981987994164,"peak_memory_mib":1512.357421875,"initial_prediction_max_error":0.0,"source_role_parameters":96487,"full_checkpoint_reloaded":true},
+    "IEMOCAPSix":{"status":"complete","seconds":41.34963252698071,"peak_memory_mib":6092.513671875,"initial_prediction_max_error":0.0,"source_role_parameters":96487,"full_checkpoint_reloaded":true}
+  },
+  "smoke_gradient_check": "14 connected and nonzero source-role gradient tensors in each dataset smoke; original and added parameter digests changed; one training Memory scan per optimizer step",
+  "local_checks": "49 tests passed; compileall and git diff --check passed",
+  "formal_results": "not complete; smoke metrics are not training performance results"
+}
