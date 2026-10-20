@@ -7,14 +7,14 @@ from torch import nn
 
 
 class CoupledSourceRole(nn.Module):
-    """Return additive read corrections without owning or updating any memory.
+    """Return residual corrections or directly weighted existing source reads.
 
     Roles are Base, Gap-audio, Gap-text, Gap-visual; sources retain the same
     audio/text/visual ordering. ``trajectory`` must describe strict-past
     count, coverage, age and ever-seen state, before the current turn writes.
     """
 
-    def __init__(self, local_dim=256, forward_dim=512, width=64, bound=.25):
+    def __init__(self, local_dim=256, forward_dim=512, width=64, bound=.25, mode='residual'):
         super().__init__()
         for name, value in (('local_dim', local_dim), ('forward_dim', forward_dim),
                             ('width', width)):
@@ -22,6 +22,9 @@ class CoupledSourceRole(nn.Module):
                 raise ValueError(f'{name} must be a positive integer')
         if not isinstance(bound, (int, float)) or not math.isfinite(bound) or bound <= 0:
             raise ValueError('bound must be finite and positive')
+        if mode not in ('residual', 'direct'):
+            raise ValueError('source-role mode must be residual or direct')
+        self.mode = mode
         self.local_dim, self.forward_dim = local_dim, forward_dim
         self.bound = float(bound)
         self.local_proj = nn.Linear(local_dim, width)
@@ -87,7 +90,8 @@ class CoupledSourceRole(nn.Module):
                               current.to(local.dtype), metadata.to(local.dtype)), dim=-1)
         features = torch.where(active.unsqueeze(-1), features, torch.zeros_like(features))
         score = self.net(features).squeeze(-1)
-        gamma = torch.where(active, self.bound * score.tanh(), torch.zeros_like(score))
+        coefficient = 2 * torch.sigmoid(score) if self.mode == 'direct' else self.bound * score.tanh()
+        gamma = torch.where(active, coefficient, torch.zeros_like(score))
         delta = (gamma.unsqueeze(-1) * reads).sum(dim=3)
         delta = torch.where(role_active.unsqueeze(-1), delta, torch.zeros_like(delta))
 
@@ -97,7 +101,7 @@ class CoupledSourceRole(nn.Module):
             self.last_diagnostics = {
                 'gamma_mean': self.last_gamma,
                 'gamma_abs_mean': gamma.detach().abs().sum(dim=(0, 1)) / denominator,
-                'delta_norm': delta.detach().norm(dim=-1).sum(dim=(0, 1))
+                ('weighted_read_norm' if self.mode == 'direct' else 'delta_norm'): delta.detach().norm(dim=-1).sum(dim=(0, 1))
                               / role_active.sum(dim=(0, 1)).clamp_min(1),
             }
         return delta, gamma

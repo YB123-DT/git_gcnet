@@ -869,9 +869,13 @@ class OSRAMBackbone(nn.Module):
         osram_tasr: bool = False,
         osram_tasr_source_mode: str = 'real',
         osram_source_role: bool = False,
+        osram_source_role_mode: str = 'residual',
     ) -> None:
         super().__init__()
         self.osram_source_role = bool(osram_source_role)
+        if osram_source_role_mode not in ('residual', 'direct'):
+            raise ValueError('source-role mode must be residual or direct')
+        self.osram_source_role_mode = osram_source_role_mode
         if self.osram_source_role and osram_tasr:
             raise ValueError('Coupled source-role and TASR are separate experiments')
         self.osram_tasr = bool(osram_tasr)
@@ -1357,7 +1361,8 @@ class OSRAMBackbone(nn.Module):
         if self.osram_source_role:
             from .source_role import CoupledSourceRole
             with torch.random.fork_rng(devices=[]):
-                self.source_role = CoupledSourceRole(self.latent_dim, self.num_heads * self.value_dim)
+                self.source_role = CoupledSourceRole(self.latent_dim, self.num_heads * self.value_dim,
+                    mode=self.osram_source_role_mode)
 
     def _causal_gru_forward(self, node, availability, valid):
         safe_node = torch.where(valid[..., None], node, torch.zeros_like(node))
@@ -1957,8 +1962,12 @@ class OSRAMBackbone(nn.Module):
             # original shared Memory, queries, Local or returned raw contexts.
             base_delta = torch.cat((delta[..., 0, :], torch.zeros_like(delta[..., 0, :])), -1)
             gap_delta = torch.cat((delta[..., 1:, :], torch.zeros_like(delta[..., 1:, :])), -1)
-            emotion_base = emotion_base + base_delta
-            emotion_gap = emotion_gap + gap_delta
+            if self.osram_source_role_mode == 'direct':
+                # Direct source sum, deliberately NO original read add-back.
+                emotion_base, emotion_gap = base_delta, gap_delta
+            else:
+                emotion_base = emotion_base + base_delta
+                emotion_gap = emotion_gap + gap_delta
         if self.osram_tasr:
             if (self.osram_ablation in ('local-only', 'local-base')
                     or self.osram_emotion_ablation in ('local-only', 'local-base')):

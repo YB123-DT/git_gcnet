@@ -16,7 +16,8 @@ REFERENCES={
     'CMUMOSEI':Path('/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/flat')}
 
 
-def source_role_config(cfg):
+def source_role_config(cfg, *, source_role_mode='residual'):
+    if source_role_mode not in ('residual','direct'):raise ValueError('Unknown source-role mode')
     if (cfg.backbone_type!='osram' or cfg.osram_readout_fusion!='flat'
             or cfg.osram_bidirectional or cfg.osram_tasr or cfg.osram_source_role
             or cfg.missing_mask_protocol!='gcnet-random-mask-v1'
@@ -24,7 +25,7 @@ def source_role_config(cfg):
             or cfg.checkpoint_selection!='test-oracle-per-rate'
             or cfg.checkpoint_selection_metric!='weighted_f1'):
         raise ValueError('Require original no-JEPA GCNet Flat, no overlapping block')
-    return replace(cfg,osram_source_role=True)
+    return replace(cfg,osram_source_role=True,osram_source_role_mode=source_role_mode)
 
 
 def set_learning_rates(optimizer,dataset,epoch):
@@ -46,15 +47,21 @@ def original_digest(model):
     return digest.hexdigest()
 
 
-def validate_reference(identity,prior,initial,epochs):
+def validate_reference(identity,prior,initial,epochs, *, source_role_mode='residual'):
+    if source_role_mode not in ('residual','direct'):raise ValueError('Unknown source-role mode')
     if prior.get('status')!='complete' or prior.get('epoch')!=epochs:
         raise ValueError('Require completed original Flat reference')
     if prior['initial_backbone_sha256']!=initial:raise ValueError('Original initialization differs')
     expected=dict(prior['identity']['config'],osram_source_role=True)
+    if 'osram_source_role_mode' in identity['config']:
+        expected['osram_source_role_mode']=source_role_mode
+    elif source_role_mode!='residual':
+        raise ValueError('Direct config must explicitly name its source-role mode')
     if expected!=json.loads(json.dumps(identity['config'])):raise ValueError('Other training config changed')
     for key in ('split','seed_protocol','mask_hashes'):
         if identity[key]!=prior['identity'][key]:raise ValueError('Reference '+key+' differs')
-    return dict(initialization_exact=True,only_source_role_switch_changed=True,
+    return dict(initialization_exact=True,only_source_role_switch_changed=source_role_mode=='residual',
+        only_source_role_settings_changed=True,
         evaluation_masks_exact=True,split_exact=True,seed_protocol_exact=True,
         old_weights_loaded=False,baseline_core_source_changed_by_opt_in_integration=True)
 
@@ -74,7 +81,25 @@ def progress_fields(epoch,best,peak_memory_mib):
         peak_memory_mib=peak_memory_mib)
 
 
-def main(dataset,argv=None):
+def check_zero_init_arrays(original,current,source_role_mode):
+    if source_role_mode not in ('residual','direct'):raise ValueError('Unknown source-role mode')
+    if set(original)!=set(current):raise ValueError('Zero-init arrays have different fields')
+    exact=True;maximum=0.
+    for name in original:
+        if name in ('prediction','candidates'):
+            exact=exact and np.array_equal(original[name],current[name])
+            maximum=max(maximum,float(np.max(np.abs(original[name]-current[name]),initial=0)))
+            if source_role_mode=='direct':
+                np.testing.assert_allclose(current[name],original[name],atol=1e-5,rtol=1e-5)
+            else:np.testing.assert_array_equal(original[name],current[name])
+        else:np.testing.assert_array_equal(original[name],current[name])
+    return dict(zero_init_predictions_exact=exact,zero_init_predictions_within_tolerance=True,
+        zero_init_prediction_max_abs_error=maximum,
+        zero_init_atol=1e-5 if source_role_mode=='direct' else 0.,
+        zero_init_rtol=1e-5 if source_role_mode=='direct' else 0.)
+
+
+def main(dataset,argv=None, *, source_role_mode='residual',extra_source_files=()):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--phase',choices=('smoke','train'),required=True)
     parser.add_argument('--mode',choices=('joint',),required=True,help='Queue compatibility label; no Router is instantiated')
@@ -103,7 +128,7 @@ def main(dataset,argv=None):
     previous=json.loads(path.read_text()) if args.resume and path.exists() else {}
     if previous.get('status')=='complete':raise ValueError('Completed run must not be repeated')
     summary=dict(status='preflight',dataset=dataset,seed=66,mode=args.mode,phase=args.phase,
-        pid=os.getpid(),source_commit=args.source_commit,block='coupled-source-role',router_parameters=0,
+        pid=os.getpid(),source_commit=args.source_commit,block='coupled-source-role-'+source_role_mode,router_parameters=0,
         experiment_label='INTERNAL TEST-ORACLE SCREEN')
     hooks=[]
     try:
@@ -112,7 +137,7 @@ def main(dataset,argv=None):
         # Dataset-root variables must be established before trainer/config imports.
         from gcnet_modality_jepa.train_gcnet import reset_training_stochasticity
         cfg=selected.testbest_config(bundle['cfg']) if dataset=='CMUMOSI' else bundle['cfg']
-        bundle['cfg']=source_role_config(cfg)
+        bundle['cfg']=source_role_config(cfg,source_role_mode=source_role_mode)
         baseline=bundle['model']
         model=setup.fresh_backbone(bundle['cfg'],bundle['dimensions'],next(baseline.parameters()).device)
         model.requires_grad_(True)
@@ -128,19 +153,19 @@ def main(dataset,argv=None):
             for row in bank)).hexdigest() for rate,bank in rates.items()} for split,rates in masks.items()}
         prior=json.loads((REFERENCES[dataset]/'SUMMARY.json').read_text())
         sources=tuple(prior['identity']['source_hashes'])+('gcnet_missing_m3/source_role.py',)+tuple(
-            str(Path(__file__).with_name(n).relative_to(ROOT)) for n in ('worker.py','run.py','report.py','mosi.py','mosei.py'))
+            str(Path(__file__).with_name(n).relative_to(ROOT)) for n in ('worker.py','run.py','report.py','mosi.py','mosei.py'))+tuple(extra_source_files)
         identity=dict(source_commit=args.source_commit,source_hashes={n:h.sha(ROOT/n) for n in sources},
-            mode=args.mode,block='coupled-source-role',seed=66,config=asdict(bundle['cfg']),
+            mode=args.mode,block='coupled-source-role-'+source_role_mode,seed=66,config=asdict(bundle['cfg']),
             mask_hashes=hashes,split=bundle['split'],seed_protocol=bundle['seed_protocol'],
             data_manifest_sha256=bundle['data_manifest_sha256'],data_manifest=bundle['data_manifest'],
             data_files=bundle['data_files'],training='one stage, all original parameters and source_role trainable',
             loss='original scalar MSE only',metrics_key='router is legacy scalar-runner alias, NOT a Router model')
-        proof=validate_reference(identity,prior,bundle['initial_backbone_sha256'],epochs)
+        proof=validate_reference(identity,prior,bundle['initial_backbone_sha256'],epochs,source_role_mode=source_role_mode)
         proof.update(path=str(REFERENCES[dataset]),summary_sha256=h.sha(REFERENCES[dataset]/'SUMMARY.json'))
         identity['flat_reference']=proof
         _,base_arrays=scalar.evaluate(bundle,baseline,'flat','test',masks['test']['0.3'],max_batches=1)
         _,new_arrays=scalar.evaluate(bundle,model,'flat','test',masks['test']['0.3'],max_batches=1)
-        for name in base_arrays:np.testing.assert_array_equal(base_arrays[name],new_arrays[name])
+        zero_init=check_zero_init_arrays(base_arrays,new_arrays,source_role_mode)
         del baseline,base_arrays,new_arrays
         initial_decomposition=serial(model.osram.last_source_trace['diagnostics'])
         initial_diagnostics=serial(model.osram.source_role.last_diagnostics)
@@ -157,7 +182,7 @@ def main(dataset,argv=None):
         torch.save(masks,args.output/'fixed_masks.pt')
         summary.update(status='running',identity=identity,config=identity['config'],environment=bundle['environment'],
             gpu=bundle['gpu'],initial_backbone_sha256=bundle['initial_backbone_sha256'],flat_reference=proof,
-            zero_init_predictions_exact=True,initial_decomposition=initial_decomposition,
+            **zero_init,initial_decomposition=initial_decomposition,
             initial_source_role_diagnostics=initial_diagnostics,
             total_parameters=sum(p.numel() for p in model.parameters()),
             source_role_parameters=sum(p.numel() for p in model.osram.source_role.parameters()))
