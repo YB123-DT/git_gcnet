@@ -18,6 +18,13 @@ The present Flat55.738/Router56.019 ACC is not a matched comparison with that
 reference. No controlled estimate yet attributes the gap to selection alone.
 No IEMOCAP rerun was launched by this documentation correction.
 
+Subsequent user authorization2026-10-20 explicitly requested rerunning and
+deleting this mistaken round's weights. The60training BEST/last files across
+all30runs and two IEMOCAP-only smoke weights were permanently deleted;
+non-weight evidence and evaluation masks remain. See the exact plan and receipt
+in `../osram_iemocap6_gcnet_testbest_20261020/`. These old runs are no longer
+checkpoint-replayable; accepted originalTest-best baseline weights are untouched.
+
 24 new fold1..4 runs; six completed fold5 runs reused, never retrained.
 100 epochs per fold. GCNet random-mask-v1. One validation-selected checkpoint per run.
 Fold-specific validation/test masks are paired across models and fixed across seeds.

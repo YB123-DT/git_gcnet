@@ -1,5 +1,13 @@
 # OSRAM task delivery agreement
 
+- 最新选点硬约束（用户再次确认，2026-10-20）：当前探索实验沿用逐缺失率
+  Test-best，MOSI/MOSEI按既定W-F1，IEMOCAP/MELD按既定ACC；UA/W-F1必须
+  来自ACC所选同一epoch、同一次预测及exact Mask。不得擅自改为validation
+  单checkpoint选点，也不得额外扣除原训练对话做adapter holdout。若用户
+  明确指定不同协议再单独记录。全部明确标记内部Test-oracle探索；八率
+  可来自不同epoch，不描述为单模型部署成绩。每轮记录逐率测试分数，保存
+  八个BEST、匹配预测/Mask与完整last恢复状态，避免再次无法补算选点。
+
 - 当前 MELD Flat baseline（用户指定，2026-10-18）：原 cfg84 no-JEPA
   Flat1600 + Local Skip，Adam lr1e-5、weight_decay1e-5、constant LR，
   50epochs、batch32、gcnet-random-mask-v1、seeds66/67/68。八率 Test-best
