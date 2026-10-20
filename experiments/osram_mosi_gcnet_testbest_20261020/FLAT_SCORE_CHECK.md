@@ -13,6 +13,22 @@ Sourcefd96f540e807426d6b4d858febdc2715b3a79a68; originalMOSI s0 environment.
 |68|78.79388048154536|72.72661764342057|
 |Mean|78.89091911766577|72.90788216464581|
 
+## Requested per-rate breakdown
+
+Re-read allthree completed remote summaries; W-F1(%), eachrate TEST-best,
+not eight independently trained models.
+
+| Missing rate | Seed66 | Seed67 | Seed68 | Three-seed mean |
+|---:|---:|---:|---:|---:|
+|0.0|86.734550|87.459026|86.794592|86.996056|
+|0.1|84.232644|84.121804|84.347247|84.233898|
+|0.2|82.200823|82.684027|81.733998|82.206283|
+|0.3|82.122010|80.226611|80.975198|81.107940|
+|0.4|77.719859|77.538574|78.320155|77.859529|
+|0.5|75.594915|75.742217|76.190836|75.842656|
+|0.6|74.907216|73.303130|74.000420|74.070255|
+|0.7|69.512195|68.931413|67.988596|68.810735|
+
 All150training parity entries for eachseed pass exact actual training masks,
 optimizer step counts and learningrates against the precedingGCNet validation
 round; maximum observed trainMSE difference0.0 in allthree histories. Only the
