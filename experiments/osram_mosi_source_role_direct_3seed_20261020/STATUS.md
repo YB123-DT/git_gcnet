@@ -1,9 +1,11 @@
-# MOSI direct-source three-seed follow-up running
+# MOSI direct-source three-seed follow-up complete
 
 INTERNAL TEST-ORACLE SCREEN
 
-Latest progress verified at 2026-10-20T13:22:38.708896+00:00.
-See PROGRESS.md/PROGRESS.json for the interim24seed/rate scores.
+Completion verified at 2026-10-20T14:16:10.233816+00:00.
+All three seeds completed150epochs; automatic queue/report succeeded.
+See completed/RESULT.md,METRICS.csv,SUMMARY.json,FINAL_VERIFICATION.json.
+PROGRESS.md/PROGRESS.json remain the historical37/34epoch snapshot only.
 Source a55b2cf2a3db04962d87baa789ce272b3e3eb26a; original numerical model/sampler code unchanged.
 Server biggpu, healthy physicalGPU0 / GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45.
 Controller PID2726231; tmux osram_source_role_direct_3seed:mosi_direct3_a55b2cf.
@@ -11,11 +13,14 @@ Controller PID2726231; tmux osram_source_role_direct_3seed:mosi_direct3_a55b2cf.
 | Seed | State | Completed epoch | Worker PID |
 |---|---|---:|---:|
 |66|Existing complete run reused|150|—|
-|67|running|37/150|2729543|
-|68|running|34/150|2729639|
+|67|complete|150/150|2729543|
+|68|complete|150/150|2729639|
 
-Current eight-rate W-F1:seed67=67.305693,seed68=75.537612. These are
-unfinished best-so-far values; no final three-seed average is reported.
+Final eight-rate W-F1:seed67=78.578491,seed68=78.471468.
+Three-seed W-F1=78.833183±.536500 vs Flat78.890919±.206465(-.057736pp).
+High W-F1=72.620078±.754093 vs Flat72.907882±.374122(-.287804pp).
+Std is sample std across seeds; rates averaged within each seed first.
+Seed66 improvement did not replicate in67/68. No stable overall/high gain.
 Both latest gradient hooks show14connected/14nonzero new parameter tensors.
 
 Both new formal runs passed same-seed Flat initialization/config/split/mask startup
@@ -30,11 +35,13 @@ No architecture,feature,loss,missing or extra hyperparameter search was introduc
 
 Existing66 final:ACC79.458841,W-F1 79.449590; high ACC73.424797,W-F1 73.477948.
 Compared with same-seed Flat,W-F1+.321564pp overall/+.139839pp high.
-Three-seed mean/std are PENDING67/68 completion, not filled using partial scores.
+All24selected NPZ metrics independently recomputed with max error0; exact
+labels/IDs/speakers/masks match their same-seed Flat cohort. All450training
+mask/update/LR pairings and earliest per-rate Test-best selection passed.
+All24BEST files and three full last.pt states remain present remotely.
 
 Outputs: /data2/yb/remote_experiments/osram_mosi_source_role_direct_3seed_20261020/execution_v1.
-Queue will automatically publish24rate/seed rows, individual paired Flat comparisons,
-across-seed mean/sample std and overall/high after both jobs finish. No more runs
-will be added automatically. All8BEST and full last.pt per newseed retained remotely.
+Queue published24rate/seed rows,individual paired Flat comparisons and across-seed
+mean/sample std. The finite task is complete; no extra runs were started.
 LAUNCH.json records effective complete67config;68differs only in seed as verified.
 Model weights,feature data and large predictions are not committed.
