@@ -2,6 +2,22 @@
 
 INTERNAL EXPLORATORY EXPERIMENT
 
+## Protocol correction,2026-10-20
+
+This round does NOT satisfy the user's requested per-rate Test-best ACC
+selection. It instead used one validation-selected checkpoint per run and a
+10% conversation holdout within training. This was an unauthorized protocol
+deviation, not a user-requested change. Preserve these results as a separate
+validation-selected experiment; do not replace the accepted Test-best baseline
+or attribute its score difference to Router alone.
+
+Accepted original Flat five-fold/three-seed GCNet-random-mask-v1 Test-best
+reference: ACC61.714, UA60.101, W-F1 61.362, as recorded in
+`../osram_iemocap_flat_3seed_cmerc_20261016/RESULT.md`.
+The present Flat55.738/Router56.019 ACC is not a matched comparison with that
+reference. No controlled estimate yet attributes the gap to selection alone.
+No IEMOCAP rerun was launched by this documentation correction.
+
 24 new fold1..4 runs; six completed fold5 runs reused, never retrained.
 100 epochs per fold. GCNet random-mask-v1. One validation-selected checkpoint per run.
 Fold-specific validation/test masks are paired across models and fixed across seeds.
