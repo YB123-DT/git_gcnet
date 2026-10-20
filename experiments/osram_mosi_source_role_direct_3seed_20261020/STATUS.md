@@ -2,7 +2,8 @@
 
 INTERNAL TEST-ORACLE SCREEN
 
-Verified at 2026-10-20T13:12:26.067774+00:00.
+Latest progress verified at 2026-10-20T13:22:38.708896+00:00.
+See PROGRESS.md/PROGRESS.json for the interim24seed/rate scores.
 Source a55b2cf2a3db04962d87baa789ce272b3e3eb26a; original numerical model/sampler code unchanged.
 Server biggpu, healthy physicalGPU0 / GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45.
 Controller PID2726231; tmux osram_source_role_direct_3seed:mosi_direct3_a55b2cf.
@@ -10,8 +11,12 @@ Controller PID2726231; tmux osram_source_role_direct_3seed:mosi_direct3_a55b2cf.
 | Seed | State | Completed epoch | Worker PID |
 |---|---|---:|---:|
 |66|Existing complete run reused|150|—|
-|67|running|1/150|2729543|
-|68|running|1/150|2729639|
+|67|running|37/150|2729543|
+|68|running|34/150|2729639|
+
+Current eight-rate W-F1:seed67=67.305693,seed68=75.537612. These are
+unfinished best-so-far values; no final three-seed average is reported.
+Both latest gradient hooks show14connected/14nonzero new parameter tensors.
 
 Both new formal runs passed same-seed Flat initialization/config/split/mask startup
 gates and first-epoch training-mask/LR/update parity. First-epoch new-module gradients
