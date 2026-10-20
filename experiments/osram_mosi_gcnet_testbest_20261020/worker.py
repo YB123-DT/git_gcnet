@@ -61,7 +61,9 @@ def selection_reference(path, identity, initial_digest):
         raise ValueError('Selection-only initialization differs')
     old_identity = old['identity']
     expected = dict(old_identity['config'], checkpoint_selection='test-oracle-per-rate')
-    if expected != identity['config']:
+    # The reference crossed a JSON boundary, which represents tuple rates as
+    # lists. Canonicalize containers without relaxing any configured values.
+    if expected != json.loads(json.dumps(identity['config'])):
         raise ValueError('Selection-only config changed beyond checkpoint selection')
     for key in ('split', 'mask_hashes', 'seed_protocol'):
         if old_identity[key] != identity[key]:

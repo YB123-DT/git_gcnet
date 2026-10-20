@@ -158,6 +158,22 @@ def test_incomplete_or_nonfinite_epoch_is_not_persisted(tmp_path):
     assert not (tmp_path / 'last.pt').exists()
 
 
+def test_reference_json_rates_equal_runtime_tuple_without_weakening_numeric_checks(tmp_path):
+    cfg = dict(checkpoint_selection='test-oracle-per-rate',
+               train_missing_rates=tuple(i / 10 for i in range(8)))
+    identity = dict(config=cfg, source_hashes={}, split={}, mask_hashes={}, seed_protocol={})
+    old = dict(status='complete', epoch=150, initial_backbone_sha256='initial',
+               identity=dict(identity, config=dict(cfg, checkpoint_selection='validation')))
+    (tmp_path / 'SUMMARY.json').write_text(json.dumps(old))
+    (tmp_path / 'history.json').write_text(json.dumps([dict(epoch=i + 1) for i in range(150)]))
+    _, proof = worker().selection_reference(tmp_path, identity, 'initial')
+    assert proof['only_checkpoint_selection_changed']
+    changed = copy.deepcopy(identity)
+    changed['config']['train_missing_rates'] = (.0, .2, .4)
+    with pytest.raises(ValueError, match='config'):
+        worker().selection_reference(tmp_path, changed, 'initial')
+
+
 def test_smoke_reaches_missing_batches_not_only_all_observed_batch_zero():
     from gcnet_missing_m3.mixed_rate import BalancedBatchRateSchedule
     limit = worker().SMOKE_BATCHES
