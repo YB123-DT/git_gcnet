@@ -1,4 +1,19 @@
-# Status: persistent queue installed, waiting for MOSI completion
+# Status: all24 new runs complete; five-fold results verified
+
+2026-10-20: ordered queue completed24new100epoch jobs afterMOSI succeeded.
+The existing sixfold5 jobs were reused read-only, giving30complete runs total.
+RESULT.md containsallfold/seed summaries;METRICS.csv contains240rate rows.
+SUMMARY.json recordscompactrun details, source/mask checks and seed-first
+five-fold aggregation. All240prediction files passed storedSHA256 checks and
+independent ACC/UA/W-F1 recomputation (max error2.85e-14pp).
+
+Five-fold mean then three-seed mean:Flat ACC55.738/UA55.583 versusJoint
+ACC56.019/UA56.089. ACC deltas byseed66/67/68 are approximately
++2.033/-0.046/-1.142pp. Overall gain is small and not consistent acrossseeds;
+the earlierfold5 +2.570pp ACC result does not generalize as a five-fold gain.
+The scoring/holdout/mask-provenance limitations inREADME/RESULT remain.
+No additional jobs were launched and no checkpoint was deleted. Earlier waiting
+and PID records below are historical; the queue is now complete.
 
 tmux:iemo6_folds_3864630; controllerPID2978054.
 Immutable source:38646302489b1ce74cf2d4ddeb9a9ec0ae5eb49d (shared with MOSI).
