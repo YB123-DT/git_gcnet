@@ -1,0 +1,143 @@
+{
+  "observed_at": "2026-10-20T03:44:59.265237+00:00",
+  "server": "biggpu",
+  "output": "/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1",
+  "source_commit": "51a29dff5a2c22363900f9071bc48a024b039fcc",
+  "source_root": "/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/source_51a29df",
+  "archive_sha256": "50404082d11ec4f6970d7124f8c395d0bfe3886f791e46155bffc9377d33de50",
+  "tmux": "mosei_router_51a29df",
+  "controller_pid": 846986,
+  "queue_status": "training",
+  "queue_error": null,
+  "smoke": {
+    "status": "complete",
+    "smoke_only": true,
+    "full_checkpoint_reloaded": true,
+    "selected_artifacts_exact_reload": true,
+    "peak_memory_mib": 1527.58056640625,
+    "environment": {
+      "numpy": "1.24.3",
+      "python": "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+      "python_version": "3.10.20 | packaged by conda-forge | (main, Jun 11 2026, 03:31:56) [GCC 14.3.0]",
+      "sklearn": "1.3.2",
+      "torch": "2.2.2+cu121"
+    },
+    "gpu": {
+      "host_index": 1,
+      "logical_device": "cuda:0",
+      "uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049"
+    },
+    "total_parameters": 13605232,
+    "router_parameters": 95439,
+    "initial_backbone_sha256": "9a6a03edc69f7bd45c04464be8105eac96ec01d9a0922bbd2eb496a69ce82f77",
+    "mask_hashes": {
+      "test": {
+        "0.0": "41f45c24f3012554c87ddab4ce3b918d42dff8edb8dd09c56acb921fc1f36172",
+        "0.1": "108cdfca332c1b03eea0a6a5440e9eb10416727748df799c30fb621cf2d786a1",
+        "0.2": "98d81b25911a637626aa3f7fcc8bba9f8a8f20511a3373ad9e6e98dab1f44f30",
+        "0.3": "4e95c30de45ba22720f52aa43f2bf247e39d86ddb472c71a85bc5dcd68acc1d4",
+        "0.4": "9a12cc1023fb206ce8ef4b46679c0ac4da3b77d8199f28189d485818f2147cdf",
+        "0.5": "7aca4d77537fe5ab1fdea444aae393b98a129128dfeacbba1d2ac6cce038eee7",
+        "0.6": "f14e547f1fd126d74e14170015f48c0eb946065daaec49c9992a498fb4a1b6b9",
+        "0.7": "759d1abc3aca383876345de6e85bbd39d0ef49807e543491ed121f4311de54d4"
+      }
+    }
+  },
+  "smoke_summary_sha256": "c3827dd123380c18fb637cdf23734838c0ef5b19b72ee8d5ed5e9151beba39d0",
+  "data_manifest": {
+    "all_file_hashes_exact": true,
+    "dataset": "CMUMOSEI",
+    "files_verified": 68569,
+    "path": "/data2/yb/remote_experiments/osram_nested_cross_dataset_20261006/INPUTS.json",
+    "sha256": "fd03c4a6ca12abe8a55bde88531b7103761c4ed263c9fe381e30809aabd2a46c"
+  },
+  "smoke_gradient_checks": {
+    "backbone": {
+      "connected": 72,
+      "nonzero": 72
+    },
+    "router": {
+      "connected": 12,
+      "nonzero": 12
+    }
+  },
+  "smoke_gradient_norm_max": 1472.5357666015625,
+  "jobs": [
+    {
+      "mode": "flat",
+      "pid": 850573,
+      "status": "running",
+      "output": "/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/flat",
+      "log": "/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/flat.log",
+      "command": [
+        "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+        "-m",
+        "experiments.osram_mosei_gcnet_router_20261020.worker",
+        "--phase",
+        "train",
+        "--mode",
+        "flat",
+        "--seed",
+        "66",
+        "--gpu-uuid",
+        "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+        "--source-commit",
+        "51a29dff5a2c22363900f9071bc48a024b039fcc",
+        "--output",
+        "/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/flat"
+      ],
+      "worker_status": null,
+      "epoch": null,
+      "effective_config": {
+        "dataset": null,
+        "epochs": null,
+        "batch_size": null,
+        "learning_rate": null,
+        "weight_decay": null,
+        "lr_schedule": null,
+        "missing_mask_protocol": null,
+        "checkpoint_selection": null,
+        "checkpoint_selection_metric": null
+      },
+      "error": null
+    },
+    {
+      "mode": "joint",
+      "pid": 850657,
+      "status": "running",
+      "output": "/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/joint",
+      "log": "/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/joint.log",
+      "command": [
+        "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+        "-m",
+        "experiments.osram_mosei_gcnet_router_20261020.worker",
+        "--phase",
+        "train",
+        "--mode",
+        "joint",
+        "--seed",
+        "66",
+        "--gpu-uuid",
+        "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+        "--source-commit",
+        "51a29dff5a2c22363900f9071bc48a024b039fcc",
+        "--output",
+        "/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/joint"
+      ],
+      "worker_status": null,
+      "epoch": null,
+      "effective_config": {
+        "dataset": null,
+        "epochs": null,
+        "batch_size": null,
+        "learning_rate": null,
+        "weight_decay": null,
+        "lr_schedule": null,
+        "missing_mask_protocol": null,
+        "checkpoint_selection": null,
+        "checkpoint_selection_metric": null
+      },
+      "error": null
+    }
+  ]
+}
