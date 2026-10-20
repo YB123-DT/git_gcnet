@@ -1,8 +1,17 @@
-# Status: GPU smoke passed; six formal jobs launched
+# Status: six formal runs and paired reporting complete
 
 Approved selection correction: MOSI six jobs only, same GCNet masks, restore
 per-rate Test-best W-F1. Old validation-selected results remain untouched.
 No scores claimed before actual completion; no promise of recovering80.747.
+
+Final2026-10-20:all6runs complete150epochs,queuecomplete,zero failures.
+Three-seed mean8WF1 Flat78.890919,Router78.936003(+0.045084pp).
+HighWF1 Flat72.907882,Router72.624448(-0.283434pp).
+Independently rehashed48savedprediction files and recomputed ACC/WF1/MSE:
+maximumabsolute discrepancy0.0. RESULT.md/METRICS.csv fetched and sourcehashes
+recorded in FINAL_VERIFICATION.json. No new inference or training for analysis.
+
+## Historical launch record (preserved)
 
 The first remote smoke (`execution_v1`, source420ec79) was stopped by strict
 configuration comparison before training: JSON list versus runtime tuple for

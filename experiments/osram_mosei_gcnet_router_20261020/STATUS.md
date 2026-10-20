@@ -1,9 +1,18 @@
-# Status: realGPU smoke passed; two formal processes launched
+# Status: both60epoch runs and paired reporting complete
 
 Approved finite scope:seed66 MOSEI Flat/one-stageRouter,two fresh60epoch runs.
 GCNet missing,per-rateTest-bestW-F1,same-callACC,predictions andMask.
 Originalofficialtrain split,features and s0 environment;no newmodule.
 Existing MOSI/IEMOCAP processes and snapshots untouched.
+
+Final2026-10-20:queuecomplete,two60epoch runscomplete,zero failures.
+Flatmean8ACC83.492708/WF1 83.279076;RouterACC83.437672/WF1 83.270902.
+Router-minusFlatWF1:-0.008174pp overall,-0.346718pp highmissing.
+Independent savedprediction audit:16files SHA256 exact; ACC/WF1/MSE recomputed
+with maximumdifference0.0. See RESULT.md,METRICS.csv,FINAL_VERIFICATION.json.
+No new training or inference was required for this result verification.
+
+## Historical launch record (preserved)
 
 53related tests passed; compileall and diff checks passed. RealGPU3batchJoint
 smoke completed with finite/nonzero backbone/Router gradients, parameter update,

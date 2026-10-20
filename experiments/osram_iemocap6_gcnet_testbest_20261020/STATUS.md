@@ -1,5 +1,13 @@
 # Status: GPU smoke passed; six workers launched,24jobs pending
 
+## Progress inspection2026-10-20
+
+29/30runs complete,one running,zero pending/failed. The remaining run is
+fold5seed66Router at89/100epochs at inspection. Both other fold5Router runs
+and all15Flat runs completed. No final fivefoldthree-seed Router mean is
+published before the last approved run completes and paired reporting passes.
+Historical launch details below remain snapshots,not the current queuecounts.
+
 Approved finite rerun:30fresh IEMOCAP-6 runs,100epochs,GCNet missing,
 per-rate TEST ACC BEST, same-call UA/W-F1. Original full training folds restored.
 Existing MOSI reruns remain independent and untouched.53targeted tests and
