@@ -1,9 +1,23 @@
-# MOSI direct-source run launched
+# MOSI direct-source seed66 complete
 
 INTERNAL TEST-ORACLE SCREEN
 
-2026-10-20 12:39 UTC: formal training running, epoch1/150 verified.
-This is a launch record, not a completed performance result.
+2026-10-20: completed150/150epochs; queue and automatic final report passed.
+Final W-F1:79.449590 eight-rate mean and73.477948 high-missing mean.
+Compared with the same-seed Flat:+.321564pp overall and+.139839pp high.
+ACC:79.458841 overall and73.424797 high. All eight selected predictions
+were recomputed; masks/cohorts and all150training traces verified. See
+completed/RESULT.md,METRICS.csv,FINAL_VERIFICATION.json. This remains a
+single-seed internal Test-oracle screen, not independent-test evidence.
+
+The user authorized the follow-up seeds67/68 after completion. They use an
+independent finite queue documented in
+../osram_mosi_source_role_direct_3seed_20261020/README.md; this run is reused,
+not retrained. Original launch provenance below remains historical.
+
+## Original launch record (2026-10-20 12:39 UTC)
+
+At launch: formal training epoch1/150 verified.
 
 - Immutable source: bd2e12ec22765cc10f98dfc38474fed4d48c4e96.
 - Server: biggpu; physical GPU0, UUID GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45.
