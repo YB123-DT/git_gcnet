@@ -868,10 +868,17 @@ class OSRAMBackbone(nn.Module):
         osram_source_tracking: bool = False,
         osram_tasr: bool = False,
         osram_tasr_source_mode: str = 'real',
+        osram_source_role: bool = False,
     ) -> None:
         super().__init__()
+        self.osram_source_role = bool(osram_source_role)
+        if self.osram_source_role and osram_tasr:
+            raise ValueError('Coupled source-role and TASR are separate experiments')
         self.osram_tasr = bool(osram_tasr)
-        self.osram_source_tracking = bool(osram_source_tracking or osram_tasr)
+        self.osram_source_tracking = bool(osram_source_tracking or osram_tasr or osram_source_role)
+        if self.osram_source_role:
+            self.osram_source_audit = True
+            self.osram_source_grad = True
         self.osram_tasr_source_mode = osram_tasr_source_mode
         self.last_source_trace = None
         if osram_tasr_source_mode not in ('real', 'neutral'):
@@ -1347,6 +1354,10 @@ class OSRAMBackbone(nn.Module):
             with torch.random.fork_rng(devices=[]):
                 self.tasr = TASRAdapter(self.latent_dim, self.num_heads * self.value_dim,
                                         source_mode=self.osram_tasr_source_mode)
+        if self.osram_source_role:
+            from .source_role import CoupledSourceRole
+            with torch.random.fork_rng(devices=[]):
+                self.source_role = CoupledSourceRole(self.latent_dim, self.num_heads * self.value_dim)
 
     def _causal_gru_forward(self, node, availability, valid):
         safe_node = torch.where(valid[..., None], node, torch.zeros_like(node))
@@ -1932,6 +1943,22 @@ class OSRAMBackbone(nn.Module):
             local_input = read_node + residual
         local = local_input + self.local_path(local_input)
         local = local * valid.unsqueeze(-1).to(local.dtype)
+        if self.osram_source_role:
+            trace = self.last_source_trace
+            base_enabled = (self.osram_ablation != 'local-only'
+                            and self.osram_emotion_ablation not in ('local-only', 'local-gap'))
+            gap_enabled = (self.osram_ablation not in ('local-only', 'local-base')
+                           and self.osram_emotion_ablation not in ('local-only', 'local-base'))
+            source_base = trace['source_base'] if base_enabled else torch.zeros_like(trace['source_base'])
+            source_gap = trace['source_gap'] if gap_enabled else torch.zeros_like(trace['source_gap'])
+            delta, _ = self.source_role(local, source_base, source_gap,
+                trace['trajectory'], availability, umask)
+            # Correct only the effective forward halves; never replace the
+            # original shared Memory, queries, Local or returned raw contexts.
+            base_delta = torch.cat((delta[..., 0, :], torch.zeros_like(delta[..., 0, :])), -1)
+            gap_delta = torch.cat((delta[..., 1:, :], torch.zeros_like(delta[..., 1:, :])), -1)
+            emotion_base = emotion_base + base_delta
+            emotion_gap = emotion_gap + gap_delta
         if self.osram_tasr:
             if (self.osram_ablation in ('local-only', 'local-base')
                     or self.osram_emotion_ablation in ('local-only', 'local-base')):
@@ -2256,6 +2283,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics['source_tracking'] = self.last_source_trace['diagnostics']
         if self.osram_tasr:
             diagnostics['tasr'] = self.tasr.last_diagnostics
+        if self.osram_source_role:
+            diagnostics['source_role'] = self.source_role.last_diagnostics
         self.last_diagnostics = diagnostics
         if self.osram_meaningful_block != 'none':
             diagnostics['meaningful_block'] = self.meaningful_block.last_diagnostics
