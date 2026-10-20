@@ -15,6 +15,12 @@ RUNS={66:Path('/data2/yb/remote_experiments/osram_mosi_source_role_direct_202610
       **{seed:Path(f'/data2/yb/remote_experiments/osram_mosi_source_role_direct_3seed_20261020/execution_v1/runs/CMUMOSI/seed_{seed}/joint') for seed in (67,68)}}
 
 
+def validate_checkpoint_identity(stored,expected):
+    # torch.save retains tuples; the matching JSON summary represents lists.
+    if json.loads(json.dumps(stored))!=json.loads(json.dumps(expected)):
+        raise ValueError('Checkpoint provenance differs')
+
+
 def collect(model,trainer,loader,dimensions,saved,flat):
     import torch
     from experiments.osram_12_source_evidence_audit_20261019.run import capture_flat,require_same_rng
@@ -129,7 +135,7 @@ def main():
                 checkpoint=root/best['checkpoint']
                 if h.sha(checkpoint)!=best['checkpoint_sha256']:raise ValueError('Protected checkpoint changed')
                 state=torch.load(checkpoint,map_location='cpu',weights_only=False)
-                if state['identity']!=s['identity']:raise ValueError('Checkpoint provenance differs')
+                validate_checkpoint_identity(state['identity'],s['identity'])
                 model.load_state_dict(state['model'],strict=True);del state
                 digest=h.backbone_digest(model)
                 pred=root/'evaluation'/('random_'+rate.replace('.','p')+'.npz')

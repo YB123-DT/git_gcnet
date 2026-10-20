@@ -60,3 +60,12 @@ def test_replay_rejects_nonzero_backward_evidence():
     args=list(fixture(.7));args[2]=dict(args[2]);args[2]['emotion_input']=args[2]['emotion_input'].clone()
     args[2]['emotion_input'][0,0,8+8]=1.
     with pytest.raises(ValueError,match='backward'):replay(args)
+
+
+def test_checkpoint_identity_only_canonicalizes_json_container_types():
+    from experiments.osram_mosi_source_role_neutral_audit_20261020.run import validate_checkpoint_identity
+    raw=dict(config=dict(rates=(0.,.1),seed=66),split=dict(ids=('a','b')))
+    saved=dict(config=dict(rates=[0.,.1],seed=66),split=dict(ids=['a','b']))
+    validate_checkpoint_identity(raw,saved)
+    saved['config']['seed']=67
+    with pytest.raises(ValueError,match='provenance'):validate_checkpoint_identity(raw,saved)

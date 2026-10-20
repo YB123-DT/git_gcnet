@@ -42,7 +42,7 @@ in the actual diagnostic; no duplicate formal smoke/training job.
 ```bash
 /data2/yb/reproduction_workspace/envs/s0/bin/python -u -m \
  experiments.osram_mosi_source_role_neutral_audit_20261020.run \
- --output /data2/yb/remote_experiments/osram_mosi_source_role_neutral_audit_20261020/execution_v1 \
+ --output /data2/yb/remote_experiments/osram_mosi_source_role_neutral_audit_20261020/execution_v2 \
  --source-commit SOURCE_SHA --gpu-uuid GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45
 ```
 
@@ -51,7 +51,15 @@ conditions,RESULT.md,PER_RATE.md,SLOTS.csv,METRICS.csv,REPORT.json. Large NPZs
 stay remote; only code,small machine-readable statistics and reports go toGit.
 No automatic training or further experiments after the complete24conditions.
 
-Prelaunch:29focused neutral-readout/analysis/direct/three-seed tests passed;
+Prelaunch:30focused neutral-readout/analysis/direct/three-seed tests passed;
 new readout and analysis tests failed first before implementation. Compileall
 and git diff --check passed. Existing unused optional torch-sparse import
 warning is not an operator used by this audit. No original model code changed.
+
+Execution_v1 failed before any test inference at a provenance guard:torch.save
+preserved config.train_missing_rates as tuple while JSON used list. Confirmed
+on the actual checkpoint:raw comparisonFalse,canonical JSON comparisonTrue.
+The single fix canonicalizes JSON containers without allowing value changes;
+a regression test accepts equivalent tuple/list but rejects seed changes.
+Failed outputs/source remain preserved; execution_v2 uses a new immutable
+source snapshot. No old/new numerical model results are mixed.
