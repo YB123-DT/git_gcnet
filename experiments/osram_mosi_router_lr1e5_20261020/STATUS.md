@@ -1,6 +1,17 @@
-# Status: two formal runs started
+# Status: both150epoch runs complete; final selected predictions verified
 
-INTERNAL TEST-ORACLE DIAGNOSTIC ONLY. No completed performance result yet.
+INTERNAL TEST-ORACLE DIAGNOSTIC ONLY. Both runs completed150epochs.
+
+Final seed66 eight-rate W-F1: Flat76.612759, Router76.364318.
+High-missing W-F1: Flat71.351244, Router70.953997.
+Original same-seed LR1e-3/1e-4 W-F1 was79.128027/79.012039 respectively;
+constant backbone1e-5 did not improve either model in this150epoch budget.
+Independent recomputation of16selected NPZs matched ACC/W-F1/MSE exactly.
+Earliest per-rate Test-best selection, every epoch's actual learning rates and
+all150training-mask checks verified. See RESULT.md, METRICS.csv and
+FINAL_VERIFICATION.json. No automatic extra seeds, trials or new training.
+
+The following is the historical launch snapshot, not current progress.
 
 Observed 2026-10-20T09:22:07.097529+00:00: Flat PID1818452 and Router PID1818483 running on
 biggpu physicalGPU2 (GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4),150epochs each.
