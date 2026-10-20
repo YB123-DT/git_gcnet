@@ -79,8 +79,8 @@ def forward_result(model, view, mode):
 
 
 def scalar_loss(trainer, cfg, prediction, view):
-    if cfg.dataset != 'CMUMOSI' or cfg.mosi_task_mode != 'regression' or cfg.task_regression_loss != 'mse':
-        raise ValueError('Preserve the original MOSI scalar MSE task')
+    if cfg.dataset not in ('CMUMOSI', 'CMUMOSEI') or cfg.mosi_task_mode != 'regression' or cfg.task_regression_loss != 'mse':
+        raise ValueError('Preserve the original MOSI/MOSEI scalar MSE task')
     return trainer._task_loss(cfg.dataset, prediction, view['labels'], view['umask'],
         cfg.mosi_task_mode, cfg.task_regression_loss, cfg.task_smooth_l1_beta)
 
@@ -139,14 +139,16 @@ def train_epoch(bundle, model, optimizer, epoch, mode, max_batches=None):
         mask_trace_sha256=digest.hexdigest(), learning_rates=[g['lr'] for g in optimizer.param_groups])
 
 
-def summarize_arrays(arrays, trainer):
+def summarize_arrays(arrays, trainer, dataset='CMUMOSI'):
+    if dataset not in ('CMUMOSI', 'CMUMOSEI'):
+        raise ValueError('Scalar sentiment metrics require MOSI or MOSEI')
     labels, candidates = arrays['labels'], arrays['candidates'][..., 0]
     predictions = dict(full=candidates[:, 0], router=arrays['prediction'].reshape(-1),
         uniform=np.where(arrays['eligible'], candidates.mean(1), candidates[:, 0]),
         candidate_B=candidates[:, 1], candidate_G=candidates[:, 2])
     metrics = {}
     for tag, prediction in predictions.items():
-        measured = trainer._metrics('CMUMOSI', labels, prediction, 'regression')
+        measured = trainer._metrics(dataset, labels, prediction, 'regression')
         metrics[tag] = dict(ACC=100 * measured['accuracy'], WF1=100 * measured['weighted_f1'],
                            MSE=float(np.mean((prediction - labels)**2)))
     nonzero = labels != 0
@@ -228,7 +230,7 @@ def evaluate(bundle, model, mode, split, bank, max_batches=None):
             for key, value in values.items():
                 pieces.setdefault(key, []).append(value)
     arrays = {key: np.concatenate(values) for key, values in pieces.items()}
-    metrics = summarize_arrays(arrays, trainer)
+    metrics = summarize_arrays(arrays, trainer, dataset=bundle['cfg'].dataset)
     metrics['mask_sha256'] = hashlib.sha256(arrays['availability'].tobytes()).hexdigest()
     return metrics, arrays
 
