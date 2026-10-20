@@ -1,11 +1,15 @@
-# Status:29/30complete; fold5seed66Router running
+# Status:30/30 complete; final paired report verified
 
 ## Progress inspection2026-10-20
 
-29/30runs complete,one running,zero pending/failed. The remaining run is
-fold5seed66Router at89/100epochs at inspection. Both other fold5Router runs
-and all15Flat runs completed. No final fivefoldthree-seed Router mean is
-published before the last approved run completes and paired reporting passes.
+30/30 runs complete, zero running/pending/failed. All five folds and all three
+seeds completed 100 epochs. The complete-only paired report passed initialization,
+training-mask, evaluation-cohort and exact selected-epoch prediction checks.
+Independent verification recomputed ACC/UA/W-F1/CE from all 240 selected prediction
+files; maximum absolute metric error was 2.842170943040401e-14. Every selected epoch
+matches the earliest per-rate TEST ACC maximum in its complete training history.
+Final reports: RESULT.md, METRICS.csv, COMPACT_SUMMARY.json, FINAL_VERIFICATION.json.
+Fivefold/three-seed eight-rate ACC: Flat60.7083, Router60.9170; UA:58.7063,59.2870.
 Historical launch details below remain snapshots,not the current queuecounts.
 
 Approved finite rerun:30fresh IEMOCAP-6 runs,100epochs,GCNet missing,
