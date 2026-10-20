@@ -5,7 +5,7 @@ import statistics
 
 import numpy as np
 
-from .worker import RATES,REFERENCES
+from .worker import RATES,reference_path
 from experiments.osram_mosi_gcnet_router_3seed_20261019.report import report_outputs
 
 
@@ -16,7 +16,8 @@ def write_report(output,queue, *, source_role_mode='residual',method_label='Coup
     if (s.get('status')!='complete' or s.get('epoch')!=epochs
             or not s['config']['osram_source_role'] or s['router_parameters']!=0
             or s['config'].get('osram_source_role_mode','residual')!=source_role_mode):raise ValueError('Incomplete or wrong model')
-    prior=json.loads((REFERENCES[dataset]/'SUMMARY.json').read_text())
+    reference=reference_path(dataset,job['seed'])
+    prior=json.loads((reference/'SUMMARY.json').read_text())
     from .worker import validate_reference
     validate_reference(s['identity'],prior,s['initial_backbone_sha256'],epochs,source_role_mode=source_role_mode)
     from experiments.osram_text_path_router_joint_mosi_20261019.run import summarize_arrays
@@ -28,7 +29,7 @@ def write_report(output,queue, *, source_role_mode='residual',method_label='Coup
     for rate in RATES:
         with np.load(path/'evaluation'/('random_'+rate.replace('.','p')+'.npz'),allow_pickle=False) as f:
             arrays={k:f[k] for k in f.files}
-        with np.load(REFERENCES[dataset]/'evaluation'/('random_'+rate.replace('.','p')+'.npz'),allow_pickle=False) as f:
+        with np.load(reference/'evaluation'/('random_'+rate.replace('.','p')+'.npz'),allow_pickle=False) as f:
             for k in ('labels','availability','conversation_ids','utterance_indices','speakers'):
                 np.testing.assert_array_equal(arrays[k],f[k])
         actual=summarize_arrays(arrays,trainer,dataset)['router']
@@ -36,9 +37,9 @@ def write_report(output,queue, *, source_role_mode='residual',method_label='Coup
             if not np.isclose(v,s['evaluation'][rate]['router'][k],rtol=0,atol=1e-8):raise ValueError('Metric mismatch')
         scores=[h['test'][rate]['router']['WF1'] for h in history]
         if s['selected_epoch_by_rate'][rate]!=scores.index(max(scores))+1:raise ValueError('Incorrect selection')
-        rows.append(dict(dataset=dataset,seed=66,rate=rate,selected_epoch=s['selected_epoch_by_rate'][rate],
+        rows.append(dict(dataset=dataset,seed=job['seed'],rate=rate,selected_epoch=s['selected_epoch_by_rate'][rate],
             flat_ACC=prior['evaluation'][rate]['router']['ACC'],flat_WF1=prior['evaluation'][rate]['router']['WF1'],**actual))
-    lines=['# '+dataset+' '+method_label+' seed66','','INTERNAL TEST-ORACLE SCREEN','',
+    lines=['# '+dataset+' '+method_label+f" seed{job['seed']}",'','INTERNAL TEST-ORACLE SCREEN','',
         'One-stage original task MSE; no Router, second head, extra query, write change or auxiliary loss.',
         'Existing matched Flat reference reused; original initialization, evaluation masks and training-mask traces checked.',
         'Legacy scalar metric key router means the primary prediction, not a Router module.',

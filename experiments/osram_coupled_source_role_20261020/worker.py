@@ -16,6 +16,12 @@ REFERENCES={
     'CMUMOSEI':Path('/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/flat')}
 
 
+def reference_path(dataset,seed=66):
+    if seed==66:return REFERENCES[dataset]
+    if dataset!='CMUMOSI' or seed not in (67,68):raise ValueError('No approved matched reference for this seed/dataset')
+    return REFERENCES[dataset].parent.parent/f'seed_{seed}'/'flat'
+
+
 def source_role_config(cfg, *, source_role_mode='residual'):
     if source_role_mode not in ('residual','direct'):raise ValueError('Unknown source-role mode')
     if (cfg.backbone_type!='osram' or cfg.osram_readout_fusion!='flat'
@@ -99,16 +105,17 @@ def check_zero_init_arrays(original,current,source_role_mode):
         zero_init_rtol=1e-5 if source_role_mode=='direct' else 0.)
 
 
-def main(dataset,argv=None, *, source_role_mode='residual',extra_source_files=()):
+def main(dataset,argv=None, *, source_role_mode='residual',extra_source_files=(),allowed_seeds=(66,)):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--phase',choices=('smoke','train'),required=True)
     parser.add_argument('--mode',choices=('joint',),required=True,help='Queue compatibility label; no Router is instantiated')
-    parser.add_argument('--seed',type=int,choices=(66,),required=True)
+    parser.add_argument('--seed',type=int,choices=allowed_seeds,required=True)
     parser.add_argument('--gpu-uuid',required=True)
     parser.add_argument('--source-commit',required=True)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--resume',action='store_true')
     args=parser.parse_args(argv)
+    reference=reference_path(dataset,args.seed)
     os.environ.update(CUDA_VISIBLE_DEVICES=args.gpu_uuid,OMP_NUM_THREADS='1',MKL_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1')
     import fcntl
     import torch
@@ -127,13 +134,13 @@ def main(dataset,argv=None, *, source_role_mode='residual',extra_source_files=()
     path=args.output/'SUMMARY.json';tick=time.monotonic()
     previous=json.loads(path.read_text()) if args.resume and path.exists() else {}
     if previous.get('status')=='complete':raise ValueError('Completed run must not be repeated')
-    summary=dict(status='preflight',dataset=dataset,seed=66,mode=args.mode,phase=args.phase,
+    summary=dict(status='preflight',dataset=dataset,seed=args.seed,mode=args.mode,phase=args.phase,
         pid=os.getpid(),source_commit=args.source_commit,block='coupled-source-role-'+source_role_mode,router_parameters=0,
         experiment_label='INTERNAL TEST-ORACLE SCREEN')
     hooks=[]
     try:
         torch.set_num_threads(1)
-        bundle=setup.setup(args.gpu_uuid,args.output,66)
+        bundle=setup.setup(args.gpu_uuid,args.output,args.seed)
         # Dataset-root variables must be established before trainer/config imports.
         from gcnet_modality_jepa.train_gcnet import reset_training_stochasticity
         cfg=selected.testbest_config(bundle['cfg']) if dataset=='CMUMOSI' else bundle['cfg']
@@ -151,17 +158,17 @@ def main(dataset,argv=None, *, source_role_mode='residual',extra_source_files=()
                       else scalar.build_masks(bundle,split)) for split in splits}
         hashes={split:{rate:hashlib.sha256(b''.join(row['availability'].numpy().tobytes()
             for row in bank)).hexdigest() for rate,bank in rates.items()} for split,rates in masks.items()}
-        prior=json.loads((REFERENCES[dataset]/'SUMMARY.json').read_text())
+        prior=json.loads((reference/'SUMMARY.json').read_text())
         sources=tuple(prior['identity']['source_hashes'])+('gcnet_missing_m3/source_role.py',)+tuple(
             str(Path(__file__).with_name(n).relative_to(ROOT)) for n in ('worker.py','run.py','report.py','mosi.py','mosei.py'))+tuple(extra_source_files)
         identity=dict(source_commit=args.source_commit,source_hashes={n:h.sha(ROOT/n) for n in sources},
-            mode=args.mode,block='coupled-source-role-'+source_role_mode,seed=66,config=asdict(bundle['cfg']),
+            mode=args.mode,block='coupled-source-role-'+source_role_mode,seed=args.seed,config=asdict(bundle['cfg']),
             mask_hashes=hashes,split=bundle['split'],seed_protocol=bundle['seed_protocol'],
             data_manifest_sha256=bundle['data_manifest_sha256'],data_manifest=bundle['data_manifest'],
             data_files=bundle['data_files'],training='one stage, all original parameters and source_role trainable',
             loss='original scalar MSE only',metrics_key='router is legacy scalar-runner alias, NOT a Router model')
         proof=validate_reference(identity,prior,bundle['initial_backbone_sha256'],epochs,source_role_mode=source_role_mode)
-        proof.update(path=str(REFERENCES[dataset]),summary_sha256=h.sha(REFERENCES[dataset]/'SUMMARY.json'))
+        proof.update(path=str(reference),summary_sha256=h.sha(reference/'SUMMARY.json'))
         identity['flat_reference']=proof
         _,base_arrays=scalar.evaluate(bundle,baseline,'flat','test',masks['test']['0.3'],max_batches=1)
         _,new_arrays=scalar.evaluate(bundle,model,'flat','test',masks['test']['0.3'],max_batches=1)
@@ -169,7 +176,7 @@ def main(dataset,argv=None, *, source_role_mode='residual',extra_source_files=()
         del baseline,base_arrays,new_arrays
         initial_decomposition=serial(model.osram.last_source_trace['diagnostics'])
         initial_diagnostics=serial(model.osram.source_role.last_diagnostics)
-        ref_history=json.loads((REFERENCES[dataset]/'history.json').read_text())
+        ref_history=json.loads((reference/'history.json').read_text())
         optimizer=scalar.make_optimizer(model,bundle['cfg'],'flat')
         observed={};scans=[0]
         def gradient_hook(name):
@@ -187,7 +194,7 @@ def main(dataset,argv=None, *, source_role_mode='residual',extra_source_files=()
             total_parameters=sum(p.numel() for p in model.parameters()),
             source_role_parameters=sum(p.numel() for p in model.osram.source_role.parameters()))
         h.write_json(args.output/'config.json',identity['config']);h.write_json(path,summary)
-        reset_training_stochasticity(66,bundle['cfg'].fold)
+        reset_training_stochasticity(args.seed,bundle['cfg'].fold)
         torch.cuda.reset_peak_memory_stats()
         best,history,start={},[],0
         previous_peak=float(previous.get('peak_memory_mib',0.))
