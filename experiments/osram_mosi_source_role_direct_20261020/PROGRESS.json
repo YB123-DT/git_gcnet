@@ -1,0 +1,140 @@
+{
+  "checked_at": "2026-10-20T12:59:06.169740+00:00",
+  "queue_status": "training",
+  "current_epoch": 108,
+  "target_epoch": 150,
+  "experiment": "INTERNAL TEST-ORACLE SCREEN",
+  "complete": false,
+  "rows": [
+    {
+      "rate": "0.0",
+      "flat": 86.73455036714631,
+      "residual": 87.33805605374346,
+      "direct": 87.14523919850598,
+      "delta_flat": 0.41068883135966416,
+      "selected_epoch": 60
+    },
+    {
+      "rate": "0.1",
+      "flat": 84.23264382956924,
+      "residual": 84.66429035135683,
+      "direct": 84.45121951219512,
+      "delta_flat": 0.21857568262588245,
+      "selected_epoch": 76
+    },
+    {
+      "rate": "0.2",
+      "flat": 82.20082335294147,
+      "residual": 81.80402975589226,
+      "direct": 83.119399679443,
+      "delta_flat": 0.9185763265015368,
+      "selected_epoch": 82
+    },
+    {
+      "rate": "0.3",
+      "flat": 82.12201000489246,
+      "residual": 80.72972320632297,
+      "direct": 81.32999026449677,
+      "delta_flat": -0.7920197403956877,
+      "selected_epoch": 74
+    },
+    {
+      "rate": "0.4",
+      "flat": 77.71985858362368,
+      "residual": 78.52709931364093,
+      "direct": 79.11702915224394,
+      "delta_flat": 1.3971705686202682,
+      "selected_epoch": 63
+    },
+    {
+      "rate": "0.5",
+      "flat": 75.59491542558251,
+      "residual": 76.39917590136568,
+      "direct": 76.50811118464472,
+      "delta_flat": 0.9131957590622051,
+      "selected_epoch": 85
+    },
+    {
+      "rate": "0.6",
+      "flat": 74.90721573971258,
+      "residual": 74.77989338132141,
+      "direct": 75.02329273741954,
+      "delta_flat": 0.1160769977069549,
+      "selected_epoch": 63
+    },
+    {
+      "rate": "0.7",
+      "flat": 69.51219512195121,
+      "residual": 68.16274463974027,
+      "direct": 68.90243902439023,
+      "delta_flat": -0.6097560975609753,
+      "selected_epoch": 63
+    }
+  ],
+  "aggregate": {
+    "direct": {
+      "ACC": 79.45884146341463,
+      "WF1": 79.4495900941674,
+      "high_ACC": 73.42479674796748,
+      "high_WF1": 73.47794764881816
+    },
+    "residual": {
+      "ACC": 79.19207317073172,
+      "WF1": 79.05062657542298,
+      "high_ACC": 73.17073170731707,
+      "high_WF1": 73.11393797414246
+    },
+    "flat": {
+      "ACC": 79.11585365853658,
+      "WF1": 79.12802655317742,
+      "high_ACC": 73.27235772357723,
+      "high_WF1": 73.33810876241544
+    }
+  },
+  "checks": {
+    "flat": {
+      "config_diff_only_requested_source_role": true,
+      "same_initialization": true,
+      "same_split_seed_masks": true
+    },
+    "residual": {
+      "config_diff_only_requested_source_role": true,
+      "same_initialization": true,
+      "same_split_seed_masks": true
+    },
+    "formal_training_pairing_all": true,
+    "last_epoch_gradient": {
+      "epoch": 108,
+      "source_role_gradients": {
+        "connected": 14,
+        "nonzero": 14
+      },
+      "learning_rates": [
+        0.0001
+      ],
+      "original_training_mask_and_update_parity": true
+    }
+  },
+  "process": "    PID     ELAPSED STAT COMMAND\n2588018       20:37 Rsl  /data2/yb/reproduction_workspace/envs/s0/bin/python -m experiments.osram_mosi_source_role_direct_20261020.worker --phase train --mode joint --seed 66 --gpu-uuid GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45 --source-commit bd2e12ec22765cc10f98dfc38474fed4d48c4e96 --output /data2/yb/remote_experiments/osram_mosi_source_role_direct_20261020/execution_v1/runs/CMUMOSI/seed_66/joint\n",
+  "references": {
+    "direct": {
+      "path": "/data2/yb/remote_experiments/osram_mosi_source_role_direct_20261020/execution_v1/runs/CMUMOSI/seed_66/joint",
+      "source_commit": "bd2e12ec22765cc10f98dfc38474fed4d48c4e96",
+      "status": "running",
+      "epoch": 108
+    },
+    "residual": {
+      "path": "/data2/yb/remote_experiments/osram_coupled_source_role_20261020/execution_v1/CMUMOSI/runs/CMUMOSI/seed_66/joint",
+      "source_commit": "f6bc52e5e4f83ff13be642595cfa4775ed996e01",
+      "status": "complete",
+      "epoch": 150
+    },
+    "flat": {
+      "path": "/data2/yb/remote_experiments/osram_mosi_gcnet_testbest_20261020/execution_v2/runs/MOSI/seed_66/flat",
+      "source_commit": "fd96f540e807426d6b4d858febdc2715b3a79a68",
+      "status": "complete",
+      "epoch": 150
+    }
+  },
+  "metric_source": "Existing selected-epoch summary metadata; final NPZ metric recomputation will run after epoch150, not yet claimed here."
+}
