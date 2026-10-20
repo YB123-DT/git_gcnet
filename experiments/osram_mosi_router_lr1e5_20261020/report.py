@@ -9,7 +9,9 @@ from experiments.osram_mosi_gcnet_router_3seed_20261019.report import RATES, loa
 from experiments.osram_mosi_gcnet_testbest_20261020.report import validate_policy
 
 
-def write_report(output,queue):
+def write_report(output,queue, *, backbone_lr=1e-5):
+    from .worker import validate_backbone_lr
+    validate_backbone_lr(backbone_lr)
     jobs=queue['jobs']
     if len(jobs)!=2 or {(j['seed'],j['mode']) for j in jobs}!={(66,'flat'),(66,'joint')} or any(j['status']!='complete' for j in jobs):
         raise ValueError('Require both completed seed66 runs')
@@ -20,7 +22,7 @@ def write_report(output,queue):
     rows=[]
     for mode,s in pair.items():
         validate_policy(s)
-        if s['identity']['config']['learning_rate']!=1e-5 or s['identity']['backbone_learning_rates']!={'first_100':1e-5,'final_50':1e-5}:
+        if s['identity']['config']['learning_rate']!=backbone_lr or s['identity']['backbone_learning_rates']!={'first_100':backbone_lr,'final_50':backbone_lr}:
             raise ValueError('Wrong backbone LR policy')
         history=json.loads((Path(paths[mode])/'history.json').read_text())
         for rate in RATES:
@@ -33,8 +35,9 @@ def write_report(output,queue):
             for m in ('ACC','WF1','MSE'):
                 if not math.isclose(actual[m],s['evaluation'][rate]['router'][m],abs_tol=1e-8): raise ValueError('Selected metric mismatch')
             rows.append(dict(seed=66,mode=mode,rate=rate,selected_epoch=s['selected_epoch_by_rate'][rate],**actual))
-    lines=['# MOSI backbone LR1e-5 seed66 paired screen','','INTERNAL TEST-ORACLE DIAGNOSTIC ONLY','',
-        '150epochs from scratch. Backbone constant1e-5; Router3e-4 first100,3e-5 last50.',
+    label=f'{backbone_lr:g}'.replace('e-0','e-')
+    lines=[f'# MOSI backbone LR{label} seed66 paired screen','','INTERNAL TEST-ORACLE DIAGNOSTIC ONLY','',
+        f'150epochs from scratch. Backbone constant{label}; Router3e-4 first100,3e-5 last50.',
         'Original GCNet missing; identical initialization/cohorts and training masks; no new loss or architecture.',
         'Per-rate Test-best W-F1; ACC uses same predictions. Eight-rate mean is not one deployment checkpoint.','',
         '| Model | ACC | W-F1 | High ACC | High W-F1 |','|---|---:|---:|---:|---:|']

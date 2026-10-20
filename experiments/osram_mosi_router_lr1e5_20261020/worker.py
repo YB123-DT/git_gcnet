@@ -3,6 +3,7 @@ import argparse
 from dataclasses import asdict, replace
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import time
@@ -17,22 +18,29 @@ REFERENCE = Path('/data2/yb/remote_experiments/osram_mosi_gcnet_testbest_2026102
 RATES = selected.RATES
 
 
-def set_epoch_lrs(optimizer, epoch):
+def validate_backbone_lr(backbone_lr):
+    if not math.isfinite(backbone_lr) or backbone_lr <= 0:
+        raise ValueError('Positive finite backbone LR required')
+
+
+def set_epoch_lrs(optimizer, epoch, *, backbone_lr=1e-5):
+    validate_backbone_lr(backbone_lr)
     if not 0 <= epoch < 150:
         raise ValueError('Exactly150epochs')
     if any(g['name'] not in ('backbone', 'router') for g in optimizer.param_groups):
         raise ValueError('Unknown optimizer parameter group')
     for group in optimizer.param_groups:
-        group['lr'] = 1e-5 if group['name'] == 'backbone' else (3e-4 if epoch < 100 else 3e-5)
+        group['lr'] = backbone_lr if group['name'] == 'backbone' else (3e-4 if epoch < 100 else 3e-5)
 
 
-def validate_reference(identity, reference, initial):
+def validate_reference(identity, reference, initial, *, backbone_lr=1e-5):
+    validate_backbone_lr(backbone_lr)
     if reference.get('status') != 'complete' or reference.get('epoch') != 150:
         raise ValueError('Require completed150epoch reference')
     if reference['initial_backbone_sha256'] != initial:
         raise ValueError('Fresh initial backbone differs')
     old = reference['identity']
-    expected = dict(old['config'], learning_rate=1e-5)
+    expected = dict(old['config'], learning_rate=backbone_lr)
     if expected != json.loads(json.dumps(identity['config'])):
         raise ValueError('Training config changed beyond backbone learning rate')
     for key in ('split', 'mask_hashes', 'seed_protocol'):
@@ -53,7 +61,8 @@ def check_mask_parity(actual, old):
     return dict(epoch=actual['epoch'], training_masks_exact=True, optimizer_steps_exact=True)
 
 
-def main(argv=None):
+def main(argv=None, *, backbone_lr=1e-5, extra_source_files=()):
+    validate_backbone_lr(backbone_lr)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--phase', choices=('smoke', 'train'), required=True)
     parser.add_argument('--mode', choices=('flat', 'joint'), required=True)
@@ -86,7 +95,7 @@ def main(argv=None):
         torch.set_num_threads(1)
         bundle = original.setup(args.gpu_uuid, args.output, args.seed)
         from gcnet_modality_jepa.train_gcnet import reset_training_stochasticity
-        bundle['cfg'] = replace(selected.testbest_config(bundle['cfg']), learning_rate=1e-5)
+        bundle['cfg'] = replace(selected.testbest_config(bundle['cfg']), learning_rate=backbone_lr)
         model = scalar.wrap_model(bundle['model'], args.mode)
         optimizer = scalar.make_optimizer(model, bundle['cfg'], args.mode)
         masks = {split: original.build_masks(bundle, split) for split in ('validation', 'test')}
@@ -95,16 +104,16 @@ def main(argv=None):
         ref = REFERENCE/args.mode
         prior = json.loads((ref/'SUMMARY.json').read_text())
         sources = tuple(prior['identity']['source_hashes']) + tuple(
-            str(Path(__file__).with_name(name).relative_to(ROOT)) for name in ('worker.py', 'run.py', 'report.py'))
+            str(Path(__file__).with_name(name).relative_to(ROOT)) for name in ('worker.py', 'run.py', 'report.py')) + tuple(extra_source_files)
         identity = dict(source_commit=args.source_commit, source_hashes={p:h.sha(ROOT/p) for p in sources},
             mode=args.mode, seed=args.seed, config=asdict(bundle['cfg']), split=bundle['split'],
             mask_hashes=hashes, seed_protocol=bundle['seed_protocol'], historical_bridge=bundle['bridge'],
             dataset_manifest_sha256=bundle['data_manifest_sha256'], data_manifest=bundle['data_manifest'],
             data_files=bundle['data_files'], initialization='fresh-original-hardcoded-missing_m3_model_init:fold:5',
             selection='test-oracle-per-rate; weighted_f1; strict improvement; earliest tie',
-            backbone_learning_rates=dict(first_100=1e-5, final_50=1e-5),
+            backbone_learning_rates=dict(first_100=backbone_lr, final_50=backbone_lr),
             router_learning_rates=[3e-4, 3e-5] if args.mode == 'joint' else None)
-        proof = validate_reference(identity, prior, bundle['initial_backbone_sha256'])
+        proof = validate_reference(identity, prior, bundle['initial_backbone_sha256'], backbone_lr=backbone_lr)
         proof.update(path=str(ref), summary_sha256=h.sha(ref/'SUMMARY.json'), history_sha256=h.sha(ref/'history.json'))
         reference_history = json.loads((ref/'history.json').read_text())
         if len(reference_history) != 150:
@@ -130,7 +139,7 @@ def main(argv=None):
         before = h.backbone_digest(model) if args.phase=='smoke' else None
         before_router = h.backbone_digest(model.router) if args.phase=='smoke' and args.mode=='joint' else None
         for epoch in (range(1) if args.phase=='smoke' else range(start,150)):
-            set_epoch_lrs(optimizer, epoch)
+            set_epoch_lrs(optimizer, epoch, backbone_lr=backbone_lr)
             row = scalar.train_epoch(bundle,model,optimizer,epoch,args.mode,
                 max_batches=selected.SMOKE_BATCHES if args.phase=='smoke' else None)
             if args.mode=='joint' and not row['gradients']['router']['nonzero']:
