@@ -1,4 +1,23 @@
-# Launch verified
+# Completed: all21 approved formal runs
+
+All21runs completed successfully at full budgets; no failed/partial jobs in
+the report. Full results are in `completed/RESULT.md`,machine-readable scores
+in `completed/METRICS.csv` and `completed/REPORT.json`; reference comparisons
+and their limits are in `completed/COMPARISON.md`.
+
+Independent completion verification: all168selected prediction conditions
+recomputed,maximum metric discrepancy6.06e-9; all168selected model SHA256 and
+prediction SHA256 checked;21complete-length histories and21last checkpoints
+present. No new inference or training was used for completion verification.
+Full verification metadata is retained in `completed/FINAL_VERIFICATION.json`.
+The persistent queue finished in6.488hours including preflight/smokes/admission.
+GPU1 has released this task's training allocations; no peer task was stopped.
+
+Three-seed eight-rate means: MOSEI ACC83.453/W-F1 83.261; MELD ACC61.569/
+UA37.058/W-F1 58.319; IEMOCAP-6 fivefold ACC60.729/UA58.882/W-F1 60.360.
+All remain internal per-rate Test-oracle exploration. No automatic extension.
+
+## Historical launch snapshot (retained,not live status)
 
 INTERNAL TEST-ORACLE SCREEN
 

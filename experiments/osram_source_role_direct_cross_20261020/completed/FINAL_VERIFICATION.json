@@ -1,0 +1,33 @@
+{
+  "queue_status": "complete",
+  "complete_runs": 21,
+  "prediction_conditions_checked": 168,
+  "selected_checkpoint_hashes_checked": 168,
+  "selected_prediction_hashes_checked": 168,
+  "full_last_checkpoints_present": 21,
+  "complete_training_histories_checked": 21,
+  "maximum_recomputed_metric_error": 6.056571133505884e-09,
+  "metric_tolerance": 0.00001,
+  "hash_bytes_read": 27584661377,
+  "source_commit": "eb0e81e489a06a3f282dd5e57a1fb59f32ee8146",
+  "started_at": 1792511708.253899,
+  "completed_at": 1792535065.5757852,
+  "queue_elapsed_hours": 6.488144968350729,
+  "checks": [
+    "All21 summaries complete at dataset-specific full epoch budgets",
+    "Actual history length equals configured epochs",
+    "Saved selected prediction bytes and selected checkpoint bytes match recorded SHA256",
+    "Saved availability aligns with labels, contains no empty utterance and matches saved same-call mask hash",
+    "MOSEI nonzero-label polarity ACC/weighted F1 and all-label MSE independently recomputed",
+    "Classification ACC/all-class macro recall/weighted F1 and CE independently recomputed",
+    "Selected epochs agree with published evaluation records",
+    "All21 full last.pt recovery files present"
+  ],
+  "no_training_or_new_inference": true,
+  "limitations": [
+    "Full last checkpoints checked for presence and nontrivial size; full recovery was exercised in real smoke, not separately resumed at every final checkpoint",
+    "Per-rate Test-oracle model selection, not independent-test generalization",
+    "MELD historical training-RNG trajectory parity not established",
+    "No matched MOSEI Flat reference for seeds67/68 is fabricated"
+  ]
+}
