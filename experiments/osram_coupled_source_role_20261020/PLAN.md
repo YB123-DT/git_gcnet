@@ -41,16 +41,17 @@ Protect runtime readout ablations from reintroducing disabled evidence.
   Compare initial backbone excluding only new parameters; compare actual
   training-mask hash/steps per epoch to completed Flat reference. New config
   differs ONLY by source-role switch; Adam same LR schedule for all weights.
-- [ ] Two dataset-specific short real GPU smokes, including nonzero new
+- [x] Two dataset-specific short real GPU smokes, including nonzero new
   parameter updates, exact zero-init baseline, source decomposition error,
   optimizer/RNG checkpoint recovery, and selected prediction replay.
 - [x] Tests, compileall and diff checks; bounded independent review for spec
   then quality. Commit source before training; push only own github remote.
   52focused tests pass, including final-checkpoint resume metadata recovery.
   Both independent reviews pass; real GPU checks remain below.
-- [ ] Frozen snapshot on biggpu; healthy GPU UUID admission (never physical4),
+- [x] Frozen snapshot on biggpu; healthy GPU UUID admission (never physical4),
   at most two formal jobs, fresh output directories. Preserve running2e-5
-  jobs and all protected weights. Verify actual formal PIDs/config/first epoch.
+  jobs and all protected weights. Actual formal PIDs/config verified, MOSI
+  through9epochs; MOSEI first epoch in progress at launch snapshot.
 - [ ] Queue writes per-rate/mean/high ACC/W-F1 and diagnostics only after full
   completion; launch status is not performance. Commit and push launch proof.
 
