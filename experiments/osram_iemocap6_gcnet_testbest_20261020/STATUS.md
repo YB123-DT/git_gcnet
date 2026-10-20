@@ -1,4 +1,4 @@
-# Status: GPU smoke passed; six workers launched,24jobs pending
+# Status:29/30complete; fold5seed66Router running
 
 ## Progress inspection2026-10-20
 
