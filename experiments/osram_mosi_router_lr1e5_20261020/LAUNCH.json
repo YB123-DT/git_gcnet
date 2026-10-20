@@ -1,0 +1,496 @@
+{
+  "observed_at": "2026-10-20T09:22:07.097529+00:00",
+  "server": "biggpu",
+  "source_commit": "d152360fcf6b51daf2d29f8281b578b1c456d297",
+  "source_root": "/data2/yb/remote_experiments/osram_mosi_router_lr1e5_20261020/source_d152360",
+  "source_archive_sha256": "31f24c5042e94f23e113403f4ccc58085ca8f35bbc5b2f19fb1a6ae546b5cf18",
+  "output": "/data2/yb/remote_experiments/osram_mosi_router_lr1e5_20261020/execution_v1",
+  "tmux_socket": "osram_mosi_lr1e5",
+  "tmux_session": "mosi_lr1e5_d152360",
+  "controller_pid": 1816333,
+  "queue_status": "training",
+  "error": null,
+  "smoke": {
+    "status": "complete",
+    "smoke_only": true,
+    "full_checkpoint_reloaded": true,
+    "selected_artifacts_exact_reload": true,
+    "peak_memory_mib": 3092.0576171875,
+    "environment": {
+      "numpy": "1.24.3",
+      "python": "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+      "python_version": "3.10.20 | packaged by conda-forge | (main, Jun 11 2026, 03:31:56) [GCC 14.3.0]",
+      "sklearn": "1.3.2",
+      "torch": "2.2.2+cu121"
+    },
+    "gpu": {
+      "host_index": 2,
+      "logical_device": "cuda:0",
+      "uuid": "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4"
+    },
+    "total_parameters": 13605232,
+    "router_parameters": 95439,
+    "initial_backbone_sha256": "89718ab6425657b9a05286892ff7f8d93bca0cac5891f3f0d5e601e49af26ef2",
+    "smoke": {
+      "N": 1284,
+      "batches": 2,
+      "eligible_N": 41,
+      "epoch": 1,
+      "gradient_norm_max": 88.36347961425781,
+      "gradients": {
+        "backbone": {
+          "connected": 72,
+          "nonzero": 72
+        },
+        "router": {
+          "connected": 12,
+          "nonzero": 2
+        }
+      },
+      "learning_rates": [
+        0.00001,
+        0.0003
+      ],
+      "mask_trace_sha256": "658cc5e40a18f2306f38bf5a9e226687d32d8b08bc9058e4a53c636c5a5cdfb4",
+      "memory_scans": 2,
+      "optimizer_steps": 2,
+      "task_MSE": 3.110936760902405,
+      "test": {
+        "0.0": {
+          "candidate_B": {
+            "ACC": 53.963414634146346,
+            "MSE": 2.5800960063934326,
+            "WF1": 53.984810479849585
+          },
+          "candidate_G": {
+            "ACC": 53.963414634146346,
+            "MSE": 2.5800960063934326,
+            "WF1": 53.984810479849585
+          },
+          "eligible_N": 0,
+          "full": {
+            "ACC": 53.963414634146346,
+            "MSE": 2.5800960063934326,
+            "WF1": 53.984810479849585
+          },
+          "mask_sha256": "79a5ae976e4e1919c5f09b44d269c74da8f124b90cba3ad0f48145eff0c0f17b",
+          "paired_vs_full": {
+            "N": 656,
+            "corrections": 0,
+            "harms": 0
+          },
+          "router": {
+            "ACC": 53.963414634146346,
+            "MSE": 2.5800960063934326,
+            "WF1": 53.984810479849585
+          },
+          "uniform": {
+            "ACC": 53.963414634146346,
+            "MSE": 2.5800960063934326,
+            "WF1": 53.984810479849585
+          },
+          "weights_mean_eligible": null
+        },
+        "0.1": {
+          "candidate_B": {
+            "ACC": 55.640243902439025,
+            "MSE": 2.577047824859619,
+            "WF1": 55.89061343858015
+          },
+          "candidate_G": {
+            "ACC": 55.640243902439025,
+            "MSE": 2.5789403915405273,
+            "WF1": 55.89061343858015
+          },
+          "eligible_N": 63,
+          "full": {
+            "ACC": 55.640243902439025,
+            "MSE": 2.5775184631347656,
+            "WF1": 55.89061343858015
+          },
+          "mask_sha256": "6f30f35fdee52958a0f2f4eb1091f812e04113d6079615288e28742c57671446",
+          "paired_vs_full": {
+            "N": 656,
+            "corrections": 0,
+            "harms": 0
+          },
+          "router": {
+            "ACC": 55.640243902439025,
+            "MSE": 2.5778093338012695,
+            "WF1": 55.89061343858015
+          },
+          "uniform": {
+            "ACC": 55.640243902439025,
+            "MSE": 2.5778114795684814,
+            "WF1": 55.89061343858015
+          },
+          "weights_mean_eligible": [
+            0.3338996171951294,
+            0.33394092321395874,
+            0.3321594297885895
+          ]
+        },
+        "0.2": {
+          "candidate_B": {
+            "ACC": 56.55487804878049,
+            "MSE": 2.5546984672546387,
+            "WF1": 56.08522783732608
+          },
+          "candidate_G": {
+            "ACC": 56.25,
+            "MSE": 2.5592689514160156,
+            "WF1": 55.740286514710846
+          },
+          "eligible_N": 136,
+          "full": {
+            "ACC": 56.55487804878049,
+            "MSE": 2.555774211883545,
+            "WF1": 56.08522783732608
+          },
+          "mask_sha256": "7ecc6c330d2e1d329ef560de44f5779420a25aa992b0130ab565ebd8cb0dc1bd",
+          "paired_vs_full": {
+            "N": 656,
+            "corrections": 0,
+            "harms": 1
+          },
+          "router": {
+            "ACC": 56.40243902439024,
+            "MSE": 2.556518793106079,
+            "WF1": 55.9129403794038
+          },
+          "uniform": {
+            "ACC": 56.40243902439024,
+            "MSE": 2.5565237998962402,
+            "WF1": 55.9129403794038
+          },
+          "weights_mean_eligible": [
+            0.33388495445251465,
+            0.33392977714538574,
+            0.33218520879745483
+          ]
+        },
+        "0.3": {
+          "candidate_B": {
+            "ACC": 55.94512195121951,
+            "MSE": 2.560985803604126,
+            "WF1": 54.59368187381535
+          },
+          "candidate_G": {
+            "ACC": 56.25,
+            "MSE": 2.560460090637207,
+            "WF1": 54.7360310824891
+          },
+          "eligible_N": 206,
+          "full": {
+            "ACC": 55.94512195121951,
+            "MSE": 2.5612006187438965,
+            "WF1": 54.59368187381535
+          },
+          "mask_sha256": "282ef373b2227cfa20f0216d2b3fd65f7c802d88a6fa937f911fcdaefdecf6f4",
+          "paired_vs_full": {
+            "N": 656,
+            "corrections": 1,
+            "harms": 0
+          },
+          "router": {
+            "ACC": 56.09756097560976,
+            "MSE": 2.5608012676239014,
+            "WF1": 54.722742808090985
+          },
+          "uniform": {
+            "ACC": 56.09756097560976,
+            "MSE": 2.5608017444610596,
+            "WF1": 54.722742808090985
+          },
+          "weights_mean_eligible": [
+            0.3338709771633148,
+            0.33391693234443665,
+            0.3322119116783142
+          ]
+        },
+        "0.4": {
+          "candidate_B": {
+            "ACC": 55.03048780487805,
+            "MSE": 2.544468402862549,
+            "WF1": 52.88094404229794
+          },
+          "candidate_G": {
+            "ACC": 55.1829268292683,
+            "MSE": 2.5432393550872803,
+            "WF1": 52.93252042517965
+          },
+          "eligible_N": 252,
+          "full": {
+            "ACC": 55.03048780487805,
+            "MSE": 2.544374942779541,
+            "WF1": 52.88094404229794
+          },
+          "mask_sha256": "cb938b6520691e9f531a45b594f2af96abc0cb08d8cec4f71607a29d93d9c787",
+          "paired_vs_full": {
+            "N": 656,
+            "corrections": 2,
+            "harms": 0
+          },
+          "router": {
+            "ACC": 55.33536585365854,
+            "MSE": 2.5439372062683105,
+            "WF1": 53.12885393912099
+          },
+          "uniform": {
+            "ACC": 55.33536585365854,
+            "MSE": 2.5439364910125732,
+            "WF1": 53.12885393912099
+          },
+          "weights_mean_eligible": [
+            0.3338356912136078,
+            0.3338872194290161,
+            0.3322772681713104
+          ]
+        },
+        "0.5": {
+          "candidate_B": {
+            "ACC": 52.4390243902439,
+            "MSE": 2.684497117996216,
+            "WF1": 49.972650106957616
+          },
+          "candidate_G": {
+            "ACC": 52.743902439024396,
+            "MSE": 2.684680700302124,
+            "WF1": 49.96899721868521
+          },
+          "eligible_N": 319,
+          "full": {
+            "ACC": 52.286585365853654,
+            "MSE": 2.6848230361938477,
+            "WF1": 49.77257801030161
+          },
+          "mask_sha256": "4bb6a6c04318041366d60d48ac77d00da1bdb3e157ffc85a0c9952a027b40b19",
+          "paired_vs_full": {
+            "N": 656,
+            "corrections": 1,
+            "harms": 0
+          },
+          "router": {
+            "ACC": 52.4390243902439,
+            "MSE": 2.684565305709839,
+            "WF1": 49.89310758511989
+          },
+          "uniform": {
+            "ACC": 52.4390243902439,
+            "MSE": 2.6845662593841553,
+            "WF1": 49.89310758511989
+          },
+          "weights_mean_eligible": [
+            0.3337957561016083,
+            0.3338544964790344,
+            0.3323499262332916
+          ]
+        },
+        "0.6": {
+          "candidate_B": {
+            "ACC": 49.390243902439025,
+            "MSE": 2.671666145324707,
+            "WF1": 47.31866134738635
+          },
+          "candidate_G": {
+            "ACC": 50.30487804878049,
+            "MSE": 2.664736270904541,
+            "WF1": 47.727833124577515
+          },
+          "eligible_N": 365,
+          "full": {
+            "ACC": 49.69512195121951,
+            "MSE": 2.6706273555755615,
+            "WF1": 47.561634494529585
+          },
+          "mask_sha256": "da2911c4a628464cf9c9bb8af6764fe54ec0a2c5e9a1f1354d9a34c997c74a15",
+          "paired_vs_full": {
+            "N": 656,
+            "corrections": 3,
+            "harms": 3
+          },
+          "router": {
+            "ACC": 49.69512195121951,
+            "MSE": 2.668917655944824,
+            "WF1": 47.33031006825684
+          },
+          "uniform": {
+            "ACC": 49.69512195121951,
+            "MSE": 2.668911933898926,
+            "WF1": 47.33031006825684
+          },
+          "weights_mean_eligible": [
+            0.3337564468383789,
+            0.3338218629360199,
+            0.3324219286441803
+          ]
+        },
+        "0.7": {
+          "candidate_B": {
+            "ACC": 47.5609756097561,
+            "MSE": 2.6803534030914307,
+            "WF1": 46.177808135894566
+          },
+          "candidate_G": {
+            "ACC": 48.323170731707314,
+            "MSE": 2.6734941005706787,
+            "WF1": 46.24559925705336
+          },
+          "eligible_N": 405,
+          "full": {
+            "ACC": 47.5609756097561,
+            "MSE": 2.6795480251312256,
+            "WF1": 46.11500060170107
+          },
+          "mask_sha256": "f9ac4774571ec8af9f9de55c8c8c0d2755a356bec0c57166431654e0f64225f2",
+          "paired_vs_full": {
+            "N": 656,
+            "corrections": 4,
+            "harms": 1
+          },
+          "router": {
+            "ACC": 48.01829268292683,
+            "MSE": 2.677716016769409,
+            "WF1": 46.42368691685477
+          },
+          "uniform": {
+            "ACC": 48.01829268292683,
+            "MSE": 2.677710771560669,
+            "WF1": 46.42368691685477
+          },
+          "weights_mean_eligible": [
+            0.3337244391441345,
+            0.33379483222961426,
+            0.33248063921928406
+          ]
+        }
+      }
+    },
+    "lr_only_reference": {
+      "core_sources_exact": true,
+      "evaluation_masks_exact": true,
+      "history_sha256": "e800bb1b3029f74625fbc2288a240f1401be5baac8eebc54b584802343efa0b1",
+      "initialization_exact": true,
+      "old_weights_loaded": false,
+      "only_backbone_lr_changed": true,
+      "path": "/data2/yb/remote_experiments/osram_mosi_gcnet_testbest_20261020/execution_v2/runs/MOSI/seed_66/joint",
+      "split_exact": true,
+      "summary_sha256": "1c33e504f4048d7e50112ed63eff9991602d4f4b7421c7d06750fb0ad320901c"
+    }
+  },
+  "jobs": [
+    {
+      "mode": "flat",
+      "status": "running",
+      "pid": 1818452,
+      "command": [
+        "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+        "-m",
+        "experiments.osram_mosi_router_lr1e5_20261020.worker",
+        "--phase",
+        "train",
+        "--mode",
+        "flat",
+        "--seed",
+        "66",
+        "--gpu-uuid",
+        "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+        "--source-commit",
+        "d152360fcf6b51daf2d29f8281b578b1c456d297",
+        "--output",
+        "/data2/yb/remote_experiments/osram_mosi_router_lr1e5_20261020/execution_v1/runs/MOSI/seed_66/flat"
+      ],
+      "output": "/data2/yb/remote_experiments/osram_mosi_router_lr1e5_20261020/execution_v1/runs/MOSI/seed_66/flat",
+      "log": "/data2/yb/remote_experiments/osram_mosi_router_lr1e5_20261020/execution_v1/runs/MOSI/seed_66/flat.log",
+      "gpu_uuid": "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+      "worker_status": "running",
+      "epoch": null,
+      "error": null,
+      "effective_config": {
+        "dataset": "CMUMOSI",
+        "epochs": 150,
+        "batch_size": 32,
+        "learning_rate": 0.00001,
+        "weight_decay": 0.00001,
+        "missing_mask_protocol": "gcnet-random-mask-v1",
+        "checkpoint_selection": "test-oracle-per-rate",
+        "checkpoint_selection_metric": "weighted_f1"
+      },
+      "backbone_learning_rates": {
+        "final_50": 0.00001,
+        "first_100": 0.00001
+      },
+      "router_learning_rates": null,
+      "initial_backbone_sha256": "89718ab6425657b9a05286892ff7f8d93bca0cac5891f3f0d5e601e49af26ef2",
+      "reference_check": {
+        "core_sources_exact": true,
+        "evaluation_masks_exact": true,
+        "history_sha256": "5e66c62468857e56433579a1bdf4f4d4a78c37da4738ff68b5ed62bd28d27155",
+        "initialization_exact": true,
+        "old_weights_loaded": false,
+        "only_backbone_lr_changed": true,
+        "path": "/data2/yb/remote_experiments/osram_mosi_gcnet_testbest_20261020/execution_v2/runs/MOSI/seed_66/flat",
+        "split_exact": true,
+        "summary_sha256": "8c0f15921b2d1ea5ee9ed97d82837a20b84f7036a4f6e3ddf8e8948f7c65c3e3"
+      }
+    },
+    {
+      "mode": "joint",
+      "status": "running",
+      "pid": 1818483,
+      "command": [
+        "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+        "-m",
+        "experiments.osram_mosi_router_lr1e5_20261020.worker",
+        "--phase",
+        "train",
+        "--mode",
+        "joint",
+        "--seed",
+        "66",
+        "--gpu-uuid",
+        "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+        "--source-commit",
+        "d152360fcf6b51daf2d29f8281b578b1c456d297",
+        "--output",
+        "/data2/yb/remote_experiments/osram_mosi_router_lr1e5_20261020/execution_v1/runs/MOSI/seed_66/joint"
+      ],
+      "output": "/data2/yb/remote_experiments/osram_mosi_router_lr1e5_20261020/execution_v1/runs/MOSI/seed_66/joint",
+      "log": "/data2/yb/remote_experiments/osram_mosi_router_lr1e5_20261020/execution_v1/runs/MOSI/seed_66/joint.log",
+      "gpu_uuid": "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+      "worker_status": "running",
+      "epoch": null,
+      "error": null,
+      "effective_config": {
+        "dataset": "CMUMOSI",
+        "epochs": 150,
+        "batch_size": 32,
+        "learning_rate": 0.00001,
+        "weight_decay": 0.00001,
+        "missing_mask_protocol": "gcnet-random-mask-v1",
+        "checkpoint_selection": "test-oracle-per-rate",
+        "checkpoint_selection_metric": "weighted_f1"
+      },
+      "backbone_learning_rates": {
+        "final_50": 0.00001,
+        "first_100": 0.00001
+      },
+      "router_learning_rates": [
+        0.0003,
+        0.00003
+      ],
+      "initial_backbone_sha256": "89718ab6425657b9a05286892ff7f8d93bca0cac5891f3f0d5e601e49af26ef2",
+      "reference_check": {
+        "core_sources_exact": true,
+        "evaluation_masks_exact": true,
+        "history_sha256": "e800bb1b3029f74625fbc2288a240f1401be5baac8eebc54b584802343efa0b1",
+        "initialization_exact": true,
+        "old_weights_loaded": false,
+        "only_backbone_lr_changed": true,
+        "path": "/data2/yb/remote_experiments/osram_mosi_gcnet_testbest_20261020/execution_v2/runs/MOSI/seed_66/joint",
+        "split_exact": true,
+        "summary_sha256": "1c33e504f4048d7e50112ed63eff9991602d4f4b7421c7d06750fb0ad320901c"
+      }
+    }
+  ]
+}
