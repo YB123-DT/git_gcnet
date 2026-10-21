@@ -66,4 +66,3 @@ failure of fixed-rate training. No additional seeds or configurations started.
 Raw completed queue/report/CSV are preserved in `completed/`. All weights,
 large prediction arrays and full logs remain in the original independent
 remote execution directory; historical cyclic/V3/Nested records are untouched.
-
