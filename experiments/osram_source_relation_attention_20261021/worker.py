@@ -3,6 +3,7 @@ import argparse
 from dataclasses import asdict, replace
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import time
@@ -50,6 +51,38 @@ def validate_reference_config(cfg, old):
     expected.setdefault('osram_source_role_mode', 'residual')
     if expected != json.loads(json.dumps(asdict(cfg))):
         raise ValueError('Unexpected changes beyond new module switch')
+
+
+def check_training_parity(row, reference):
+    for key in ('epoch', 'mask_trace_sha256', 'optimizer_steps'):
+        if row[key] != reference[key]: raise RuntimeError('Reference training '+key+' changed')
+    actual, expected = row['learning_rates'], reference['learning_rates']
+    if len(actual) != len(expected) or any(not math.isclose(a, b, rel_tol=1e-14, abs_tol=0.)
+                                         for a, b in zip(actual, expected)):
+        raise RuntimeError('Reference training learning_rates changed')
+
+
+def validate_audit_resume(state, identity):
+    """One explicit migration for the audited epoch101 float-comparison failure."""
+    old = state['identity']; path = 'experiments/osram_source_relation_attention_20261021/worker.py'
+    before = '64b17f0c5cca283b2b9f2c737457e48f73bd28833556f1b2f515b22f5536ce35'
+    if (state['epoch'] != 100 or old.get('dataset') != 'CMUMOSI' or old.get('seed') != 66
+            or old.get('source_commit') != '6dbcc986c451688ea33f33d3ffe6785e0be775f5'
+            or old['source_hashes'].get(path) != before):
+        raise ValueError('Only the known MOSI66 epoch100 audit-failure checkpoint may migrate')
+    if set(old) != set(identity): raise ValueError('Resume identity schema changed')
+    for key in old:
+        if key not in ('source_commit', 'source_hashes') and old[key] != identity[key]:
+            raise ValueError('Resume changed '+key)
+    if set(old['source_hashes']) != set(identity['source_hashes']):
+        raise ValueError('Resume source catalog changed')
+    for name, digest in old['source_hashes'].items():
+        if name != path and digest != identity['source_hashes'][name]:
+            raise ValueError('Resume changed non-audit source: '+name)
+    return dict(normal_training_math_unchanged=True, source_commit_before=old['source_commit'],
+        source_commit_after=identity['source_commit'], restored_epoch=100,
+        only_source_hash_change=dict(path=path, before=before, after=identity['source_hashes'][path]),
+        correction='LR parity comparison only: rel_tol1e-14,abs_tol0; actual scheduler unchanged')
 
 
 def validate_gradients(observed):
@@ -102,6 +135,8 @@ def main():
     parser.add_argument('--source-commit', required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--allow-audit-only-resume', action='store_true',
+                        help='Explicit audited epoch100 MOSI66 recovery after LR comparison roundoff failure.')
     args = parser.parse_args(); spec = settings(args.dataset)
     os.environ.update(CUDA_VISIBLE_DEVICES=args.gpu_uuid, OMP_NUM_THREADS='1', MKL_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1')
     import fcntl
@@ -113,6 +148,8 @@ def main():
     from gcnet_modality_jepa.train_gcnet import reset_training_stochasticity
     if args.output.exists() and not args.resume: raise FileExistsError('Fresh output required')
     if args.resume and args.phase != 'train': raise ValueError('Full-state train resume only')
+    if args.allow_audit_only_resume and (not args.resume or args.dataset != 'CMUMOSI'):
+        raise ValueError('Audit-only migration requires explicit MOSI full-state resume')
     args.output.mkdir(parents=True, exist_ok=args.resume)
     lock = (args.output/'RUN.lock').open('a'); fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     path = args.output/'SUMMARY.json'; tick = time.monotonic(); hooks = []
@@ -180,7 +217,17 @@ def main():
         best, history, start = {}, [], 0
         if args.resume:
             state = torch.load(args.output/'last.pt', map_location='cpu', weights_only=False)
-            restore(model, optimizer, state, identity); start, history, best = state['epoch'], state['history'], state['best_by_rate']
+            if args.allow_audit_only_resume:
+                summary['audit_only_resume'] = validate_audit_resume(state, identity)
+                restore(model, optimizer, state, state['identity'])
+                if any(not torch.equal(v.cpu(), state['model'][n]) for n, v in model.state_dict().items()):
+                    raise RuntimeError('Migrated full-state weights differ')
+                from experiments.osram_12_source_evidence_audit_20261019.run import require_same_rng
+                require_same_rng(state['rng'], h.rng_state())
+                summary['audit_only_resume'].update(model_exact=True, optimizer_restored=True, rng_exact=True)
+            else:
+                restore(model, optimizer, state, identity)
+            start, history, best = state['epoch'], state['history'], state['best_by_rate']
             selected.validate_selected(args.output, best)
         before_added = h.backbone_digest(model.osram.source_relation)
         before_original = original_digest(model)
@@ -191,8 +238,7 @@ def main():
             if not any(observed.values()): raise RuntimeError('No nonzero new-module task gradients')
             if args.phase == 'smoke' or epoch == 0: validate_gradients(observed)
             if args.phase == 'train':
-                for key in ('epoch', 'mask_trace_sha256', 'optimizer_steps', 'learning_rates'):
-                    if row[key] != reference_history[epoch][key]: raise RuntimeError('Reference training '+key+' changed')
+                check_training_parity(row, reference_history[epoch])
             row.update(source_relation_gradients=dict(connected=len(observed), nonzero=sum(observed.values())),
                 gradient_paths={k: v for k, v in observed.items()},
                 actual_memory_scans=scans[0], source_relation_diagnostics=compact_diagnostics(model.osram.source_relation))
