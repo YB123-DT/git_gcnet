@@ -1,5 +1,15 @@
 # OSRAM task delivery agreement
 
+- 当前 MOSI 学习率约定（用户要求定下，2026-10-21）：新
+  `gcnet-random-mask-v1` 的原 cfg84 no-JEPA Large Flat，150epochs，
+  epochs1–100使用3e-4，101–150使用3e-5；其余原设置不变，s0环境不变。
+  seeds66/67/68已完成，八率Test-best W-F1均值79.2817，高缺失73.4715；
+  同种子原1e-3→1e-4对照为78.8909/72.9079。后续该MOSI训练及模块对照
+  沿用此学习率，除非用户另行指定；不改其他数据集或源码全局默认值。
+  证据见`experiments/osram_mosi_mid_lr_3seed_20261021/completed/`。
+  仍为内部逐率Test-oracle，不混同旧conversation-mask-v2的80.7结果。
+  MOSEI本轮1e-4仅新完成67/68两种子，不据此改标三种子baseline或认定LR更优。
+
 - 最新选点硬约束（用户再次确认，2026-10-20）：当前探索实验沿用逐缺失率
   Test-best，MOSI/MOSEI按既定W-F1，IEMOCAP/MELD按既定ACC；UA/W-F1必须
   来自ACC所选同一epoch、同一次预测及exact Mask。不得擅自改为validation

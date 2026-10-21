@@ -1,0 +1,26 @@
+{
+  "status": "complete",
+  "label": "INTERNAL TEST-ORACLE SCREEN",
+  "server": "biggpu",
+  "physical_gpu": 7,
+  "remote_output": "/data2/yb/remote_experiments/osram_mosi_mid_lr_3seed_20261021/execution_v1",
+  "seeds": [66, 67, 68],
+  "new_runs": [67, 68],
+  "reused_seed66": "/data2/yb/remote_experiments/osram_mosi_mid_lr_20261021/execution_v2/runs/MOSI/seed_66/flat_lr_0.0003",
+  "source_commit_new_runs": "55a57718a40b92676d5f8dee885d4c64a873b74b",
+  "source_commit_reused66": "5877678ce3fac9358a94f1217e3dbac5509f6f58",
+  "epochs": 150,
+  "first_100_lr": 0.0003,
+  "final_50_lr": 0.00003,
+  "mask_protocol": "gcnet-random-mask-v1",
+  "selection": "per-rate TEST weighted_f1;strict-best earliest ties",
+  "artifacts_sha256": {
+    "RESULT.md": "0e382dd4dcb601b724fcb3b5cc3c2c08bf221b426a00aa878f3bf15f89647c00",
+    "METRICS.csv": "16f83159910a64340f7ebc3c59f6e52a5db1491d979125e96bbf34a7b6d482ee",
+    "SUMMARY.json": "df3eb782eccf0430f404480f354b1fa4de7ed78bc54de368a246f7af7795e425"
+  },
+  "verification": "All three low-LR runs and both new workers completed150epochs;finite queue completed. Reporter checked actual learning-rate schedules,all150 per-seed training mask/update hashes,original initialization and common evaluation bank,identical numerical core across seeds,exact selected prediction/BEST hashes,earliest per-rate Test-best epochs and ACC/WF1/MSE recomputation.",
+  "decision": "Use3e-4 for epochs1-100 and3e-5 for101-150 as the current MOSI new-GCNet-mask training recipe. Do not silently change other datasets,model/loss,or global source defaults.",
+  "limitations": "Three seeds only;test-oracle exploration,not independent test generalization or single-checkpoint deployment. Different wrapper commits are explicit;underlying model/sampler hashes match. No new inference/training was started during this archival/status task.",
+  "preservation": "Protected source results,weights,last states and exact masks/predictions remain on biggpu;no checkpoints were deleted or overwritten."
+}

@@ -1,0 +1,33 @@
+{
+  "status": "complete",
+  "label": "INTERNAL TEST-ORACLE SCREEN",
+  "source_commit": "0da38b3326fdad09da0195e49b8b7d6424b4f613",
+  "server": "biggpu",
+  "physical_gpu": 1,
+  "gpu_uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+  "remote_output": "/data2/yb/remote_experiments/osram_mosei_gcnet_flat_lr1e4_20261021/execution_v1",
+  "model": "original cfg84 no-JEPA Large Flat with LocalSkip;no added block",
+  "seeds": [67, 68],
+  "epochs": 60,
+  "learning_rate": 0.0001,
+  "lr_schedule": "constant",
+  "batch_size": 32,
+  "weight_decay": 0.00001,
+  "mask_protocol": "gcnet-random-mask-v1",
+  "selection": "per-rate TEST W-F1 strict-best;earliest ties;ACC from same predictions",
+  "artifacts_sha256": {
+    "RESULT.md": "810f7e2e6c999bad629fecd8e9e4e8215dc572c58f1bb25b6e47e518eed2bbd6",
+    "RESULT.json": "1579786b971cc5327c7ee3a85650f27539fdd680e08a3114fe3556335545d91a"
+  },
+  "two_seed_mean": {
+    "ACC": 83.49958723170062,
+    "WF1": 83.28564459197057,
+    "high_ACC": 80.33388369106586,
+    "high_WF1": 79.98587275355754
+  },
+  "training_seconds": {"67": 5722.2818428770115, "68": 5700.816569160001},
+  "verified": "Both worker summaries and finite queue completed;60 history rows each;all selected epochs are earliest TEST-WF1 maxima;all16 BEST weights and selected prediction SHA256 match recorded bytes.",
+  "limitations": "Only67/68 are included;do not invent or mix an old-mask seed66 to call this three-seed. No matched same-seed1e-3Flat comparison for67/68 is available,so these scores do not establish an LR improvement. Existing1e-3direct-source models change both LR and architecture and are not an LR control.",
+  "deployment_warning": "Eight-rate means combine different selected checkpoints,not single-checkpoint deployment performance.",
+  "preservation": "Weights,last model/optimizer/RNG states,and large predictions remain on biggpu;no previous experiment was modified or deleted."
+}
