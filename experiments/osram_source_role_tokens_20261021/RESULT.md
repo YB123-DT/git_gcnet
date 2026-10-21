@@ -2,8 +2,12 @@
 
 INTERNAL TEST-ORACLE SCREEN
 
-Status: RUNNING — both real-data GPU smokes passed and two fresh seed66
-training processes launched. No completed new training scores claimed.
+Status: CANCELLED BY USER at2026-10-21T11:52:31.797049+00:00.
+The user suspects the architecture does not match the intended design.
+Controller3091132 and unfinished MOSEI worker3098451 were verified by exact
+command/output path and stopped with SIGINT to their isolated process group.
+Both processes exited; no unrelated experiment was signalled. No automatic
+resume, new variants or further training are authorized by the old launch.
 
 This controlled redo keeps Base/Gap-A/Gap-T/Gap-V × historical Value-source
 A/T/V as 12 independent 128-dimensional tokens before Attention. It removes
@@ -18,8 +22,21 @@ read-before-write, Local Skip, task head/loss and GCNet missing stay unchanged.
 
 | Dataset | Seed | Budget | New W-F1 mean | New high W-F1 | Status |
 |---|---:|---:|---:|---:|---|
-| MOSI | 66 | 150 epochs | N/A | N/A | launched PID3098447 |
-| MOSEI | 66 | 60 epochs | N/A | N/A | launched PID3098451 |
+| MOSI | 66 | 150 epochs | 78.870661 | 73.162256 | completed150 before stop |
+| MOSEI | 66 | 60 epochs | 82.694594 | 79.542845 | user stopped after20; incomplete |
+
+MOSI matched original Flat150 is79.249087/73.409792 W-F1 mean/high:
+the completed candidate is lower by0.378426/0.247536 percentage points.
+MOSEI20 is not a completed60-epoch result and is not ranked as one.
+All scores remain per-rate TEST-best internal exploration, not a deployable
+single-checkpoint or independent-test result.
+
+Eight BEST weights and their matching prediction/mask files for each dataset
+were SHA256-validated after stopping. Both full `last.pt` files loaded with
+model/optimizer/RNG/identity/history and matched the last recorded completed
+epoch (MOSI150, MOSEI20). No weights, predictions or logs were deleted.
+Unfinished-epoch updates are not claimed saved. [CANCELLED.json](CANCELLED.json)
+is the authoritative stop record; LAUNCH.json/SMOKE.json are earlier snapshots.
 
 Configuration and reproduction command: [README.md](README.md).
 Immutable source: `da4a9f4898267a5de3f79c9dae5a9b3328399739`, pushed to
@@ -41,9 +58,10 @@ Server biggpu, original s0 environment, healthy physicalGPU7 UUID
 `osram_role_tokens`, session `pair66_da4a9f4`, controller PID3091132.
 Remote output:
 `/data2/yb/remote_experiments/osram_source_role_tokens_20261021/execution_v1`.
-Read live `QUEUE.json` and per-run `SUMMARY.json` there; this report is a startup
-snapshot. The controller automatically generates completed per-rate metrics,
-RESULT.md, REPORT.json and METRICS.csv after the finite jobs finish.
+Remote `QUEUE.json` and the interrupted MOSEI `SUMMARY.json` are now explicitly
+marked `cancelled_by_user`; finished MOSI retains `complete`. The controller
+has stopped, so its automatic final report will not run. The old source-mean
+experiment had already finished both datasets and was not modified.
 
 See [SMOKE.json](SMOKE.json), [LAUNCH.json](LAUNCH.json) and
 [VALIDATION.md](VALIDATION.md) for provenance and verification boundaries.

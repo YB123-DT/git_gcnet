@@ -1,5 +1,12 @@
 # OSRAM task delivery agreement
 
+- 最新停止指令（2026-10-21）：用户认为 Source Relation / 12-token 重做并非所需
+  设计，要求先停止。新12-token控制器与MOSEI训练已停，MOSI150已完成、MOSEI20
+  已保存；所有BEST/last/预测/Mask/日志保留。不得按旧启动授权自动续训、扩种子
+  或再补新结构。先核对用户所需计算图，尤其不要把代理补定的12-token全局
+  Attention及Flat残差接法当作用户已明确确认。停止证据见
+  `experiments/osram_source_role_tokens_20261021/CANCELLED.json`。
+
 - 当前 MOSI 学习率约定（用户要求定下，2026-10-21）：新
   `gcnet-random-mask-v1` 的原 cfg84 no-JEPA Large Flat，150epochs，
   epochs1–100使用3e-4，101–150使用3e-5；其余原设置不变，s0环境不变。
