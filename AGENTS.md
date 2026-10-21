@@ -1,5 +1,13 @@
 # OSRAM task delivery agreement
 
+- 最新独立实验授权（2026-10-21）：用户要求 MOSEI 原版 Nested GNN 三种子与当前
+  Flat 比较。使用 `nested_gnn_rooted_evidence`（dim64/depth3/GIN hidden64/groups8），
+  不是 root-aware/Local8/直接替换或调参赢家。新 GCNet Missing、s0、60epochs、
+  constant1e-3、batch32、WD1e-5及逐率Test-best W-F1保持；Nested66/67/68从头训练。
+  当前同配置Flat只有66，复用该结果并补Flat67/68，共5个新作业；不能混入67/68
+  的1e-4 Flat或旧ConversationMask的83.843。此任务不恢复已停止的Source Relation
+  或12-token训练。独立队列见 `experiments/osram_mosei_nested_gcnet_3seed_20261021/`。
+
 - 最新停止指令（2026-10-21）：用户认为 Source Relation / 12-token 重做并非所需
   设计，要求先停止。新12-token控制器与MOSEI训练已停，MOSI150已完成、MOSEI20
   已保存；所有BEST/last/预测/Mask/日志保留。不得按旧启动授权自动续训、扩种子

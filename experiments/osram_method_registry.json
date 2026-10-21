@@ -8,6 +8,20 @@
     }
   ],
   "explicit_comparison_batches": {
+    "mosei_nested_gcnet_3seed_20261021": {
+      "status": "runner_tests_passed_gpu_smoke_pending",
+      "explicit_user_request": true,
+      "datasets": ["CMUMOSEI"],
+      "seeds": [66, 67, 68],
+      "training_jobs": 5,
+      "method": "nested_gnn_rooted_evidence",
+      "configuration": "Original dim64/depth3/GIN-hidden64/groups8; existing Local/Base/Gap input residual; no architecture edits",
+      "protocol": "gcnet-random-mask-v1; 60epochs; constant LR1e-3; Adam; batch32; WD1e-5; per-rate Test-best WF1",
+      "controls": "Reuse current Flat66 and train missing matched Flat67/68; do not use LR1e-4 controls",
+      "nearest_history": ["osram_nested_cross_dataset_20261006", "osram_mosei_dim32_depth2_followup_20261012"],
+      "difference": "Rerun the accepted original Nested on the current GCNet missing protocol with all three seeds and matched current-budget Flat controls, not a new method or HPO",
+      "claim_boundary": "Exploratory Test-oracle comparison; historical ConversationMask scores are not matched results. Source Relation/12-token remains stopped."
+    },
     "source_role_tokens_20261021": {
       "status": "cancelled_by_user_mosi150_complete_mosei20_preserved_no_auto_resume",
       "explicit_user_request": true,
