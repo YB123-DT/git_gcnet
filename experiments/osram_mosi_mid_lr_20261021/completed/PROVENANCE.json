@@ -1,0 +1,52 @@
+{
+  "status": "complete",
+  "retrieved_at_utc": "2026-10-21T03:14:10Z",
+  "label": "INTERNAL TEST-ORACLE SCREEN",
+  "dataset": "CMUMOSI",
+  "seed": 66,
+  "epochs": 150,
+  "source_commit": "5877678ce3fac9358a94f1217e3dbac5509f6f58",
+  "server": "biggpu",
+  "physical_gpu": 7,
+  "gpu_uuid": "GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e",
+  "remote_output": "/data2/yb/remote_experiments/osram_mosi_mid_lr_20261021/execution_v2",
+  "mask_protocol": "gcnet-random-mask-v1",
+  "checkpoint_selection": "per-rate TEST weighted_f1; earliest strict-best ties",
+  "artifact_sha256": {
+    "RESULT.md": "010ef6786b2ce799f952302fdc616f97b419ff77702822442a362e199594e443",
+    "METRICS.csv": "d9a04d6e68a554ad3cac11b31003016d2c19ff1dab02fbdce26c827218071034",
+    "remote_only_SUMMARY.json": "78eec12f44023fa2f55717138416aee2b1de173d7be95906ccc45875ac6dbe36"
+  },
+  "reference": {
+    "path": "/data2/yb/remote_experiments/osram_mosi_gcnet_testbest_20261020/execution_v2/runs/MOSI/seed_66/flat",
+    "first_100_lr": 0.001,
+    "final_50_lr": 0.0001,
+    "mean_WF1": 79.12802655317742,
+    "high_WF1": 73.33810876241544
+  },
+  "completed_runs": [
+    {
+      "name": "flat_lr_0.0005",
+      "first_100_lr": 0.0005,
+      "final_50_lr": 0.00005,
+      "mean_ACC": 79.24923780487805,
+      "mean_WF1": 79.13711429985864,
+      "high_ACC": 73.57723577235771,
+      "high_WF1": 73.52383375116376,
+      "seconds": 1455.0903956090042
+    },
+    {
+      "name": "flat_lr_0.0003",
+      "first_100_lr": 0.0003,
+      "final_50_lr": 0.00003,
+      "mean_ACC": 79.26829268292684,
+      "mean_WF1": 79.24908652239114,
+      "high_ACC": 73.3739837398374,
+      "high_WF1": 73.4097921113724,
+      "seconds": 1446.9432266670046
+    }
+  ],
+  "verification": "Both workers and the finite queue completed. Reporter verified all150 history rows, per-rate earliest Test-best selection, retained BEST/prediction checksums, metrics recomputed from exact selected predictions, reference initialization and same-cohort/evaluation-mask identity. No new inference or training was used for this status report.",
+  "interpretation": "Mean WF1 changes are +0.0091pp and +0.1211pp respectively; neither is a substantial recovery of the historical different-mask score. Single seed only; per-rate oracle means combine different checkpoints, not a deployment model.",
+  "not_uploaded": "Weights, full4MB remote SUMMARY, training states and large predictions remain on biggpu. Earlier execution_v1 preflight failure is preserved, excluded from scores."
+}
