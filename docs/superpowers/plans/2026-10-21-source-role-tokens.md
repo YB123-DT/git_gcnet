@@ -8,6 +8,8 @@
 
 ## 执行清单
 
+执行状态：64项远程CPU测试通过（另1项Git历史专属测试显式跳过），12项本地runner测试通过；Memory四个核心函数AST未变。源码da4a9f4已push，9600个远程Git blob全部一致。MOSI/MOSEI真实GPU smoke均通过（38/38梯度路径含实际12槽），GPU7持久控制器已启动两组新训练。完整训练结果尚未完成，不据此宣称提分。证据见新实验SMOKE.json/LAUNCH.json。
+
 - [ ] 测试优先：`tests/test_source_role_tokens.py` 断言 Attention 真实接收 12 个 token、逐槽内容/身份、inactive/padding/never-seen NaN 安全、零初始化、源/角色梯度。远程 s0 先运行确认新类未实现造成失败。
 - [ ] 新增 `gcnet_missing_m3/source_role_tokens.py`；`osram.py/model.py/train_gcnet.py` 透传 `osram_source_relation_layout`，默认 source-mean；role-tokens 是独立 opt-in，旧 state_dict/RNG 不变。
 - [ ] 集成测试验证 disabled legacy、role-tokens zero-init 原 Flat 输出/RNG 相同、真实来源计算图连接；旧 mean 测试继续通过。
