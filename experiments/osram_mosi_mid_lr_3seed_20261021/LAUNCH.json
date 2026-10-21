@@ -1,0 +1,77 @@
+{
+  "status": "running",
+  "label": "INTERNAL TEST-ORACLE SCREEN",
+  "source_commit": "55a57718a40b92676d5f8dee885d4c64a873b74b",
+  "source_delta_archive_sha256": "c5b5b375cb7c119376013fd9449cc40ead7e50c5d89b3f896cb3cf9ebc43750b",
+  "source_snapshot_check": {"tracked_blobs": 9547, "mismatches": 0},
+  "server": "biggpu",
+  "source": "/data2/yb/remote_experiments/osram_mosi_mid_lr_3seed_20261021/source_55a5771",
+  "output": "/data2/yb/remote_experiments/osram_mosi_mid_lr_3seed_20261021/execution_v1",
+  "controller_log": "/data2/yb/remote_experiments/osram_mosi_mid_lr_3seed_20261021/controller.log",
+  "controller_pid": 1172776,
+  "tmux_socket": "osram_mosi_mid_lr_3seed",
+  "tmux_session": "flat6768_55a5771",
+  "started_at_utc": "2026-10-21T03:24:16Z",
+  "physical_gpu": 7,
+  "gpu_uuid": "GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e",
+  "maximum_parallel": 2,
+  "reused_seed66": {
+    "status": "complete",
+    "path": "/data2/yb/remote_experiments/osram_mosi_mid_lr_20261021/execution_v2/runs/MOSI/seed_66/flat_lr_0.0003",
+    "source_commit": "5877678ce3fac9358a94f1217e3dbac5509f6f58",
+    "epochs": 150,
+    "mean_WF1": 79.24908652239114,
+    "high_WF1": 73.4097921113724,
+    "rerun": false
+  },
+  "new_jobs": [
+    {
+      "seed": 67,
+      "pid": 1172781,
+      "status": "running",
+      "observed_epoch": 2,
+      "config_sha256": "5e1ac2bf983785c512599405d32940dae1edcbe178b0bb8274135c912b0bdf34",
+      "initial_backbone_sha256": "d40d60778b58544998ec8c444e408931c2a640c4816b54406d916b97590ec446"
+    },
+    {
+      "seed": 68,
+      "pid": 1172892,
+      "status": "running",
+      "observed_epoch": 1,
+      "config_sha256": "27879ce72413c811f5846b138576821f13f86243515caf351475417a300dfd0a",
+      "initial_backbone_sha256": "640c37baedc9f7d4d64c6cfc5667869a84c479db1f362b374326af4203e69b06"
+    }
+  ],
+  "config": {
+    "dataset": "CMUMOSI",
+    "model": "original cfg84 no-JEPA Large Flat with LocalSkip",
+    "parameters": 13509793,
+    "epochs": 150,
+    "first_100_lr": 0.0003,
+    "final_50_lr": 0.00003,
+    "batch_size": 32,
+    "weight_decay": 0.00001,
+    "dropout": 0.5,
+    "loss": "original MSE only",
+    "missing_mask_protocol": "gcnet-random-mask-v1",
+    "checkpoint_selection": "test-oracle-per-rate; weighted_f1; earliest strict-best ties",
+    "osram_source_role": false
+  },
+  "environment": {
+    "python": "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+    "torch": "2.2.2+cu121",
+    "numpy": "1.24.3",
+    "sklearn": "1.3.2"
+  },
+  "verification": {
+    "focused_tests_passed_local_and_remote": 19,
+    "real_protected_prediction_bridge_passed_both": true,
+    "same_seed_initialization_split_evaluation_masks_exact": true,
+    "observed_training_epoch_masks_and_steps_exact": true,
+    "correct_runtime_learning_rate": true,
+    "no_extra_standalone_gpu_smoke": true,
+    "unknown_core_source_changes_rejected": true
+  },
+  "automatic_finish": "After67/68 complete,verify exact saved selected predictions and same-seed reference masks;report all three seeds,per-rate values,mean/sampleSD and high-missing metrics against the same-seed original Flat controls.",
+  "remaining": "New full150epoch training and final three-seed scores pending;no improvement claim at launch."
+}
