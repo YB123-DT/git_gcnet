@@ -1,0 +1,17 @@
+{
+  "label": "IMPLEMENTATION CHECK ONLY; NOT PERFORMANCE RESULTS",
+  "source_commit": "6dbcc986c451688ea33f33d3ffe6785e0be775f5",
+  "cpu_tests": {"passed": 39, "deselected_legacy_git_show_checks": 2, "third_party_deprecation_warnings": 1},
+  "source_snapshot": {"git_blobs_verified": 9588, "mismatches": 0, "delta_archive_sha256": "aafa65889519162aebcbcf7d92cdbe3aa3ff55800b4ee1ee7099ffde5eace62c"},
+  "unchanged_memory_function_AST": ["block_write", "_scan", "_address_residual", "_project_sequence"],
+  "server": "biggpu",
+  "physical_gpu": 7,
+  "gpu_uuid": "GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e",
+  "environment": {"python": "/data2/yb/reproduction_workspace/envs/s0/bin/python", "torch": "2.2.2+cu121", "numpy": "1.24.3", "sklearn": "1.3.2"},
+  "total_parameters": 14063471,
+  "added_parameters": 553678,
+  "CMUMOSI": {"status": "complete", "optimizer_steps": 2, "seconds": 44.93129590898752, "peak_allocated_mib": 3025.92431640625, "zero_init_predictions_exact": true, "original_parameters_updated": true, "new_parameters_updated": true, "gradient_paths_connected": 25, "gradient_paths_nonzero": 25, "actual_source_base_gradient_nonzero": true, "actual_source_gap_gradient_nonzero": true, "full_optimizer_model_rng_recovery": true},
+  "CMUMOSEI": {"status": "complete", "optimizer_steps": 3, "seconds": 75.85145051096333, "peak_allocated_mib": 1501.923828125, "zero_init_predictions_exact": true, "original_parameters_updated": true, "new_parameters_updated": true, "gradient_paths_connected": 25, "gradient_paths_nonzero": 25, "actual_source_base_gradient_nonzero": true, "actual_source_gap_gradient_nonzero": true, "full_optimizer_model_rng_recovery": true},
+  "gradient_groups": ["base_projection", "gap_projections_0_1_2", "relation_mlp", "source_embedding", "source_self_attention", "local_projection", "local_cross_attention", "output_projection", "actual_source_base_input", "actual_source_gap_input"],
+  "note": "Zero-init upstream parameter gradients are expected to be zero at the first step; reported nonzero coverage is over multiple actual training batches. No synthetic score or smoke W-F1 is reported as model performance. Peak allocation is not whole-card reserved memory."
+}

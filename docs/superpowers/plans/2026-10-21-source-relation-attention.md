@@ -8,6 +8,17 @@
 
 **技术栈：** 原s0/PyTorch2.2.2/NumPy1.24.3；原GCNet random mask；无新依赖。
 
+## 已验证执行状态（2026-10-21）
+
+- [x] 模块与opt-in接口、mask/RNG/legacy回归及真实来源梯度：39项CPU测试通过。
+- [x] 独立规格与代码审查；补齐输出层以外梯度覆盖和逐进程资源准入。
+- [x] 源码6dbcc986c451688ea33f33d3ffe6785e0be775f5已提交/push；远程9588个Git blob完全匹配。
+- [x] MOSI/MOSEI真实GPU smoke：2/3个optimizer steps，25条参数/输入梯度均非零，原/新模块均更新，完整模型/optimizer/RNG恢复通过。
+- [x] GPU7两组正式seed66任务并行，MOSI150/MOSEI60；已观察到17/1轮完成且无报错。自动完成汇总入口已挂在持久控制器。
+- [ ] 全部正式训练结束、最终逐率分数及与Flat差值报告。当前不把早期分数/Smoke当成绩。
+
+下文为原执行清单；进度证据统一以本节、SMOKE.json、LAUNCH.json及远程SUMMARY为准。
+
 ## 范围与默认值
 
 - 不叠加source_role旧gamma、TASR、Nested、JEPA、completion、双视图或新loss。

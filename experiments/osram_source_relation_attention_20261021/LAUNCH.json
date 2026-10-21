@@ -1,0 +1,24 @@
+{
+  "status_at_check": "running",
+  "checked_at_utc": "2026-10-21T09:04:42Z",
+  "label": "INTERNAL TEST-ORACLE SCREEN",
+  "server": "biggpu",
+  "branch": "feature/ecerc-features",
+  "source_commit": "6dbcc986c451688ea33f33d3ffe6785e0be775f5",
+  "source_directory": "/data2/yb/remote_experiments/osram_source_relation_attention_20261021/source_6dbcc98",
+  "output": "/data2/yb/remote_experiments/osram_source_relation_attention_20261021/execution_v1",
+  "controller_log": "/data2/yb/remote_experiments/osram_source_relation_attention_20261021/controller_v1.log",
+  "controller_pid": 2555318,
+  "tmux_socket": "osram_source_relation",
+  "tmux_session": "pair66_6dbcc98",
+  "physical_gpu": 7,
+  "gpu_uuid": "GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e",
+  "maximum_parallel": 2,
+  "jobs": [
+    {"dataset": "CMUMOSI", "seed": 66, "pid": 2565215, "epochs": 150, "first100_lr": 0.0003, "final50_lr": 0.00003, "observed_epoch": 20, "status": "running", "log": "execution_v1/train_CMUMOSI.log", "output": "execution_v1/runs/CMUMOSI"},
+    {"dataset": "CMUMOSEI", "seed": 66, "pid": 2565343, "epochs": 60, "constant_lr": 0.001, "observed_epoch": 1, "status": "running", "log": "execution_v1/train_CMUMOSEI.log", "output": "execution_v1/runs/CMUMOSEI"}
+  ],
+  "protocol": {"batch_size": 32, "weight_decay": 0.00001, "task_loss": "original MSE", "missing": "gcnet-random-mask-v1", "training_rates": "original cyclic0.0..0.7", "selection": "per-rate TEST-best W-F1; earliest strict-best ties", "one_stage": true, "old_gamma": false, "new_loss": false, "init": "fresh original factory; zero-init feature residual; original parameter bytes and zero-init predictions match"},
+  "scheduling": {"two_gpu_smokes_complete": true, "free_memory_before_train_mib": 28161, "estimated_peak_plus_headroom_mib": 8338.98740234375, "ram_and_gpu_checked_before_each_launch": true, "bad_gpu4_excluded": true, "other_processes_modified": false, "automatic_final_report": true},
+  "not_complete": "Formal training and final task metrics are pending; no extra seeds or hyperparameter search authorized."
+}
