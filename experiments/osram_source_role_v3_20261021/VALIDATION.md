@@ -28,8 +28,11 @@ distinguish initial identity from later gradient connectivity.
 Default V3 parameter count: **335,006** added; expected total13,844,799 with
 the accepted cfg84 original13,509,793. No new task head or loss.
 
-GPU smoke and actual launch evidence are recorded separately after execution.
-Passing tests/smoke does not imply improved sentiment performance.
+GPU smoke and actual launch evidence are recorded in `LAUNCH.json` and
+`RESULT.md`: both real-data smokes passed, zero-init predictions and restored
+predictions exact, all41 monitored gradients finite/nonzero. Peak allocated
+memory3198.5625MiB(MOSI)/2244.94384765625MiB(MOSEI). Passing tests/smoke does
+not imply improved sentiment performance.
 
 Standalone runner tests: **6 passed**, 0.18s on the local CPU. The original
 `block_write`, `_scan`, `_address_residual`, `_project_sequence` ASTs match
