@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 
-from .worker import REFERENCES
+from .worker import REFERENCES, LAYOUTS
 from .report import summarize
 
 
@@ -24,11 +24,19 @@ def gpu_free(uuid):
     raise ValueError('Unknown GPU UUID')
 
 
+def worker_command(args, dataset, phase):
+    return [sys.executable, '-u', '-m', 'experiments.osram_source_relation_attention_20261021.worker',
+        '--dataset', dataset, '--phase', phase, '--seed', '66', '--gpu-uuid', args.gpu_uuid,
+        '--source-commit', args.source_commit, '--layout', args.layout,
+        '--output', str(args.output/('smoke' if phase == 'smoke' else 'runs')/dataset)]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--source-commit', required=True)
+    parser.add_argument('--layout', choices=LAYOUTS, default='source-mean')
     args = parser.parse_args()
     from experiments.osram_text_path_router_3seed_20261019.resource_gate import available_gib
     if available_gib() < 64: raise RuntimeError('Need64GiB host RAM headroom for two data loaders')
@@ -40,13 +48,11 @@ def main():
     lock = (args.output/'QUEUE.lock').open('a'); fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     path = args.output/'QUEUE.json'; start = time.monotonic()
     state = dict(status='smoke', source_commit=args.source_commit, pid=os.getpid(),
-        gpu_uuid=args.gpu_uuid, physical_gpu=index, jobs=[], smoke=[], max_parallel=2)
+        gpu_uuid=args.gpu_uuid, physical_gpu=index, layout=args.layout, jobs=[], smoke=[], max_parallel=2)
     def save():
         temporary = path.with_suffix('.tmp'); temporary.write_text(json.dumps(state, indent=2)+'\n'); temporary.replace(path)
     def command(dataset, phase):
-        return [sys.executable, '-u', '-m', 'experiments.osram_source_relation_attention_20261021.worker',
-            '--dataset', dataset, '--phase', phase, '--seed', '66', '--gpu-uuid', args.gpu_uuid,
-            '--source-commit', args.source_commit, '--output', str(args.output/('smoke' if phase=='smoke' else 'runs')/dataset)]
+        return worker_command(args, dataset, phase)
     save(); processes = []
     try:
         for dataset in REFERENCES:

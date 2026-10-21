@@ -15,6 +15,18 @@ RATES = tuple(f'{i/10:.1f}' for i in range(8))
 REFERENCES = {
     'CMUMOSI': Path('/data2/yb/remote_experiments/osram_mosi_mid_lr_20261021/execution_v2/runs/MOSI/seed_66/flat_lr_0.0003'),
     'CMUMOSEI': Path('/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/flat')}
+LAYOUTS = ('source-mean', 'role-tokens')
+
+
+def source_catalog(prior_sources, layout):
+    if layout not in LAYOUTS: raise ValueError('Unknown source relation layout')
+    additions = ('gcnet_missing_m3/source_relation.py',
+                 'experiments/osram_source_relation_attention_20261021/worker.py')
+    if layout == 'role-tokens':
+        additions += ('gcnet_missing_m3/source_role_tokens.py',
+                      'experiments/osram_source_relation_attention_20261021/run.py',
+                      'experiments/osram_source_relation_attention_20261021/report.py')
+    return tuple(dict.fromkeys(tuple(prior_sources) + additions))
 
 
 def settings(dataset):
@@ -49,6 +61,10 @@ def validate_reference_config(cfg, old):
     expected = dict(old, osram_source_relation=True)
     expected.setdefault('osram_source_role', False)
     expected.setdefault('osram_source_role_mode', 'residual')
+    if hasattr(cfg, 'osram_source_relation_layout'):
+        if cfg.osram_source_relation_layout not in LAYOUTS:
+            raise ValueError('Unknown source relation layout')
+        expected['osram_source_relation_layout'] = cfg.osram_source_relation_layout
     if expected != json.loads(json.dumps(asdict(cfg))):
         raise ValueError('Unexpected changes beyond new module switch')
 
@@ -97,11 +113,19 @@ def validate_audit_resume(state, identity):
         correction='LR parity comparison only: rel_tol1e-14,abs_tol0; actual scheduler unchanged')
 
 
-def validate_gradients(observed):
+def validate_gradients(observed, layout='source-mean'):
+    if layout not in LAYOUTS: raise ValueError('Unknown source relation layout')
     prefixes = ('base_projection.', 'gap_projections.', 'relation_mlp.',
         'source_self_attention.', 'local_projection.', 'local_cross_attention.',
         'source_embedding', 'output_projection.', 'input.source_base', 'input.source_gap')
     missing = [p for p in prefixes if not any(v and n.startswith(p) for n, v in observed.items())]
+    if layout == 'role-tokens':
+        if not any(v and n.startswith('role_embedding') for n, v in observed.items()):
+            missing.append('role_embedding')
+        # Slots are registered only if genuinely active in an actual batch.
+        # Zero-input or all-masked slots must not masquerade as tested paths.
+        missing += [n for n, value in observed.items()
+                    if n.startswith(('input.source_base.source_', 'input.source_gap.target_')) and not value]
     if missing: raise RuntimeError('Missing nonzero end-to-end task gradients: '+', '.join(missing))
 
 
@@ -109,12 +133,20 @@ def compact_diagnostics(module):
     from experiments.osram_coupled_source_role_20261020.worker import serial
     d = module.last_diagnostics
     result = {k: serial(v) for k, v in d.items() if k != 'cross_attention_weights'}
-    weights = d['cross_attention_weights']; selected = weights.sum(-1) > 0
-    result['source_attention_mean'] = serial(weights[selected].mean(0)) if selected.any() else [0., 0., 0.]
+    weights = d['cross_attention_weights']
+    if weights.ndim == 4 and tuple(weights.shape[-2:]) == (4, 3):
+        selected = weights.sum((-2, -1)) > 0
+        result['role_source_attention_mean'] = serial(weights[selected].mean(0)) if selected.any() else [[0.]*3 for _ in range(4)]
+    elif weights.ndim == 3 and weights.shape[-1] == 3:
+        selected = weights.sum(-1) > 0
+        result['source_attention_mean'] = serial(weights[selected].mean(0)) if selected.any() else [0., 0., 0.]
+    else:
+        raise ValueError('Unexpected source relation attention weight layout')
     return result
 
 
-def setup(dataset, uuid, output):
+def setup(dataset, uuid, output, layout='source-mean'):
+    if layout not in LAYOUTS: raise ValueError('Unknown source relation layout')
     import torch
     from experiments.osram_mosi_gcnet_testbest_20261020.worker import testbest_config
     if dataset == 'CMUMOSI':
@@ -130,7 +162,7 @@ def setup(dataset, uuid, output):
             or cfg.training_objective != 'emotion-only' or cfg.osram_readout_fusion != 'flat'):
         raise ValueError('Plain no-JEPA Flat required; no old gamma or overlapping methods')
     baseline = bundle.pop('model').eval()
-    cfg = replace(cfg, osram_source_relation=True)
+    cfg = replace(cfg, osram_source_relation=True, osram_source_relation_layout=layout)
     model = old.fresh_backbone(cfg, bundle['dimensions'], torch.device('cuda:0')).train()
     if original_digest(model) != bundle['initial_backbone_sha256']:
         raise ValueError('New block changed original parameter initialization')
@@ -143,6 +175,7 @@ def main():
     parser.add_argument('--dataset', choices=tuple(REFERENCES), required=True)
     parser.add_argument('--phase', choices=('smoke', 'train'), required=True)
     parser.add_argument('--seed', type=int, choices=(66,), default=66)
+    parser.add_argument('--layout', choices=LAYOUTS, default='source-mean')
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--source-commit', required=True)
     parser.add_argument('--output', type=Path, required=True)
@@ -162,16 +195,18 @@ def main():
     if args.resume and args.phase != 'train': raise ValueError('Full-state train resume only')
     if args.allow_audit_only_resume and (not args.resume or args.dataset != 'CMUMOSI'):
         raise ValueError('Audit-only migration requires explicit MOSI full-state resume')
+    if args.allow_audit_only_resume and args.layout != 'source-mean':
+        raise ValueError('Legacy audit migration cannot change module layout')
     args.output.mkdir(parents=True, exist_ok=args.resume)
     lock = (args.output/'RUN.lock').open('a'); fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     path = args.output/'SUMMARY.json'; tick = time.monotonic(); hooks = []
     previous = json.loads(path.read_text()) if path.exists() else {}
     if previous.get('status') == 'complete': raise ValueError('Completed run must not repeat')
     summary = dict(status='preflight', source_commit=args.source_commit, dataset=args.dataset,
-        seed=66, phase=args.phase, pid=os.getpid(), label='INTERNAL TEST-ORACLE SCREEN')
+        seed=66, phase=args.phase, layout=args.layout, pid=os.getpid(), label='INTERNAL TEST-ORACLE SCREEN')
     try:
         torch.set_num_threads(1); h.write_json(path, summary)
-        bundle, baseline = setup(args.dataset, args.gpu_uuid, args.output)
+        bundle, baseline = setup(args.dataset, args.gpu_uuid, args.output, args.layout)
         cfg, model = bundle['cfg'], bundle['model']
         masks = {s: scalar.build_masks(bundle, s) for s in ('validation', 'test')}
         hashes = {s: {r: hashlib.sha256(b''.join(x['availability'].numpy().tobytes() for x in bank)).hexdigest()
@@ -195,8 +230,7 @@ def main():
             np.testing.assert_array_equal(base_arrays[key], new_arrays[key])
         del baseline, base_arrays, new_arrays
         prior_sources = tuple(prior['identity']['source_hashes'])
-        sources = tuple(dict.fromkeys(prior_sources + ('gcnet_missing_m3/source_relation.py',
-            'experiments/osram_source_relation_attention_20261021/worker.py')))
+        sources = source_catalog(prior_sources, args.layout)
         identity = dict(source_commit=args.source_commit, source_hashes={p: h.sha(ROOT/p) for p in sources},
             config=asdict(cfg), dataset=args.dataset, seed=66, mode='flat', split=bundle['split'],
             seed_protocol=bundle['seed_protocol'], mask_hashes=hashes, data_manifest=bundle['data_manifest'],
@@ -223,6 +257,25 @@ def main():
         def watch_inputs(module, inputs):
             for name, value in zip(('source_base', 'source_gap'), inputs[1:3]):
                 if value.requires_grad: value.register_hook(capture('input.'+name))
+            if args.layout == 'role-tokens':
+                trajectory, availability, umask = inputs[3:6]
+                seen = trajectory[..., 3].gt(0) & umask.T.bool().unsqueeze(-1)
+                masks = (seen, ~availability.bool().unsqueeze(-1) & seen.unsqueeze(2))
+                for name, value, active in zip(('source_base', 'source_gap'), inputs[1:3], masks):
+                    if not value.requires_grad: continue
+                    for index in np.ndindex(tuple(active.shape[2:])):
+                        slot_active = active[(slice(None), slice(None)) + index]
+                        if not slot_active.any(): continue
+                        suffix = ('source_'+str(index[0]) if name == 'source_base'
+                                  else 'target_'+str(index[0])+'.source_'+str(index[1]))
+                        key = 'input.'+name+'.'+suffix
+                        observed.setdefault(key, False)
+                        def slot_hook(grad, slot=index, mask=slot_active, key=key):
+                            selected_grad = grad[(slice(None), slice(None)) + slot][mask]
+                            if not torch.isfinite(selected_grad).all():
+                                raise RuntimeError('Nonfinite active source gradient: '+key)
+                            observed[key] = observed.get(key, False) or bool(selected_grad.ne(0).any())
+                        value.register_hook(slot_hook)
         hooks.append(model.osram.source_relation.register_forward_pre_hook(watch_inputs))
         hooks.append(model.osram.register_forward_hook(lambda *unused: scans.__setitem__(0, scans[0]+1)))
         reset_training_stochasticity(66, cfg.fold); torch.cuda.reset_peak_memory_stats()
@@ -248,7 +301,7 @@ def main():
             row = scalar.train_epoch(bundle, model, optimizer, epoch, 'flat', max_batches=3 if args.phase == 'smoke' else None)
             if scans[0] != row['optimizer_steps']: raise RuntimeError('One Memory scan per training batch required')
             if not any(observed.values()): raise RuntimeError('No nonzero new-module task gradients')
-            if args.phase == 'smoke' or epoch == 0: validate_gradients(observed)
+            if args.phase == 'smoke' or epoch == 0: validate_gradients(observed, args.layout)
             if args.phase == 'train':
                 check_training_parity(row, reference_history[epoch])
             row.update(source_relation_gradients=dict(connected=len(observed), nonzero=sum(observed.values())),

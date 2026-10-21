@@ -12,23 +12,27 @@ def summarize(root):
     for dataset, reference in REFERENCES.items():
         path = root/'runs'/dataset/'SUMMARY.json'
         state = json.loads(path.read_text()) if path.exists() else {'status': 'not_started'}
-        states[dataset] = dict(status=state['status'], epoch=state.get('epoch'), error=state.get('error'))
+        layout = state.get('layout', state.get('config', {}).get('osram_source_relation_layout', 'source-mean'))
+        states[dataset] = dict(status=state['status'], epoch=state.get('epoch'), error=state.get('error'), layout=layout)
         if state['status'] != 'complete': continue
+        model_name = 'SourceRoleTokens' if layout == 'role-tokens' else 'SourceRelation'
         prior = json.loads((reference/'SUMMARY.json').read_text())
         for rate in RATES:
-            for name, data in [('Flat', prior), ('SourceRelation', state)]:
+            for name, data in [('Flat', prior), (model_name, state)]:
                 v = data['evaluation'][rate]['router']; best = data['best_by_rate'][rate]
                 rows.append(dict(dataset=dataset, model=name, seed=66, rate=rate, epoch=best['epoch'],
                     ACC=v['ACC'], WF1=v['WF1'], MSE=v['MSE']))
         for scope in ('mean', 'high'):
-            for name, data in [('Flat', prior), ('SourceRelation', state)]:
+            for name, data in [('Flat', prior), (model_name, state)]:
                 aggregates.append(dict(dataset=dataset, model=name, scope=scope, **data['aggregate']['router'][scope]))
     payload = dict(label='INTERNAL TEST-ORACLE SCREEN', states=states, aggregate=aggregates, per_rate=rows)
     (root/'REPORT.json').write_text(json.dumps(payload, indent=2, sort_keys=True)+'\n')
     if rows:
         with (root/'METRICS.csv').open('w') as f:
             writer = csv.DictWriter(f, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)
-    lines = ['# Source-relation attention: MOSI66 / MOSEI66', '', 'INTERNAL TEST-ORACLE SCREEN', '',
+    title = ('12-role-source tokens' if any(s['layout'] == 'role-tokens' for s in states.values())
+             else 'Source-relation attention')
+    lines = ['# '+title+': MOSI66 / MOSEI66', '', 'INTERNAL TEST-ORACLE SCREEN', '',
         'Fresh one-stage training, original GCNet masks/task loss; old source gamma disabled.',
         'Eight-rate means combine per-rate TEST-best W-F1 checkpoints; not one deployment checkpoint.', '',
         '| Dataset | Model | Scope | ACC | W-F1 | MSE |', '|---|---|---|---:|---:|---:|']

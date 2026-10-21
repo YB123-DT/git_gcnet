@@ -871,10 +871,14 @@ class OSRAMBackbone(nn.Module):
         osram_source_role: bool = False,
         osram_source_role_mode: str = 'residual',
         osram_source_relation: bool = False,
+        osram_source_relation_layout: str = 'source-mean',
     ) -> None:
         super().__init__()
         self.osram_source_role = bool(osram_source_role)
         self.osram_source_relation = bool(osram_source_relation)
+        if osram_source_relation_layout not in ('source-mean', 'role-tokens'):
+            raise ValueError('Source relation layout must be source-mean or role-tokens')
+        self.osram_source_relation_layout = osram_source_relation_layout
         if self.osram_source_relation and (osram_source_role or osram_tasr):
             raise ValueError('Source relation cannot stack source-role calibration or TASR')
         if osram_source_role_mode not in ('residual', 'direct'):
@@ -1368,9 +1372,12 @@ class OSRAMBackbone(nn.Module):
                 self.source_role = CoupledSourceRole(self.latent_dim, self.num_heads * self.value_dim,
                     mode=self.osram_source_role_mode)
         if self.osram_source_relation:
-            from .source_relation import SourceRelationAttention
+            if self.osram_source_relation_layout == 'role-tokens':
+                from .source_role_tokens import SourceRoleTokenAttention as Relation
+            else:
+                from .source_relation import SourceRelationAttention as Relation
             with torch.random.fork_rng(devices=[]):
-                self.source_relation = SourceRelationAttention(
+                self.source_relation = Relation(
                     self.latent_dim, self.num_heads * self.value_dim, self.output_dim)
 
     def _causal_gru_forward(self, node, availability, valid):

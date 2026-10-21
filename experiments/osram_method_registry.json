@@ -8,6 +8,18 @@
     }
   ],
   "explicit_comparison_batches": {
+    "source_role_tokens_20261021": {
+      "status": "implementation_under_verification_not_launched",
+      "explicit_user_request": true,
+      "datasets": ["CMUMOSI", "CMUMOSEI"],
+      "seeds": [66],
+      "training_jobs": 2,
+      "epochs": {"CMUMOSI": 150, "CMUMOSEI": 60},
+      "module": "gcnet_missing_m3/source_role_tokens.py",
+      "nearest_history": ["source_relation_attention_20261021", "CoupledSourceRole", "priority40 SetTransformer"],
+      "difference": "Keep all twelve role/source read slots independent before 128-d self-attention and Local cross-attention; per-slot role/source identity replaces old three-source pooled pair encoder. Same original Flat residual interface.",
+      "claim_boundary": "User-requested architecture revision, not a correction of the old explicit MaskedMean formula or a new literature invention. Encoder and parameter count change too: not a causal one-factor proof against mean. No automatic broad-search resume."
+    },
     "source_relation_attention_20261021": {
       "status": "cpu_and_gpu_checks_passed_two_seed66_jobs_started",
       "explicit_user_request": true,
