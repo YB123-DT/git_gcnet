@@ -71,7 +71,9 @@ def gradient_check_epoch(dataset):
     return 1 if dataset == 'CMUMOSI' else 0
 
 
-def setup(dataset, uuid, output):
+def setup(dataset, uuid, output, seed=66):
+    if seed != 66:
+        raise ValueError('Original V3 entry point supports only seed66')
     import torch
     from experiments.osram_mosi_gcnet_testbest_20261020.worker import testbest_config
     if dataset == 'CMUMOSI':
@@ -95,16 +97,18 @@ def setup(dataset, uuid, output):
     return bundle, baseline
 
 
-def main():
+def main(argv=None, *, setup_factory=setup, references=REFERENCES, seeds=(66,),
+         source_catalog_factory=source_catalog):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--dataset', choices=tuple(REFERENCES), required=True)
+    parser.add_argument('--dataset', choices=tuple(references), required=True)
     parser.add_argument('--phase', choices=('smoke', 'train'), required=True)
-    parser.add_argument('--seed', type=int, choices=(66,), default=66)
+    parser.add_argument('--seed', type=int, choices=seeds,
+                        default=66 if 66 in seeds else None, required=66 not in seeds)
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--source-commit', required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--resume', action='store_true')
-    args = parser.parse_args(); spec = settings(args.dataset)
+    args = parser.parse_args(argv); spec = settings(args.dataset)
     os.environ.update(CUDA_VISIBLE_DEVICES=args.gpu_uuid, OMP_NUM_THREADS='1',
                       MKL_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1')
     import fcntl
@@ -124,16 +128,16 @@ def main():
     previous = json.loads(path.read_text()) if path.exists() else {}
     if previous.get('status') == 'complete':
         raise ValueError('Completed experiment cannot silently repeat')
-    summary = dict(status='preflight', dataset=args.dataset, seed=66, phase=args.phase,
+    summary = dict(status='preflight', dataset=args.dataset, seed=args.seed, phase=args.phase,
         source_commit=args.source_commit, pid=os.getpid(), label='INTERNAL TEST-ORACLE SCREEN')
     try:
         torch.set_num_threads(1); h.write_json(path, summary)
-        bundle, baseline = setup(args.dataset, args.gpu_uuid, args.output)
+        bundle, baseline = setup_factory(args.dataset, args.gpu_uuid, args.output, args.seed)
         cfg, model = bundle['cfg'], bundle['model']; module = model.osram.source_role_v3
         masks = {s: scalar.build_masks(bundle, s) for s in ('validation', 'test')}
         hashes = {s: {r: hashlib.sha256(b''.join(x['availability'].numpy().tobytes() for x in bank)).hexdigest()
             for r, bank in rates.items()} for s, rates in masks.items()}
-        reference = REFERENCES[args.dataset]; prior = json.loads((reference/'SUMMARY.json').read_text())
+        reference = references[args.dataset]; prior = json.loads((reference/'SUMMARY.json').read_text())
         if prior['status'] != 'complete' or prior['epoch'] != spec['epochs']:
             raise ValueError('Completed same-budget original Flat reference required')
         validate_reference_config(cfg, prior['identity']['config'])
@@ -142,6 +146,8 @@ def main():
         for key in ('split', 'seed_protocol'):
             if prior['identity'][key] != bundle[key]:
                 raise ValueError('Reference ' + key + ' differs')
+        if prior['identity'].get('data_files') != bundle.get('data_files'):
+            raise ValueError('Reference data files differ')
         old_hashes = prior['identity']['mask_hashes']
         if hashes['test'] != old_hashes.get('test', old_hashes):
             raise ValueError('Reference exact test masks differ')
@@ -154,8 +160,8 @@ def main():
             np.testing.assert_array_equal(original[key], initial[key])
         del baseline, original, initial
         identity = dict(source_commit=args.source_commit,
-            source_hashes={p: h.sha(ROOT/p) for p in source_catalog(prior['identity']['source_hashes'])},
-            config=asdict(cfg), dataset=args.dataset, seed=66, mode='flat', split=bundle['split'],
+            source_hashes={p: h.sha(ROOT/p) for p in source_catalog_factory(prior['identity']['source_hashes'])},
+            config=asdict(cfg), dataset=args.dataset, seed=args.seed, mode='flat', split=bundle['split'],
             seed_protocol=bundle['seed_protocol'], mask_hashes=hashes,
             data_manifest=bundle['data_manifest'], data_files=bundle.get('data_files'),
             dataset_manifest_sha256=bundle.get('data_manifest_sha256'),
@@ -185,7 +191,7 @@ def main():
                     value.register_hook(capture('input.'+name))
         hooks.append(module.register_forward_pre_hook(watch_inputs))
         hooks.append(model.osram.register_forward_hook(lambda *unused: scans.__setitem__(0, scans[0]+1)))
-        reset_training_stochasticity(66, cfg.fold); torch.cuda.reset_peak_memory_stats()
+        reset_training_stochasticity(args.seed, cfg.fold); torch.cuda.reset_peak_memory_stats()
         best, history, start = {}, [], 0
         if args.resume:
             state = torch.load(args.output/'last.pt', map_location='cpu', weights_only=False)

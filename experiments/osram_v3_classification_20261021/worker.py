@@ -1,6 +1,6 @@
 """Fresh one-stage V3 classification; INTERNAL per-rate TEST-oracle ACC.
 
-Only seed66: five original LOSO folds per IEMOCAP task and one official MELD
+Seeds66/67/68: five original LOSO folds per IEMOCAP task and one official MELD
 split. UA/WF1 use the same ACC-selected prediction. No trained weight is loaded.
 """
 from __future__ import annotations
@@ -39,19 +39,19 @@ def source_catalog():
 
 
 def make_config(dataset, fold=1, seed=66, *, baseline_root=BASELINE_ROOT):
-    if dataset not in DATASETS or seed != 66 or fold not in range(1, 6) or (dataset == 'MELD' and fold != 1):
-        raise ValueError('Only seed66 IEMOCAP4/6 folds1..5 and MELD fold1 are authorized')
+    if dataset not in DATASETS or seed not in (66, 67, 68) or fold not in range(1, 6) or (dataset == 'MELD' and fold != 1):
+        raise ValueError('Only seeds66/67/68 IEMOCAP4/6 folds1..5 and MELD fold1 are authorized')
     from gcnet_missing_m3.train_gcnet import TrainConfig
     from experiments.osram_tasr_20261018 import runner_helpers as h
     if dataset == 'MELD':
         source = ROOT / 'experiments/osram_meld_wd_seed66_20261018/BASELINE.json'
-        raw = dict(json.loads(source.read_text())['config_without_seed'], seed=seed)
+        raw = dict(json.loads(source.read_text())['config_without_seed'], seed=66)
     else:
         classes = 4 if dataset == 'IEMOCAPFour' else 6
         source = Path(baseline_root) / f'iemocap{classes}/seed_66/fold_{fold}/config.json'
         raw = json.loads(source.read_text())
     base = TrainConfig(**raw)
-    expected = dict(dataset=dataset, fold=fold, seed=seed, epochs=50 if dataset == 'MELD' else 100,
+    expected = dict(dataset=dataset, fold=fold, seed=66, epochs=50 if dataset == 'MELD' else 100,
         learning_rate=1e-5 if dataset == 'MELD' else .001, weight_decay=1e-5,
         batch_size=32, optimizer='adam', lr_schedule='constant', evaluation_protocol='official',
         training_objective='emotion-only', emotion_loss_mode='sample-mean',
@@ -63,7 +63,7 @@ def make_config(dataset, fold=1, seed=66, *, baseline_root=BASELINE_ROOT):
         initial_backbone_checkpoint=None, teacher_checkpoint=None, backbone_type='osram')
     if any(getattr(base, name) != value for name, value in expected.items()):
         raise ValueError('Accepted original Flat configuration changed')
-    cfg = replace(base, osram_source_role_v3=True, preserve_selection_artifacts=True,
+    cfg = replace(base, seed=seed, osram_source_role_v3=True, preserve_selection_artifacts=True,
         checkpoint_selection='test-oracle-per-rate', checkpoint_selection_metric='accuracy',
         evaluate_test=True, osram_rpca_lr_multiplier=1., device='cuda:0')
     reference = dict(source=str(source), source_sha256=h.sha(source), original_config=raw,
@@ -213,7 +213,7 @@ def parser():
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument('--dataset', choices=DATASETS, required=True)
     result.add_argument('--fold', type=int, choices=range(1, 6), default=1)
-    result.add_argument('--seed', type=int, choices=(66,), default=66)
+    result.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     result.add_argument('--phase', choices=('smoke', 'train'), required=True)
     result.add_argument('--gpu-uuid', required=True)
     result.add_argument('--source-commit', required=True)

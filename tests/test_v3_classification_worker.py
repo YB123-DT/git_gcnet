@@ -51,7 +51,7 @@ def test_configs_keep_accepted_flat_protocol_and_enable_only_v3(baseline_root, d
 
 
 @pytest.mark.parametrize('dataset,fold,seed', (('CMUMOSEI', 1, 66), ('MELD', 2, 66),
-    ('IEMOCAPFour', 0, 66), ('IEMOCAPSix', 6, 66), ('MELD', 1, 67)))
+    ('IEMOCAPFour', 0, 66), ('IEMOCAPSix', 6, 66), ('MELD', 1, 69)))
 def test_out_of_budget_jobs_rejected(dataset, fold, seed):
     with pytest.raises(ValueError):
         worker().make_config(dataset, fold, seed)
@@ -122,3 +122,15 @@ def test_selected_mask_replay_replaces_only_valid_slots_and_requires_same_cohort
     wrong = dict(accepted, labels=np.array([1, 0]))
     with pytest.raises(AssertionError):
         worker().replay_selected_bank([row], wrong)
+
+
+@pytest.mark.parametrize('dataset', ('MELD', 'IEMOCAPFour', 'IEMOCAPSix'))
+@pytest.mark.parametrize('seed', (67, 68))
+def test_supplement_seeds_change_training_seed_not_accepted_protocol(baseline_root, dataset, seed):
+    cfg, reference = worker().make_config(dataset, 1, seed, baseline_root=baseline_root)
+    original, _ = worker().make_config(dataset, 1, 66, baseline_root=baseline_root)
+    assert cfg.seed == seed and reference['original_config']['seed'] == 66
+    assert {k for k,v in asdict(cfg).items() if asdict(original)[k] != v} == {'seed'}
+    parsed = worker().parser().parse_args(['--dataset', dataset, '--seed', str(seed),
+        '--phase', 'train', '--gpu-uuid', 'GPU-healthy', '--source-commit', 'reviewed', '--output', '/tmp/v3_seed'])
+    assert parsed.seed == seed

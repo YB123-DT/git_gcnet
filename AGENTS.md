@@ -1,5 +1,15 @@
 # OSRAM task delivery agreement
 
+- 最新补齐授权（2026-10-21）：用户明确V3要三种子，不是仅seed66。保留原seed66
+  队列/结果，只新增67/68：MELD2组、IEMOCAP4/6各10组（每seed五折）、MOSEI2组，
+  共24组，最终四数据集36个训练作业。MOSI不在本次补齐范围，不增加HPO/方法。
+  MOSEI沿用s0/60epochs/1e-3；其余cmerc-repro，MELD50/1e-5，IEMOCAP100/1e-3；
+  原Missing、任务、模型、batch和Test-best口径不变。新代码可扩展seed入口，原
+  正在运行任务使用旧不可变快照，不被覆盖或重启。
+  新24组在独立 `experiments/osram_v3_three_seed_20261021/` 持久接续队列登记；
+  旧seed66分类控制器退出后自动接续，避免两个控制器分别计数而突破GPU0=4/
+  GPU2=8的总上限。保留全部旧BEST/last/Mask，不终止已有训练，不借用坏GPU4。
+
 - 最新有限夜间队列授权（2026-10-21）：只排 V3，已有 MOSEI seed66继续、不重复；
   新增 MELD seed66一组、IEMOCAP4/6 seed66各五折，共11个新训练作业。
   保留各数据集原环境、学习率/轮数/batch、GCNet random mask和分类逐率Test-best
