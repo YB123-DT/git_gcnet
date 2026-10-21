@@ -46,3 +46,10 @@ recovery admits only that path relocation after hashing both full manifest files
 and comparing all other manifest metadata. It still rejects changed content,
 feature-file hashes or data split. RECOVERY.json retains the failed bootstrap;
 RECOVERY_v2.json tracks the retry. No weights/masks were changed by the rejection.
+
+Recovery verified: new immutable89014b4 snapshot matches9592trackedGitblobs.
+All6focused tests pass. Full epoch100 model/Adam/RNG restored exactly, manifest
+content hashes checked, all non-worker source fingerprints unchanged. MOSI
+passed and persisted epochs101–104 with no audit error. MOSEI's original PID
+2565343 remains unchanged, observed15/60epochs. See RECOVERY_VERIFIED.json;
+both final performance results remain pending.
