@@ -72,7 +72,7 @@ def collect(model,trainer,loader,dimensions,saved):
         exact_labels_order_masks=True,no_rng_change=True,no_second_memory_scan=True,source_decomposition_errors=errors)
 
 
-def main():
+def main(*, collect_fn=None, analyze_fn=None, report_fn=None, extra_source_files=()):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--gpu-uuid',required=True)
@@ -99,7 +99,7 @@ def main():
     tick=time.monotonic();path=args.output/'SUMMARY.json'
     sources=tuple(str(Path(__file__).with_name(n).relative_to(ROOT)) for n in ('run.py','analysis.py','report.py'))+(
         'experiments/osram_mosi_source_role_neutral_audit_20261020/readout.py',
-        'experiments/osram_mosi_source_role_neutral_audit_20261020/analysis.py')
+        'experiments/osram_mosi_source_role_neutral_audit_20261020/analysis.py')+tuple(extra_source_files)
     summary=dict(status='preflight',label='INTERNAL DIAGNOSTIC ONLY',no_training=True,pid=os.getpid(),
         source_commit=args.source_commit,source_hashes={n:h.sha(ROOT/n) for n in sources},gpu=gpu,
         environment=dict(python=sys.executable,torch=torch.__version__,numpy=np.__version__,sklearn=sklearn.__version__),conditions={})
@@ -132,10 +132,10 @@ def main():
             pred=ANCHOR/'evaluation'/('random_'+rate.replace('.','p')+'.npz')
             if h.sha(pred)!=original['evaluation'][rate]['output_sha256']:raise ValueError('Selected prediction hash differs')
             with np.load(pred,allow_pickle=False) as saved:data={k:saved[k] for k in saved.files}
-            arrays,checks=collect(model,trainer,loader,dimensions,data)
+            arrays,checks=(collect_fn or collect)(model,trainer,loader,dimensions,data)
             if h.backbone_digest(model)!=digest or any(p.requires_grad or p.grad is not None for p in model.parameters()):
                 raise ValueError('Frozen state or gradient changed')
-            stats=analyze(arrays)
+            stats=(analyze_fn or analyze)(arrays)
             for metric in ('ACC','WF1','MSE'):
                 if not np.isclose(stats['groups']['all']['learned'][metric],best['metrics']['router'][metric],rtol=1e-7,atol=1e-6):
                     raise ValueError('Selected metric mismatch: '+metric)
@@ -148,7 +148,7 @@ def main():
             summary['conditions'][rate]=dict(path=key+'.json',checks=checks)
             summary.update(seconds=time.monotonic()-tick,peak_memory_mib=torch.cuda.max_memory_allocated()/2**20)
             h.write_json(path,summary);print(json.dumps(dict(rate=rate,statistics=stats['groups']['all'],checks=checks)),flush=True)
-        summarize(args.output,records,all_arrays)
+        (report_fn or summarize)(args.output,records,all_arrays)
         for name,digest in summary['source_hashes'].items():
             if h.sha(ROOT/name)!=digest:raise ValueError('Audit source changed')
         summary.update(status='complete',seconds=time.monotonic()-tick)
