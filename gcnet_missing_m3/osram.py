@@ -870,17 +870,21 @@ class OSRAMBackbone(nn.Module):
         osram_tasr_source_mode: str = 'real',
         osram_source_role: bool = False,
         osram_source_role_mode: str = 'residual',
+        osram_source_relation: bool = False,
     ) -> None:
         super().__init__()
         self.osram_source_role = bool(osram_source_role)
+        self.osram_source_relation = bool(osram_source_relation)
+        if self.osram_source_relation and (osram_source_role or osram_tasr):
+            raise ValueError('Source relation cannot stack source-role calibration or TASR')
         if osram_source_role_mode not in ('residual', 'direct'):
             raise ValueError('source-role mode must be residual or direct')
         self.osram_source_role_mode = osram_source_role_mode
         if self.osram_source_role and osram_tasr:
             raise ValueError('Coupled source-role and TASR are separate experiments')
         self.osram_tasr = bool(osram_tasr)
-        self.osram_source_tracking = bool(osram_source_tracking or osram_tasr or osram_source_role)
-        if self.osram_source_role:
+        self.osram_source_tracking = bool(osram_source_tracking or osram_tasr or osram_source_role or osram_source_relation)
+        if self.osram_source_role or self.osram_source_relation:
             self.osram_source_audit = True
             self.osram_source_grad = True
         self.osram_tasr_source_mode = osram_tasr_source_mode
@@ -1363,6 +1367,11 @@ class OSRAMBackbone(nn.Module):
             with torch.random.fork_rng(devices=[]):
                 self.source_role = CoupledSourceRole(self.latent_dim, self.num_heads * self.value_dim,
                     mode=self.osram_source_role_mode)
+        if self.osram_source_relation:
+            from .source_relation import SourceRelationAttention
+            with torch.random.fork_rng(devices=[]):
+                self.source_relation = SourceRelationAttention(
+                    self.latent_dim, self.num_heads * self.value_dim, self.output_dim)
 
     def _causal_gru_forward(self, node, availability, valid):
         safe_node = torch.where(valid[..., None], node, torch.zeros_like(node))
@@ -2158,6 +2167,22 @@ class OSRAMBackbone(nn.Module):
                     local, emotion_base, emotion_gap, availability, umask,
                     local_skip=self.local_skip, adapter=self.emotion_adapter)
                 hidden = self.emotion_norm(flat_anchor + residual)
+            elif self.osram_source_relation:
+                trace = self.last_source_trace
+                source_base = trace['source_base']
+                source_gap = trace['source_gap']
+                # Runtime classifier ablations must not bypass their masks
+                # through the new source-preserving residual branch.
+                if self.osram_ablation == 'local-only' or self.osram_emotion_ablation in ('local-only', 'local-gap'):
+                    source_base = torch.zeros_like(source_base)
+                if self.osram_ablation in ('local-only', 'local-base') or self.osram_emotion_ablation in ('local-only', 'local-base'):
+                    source_gap = torch.zeros_like(source_gap)
+                flat_anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)
+                residual = self.source_relation(local, source_base, source_gap,
+                    trace['trajectory'], availability, umask)
+                if self.osram_ablation == 'local-only' or self.osram_emotion_ablation == 'local-only':
+                    residual = torch.zeros_like(residual)
+                hidden = self.emotion_norm(flat_anchor + residual)
             elif self.osram_local_skip_gate:
                 skip_gate = self.local_skip_gate(local, emotion_base, emotion_gap, availability, umask)
                 hidden = self.emotion_norm(
@@ -2294,6 +2319,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics['tasr'] = self.tasr.last_diagnostics
         if self.osram_source_role:
             diagnostics['source_role'] = self.source_role.last_diagnostics
+        if self.osram_source_relation:
+            diagnostics['source_relation'] = self.source_relation.last_diagnostics
         self.last_diagnostics = diagnostics
         if self.osram_meaningful_block != 'none':
             diagnostics['meaningful_block'] = self.meaningful_block.last_diagnostics

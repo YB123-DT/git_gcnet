@@ -128,6 +128,7 @@ class TrainConfig:
     osram_tasr_source_mode: str = 'real'
     osram_source_role: bool = False
     osram_source_role_mode: str = 'residual'
+    osram_source_relation: bool = False
     osram_num_heads: int = 4
     osram_key_dim: int = 32
     osram_value_dim: int = 32
@@ -3457,6 +3458,7 @@ def run_experiment(
         osram_tasr_source_mode=config_value.osram_tasr_source_mode,
         osram_source_role=config_value.osram_source_role,
         osram_source_role_mode=config_value.osram_source_role_mode,
+        osram_source_relation=config_value.osram_source_relation,
         osram_num_heads=config_value.osram_num_heads,
         osram_key_dim=config_value.osram_key_dim,
         osram_value_dim=config_value.osram_value_dim,
@@ -4207,6 +4209,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Calibrate Base/Gap Value-source reads with shared same-source Partner Read.')
     parser.add_argument('--osram-source-role-mode', choices=('residual', 'direct'), default='residual',
                         help='Add bounded read residuals or directly sum sources with 2*sigmoid weights.')
+    parser.add_argument('--osram-source-relation', action='store_true',
+                        help='Role-specific same-source relation encoding and Local-to-source attention residual.')
     parser.add_argument('--missing-mask-protocol',
                         choices=('conversation-mask-v2', 'gcnet-random-mask-v1', 'gcnet-legacy-fixed-v1'),
                         default='conversation-mask-v2')
@@ -4607,6 +4611,7 @@ def main(argv=None) -> None:
         osram_tasr_source_mode=args.osram_tasr_source_mode,
         osram_source_role=args.osram_source_role,
         osram_source_role_mode=args.osram_source_role_mode,
+        osram_source_relation=args.osram_source_relation,
         osram_num_heads=args.osram_num_heads,
         osram_key_dim=args.osram_key_dim,
         osram_value_dim=args.osram_value_dim,

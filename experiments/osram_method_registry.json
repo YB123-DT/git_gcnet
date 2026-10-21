@@ -8,6 +8,18 @@
     }
   ],
   "explicit_comparison_batches": {
+    "source_relation_attention_20261021": {
+      "status": "implemented_pending_gpu_smoke",
+      "explicit_user_request": true,
+      "datasets": ["CMUMOSI", "CMUMOSEI"],
+      "seeds": [66],
+      "training_jobs": 2,
+      "epochs": {"CMUMOSI": 150, "CMUMOSEI": 60},
+      "module": "gcnet_missing_m3/source_relation.py",
+      "nearest_history": ["CoupledSourceRole", "CurrentHistoryRelationBlock", "priority40 SetTransformer"],
+      "difference": "Encode role-projected Base/active-Gap relations per Value source before aggregation, then three-source self-attention and Local cross-attention. Original Flat remains. Not twelve scalar rescaling, not ordinary five already-summed evidence nodes.",
+      "claim_boundary": "User-requested structural comparison, not counted as a newly invented literature mechanism. No proven performance benefit. Old broad search remains paused."
+    },
     "core20_20261005": {
       "configuration_count": 22,
       "source_mechanism_count": 20,
