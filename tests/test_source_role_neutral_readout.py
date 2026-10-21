@@ -69,3 +69,17 @@ def test_checkpoint_identity_only_canonicalizes_json_container_types():
     validate_checkpoint_identity(raw,saved)
     saved['config']['seed']=67
     with pytest.raises(ValueError,match='provenance'):validate_checkpoint_identity(raw,saved)
+
+
+def test_neutral_only_replay_does_not_compute_twelve_unrequested_slot_resets():
+    from experiments.osram_mosi_source_role_neutral_audit_20261020.readout import replay_neutral
+    args=fixture(.7);m,head,cap,sources,gamma,trajectory,av,umask,full=args
+    calls=[]
+    hook=head.register_forward_hook(lambda *unused:calls.append(1))
+    try:
+        result=replay_neutral(m,head,cap['local'],cap['emotion_input'],sources,gamma,
+                             trajectory,av,umask,full,include_slot_resets=False)
+    finally:hook.remove()
+    assert result['prediction_reset'] is None
+    assert len(calls)==2  # learned reconstruction sanity check + neutral readout
+    assert torch.equal(result['prediction_neutral'],replay(args)['prediction_neutral'])

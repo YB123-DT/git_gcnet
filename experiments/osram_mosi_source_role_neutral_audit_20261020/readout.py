@@ -4,7 +4,7 @@ import torch
 
 @torch.no_grad()
 def replay_neutral(osram,head,local,emotion_input,sources,gamma,trajectory,
-                   availability,umask,full_prediction):
+                   availability,umask,full_prediction,*,include_slot_resets=True):
     if osram.training or head.training:raise ValueError('Eval-only readout required')
     t,b,ld=local.shape;fd=osram.num_heads*osram.value_dim
     if (emotion_input.shape!=(t,b,ld+8*fd) or sources.shape!=(t,b,4,3,fd)
@@ -35,6 +35,8 @@ def replay_neutral(osram,head,local,emotion_input,sources,gamma,trajectory,
         return classify(x)
 
     neutral=predict(active.to(gamma.dtype));reset=[]
+    if not include_slot_resets:
+        return dict(prediction_neutral=neutral,prediction_reset=None,active=active)
     for r in range(4):
         row=[]
         for s in range(3):
