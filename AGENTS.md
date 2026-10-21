@@ -1,5 +1,15 @@
 # OSRAM task delivery agreement
 
+- 最新独立 V3 授权（2026-10-21）：实现用户明确指定的 Hierarchical Source–Role
+  Interaction：共享512→64坐标、逐来源逐激活Gap配对（343维，不提前平均Gap）、
+  同角色跨来源Attention、角色专属Local Query、四个零初始化64→512读值校正。
+  只在原Flat输入前校正有效forward Base/Gap，不接旧全局1600维残差。默认关闭；
+  不改CHM联合写入、Query、Local Skip或GCNet missing。必要测试/smoke通过后直接
+  跑MOSI66（150epochs，3e-4→3e-5）与MOSEI66（60epochs，1e-3），s0/batch32/
+  WD1e-5/MSE/原split与逐率Test-best W-F1不变，复用对应Flat exact测试Mask。
+  不追加诊断、调参或种子；不影响已启动Nested，不恢复旧Source Relation/12-token。
+  独立目录 `experiments/osram_source_role_v3_20261021/`，在biggpu健康GPU1运行。
+
 - 最新独立实验授权（2026-10-21）：用户要求 MOSEI 原版 Nested GNN 三种子与当前
   Flat 比较。使用 `nested_gnn_rooted_evidence`（dim64/depth3/GIN hidden64/groups8），
   不是 root-aware/Local8/直接替换或调参赢家。新 GCNet Missing、s0、60epochs、

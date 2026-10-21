@@ -130,6 +130,7 @@ class TrainConfig:
     osram_source_role_mode: str = 'residual'
     osram_source_relation: bool = False
     osram_source_relation_layout: str = 'source-mean'
+    osram_source_role_v3: bool = False
     osram_num_heads: int = 4
     osram_key_dim: int = 32
     osram_value_dim: int = 32
@@ -3461,6 +3462,7 @@ def run_experiment(
         osram_source_role_mode=config_value.osram_source_role_mode,
         osram_source_relation=config_value.osram_source_relation,
         osram_source_relation_layout=config_value.osram_source_relation_layout,
+        osram_source_role_v3=config_value.osram_source_role_v3,
         osram_num_heads=config_value.osram_num_heads,
         osram_key_dim=config_value.osram_key_dim,
         osram_value_dim=config_value.osram_value_dim,
@@ -4216,6 +4218,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--osram-source-relation-layout', choices=('source-mean', 'role-tokens'),
                         default='source-mean',
                         help='Legacy three-source Gap mean, or twelve independent role/source tokens.')
+    parser.add_argument('--osram-source-role-v3', action='store_true',
+                        help='Hierarchical same-source pair / same-role source interaction on Flat read inputs.')
     parser.add_argument('--missing-mask-protocol',
                         choices=('conversation-mask-v2', 'gcnet-random-mask-v1', 'gcnet-legacy-fixed-v1'),
                         default='conversation-mask-v2')
@@ -4618,6 +4622,7 @@ def main(argv=None) -> None:
         osram_source_role_mode=args.osram_source_role_mode,
         osram_source_relation=args.osram_source_relation,
         osram_source_relation_layout=args.osram_source_relation_layout,
+        osram_source_role_v3=args.osram_source_role_v3,
         osram_num_heads=args.osram_num_heads,
         osram_key_dim=args.osram_key_dim,
         osram_value_dim=args.osram_value_dim,
