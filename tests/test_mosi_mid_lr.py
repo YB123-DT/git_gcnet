@@ -1,4 +1,5 @@
 import importlib
+import copy
 from types import SimpleNamespace
 
 import pytest
@@ -51,3 +52,28 @@ def test_report_refuses_unfinished_runs(tmp_path):
     from experiments.osram_mosi_mid_lr_20261021.report import write_report
     with pytest.raises(ValueError, match='two completed'):
         write_report(tmp_path, {'jobs': []})
+
+
+def test_only_exact_verified_disabled_source_role_evolution_is_compatible():
+    module = importlib.import_module('experiments.osram_mosi_mid_lr_20261021.worker')
+    from experiments.osram_mosi_gcnet_router_3seed_20261019.report import CORE
+    current = dict(config=dict(learning_rate=5e-4, osram_source_role=False,
+                              osram_source_role_mode='residual'),
+                   split={}, mask_hashes={}, seed_protocol={}, source_hashes={k: 'same' for k in CORE})
+    old = copy.deepcopy(current)
+    old['config'] = dict(learning_rate=.001)
+    for name, (before, after) in module.DISABLED_SOURCE_ROLE_UPDATES.items():
+        old['source_hashes'][name] = before
+        current['source_hashes'][name] = after
+    prior = dict(status='complete', epoch=150, identity=old, initial_backbone_sha256='initial')
+    proof = module.validate_reference(current, prior, 'initial', backbone_lr=5e-4)
+    assert proof['disabled_source_role_compatible'] and not proof['core_sources_exact']
+    assert 'osram_source_role' not in prior['identity']['config']  # no mutation
+    changed = copy.deepcopy(current)
+    changed['config']['osram_source_role'] = True
+    with pytest.raises(ValueError):
+        module.validate_reference(changed, prior, 'initial', backbone_lr=5e-4)
+    changed = copy.deepcopy(current)
+    changed['source_hashes']['gcnet_missing_m3/osram.py'] = 'unknown'
+    with pytest.raises(ValueError):
+        module.validate_reference(changed, prior, 'initial', backbone_lr=5e-4)

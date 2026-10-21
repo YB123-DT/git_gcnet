@@ -14,10 +14,16 @@ This eight-rate mean combines eight checkpoints,not one deployment model.
 
 Reuse the completed original seed66 Flat as read-only parity reference:
 `/data2/yb/remote_experiments/osram_mosi_gcnet_testbest_20261020/execution_v2/runs/MOSI/seed_66/flat`.
-Verify initial backbone,split,evaluation masks,numerical core hashes,and every
+Verify initial backbone,split,evaluation masks,numerical core compatibility,and every
 epoch's actual training-mask hash/optimizer step count. No old weights are
 loaded for training initialization. Historical80.747 used another missing
-sampler and is not the paired control here.
+sampler and is not the paired control here. The original reference predates the
+opt-in source-role integration. Its two missing config fields are normalized
+only to disabled defaults;exact before/after SHA256 pairs explicitly allow
+the three reviewed integration files. Unknown source changes are rejected.
+Do not label these source files byte-identical. Disabled forward/backward/RNG
+equivalence is checked against the original27b8c1f implementation;the actual
+protected checkpoint prediction bridge remains mandatory before training.
 
 Only the existing experiment worker's LR setter gains an explicit final LR;
 its default remains constant1e-5 (and the existing2e-5 wrapper stays constant).

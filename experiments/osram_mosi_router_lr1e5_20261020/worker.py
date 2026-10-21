@@ -65,7 +65,7 @@ def check_mask_parity(actual, old):
 
 
 def main(argv=None, *, backbone_lr=1e-5, final_backbone_lr=None,
-         extra_source_files=(), allowed_modes=('flat', 'joint')):
+         extra_source_files=(), allowed_modes=('flat', 'joint'), reference_validator=None):
     validate_backbone_lr(backbone_lr)
     final_backbone_lr = backbone_lr if final_backbone_lr is None else final_backbone_lr
     validate_backbone_lr(final_backbone_lr)
@@ -119,7 +119,8 @@ def main(argv=None, *, backbone_lr=1e-5, final_backbone_lr=None,
             selection='test-oracle-per-rate; weighted_f1; strict improvement; earliest tie',
             backbone_learning_rates=dict(first_100=backbone_lr, final_50=final_backbone_lr),
             router_learning_rates=[3e-4, 3e-5] if args.mode == 'joint' else None)
-        proof = validate_reference(identity, prior, bundle['initial_backbone_sha256'], backbone_lr=backbone_lr)
+        reference_check = validate_reference if reference_validator is None else reference_validator
+        proof = reference_check(identity, prior, bundle['initial_backbone_sha256'], backbone_lr=backbone_lr)
         proof.update(path=str(ref), summary_sha256=h.sha(ref/'SUMMARY.json'), history_sha256=h.sha(ref/'history.json'))
         reference_history = json.loads((ref/'history.json').read_text())
         if len(reference_history) != 150:
