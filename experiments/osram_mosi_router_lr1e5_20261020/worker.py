@@ -23,14 +23,17 @@ def validate_backbone_lr(backbone_lr):
         raise ValueError('Positive finite backbone LR required')
 
 
-def set_epoch_lrs(optimizer, epoch, *, backbone_lr=1e-5):
+def set_epoch_lrs(optimizer, epoch, *, backbone_lr=1e-5, final_backbone_lr=None):
     validate_backbone_lr(backbone_lr)
+    final_backbone_lr = backbone_lr if final_backbone_lr is None else final_backbone_lr
+    validate_backbone_lr(final_backbone_lr)
     if not 0 <= epoch < 150:
         raise ValueError('Exactly150epochs')
     if any(g['name'] not in ('backbone', 'router') for g in optimizer.param_groups):
         raise ValueError('Unknown optimizer parameter group')
     for group in optimizer.param_groups:
-        group['lr'] = backbone_lr if group['name'] == 'backbone' else (3e-4 if epoch < 100 else 3e-5)
+        group['lr'] = ((backbone_lr if epoch < 100 else final_backbone_lr)
+                       if group['name'] == 'backbone' else (3e-4 if epoch < 100 else 3e-5))
 
 
 def validate_reference(identity, reference, initial, *, backbone_lr=1e-5):
@@ -61,11 +64,14 @@ def check_mask_parity(actual, old):
     return dict(epoch=actual['epoch'], training_masks_exact=True, optimizer_steps_exact=True)
 
 
-def main(argv=None, *, backbone_lr=1e-5, extra_source_files=()):
+def main(argv=None, *, backbone_lr=1e-5, final_backbone_lr=None,
+         extra_source_files=(), allowed_modes=('flat', 'joint')):
     validate_backbone_lr(backbone_lr)
+    final_backbone_lr = backbone_lr if final_backbone_lr is None else final_backbone_lr
+    validate_backbone_lr(final_backbone_lr)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--phase', choices=('smoke', 'train'), required=True)
-    parser.add_argument('--mode', choices=('flat', 'joint'), required=True)
+    parser.add_argument('--mode', choices=allowed_modes, required=True)
     parser.add_argument('--seed', type=int, choices=(66,), required=True)
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--source-commit', required=True)
@@ -111,7 +117,7 @@ def main(argv=None, *, backbone_lr=1e-5, extra_source_files=()):
             dataset_manifest_sha256=bundle['data_manifest_sha256'], data_manifest=bundle['data_manifest'],
             data_files=bundle['data_files'], initialization='fresh-original-hardcoded-missing_m3_model_init:fold:5',
             selection='test-oracle-per-rate; weighted_f1; strict improvement; earliest tie',
-            backbone_learning_rates=dict(first_100=backbone_lr, final_50=backbone_lr),
+            backbone_learning_rates=dict(first_100=backbone_lr, final_50=final_backbone_lr),
             router_learning_rates=[3e-4, 3e-5] if args.mode == 'joint' else None)
         proof = validate_reference(identity, prior, bundle['initial_backbone_sha256'], backbone_lr=backbone_lr)
         proof.update(path=str(ref), summary_sha256=h.sha(ref/'SUMMARY.json'), history_sha256=h.sha(ref/'history.json'))
@@ -139,7 +145,7 @@ def main(argv=None, *, backbone_lr=1e-5, extra_source_files=()):
         before = h.backbone_digest(model) if args.phase=='smoke' else None
         before_router = h.backbone_digest(model.router) if args.phase=='smoke' and args.mode=='joint' else None
         for epoch in (range(1) if args.phase=='smoke' else range(start,150)):
-            set_epoch_lrs(optimizer, epoch, backbone_lr=backbone_lr)
+            set_epoch_lrs(optimizer, epoch, backbone_lr=backbone_lr, final_backbone_lr=final_backbone_lr)
             row = scalar.train_epoch(bundle,model,optimizer,epoch,args.mode,
                 max_batches=selected.SMOKE_BATCHES if args.phase=='smoke' else None)
             if args.mode=='joint' and not row['gradients']['router']['nonzero']:
