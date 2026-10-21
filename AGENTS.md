@@ -1,5 +1,13 @@
 # OSRAM task delivery agreement
 
+- 最新有限夜间队列授权（2026-10-21）：只排 V3，已有 MOSEI seed66继续、不重复；
+  新增 MELD seed66一组、IEMOCAP4/6 seed66各五折，共11个新训练作业。
+  保留各数据集原环境、学习率/轮数/batch、GCNet random mask和分类逐率Test-best
+  ACC选点（UA/WF1来自同次预测）；一阶段训练，仅打开既有V3，不调参/不扩种子。
+  biggpu物理GPU0最多4组、GPU2最多8组，按smoke及实际峰值显存/RAM/磁盘准入；
+  容量不足排队，不杀别的任务、不改batch、不用坏GPU4。统一持久队列独立目录
+  `experiments/osram_v3_classification_20261021/`，不得覆盖旧结果/权重。
+
 - 最新有限训练授权（2026-10-21）：MOSI原Flat seed66，分别固定miss0.0–0.7
   从头训练8个模型，各自只测试同一rate；不是cyclic、不是固定一张Mask，也不是
   Persistent。只修改train_rate_mode/fixed_missing_rate/train_missing_rates。
