@@ -30,14 +30,14 @@ def plan_jobs(output, sha, gpus):
     return jobs
 
 
-def main():
+def main(*, planner=plan_jobs, reporter=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--source-commit', required=True)
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--resume', action='store_true')
     args = parser.parse_args()
-    jobs = plan_jobs(args.output, args.source_commit, [args.gpu_uuid])
+    jobs = planner(args.output, args.source_commit, [args.gpu_uuid])
     if args.output.exists() and not args.resume:
         raise FileExistsError('Fresh queue required')
     args.output.mkdir(parents=True, exist_ok=args.resume)
@@ -87,8 +87,10 @@ def main():
             if failed and not children:
                 raise RuntimeError('Child failure; no automatic retry')
             time.sleep(5)
-        from .report import write_report
-        write_report(args.output, state)
+        if reporter is None:
+            from .report import write_report
+            reporter = write_report
+        reporter(args.output, state)
         state.update(status='complete', completed_at=time.time())
         write(path, state)
     except BaseException as error:

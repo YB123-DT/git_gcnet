@@ -64,15 +64,24 @@ def check_mask_parity(actual, old):
     return dict(epoch=actual['epoch'], training_masks_exact=True, optimizer_steps_exact=True)
 
 
+def reference_path(seed, mode, *, reference_seed_parent=None):
+    if reference_seed_parent is None:
+        if seed != 66:
+            raise ValueError('Non66 seeds require an explicit same-seed reference parent')
+        return REFERENCE / mode
+    return Path(reference_seed_parent) / f'seed_{seed}' / mode
+
+
 def main(argv=None, *, backbone_lr=1e-5, final_backbone_lr=None,
-         extra_source_files=(), allowed_modes=('flat', 'joint'), reference_validator=None):
+         extra_source_files=(), allowed_modes=('flat', 'joint'), reference_validator=None,
+         allowed_seeds=(66,), reference_seed_parent=None):
     validate_backbone_lr(backbone_lr)
     final_backbone_lr = backbone_lr if final_backbone_lr is None else final_backbone_lr
     validate_backbone_lr(final_backbone_lr)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--phase', choices=('smoke', 'train'), required=True)
     parser.add_argument('--mode', choices=allowed_modes, required=True)
-    parser.add_argument('--seed', type=int, choices=(66,), required=True)
+    parser.add_argument('--seed', type=int, choices=allowed_seeds, required=True)
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--source-commit', required=True)
     parser.add_argument('--output', type=Path, required=True)
@@ -107,7 +116,7 @@ def main(argv=None, *, backbone_lr=1e-5, final_backbone_lr=None,
         masks = {split: original.build_masks(bundle, split) for split in ('validation', 'test')}
         hashes = {split: {rate: hashlib.sha256(b''.join(row['availability'].numpy().tobytes()
                     for row in bank)).hexdigest() for rate, bank in rates.items()} for split, rates in masks.items()}
-        ref = REFERENCE/args.mode
+        ref = reference_path(args.seed, args.mode, reference_seed_parent=reference_seed_parent)
         prior = json.loads((ref/'SUMMARY.json').read_text())
         sources = tuple(prior['identity']['source_hashes']) + tuple(
             str(Path(__file__).with_name(name).relative_to(ROOT)) for name in ('worker.py', 'run.py', 'report.py')) + tuple(extra_source_files)
