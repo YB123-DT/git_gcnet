@@ -1,5 +1,15 @@
 # OSRAM task delivery agreement
 
+- 最新有限训练授权（2026-10-21）：MOSI原Flat seed66，分别固定miss0.0–0.7
+  从头训练8个模型，各自只测试同一rate；不是cyclic、不是固定一张Mask，也不是
+  Persistent。只修改train_rate_mode/fixed_missing_rate/train_missing_rates。
+  原GCNet random mask、主干、数据、s0、batch32/Adam/WD1e-5/MSE保持；每组150轮，
+  前100轮3e-4、后50轮3e-5，按同rate Test-best W-F1，保留best/完整last与同次预测。
+  对照原cyclic Flat66已接受的同rate exact测试Mask；不启用V3/Nested/新loss。
+  独立目录 `experiments/osram_mosi_fixed_rate_seed66_20261021/`，biggpu健康GPU2
+  最多4并行、资源不足排队，不改现有V3/Nested任务、不扩种子或HPO。
+  最终八率均值属于8个独立模型，不能称为cyclic单模型部署成绩。
+
 - 最新独立 V3 授权（2026-10-21）：实现用户明确指定的 Hierarchical Source–Role
   Interaction：共享512→64坐标、逐来源逐激活Gap配对（343维，不提前平均Gap）、
   同角色跨来源Attention、角色专属Local Query、四个零初始化64→512读值校正。
