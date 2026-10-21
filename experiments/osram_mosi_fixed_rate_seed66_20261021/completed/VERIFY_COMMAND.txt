@@ -1,0 +1,43 @@
+import json,hashlib,gc,math
+from pathlib import Path
+import numpy as np
+import torch
+from sklearn.metrics import accuracy_score,f1_score
+root=Path("/data2/yb/remote_experiments/osram_mosi_fixed_rate_seed66_20261021/execution_v1")
+result={"label":"INTERNAL TEST-ORACLE SCREEN","checks":[],"all_passed":False}
+def sha(p):
+ h=hashlib.sha256()
+ with p.open("rb") as f:
+  for v in iter(lambda:f.read(2**20),b""):h.update(v)
+ return h.hexdigest()
+for i in range(8):
+ rate=f"{i/10:.1f}";p=root/"runs"/("rate_"+rate.replace(".","p"))/"seed_66"
+ s=json.loads((p/"SUMMARY.json").read_text());b=s["testbest"];c=s["config"]
+ assert s["status"]=="complete" and s["epoch"]==150 and c["epochs"]==150
+ assert c["train_rate_mode"]=="fixed" and c["train_missing_rates"]==[i/10] and c["fixed_missing_rate"]==i/10
+ assert c["seed"]==66 and c["missing_mask_protocol"]=="gcnet-random-mask-v1" and not c["osram_source_role_v3"]
+ assert s["total_parameters"]==13509793
+ for name in ("checkpoint","predictions"):
+  assert sha(p/b[name])==b[name+"_sha256"],(rate,name)
+ reference=Path(s["identity"]["cyclic_reference"]["path"])
+ with np.load(p/b["predictions"],allow_pickle=False) as saved,np.load(reference/"evaluation"/("random_"+rate.replace(".","p")+".npz"),allow_pickle=False) as baseline:
+  for name in ("labels","speakers","conversation_ids","utterance_indices","availability"):np.testing.assert_array_equal(saved[name],baseline[name])
+  labels=saved["labels"].reshape(-1);pred=saved["prediction"].reshape(-1);valid=labels!=0
+  actual={"ACC":100*accuracy_score(labels[valid]>0,pred[valid]>0),"WF1":100*f1_score(labels[valid]>0,pred[valid]>0,average="weighted"),"MSE":float(np.mean((labels-pred)**2))}
+  for name,v in actual.items():assert math.isclose(v,b["metrics"][name],rel_tol=0,abs_tol=1e-8),(rate,name)
+  assert hashlib.sha256(saved["availability"].tobytes()).hexdigest()==b["mask_sha256"]
+ h=json.loads((p/"history.json").read_text());assert len(h)==150
+ for n,row in enumerate(h):
+  assert row["epoch"]==n+1 and row["rate_batch_counts"]=={rate:2} and row["optimizer_steps"]==2
+  assert set(row["test"])=={rate} and row["availability_pattern_counts"]["NONE"]==0
+  assert math.isclose(row["learning_rates"][0],3e-4 if n<100 else 3e-5,rel_tol=1e-14)
+ scores=[row["test"][rate]["router"]["WF1"] for row in h]
+ assert b["epoch"]==scores.index(max(scores))+1
+ state=torch.load(p/"last.pt",map_location="cpu",weights_only=False)
+ assert state["epoch"]==150 and json.loads(json.dumps(state["identity"]))==s["identity"]
+ assert state["optimizer"]["state"] and state["rng"] and state["model"]
+ assert len(state["history"])==150 and state["testbest"]==b
+ del state;gc.collect()
+ result["checks"].append(dict(rate=rate,epoch=b["epoch"],metrics=actual,exact_baseline_cohort_and_mask=True,artifact_hashes_exact=True,all150_epochs_same_rate=True,earliest_test_wf1_best=True,full_last_state_present=True,source_commit=s["source_commit"]))
+result["all_passed"]=True
+print(json.dumps(result))
