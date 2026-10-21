@@ -83,3 +83,39 @@ Largest decrease israte.7:-5.342076pp. Rate0.0 also decreases1.422828pp;
 therefore the overall difference is not confined to evaluation at highmissing.
 Trainingavailability and samplerRNG also differ; no isolated causal attribution
 to the rate.7one-hot branch is justified by this table. No weights or masks changed.
+
+## Actual saved seed66 availability check,2026-10-21
+
+Read existing NPZs only; no new inference,training or mask sampling. Old root:
+`/data1/yb/remote_experiments/osram_nested_low_lr_extend150_20261010/runs/flat_seed66`.
+Current root:`/data2/yb/remote_experiments/osram_mosi_gcnet_testbest_20261020/execution_v2/runs/MOSI/seed_66/flat`.
+Both use686valid utterances percondition. Counts include neutral-labeled valid
+utterances; task polarityW-F1 uses its established nonzero-label filtering.
+
+| Mask/version | Nominal rate | Actual missing fraction | Text visible fraction | Single/pair/triple utterance counts |
+|---|---:|---:|---:|---|
+| Old conversation-mask-v2 |0.0|0.000000|1.000000|0/0/686|
+| Current GCNet-v1 |0.0|0.000000|1.000000|0/0/686|
+| Old conversation-mask-v2 |0.6|0.531584|0.470845|441/212/33|
+| Current GCNet-v1 |0.6|0.602527|0.395044|562/116/8|
+| Old conversation-mask-v2 |0.7|0.589407|0.443149|543/127/16|
+| Current GCNet-v1 |0.7|0.666667|0.322157|686/0/0|
+
+At nominal.7,143/686old utterances(20.845%) retain pairs/triples; none do in
+the current GCNet masks. Text visibility falls by12.099percentagepoints.
+The current.7branch has one observed modality,so its realized missingfraction
+is2/3,not exactly.7. The old nonempty repair also means its realizedfraction
+does not equal its requestedrate. These are actual saved-mask observations,
+not theoretical expectations or a newly resampled mask.
+
+Same-seed task figures: oldFlat0.7W-F1 75.773178 versus current69.512195;
+oldFlat0.0W-F1 88.205138 versus current86.734550. Thus a harder masked test
+condition is a concrete contributor candidate,NOT proof of the whole causal
+score difference. Even at0.0(where both masks are all-visible),trained models
+differ: trainingavailability,RNG trajectories and selectedweights also changed.
+Do not claim the current sampler is a bug or change it back to raise scores.
+
+Current-protocol low-LR evidence remains distinct: seed66Flat constant1e-5
+W-F1 76.612759,constant2e-5 77.812072,versus original100+50LR79.128027.
+Reducing LR sharply has not solved the lower score in this150epoch budget;
+lateBEST alone does not establish successful optimization or a model ceiling.
