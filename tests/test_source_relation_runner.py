@@ -63,6 +63,8 @@ def test_audit_only_resume_rejects_model_source_config_and_wrong_epoch():
         with pytest.raises(ValueError): validate_audit_resume(changed, new)
     wrong = copy.deepcopy(new); wrong['source_hashes']['model.py'] = 'changed'
     with pytest.raises(ValueError): validate_audit_resume(state, wrong)
+    wrong = copy.deepcopy(new); wrong['config']['lr'] = 1e-3
+    with pytest.raises(ValueError): validate_audit_resume(state, wrong)
 
 
 def test_manifest_relocation_requires_identical_content_not_just_a_new_path(tmp_path):
@@ -76,5 +78,3 @@ def test_manifest_relocation_requires_identical_content_not_just_a_new_path(tmp_
     assert same_manifest_content(old, new)
     b.write_bytes(b'different')
     assert not same_manifest_content(old, new)
-    wrong = copy.deepcopy(new); wrong['config']['lr'] = 1e-3
-    with pytest.raises(ValueError): validate_audit_resume(state, wrong)
