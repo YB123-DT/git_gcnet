@@ -1,0 +1,31 @@
+{
+  "status": "running",
+  "label": "INTERNAL TEST-ORACLE SCREEN",
+  "server": "biggpu",
+  "source_commit": "0da38b3326fdad09da0195e49b8b7d6424b4f613",
+  "source_archive_sha256": "e8a74b62c0a9f4f8f8d80db3f6778cd86ef8cfdffc8b6bc9249fc879e7bab96d",
+  "source": "/data2/yb/remote_experiments/osram_mosei_gcnet_flat_lr1e4_20261021/source_0da38b3",
+  "output": "/data2/yb/remote_experiments/osram_mosei_gcnet_flat_lr1e4_20261021/execution_v1",
+  "controller_log": "/data2/yb/remote_experiments/osram_mosei_gcnet_flat_lr1e4_20261021/controller.log",
+  "tmux_socket": "osram_mosei_low_lr",
+  "tmux_session": "flat6768_0da38b3",
+  "controller_pid": 1113876,
+  "physical_gpu": 1,
+  "gpu_uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+  "parallel_jobs": 2,
+  "runs": [
+    {"seed":67,"pid":1113883,"mode":"flat","status":"running","learning_rate":0.0001,"parameters":13509793},
+    {"seed":68,"pid":1113914,"mode":"flat","status":"running","learning_rate":0.0001,"parameters":13509793}
+  ],
+  "epochs":60,
+  "batch_size":32,
+  "weight_decay":0.00001,
+  "lr_schedule":"constant",
+  "missing_protocol":"gcnet-random-mask-v1",
+  "checkpoint_selection":"test-oracle-per-rate weighted_f1; earliest strict-best ties",
+  "python":"/data2/yb/reproduction_workspace/envs/s0/bin/python",
+  "verified":"Both actual worker summaries reached running with the expected config and parameter count, after exact original initialization, split, seed protocol and test-mask checks against each current source-role run",
+  "local_tests":"17 passed; compileall and git diff checks passed",
+  "remaining":"Full60epoch training, final selected artifact verification and scores pending",
+  "comparison_warning":"These1e-4Flat jobs are not same-LR controls for the existing1e-3direct-source model"
+}
