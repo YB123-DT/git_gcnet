@@ -1,0 +1,83 @@
+{
+  "status": "running",
+  "label": "INTERNAL TEST-ORACLE SCREEN",
+  "server": "biggpu",
+  "host": "user22",
+  "source_commit": "5877678ce3fac9358a94f1217e3dbac5509f6f58",
+  "source_directory": "/data2/yb/remote_experiments/osram_mosi_mid_lr_20261021/source_5877678",
+  "source_snapshot_verification": {"tracked_blobs": 9538, "mismatches": 0},
+  "source_delta_archive_sha256": "dc31269a1e4af331dc1fb9630764c7c889badfc2863d84f962e3c085414eb8c0",
+  "output": "/data2/yb/remote_experiments/osram_mosi_mid_lr_20261021/execution_v2",
+  "controller_log": "/data2/yb/remote_experiments/osram_mosi_mid_lr_20261021/controller_v2.log",
+  "controller_pid": 1131080,
+  "tmux_socket": "osram_mosi_mid_lr",
+  "tmux_session": "flat66_5877678",
+  "started_at_utc": "2026-10-21T02:23:10Z",
+  "physical_gpu": 7,
+  "gpu_uuid": "GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e",
+  "maximum_parallel": 2,
+  "environment": {
+    "python": "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+    "torch": "2.2.2+cu121",
+    "numpy": "1.24.3",
+    "sklearn": "1.3.2"
+  },
+  "shared_config": {
+    "dataset": "CMUMOSI",
+    "seed": 66,
+    "mode": "flat",
+    "epochs": 150,
+    "batch_size": 32,
+    "weight_decay": 0.00001,
+    "dropout": 0.5,
+    "missing_mask_protocol": "gcnet-random-mask-v1",
+    "checkpoint_selection": "test-oracle-per-rate",
+    "checkpoint_selection_metric": "weighted_f1",
+    "osram_source_role": false,
+    "router_parameters": 0,
+    "total_parameters": 13509793,
+    "initial_backbone_sha256": "89718ab6425657b9a05286892ff7f8d93bca0cac5891f3f0d5e601e49af26ef2"
+  },
+  "jobs": [
+    {
+      "name": "flat_lr_0.0005",
+      "pid": 1131096,
+      "first_100_lr": 0.0005,
+      "final_50_lr": 0.00005,
+      "config_sha256": "6fa849180a20aba5484923f395619054da0dc20bfe0477d350e3ff995f62fe44",
+      "observed_epoch": 2,
+      "observed_peak_memory_mib": 1238.58642578125
+    },
+    {
+      "name": "flat_lr_0.0003",
+      "pid": 1131179,
+      "first_100_lr": 0.0003,
+      "final_50_lr": 0.00003,
+      "config_sha256": "5d6e22c06fbf02ff94423670546cfcc3d3738f7d8aefdaa12724693d27fb8d73",
+      "observed_epoch": 2,
+      "observed_peak_memory_mib": 1238.58642578125
+    }
+  ],
+  "verified": {
+    "focused_tests_passed_local_and_remote": 15,
+    "protected_MOSI_prediction_bridge": true,
+    "reference_initialization_exact": true,
+    "reference_split_exact": true,
+    "reference_evaluation_masks_exact": true,
+    "first_two_epochs_training_mask_hashes_exact": true,
+    "first_two_epochs_optimizer_steps_exact": true,
+    "disabled_current_vs_original_forward_context_backward_rng_exact": true,
+    "baseline_core_sources_byte_identical": false,
+    "only_reviewed_disabled_source_role_integration_hashes_allowed": true
+  },
+  "previous_attempt": {
+    "source_commit": "cbf0dea323b2d08b4403b826a3cbc42f11fd6c5b",
+    "output": "/data2/yb/remote_experiments/osram_mosi_mid_lr_20261021/execution_v1",
+    "status": "preflight_failed_before_training",
+    "reason": "Legacy reference lacks default-disabled source-role fields and predates their gated code integration",
+    "preserved": true,
+    "explanation": "PREFLIGHT_FIX.md"
+  },
+  "result_status": "Pending completion of both150epoch trajectories; no performance claim at launch",
+  "automatic_finish": "Controller writes RESULT.md, SUMMARY.json and METRICS.csv after both jobs complete and selected-prediction checks pass"
+}
