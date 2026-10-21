@@ -29,3 +29,17 @@ The supplement waits for the predecessor classification controller to drain,
 because the old immutable controller cannot account for another queue's GPU
 children. This preserves total physicalGPU0/2 caps4/8 without killing or
 restarting any existing worker.24 pending jobs are not24 running jobs.
+
+## Actual remote launch
+
+Remote original environments passed31 classification/queue tests in5.37s and
+19 MOSEI/legacy-loop tests in8.74s (optional-library/deprecation warnings only).
+All22 new classification configurations were checked against actual baseline
+files; both MOSEI reference configurations matched completed60epoch1e-3 runs.
+All9663 Git blobs in immutable source `d6c802ecfe105ffce1ef0badfdbcf697b312f71d`
+were verified before starting the controller.
+
+The persistent supplement controller is alive (PID326112 at launch), with all24
+seed67/68 jobs registered. Its actual state is `waiting_seed66_queue`; no new
+training process is claimed yet. Existing seed66 training remains running.
+The handoff and per-resource admissions proceed automatically without user input.
