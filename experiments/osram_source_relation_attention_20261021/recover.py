@@ -14,15 +14,20 @@ def main():
     parser.add_argument('--output', type=Path, required=True, help='Existing finite queue root')
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--source-commit', required=True)
+    parser.add_argument('--record-name', default='RECOVERY.json')
     args = parser.parse_args(); root = args.output
-    old = json.loads((root/'runs/CMUMOSI/SUMMARY.json').read_text())
     backup = root.parent/'recovery_epoch100'
+    old = json.loads((backup/'SUMMARY.json').read_text())
     if old['status'] != 'failed' or old['epoch'] != 100 or not (backup/'last.pt').exists():
         raise ValueError('Require preserved failed100-run and full epoch100 backup')
-    path = root/'RECOVERY.json'
+    if Path(args.record_name).name != args.record_name or not args.record_name.endswith('.json'):
+        raise ValueError('Recovery record must be a simple JSON filename')
+    path = root/args.record_name
     if path.exists(): raise FileExistsError('Do not duplicate a recovery watcher')
     from experiments.osram_tasr_20261018.runner_helpers import sha, write_json
     from .run import gpu_free
+    if sha(root/'runs/CMUMOSI/last.pt') != sha(backup/'last.pt'):
+        raise ValueError('The original full epoch100 checkpoint has changed')
     _, free = gpu_free(args.gpu_uuid)
     if free < 5000: raise RuntimeError('Insufficient free GPU memory to resume MOSI')
     state = dict(status='resuming', source_commit=args.source_commit,
@@ -42,7 +47,7 @@ def main():
             state.update(worker_pid=proc.pid); write_json(path, state)
             code = proc.wait()
         model = json.loads((root/'runs/CMUMOSI/SUMMARY.json').read_text())
-        state.update(returncode=code, mosi_status=model['status'], mosi_epoch=model['epoch'])
+        state.update(returncode=code, mosi_status=model['status'], mosi_epoch=model.get('epoch'))
         if code or model['status'] != 'complete': raise RuntimeError('MOSI recovery failed')
         state['status'] = 'mosi_complete_waiting_original_mosei'; write_json(path, state)
         original_controller = json.loads((root/'QUEUE.json').read_text())['pid']

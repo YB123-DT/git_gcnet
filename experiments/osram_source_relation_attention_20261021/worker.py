@@ -62,6 +62,16 @@ def check_training_parity(row, reference):
         raise RuntimeError('Reference training learning_rates changed')
 
 
+def same_manifest_content(before, after):
+    if before == after: return True
+    old, new = dict(before), dict(after)
+    first, second = old.pop('manifest_origin', None), new.pop('manifest_origin', None)
+    expected = old.get('combined_manifest_sha256')
+    if old != new or not expected or not first or not second: return False
+    return all(Path(p).is_file() and hashlib.sha256(Path(p).read_bytes()).hexdigest() == expected
+               for p in (first, second))
+
+
 def validate_audit_resume(state, identity):
     """One explicit migration for the audited epoch101 float-comparison failure."""
     old = state['identity']; path = 'experiments/osram_source_relation_attention_20261021/worker.py'
@@ -72,6 +82,7 @@ def validate_audit_resume(state, identity):
         raise ValueError('Only the known MOSI66 epoch100 audit-failure checkpoint may migrate')
     if set(old) != set(identity): raise ValueError('Resume identity schema changed')
     for key in old:
+        if key == 'data_manifest' and same_manifest_content(old[key], identity[key]): continue
         if key not in ('source_commit', 'source_hashes') and old[key] != identity[key]:
             raise ValueError('Resume changed '+key)
     if set(old['source_hashes']) != set(identity['source_hashes']):
@@ -81,6 +92,7 @@ def validate_audit_resume(state, identity):
             raise ValueError('Resume changed non-audit source: '+name)
     return dict(normal_training_math_unchanged=True, source_commit_before=old['source_commit'],
         source_commit_after=identity['source_commit'], restored_epoch=100,
+        manifest_path_relocated_with_content_hash_verified=old.get('data_manifest') != identity.get('data_manifest'),
         only_source_hash_change=dict(path=path, before=before, after=identity['source_hashes'][path]),
         correction='LR parity comparison only: rel_tol1e-14,abs_tol0; actual scheduler unchanged')
 

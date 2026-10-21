@@ -63,5 +63,18 @@ def test_audit_only_resume_rejects_model_source_config_and_wrong_epoch():
         with pytest.raises(ValueError): validate_audit_resume(changed, new)
     wrong = copy.deepcopy(new); wrong['source_hashes']['model.py'] = 'changed'
     with pytest.raises(ValueError): validate_audit_resume(state, wrong)
+
+
+def test_manifest_relocation_requires_identical_content_not_just_a_new_path(tmp_path):
+    import hashlib
+    from experiments.osram_source_relation_attention_20261021.worker import same_manifest_content
+    a = tmp_path/'old.json'; b = tmp_path/'new.json'
+    a.write_bytes(b'fixed manifest'); b.write_bytes(b'fixed manifest')
+    sha = hashlib.sha256(a.read_bytes()).hexdigest()
+    old = dict(manifest_origin=str(a), combined_manifest_sha256=sha, data_sha256='same', byte_identical_reconstruction=True)
+    new = dict(old, manifest_origin=str(b))
+    assert same_manifest_content(old, new)
+    b.write_bytes(b'different')
+    assert not same_manifest_content(old, new)
     wrong = copy.deepcopy(new); wrong['config']['lr'] = 1e-3
     with pytest.raises(ValueError): validate_audit_resume(state, wrong)

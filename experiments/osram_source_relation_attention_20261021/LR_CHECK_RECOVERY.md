@@ -38,3 +38,11 @@ lineage remains in each checkpoint and recovery record, not relabeled as one SHA
 Five focused runner tests passed, including the reproduced roundoff boundary,
 rejection of real LR/mask changes, rejection of incompatible source/config/epoch
 migrations. No fresh training run, smoke rerun, mask resampling or HPO is added.
+
+The first recovery bootstrap was safely rejected before any optimizer step:
+the reconstructed data manifest's origin path moved from source_6dbcc98 to the
+new immutable snapshot, despite identical data/manifest fingerprints. The second
+recovery admits only that path relocation after hashing both full manifest files
+and comparing all other manifest metadata. It still rejects changed content,
+feature-file hashes or data split. RECOVERY.json retains the failed bootstrap;
+RECOVERY_v2.json tracks the retry. No weights/masks were changed by the rejection.
