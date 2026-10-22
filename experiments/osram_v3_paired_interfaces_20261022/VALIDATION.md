@@ -51,3 +51,42 @@ Compilation and git diff --check passed.
 Real-data s0 GPU smoke, immutable deployment and formal PID/protocol evidence are
 recorded separately in LAUNCH.json after observation. CPU correctness is not a
 claim that any of the hypotheses improves performance.
+
+The immutable source commit is 2ff0977. Remote original s0 Python/Torch2.2.2
+passed the 27 new standalone/integration/runner checks in8.81s. Dataset deployment
+includes the original label-directory link; MOSI pickle SHA256 matches the
+accepted manifest (`931ee50f3a77b2eb18786840a880a439f3ae6542bf2dfb5e14ecc9690702af84`).
+No dependencies or environment settings were changed. Physical GPU2 andGPU3
+were healthy/free at admission; GPU4 is excluded by physical index and UUID.
+
+The synthetic first-update gradient test establishes the specified derivative
+paths, not that both paths activate at the first real cyclic-training update.
+Actual branch activation follows the unchanged GCNet schedule. Nominal parameter
+parity holds within each A/B pair; cross-pair capacities differ, so primary
+mechanism comparisons are B minus A rather than winner selection across pairs.
+
+## Actual CUDA and formal launch
+
+All six original-s0 real MOSI smokes completed four optimizer updates and exact
+full model/Adam/RNG/prediction reload. All original/new parameter updates, finite
+nonzero expected gradient groups, source-read connectivity, initial Flat prediction
+parity, reference masks/configuration and pair initialization checks passed.
+
+| A/B pair | New parameters each | Smoke peaks A/B MiB |
+|---|---:|---:|
+| topology-full / topology-diagonal |335006|3356 /3356|
+| local-adapter / local-shared |267678|3318 /3318|
+| task-pre-norm / task-post-norm |613086|3308 /3294|
+
+At 2026-10-22T23:46:05Z all six formal processes were alive with command lines
+matching the controller, and had passed the four-update gradient gate. Epochs
+were10/9,8/6,5/4 for the three pairs respectively. Each last saved training row
+matched the original Flat training mask trace, update count and LR, with one CHM
+scan per optimizer update. Each pair had identical initial module hash and nominal
+parameter count. Exact commands, UUIDs, hashes, PIDs and measured formal peaks are
+in LAUNCH.json. These are running experiments, not completed model results.
+
+Persistent tmux socket/session: osram_v3_pairs/mosi_pairs. Remote output:
+`/data2/yb/remote_experiments/osram_v3_paired_interfaces_20261022/execution_v1`.
+No prior run or protected checkpoint was modified, and no additional jobs were
+queued beyond the authorized six.

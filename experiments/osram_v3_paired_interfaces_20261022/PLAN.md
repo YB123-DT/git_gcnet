@@ -32,3 +32,9 @@ in independent worker/controller/report; immutable Git source snapshot;
 hash-verified default label directory; real GPU smoke; six parallel formal jobs
 on healthy biggpu devices with measured-memory admission and persistent tmux.
 Do not modify existing runs or checkpoints. Commit and push only task files.
+
+Execution update 2026-10-22T23:46:05Z: implementation,61 local checks,27 remote
+checks and all six four-update real CUDA smokes passed. The six formal MOSI
+workers are running on GPU2/GPU3, three per card, with exact paired initialization
+and original mask/update/LR parity verified. No additional method or seed queued.
+Runtime code is immutable at2ff0977; startup status and evidence are inLAUNCH.json.
