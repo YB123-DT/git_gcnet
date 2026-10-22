@@ -29,7 +29,7 @@ are preserved. No additional seed, HPO, Gate, JEPA, completion or auxiliary loss
   -m experiments.osram_mosi_v3_direct_20261022.run \
   --source-commit SOURCE_SHA \
   --gpu-uuid GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e \
-  --output /data2/yb/remote_experiments/osram_mosi_v3_direct_20261022/execution_v1
+  --output /data2/yb/remote_experiments/osram_mosi_v3_direct_20261022/execution_v2
 ```
 
 The tmux controller runs one two-epoch/four-update smoke, requires finite/nonzero
@@ -43,3 +43,12 @@ zero; this does NOT imply identity of V3's randomly replaced history inputs.
 Actual Flat input replacement is verified in core tests, not inferred from logits.
 
 No independent generalization or guaranteed performance improvement is claimed.
+
+Actual immutable training source:9827f30df1c48c758ae714ae35e044cdd0caea5f,
+directory `/data2/yb/remote_experiments/osram_mosi_v3_direct_20261022/source_retry`.
+tmux socket/session:`osram_mosi_direct` / `direct_9827f30`. PhysicalGPU7 is bound
+by the UUID in the command; process-local device is cuda:0. ControllerPID3346065,
+trainingPID3349620 were verified alive, with the training process on the correct
+UUID. `LAUNCH.json` records the timestamp/config/environment and actual GPU proof.
+execution_v1/source_b93209e preserve the pre-update metadata-check failure; they
+are not formal results and are never mixed into the ranking.
