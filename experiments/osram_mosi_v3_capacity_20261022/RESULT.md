@@ -1,42 +1,87 @@
-# MOSI capacity screen: six runs launched
+# MOSI small Flat / larger V3
 
 INTERNAL TEST-ORACLE SCREEN
 
-Seed66 only,150epochs,LR3e-4(1..100)/3e-5(101..150),original GCNet random missing,
-official MOSI features/split,s0 environment. All runs start fresh and train jointly.
-CHM,LocalSkip,Flat output1600 and task/loss unchanged.
+Seed66,150epochs,3e-4(1..100)/3e-5(101..150),new GCNet missing.
+Only completed arms enter performance tables. Missing runs are not zeros.
 
-| Model | Flat hidden | V3 width / PairMLP | Total params | Formal result |
-|---|---:|---|---:|---|
-| f512_plain | 512 | off | 7,032,929 | pending |
-| f512_v128 | 512 | 128 / 256 | 7,864,639 | pending |
-| f512_v256 | 512 | 256 / 512 | 9,349,567 | pending |
-| f1024_plain | 1024 | off | 10,080,865 | pending |
-| f1024_v128 | 1024 | 128 / 256 | 10,912,575 | pending |
-| f1024_v256 | 1024 | 256 / 512 | 12,397,503 | pending |
+| Model | Scope | ACC | W-F1 | MSE |
+|---|---|---:|---:|---:|
+| f512_plain | mean | 78.944 | 78.882 | 1.479529 |
+| f512_plain | high | 72.967 | 72.949 | 1.813406 |
+| f512_v128 | mean | 79.497 | 79.453 | 1.457980 |
+| f512_v128 | high | 73.476 | 73.519 | 1.764122 |
+| f512_v256 | mean | 79.116 | 79.140 | 1.494365 |
+| f512_v256 | high | 72.917 | 73.049 | 1.874133 |
+| f1024_plain | mean | 78.925 | 78.779 | 1.478568 |
+| f1024_plain | high | 73.069 | 72.775 | 1.841153 |
+| f1024_v128 | mean | 79.002 | 78.984 | 1.488386 |
+| f1024_v128 | high | 72.917 | 73.000 | 1.797277 |
+| f1024_v256 | mean | 79.135 | 79.053 | 1.501731 |
+| f1024_v256 | high | 73.628 | 73.441 | 1.808407 |
 
-Six real-MOSI two-epoch/four-update smokes passed before formal launch. They
-verified same-width Flat zero-init equality,finite/nonzero task gradients,
-single CHM scan and complete optimizer/RNG/prediction restoration. Smoke scores
-are NOT performance evidence. See VALIDATION.md and LAUNCH.json.
+## State
 
-Source commit:`86e3900d7fb5f3ee03ce214362e0fececb42887e`.
-Three formal jobs on biggpu GPU3,three onGPU7. Controller automatically writes
-completed-only RESULT.md/REPORT.json/PER_RATE.csv under:
+- f512_plain: {'status': 'complete', 'epoch': 150, 'error': None, 'seconds': 1756.1068063830025, 'parameters': {'flat_adapter': 3058240, 'total': 7032929, 'v3': 0}}
+- f512_v128: {'status': 'complete', 'epoch': 150, 'error': None, 'seconds': 2201.849879239977, 'parameters': {'flat_adapter': 3058240, 'total': 7864639, 'v3': 831710}}
+- f512_v256: {'status': 'complete', 'epoch': 150, 'error': None, 'seconds': 2256.3411739619914, 'parameters': {'flat_adapter': 3058240, 'total': 9349567, 'v3': 2316638}}
+- f1024_plain: {'status': 'complete', 'epoch': 150, 'error': None, 'seconds': 1959.1682604050147, 'parameters': {'flat_adapter': 6106176, 'total': 10080865, 'v3': 0}}
+- f1024_v128: {'status': 'complete', 'epoch': 150, 'error': None, 'seconds': 2365.567140375031, 'parameters': {'flat_adapter': 6106176, 'total': 10912575, 'v3': 831710}}
+- f1024_v256: {'status': 'complete', 'epoch': 150, 'error': None, 'seconds': 2384.9605314960354, 'parameters': {'flat_adapter': 6106176, 'total': 12397503, 'v3': 2316638}}
 
-```text
-/data2/yb/remote_experiments/osram_mosi_v3_capacity_20261022/execution_v1
-```
+## Per rate
 
-Primary comparison: each V3 against its own same-width Flat. Read-only historical
-large Flat66 has79.2491 eight-rate WF1/73.4098 high; default V36679.1394/73.7128.
-Do not substitute old conversation-mask-v2 scores near80.7.
+| Model | Rate | Epoch | ACC | W-F1 | MSE |
+|---|---:|---:|---:|---:|---:|
+| f512_plain | 0.0 | 28 | 87.652 | 87.643 | 1.012037 |
+| f512_plain | 0.1 | 59 | 83.841 | 83.768 | 1.182274 |
+| f512_plain | 0.2 | 53 | 82.317 | 82.334 | 1.333773 |
+| f512_plain | 0.3 | 55 | 81.098 | 80.853 | 1.321007 |
+| f512_plain | 0.4 | 55 | 77.744 | 77.613 | 1.546923 |
+| f512_plain | 0.5 | 52 | 75.762 | 75.896 | 1.557490 |
+| f512_plain | 0.6 | 55 | 73.628 | 73.343 | 1.784629 |
+| f512_plain | 0.7 | 37 | 69.512 | 69.610 | 2.098098 |
+| f512_v128 | 0.0 | 26 | 87.195 | 87.201 | 1.031947 |
+| f512_v128 | 0.1 | 28 | 84.604 | 84.450 | 1.158018 |
+| f512_v128 | 0.2 | 44 | 82.774 | 82.629 | 1.375852 |
+| f512_v128 | 0.3 | 28 | 82.165 | 82.041 | 1.335013 |
+| f512_v128 | 0.4 | 28 | 78.811 | 78.748 | 1.470648 |
+| f512_v128 | 0.5 | 42 | 76.067 | 76.061 | 1.517919 |
+| f512_v128 | 0.6 | 42 | 74.238 | 74.308 | 1.841362 |
+| f512_v128 | 0.7 | 46 | 70.122 | 70.187 | 1.933084 |
+| f512_v256 | 0.0 | 29 | 87.195 | 87.062 | 0.959763 |
+| f512_v256 | 0.1 | 27 | 84.299 | 84.233 | 1.145715 |
+| f512_v256 | 0.2 | 28 | 82.317 | 82.290 | 1.343401 |
+| f512_v256 | 0.3 | 29 | 81.098 | 81.139 | 1.396126 |
+| f512_v256 | 0.4 | 27 | 79.268 | 79.247 | 1.487512 |
+| f512_v256 | 0.5 | 32 | 76.220 | 76.312 | 1.635014 |
+| f512_v256 | 0.6 | 23 | 72.713 | 72.879 | 1.916393 |
+| f512_v256 | 0.7 | 49 | 69.817 | 69.958 | 2.070993 |
+| f1024_plain | 0.0 | 26 | 87.043 | 87.019 | 1.104759 |
+| f1024_plain | 0.1 | 46 | 84.146 | 84.146 | 1.140604 |
+| f1024_plain | 0.2 | 55 | 82.012 | 81.894 | 1.286636 |
+| f1024_plain | 0.3 | 55 | 80.488 | 80.316 | 1.311231 |
+| f1024_plain | 0.4 | 46 | 78.506 | 78.531 | 1.461858 |
+| f1024_plain | 0.5 | 62 | 75.610 | 75.530 | 1.657846 |
+| f1024_plain | 0.6 | 39 | 74.085 | 73.462 | 1.853384 |
+| f1024_plain | 0.7 | 92 | 69.512 | 69.333 | 2.012229 |
+| f1024_v128 | 0.0 | 31 | 87.652 | 87.682 | 1.258468 |
+| f1024_v128 | 0.1 | 52 | 83.994 | 83.871 | 1.096224 |
+| f1024_v128 | 0.2 | 54 | 82.470 | 82.438 | 1.276173 |
+| f1024_v128 | 0.3 | 38 | 80.793 | 80.638 | 1.361761 |
+| f1024_v128 | 0.4 | 38 | 78.354 | 78.241 | 1.522633 |
+| f1024_v128 | 0.5 | 54 | 75.915 | 75.903 | 1.567479 |
+| f1024_v128 | 0.6 | 38 | 73.780 | 73.874 | 1.810553 |
+| f1024_v128 | 0.7 | 53 | 69.055 | 69.224 | 2.013798 |
+| f1024_v256 | 0.0 | 32 | 87.195 | 87.223 | 1.167695 |
+| f1024_v256 | 0.1 | 35 | 83.994 | 83.905 | 1.170364 |
+| f1024_v256 | 0.2 | 37 | 82.622 | 82.508 | 1.307657 |
+| f1024_v256 | 0.3 | 37 | 81.098 | 81.047 | 1.332561 |
+| f1024_v256 | 0.4 | 51 | 77.287 | 77.419 | 1.610349 |
+| f1024_v256 | 0.5 | 37 | 77.134 | 77.111 | 1.580574 |
+| f1024_v256 | 0.6 | 30 | 74.848 | 74.199 | 1.844359 |
+| f1024_v256 | 0.7 | 37 | 68.902 | 69.014 | 2.000288 |
 
-At the same rate,six models evaluate identical saved per-utterance availability.
-Different rates have different masks;training masks are not frozen. Each epoch
-must match original training-mask/order/update/LR traces. Test-best per rate may
-select different epochs; ACC/MSE come from corresponding same-call predictions.
-This is not a single-model deployment score or independent generalization claim.
-
-All new/old checkpoints,smoke weights,masks,predictions and logs remain. No
-additional seeds,HPO or mechanism claims. Formal gains/losses are pending.
+Compare each V3 arm with its same-width Flat control. This is capacity
+screening, not a parameter-matched proof or independent test generalization.
+Per-rate Test-best can select different epochs. No additional inference.

@@ -1,0 +1,167 @@
+{
+  "captured_utc": "2026-10-22T04:25:15.274669+00:00",
+  "server": "biggpu",
+  "execution_root": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1",
+  "queue": {
+    "status": "complete",
+    "source_commit": "5a86f7e98bcbe8eead96b10410be6175d0abd832",
+    "pid": 2650147,
+    "gpu_uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+    "physical_gpu": 1,
+    "max_parallel": 2,
+    "jobs": [
+      {
+        "mode": "small_flat",
+        "pid": 2653980,
+        "status": "complete",
+        "command": [
+          "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+          "-u",
+          "-m",
+          "experiments.osram_mosei_v3_capacity_20261022.worker",
+          "--mode",
+          "small_flat",
+          "--phase",
+          "train",
+          "--seed",
+          "66",
+          "--gpu-uuid",
+          "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+          "--source-commit",
+          "5a86f7e98bcbe8eead96b10410be6175d0abd832",
+          "--output",
+          "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/runs/small_flat"
+        ],
+        "output": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/runs/small_flat",
+        "log": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/train_small_flat.log",
+        "epoch": 60,
+        "worker_status": "complete",
+        "returncode": 0
+      },
+      {
+        "mode": "wide_v3",
+        "pid": 2653987,
+        "status": "complete",
+        "command": [
+          "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+          "-u",
+          "-m",
+          "experiments.osram_mosei_v3_capacity_20261022.worker",
+          "--mode",
+          "wide_v3",
+          "--phase",
+          "train",
+          "--seed",
+          "66",
+          "--gpu-uuid",
+          "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+          "--source-commit",
+          "5a86f7e98bcbe8eead96b10410be6175d0abd832",
+          "--output",
+          "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/runs/wide_v3"
+        ],
+        "output": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/runs/wide_v3",
+        "log": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/train_wide_v3.log",
+        "epoch": 60,
+        "worker_status": "complete",
+        "returncode": 0
+      }
+    ],
+    "smokes": [
+      {
+        "mode": "small_flat",
+        "status": "complete",
+        "returncode": 0,
+        "peak_memory_mib": 607.283203125,
+        "seconds": 73.27939361601602,
+        "log": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/smoke_small_flat.log"
+      },
+      {
+        "mode": "wide_v3",
+        "status": "complete",
+        "returncode": 0,
+        "peak_memory_mib": 2218.8857421875,
+        "seconds": 40.58035630796803,
+        "log": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/smoke_wide_v3.log"
+      }
+    ],
+    "free_before_train_mib": 32491,
+    "estimated_required_mib": 6521.8703125,
+    "seconds": 8581.700968071003
+  },
+  "runs": {
+    "small_flat": {
+      "path": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/runs/small_flat",
+      "source_commit": "5a86f7e98bcbe8eead96b10410be6175d0abd832",
+      "summary_sha256": "e3c1eba415aa2590be4fb4bbf810b23985054c24b25c575466e4bf9e2ebbe5a8",
+      "history_sha256": "f920026e87faa82d842f3c7dff370530feea49a266d6d237383a32a652069470",
+      "parameters": {
+        "flat_adapter": 6106176,
+        "total": 10080865,
+        "v3": 0
+      },
+      "epoch": 60,
+      "aggregate": {
+        "high": {
+          "ACC": 80.12291322693083,
+          "MSE": 0.7284325361251831,
+          "WF1": 79.84956474564767
+        },
+        "mean": {
+          "ACC": 83.2347275729224,
+          "MSE": 0.6223688870668411,
+          "WF1": 83.0778158667036
+        }
+      },
+      "selected_epochs": {
+        "0.0": 23,
+        "0.1": 21,
+        "0.2": 23,
+        "0.3": 23,
+        "0.4": 17,
+        "0.5": 45,
+        "0.6": 23,
+        "0.7": 24
+      },
+      "expected_artifacts_present": 18,
+      "selected_prediction_hashes_verified": true
+    },
+    "wide_v3": {
+      "path": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/runs/wide_v3",
+      "source_commit": "5a86f7e98bcbe8eead96b10410be6175d0abd832",
+      "summary_sha256": "51229ba77d4c1241e3735da7dd93eb6c53f3fa2f07056a2c0e3bdd51eeb95254",
+      "history_sha256": "4d3924f8a72aec395bb04f5b5bdd99182bead1459a8dce449da7c33c407b1dfc",
+      "parameters": {
+        "flat_adapter": 6106176,
+        "total": 12397503,
+        "v3": 2316638
+      },
+      "epoch": 60,
+      "aggregate": {
+        "high": {
+          "ACC": 80.09539534030453,
+          "MSE": 0.7442620793978373,
+          "WF1": 79.81969648447041
+        },
+        "mean": {
+          "ACC": 83.28632361034673,
+          "MSE": 0.6307056248188019,
+          "WF1": 83.10436024332394
+        }
+      },
+      "selected_epochs": {
+        "0.0": 25,
+        "0.1": 25,
+        "0.2": 25,
+        "0.3": 28,
+        "0.4": 32,
+        "0.5": 18,
+        "0.6": 21,
+        "0.7": 28
+      },
+      "expected_artifacts_present": 18,
+      "selected_prediction_hashes_verified": true
+    }
+  },
+  "report_sha256": "f66dc76e62a90e89cae9fdf7b2871143465b1291513d73a1dda433c94a112ebd"
+}
