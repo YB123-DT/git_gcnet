@@ -1,0 +1,58 @@
+{
+  "status_at_recording": "all_9_formal_training_jobs_running",
+  "source_commit": "11a6c76ddc31e92d194b7ba2e14e4cd87c105818",
+  "server": "biggpu",
+  "source": "/data2/yb/remote_experiments/osram_mosi_memory_grid_20261022/source_11a6c76",
+  "output": "/data2/yb/remote_experiments/osram_mosi_memory_grid_20261022/execution_v1",
+  "controller_log": "/data2/yb/remote_experiments/osram_mosi_memory_grid_20261022/controller_v1.log",
+  "controller_pid": 383792,
+  "tmux_socket": "mosi_memory_grid",
+  "tmux_session": "finite9",
+  "python": "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+  "gpus": [
+    {"physical_index": 7, "uuid": "GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e", "max_own_training_processes": 5},
+    {"physical_index": 0, "uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45", "max_own_training_processes": 5}
+  ],
+  "unique_training_jobs": 9,
+  "seed": 66,
+  "epochs": 150,
+  "learning_rates": {"epochs_1_to_100": 0.0003, "epochs_101_to_150": 0.00003},
+  "missing_protocol": "gcnet-random-mask-v1",
+  "selection": "per-rate TEST W-F1; INTERNAL TEST-ORACLE SCREEN",
+  "test_mask_reference": "/data2/yb/remote_experiments/osram_mosi_mid_lr_20261021/execution_v2/runs/MOSI/seed_66/flat_lr_0.0003/fixed_masks.pt",
+  "tests": "38 passed locally, including configuration, queue, report and existing write-step tests",
+  "remote_smoke_validation": {
+    "all_9_complete": true,
+    "epochs_per_mode": 2,
+    "optimizer_steps_per_mode": 4,
+    "finite_task_and_gradients": true,
+    "optimizer_rng_prediction_reload_exact": true,
+    "all_test_mask_hashes_equal": true,
+    "all_common_shape_fresh_initialization_exact": true,
+    "all_write_strength_initial_weight_hashes_equal": true,
+    "peak_memory_mib_by_mode": {
+      "baseline": 1241.22705078125,
+      "step_0p2": 1241.22705078125,
+      "step_0p4": 1241.22705078125,
+      "step_0p8": 1241.22705078125,
+      "step_1p0": 1239.39501953125,
+      "head_32": 658.14501953125,
+      "head_48": 921.84423828125,
+      "head_96": 2070.94287109375,
+      "head_128": 3157.79541015625
+    }
+  },
+  "formal_pids": {
+    "baseline": 403463,
+    "step_0p2": 403835,
+    "step_0p4": 403476,
+    "step_0p8": 403867,
+    "step_1p0": 403479,
+    "head_32": 403980,
+    "head_48": 403486,
+    "head_96": 404142,
+    "head_128": 403505
+  },
+  "existing_tasks_or_checkpoints_modified": false,
+  "formal_performance_results": "pending; smoke results are not ranked"
+}
