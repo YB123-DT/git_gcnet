@@ -33,11 +33,11 @@ No seeds67/68,HPO,new losses,modules or checkpoint deletion are included.
   admission; implement finite persistent queue and completed-only report.
 - [x] Run focused tests with existing V3 capacity regression tests; py_compile
   and diff check. Inspect effective parameter counts and initialization.
-- [ ] Commit source, deploy a git archive to an immutable remote directory.
-- [ ] On two healthy idle biggpu GPUs, one smoke per GPU at a time. Each smoke
+- [x] Commit source, deploy a git archive to an immutable remote directory.
+- [x] On two healthy idle biggpu GPUs, one smoke per GPU at a time. Each smoke
   performs four actual MOSI optimizer steps because both old adapter and V3
   decoder are initially zero. Test full optimizer/RNG/prediction restoration.
-- [ ] Admit at most three formal jobs per GPU from measured peaks with headroom;
+- [x] Admit at most three formal jobs per GPU from measured peaks with headroom;
   queue otherwise. Never reduce batch/width or signal another task.
 - [ ] Confirm formal processes, GPU mapping and first epochs; commit/push small
   launch/validation evidence. Leave the finite queue to complete six jobs and
