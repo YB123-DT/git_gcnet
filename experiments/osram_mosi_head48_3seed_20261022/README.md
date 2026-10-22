@@ -37,6 +37,14 @@ Only these two explicit Git-object recoveries are permitted and reported;
 unknown missing hashes fail. Actual training Mask/update/LR traces must still
 match the original same-seed150-epoch ledger. No old records are overwritten.
 
+Original/current model file hashes also differ because disabled SourceRelation/V3
+options were added. A static diff found no active plain-Flat arithmetic changes.
+The completed current seed66 head64 control reproduces the original all150
+training MSE/mask/update records and all eight selected prediction arrays exactly.
+`CORE_BRIDGE.json` records this evidence; only three explicit old→new hash pairs
+are allowed with those modules disabled. Unknown differences fail; candidate
+cores must match each other, and original cores must match each other.
+
 ## Execution
 
 ```bash

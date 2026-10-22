@@ -25,6 +25,24 @@ def test_omitted_legacy_mixed_rate_hash_uses_only_audited_declared_git_commits()
     with pytest.raises(ValueError): report.core_hashes(record)
 
 
+def test_cross_version_bridge_only_allows_exact_audited_disabled_branch_hashes():
+    from experiments.osram_mosi_head48_3seed_20261022 import report
+    assert hasattr(report,'require_paired_core'),'explicit inactive-branch provenance bridge missing'
+    old={'identity':{'config':{'osram_source_role_v3':False},
+        'source_commit':'5877678ce3fac9358a94f1217e3dbac5509f6f58',
+        'source_hashes':{p:'known' for p in report.CORE}}}
+    new=deepcopy(old)
+    for path,(before,after) in report.PLAIN_CORE_TRANSITIONS.items():
+        old['identity']['source_hashes'][path]=before
+        new['identity']['source_hashes'][path]=after
+    report.require_paired_core(new,old)
+    new['identity']['config']['osram_source_role_v3']=True
+    with pytest.raises(ValueError): report.require_paired_core(new,old)
+    new['identity']['config']['osram_source_role_v3']=False
+    new['identity']['source_hashes'][report.CORE[0]]='unknown-new-core'
+    with pytest.raises(ValueError): report.require_paired_core(new,old)
+
+
 def records(tmp_path, monkeypatch):
     from experiments.osram_mosi_head48_3seed_20261022 import report
     from gcnet_missing_m3.train_gcnet import TrainConfig

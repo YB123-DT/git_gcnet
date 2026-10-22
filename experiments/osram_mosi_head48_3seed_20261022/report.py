@@ -30,6 +30,17 @@ LEGACY_MIXED_RATE = {
     '5877678ce3fac9358a94f1217e3dbac5509f6f58': '0d3e9af0b3c35c0fde4a148851390cf47850a50d9bdb0737a6997dc9438b22c1',
     '55a57718a40b92676d5f8dee885d4c64a873b74b': '0d3e9af0b3c35c0fde4a148851390cf47850a50d9bdb0737a6997dc9438b22c1',
 }
+PLAIN_CORE_TRANSITIONS = {
+    'gcnet_missing_m3/osram.py': (
+        'd02e9b5da370caf264c0a26496cda9e2dceb28c887f425bfe73d7f496c19a838',
+        '84c09c1f586e35eed34e88a5d826df2ae18092b87407d02b51791e0d5016a746'),
+    'gcnet_missing_m3/model.py': (
+        'ce1afb7b98279cb1d62afc1a3ab1420d167580d02afdbd38d38f7e9e454b3ee2',
+        '13cb139d83b41235fb92e4515a2a9db46f89bcc678ad9cf5a67bf7d5811316d9'),
+    'gcnet_missing_m3/train_gcnet.py': (
+        '12267fc232895296be802c3d8f673003190ad1c88e9a7dbe4216879a89b6751f',
+        '162a72afdca933d02b7e959ccd1d32f1bba0aaddad71585fe339c57c8e647853'),
+}
 
 
 def three_seed_stats(values):
@@ -72,6 +83,24 @@ def core_hashes(record):
         raise ValueError('Missing numerical core provenance: ' + str(error)) from error
 
 
+def require_paired_core(candidate,flat):
+    """Only the audited inactive-module additions may bridge old/new Flat code."""
+    new,old=core_hashes(candidate),core_hashes(flat)
+    differences={path for path in CORE if new[path]!=old[path]}
+    if not differences:
+        return
+    commit=flat['identity'].get('source_commit',flat.get('source_commit'))
+    inactive=('osram_source_role_v3','osram_source_relation','osram_tasr',
+              'osram_source_role','osram_source_tracking')
+    if commit not in LEGACY_MIXED_RATE or any(
+            record['identity']['config'].get(flag,False)
+            for record in (candidate,flat) for flag in inactive):
+        raise ValueError('Core bridge requires the audited original commit and inactive optional modules')
+    if any(path not in PLAIN_CORE_TRANSITIONS or
+           (old[path],new[path])!=PLAIN_CORE_TRANSITIONS[path] for path in differences):
+        raise ValueError('Unaudited numerical core difference')
+
+
 def validate_candidate(seed, candidate, flat):
     from gcnet_missing_m3.train_gcnet import TrainConfig
     validate_completed(candidate)
@@ -88,8 +117,7 @@ def validate_candidate(seed, candidate, flat):
             raise ValueError('Same-seed reference differs: ' + key)
     if test_masks(candidate) != test_masks(flat):
         raise ValueError('Exact paired test masks differ')
-    if core_hashes(candidate) != core_hashes(flat):
-        raise ValueError('Original/candidate numerical core differs')
+    require_paired_core(candidate,flat)
     proof = candidate['identity'].get('initialization_proof', {})
     if (proof.get('same_shape_parameters_exact') is not True
             or f'seed{seed}' not in proof.get('source', '')
@@ -103,7 +131,7 @@ def validate_candidate(seed, candidate, flat):
 def summarize(output):
     output = Path(output)
     states, rows, original, candidate, paired, provenance = {}, [], {}, {}, {}, {}
-    common_masks = common_core = None
+    common_masks = common_core = common_candidate_core = None
     for seed in (66, 67, 68):
         flat_path = FLATS[seed] / 'SUMMARY.json'
         flat = json.loads(flat_path.read_text())
@@ -121,6 +149,10 @@ def summarize(output):
         runs = [('original_flat', flat, flat_path)]
         if record.get('status') == 'complete':
             validate_candidate(seed, record, flat)
+            current_core=core_hashes(record)
+            if common_candidate_core is not None and current_core!=common_candidate_core:
+                raise ValueError('Candidate numerical core differs across seeds')
+            common_candidate_core=current_core
             runs.append(('head_48', record, path))
         for model, run, summary_path in runs:
             values = {scope: {key: statistics.mean(run['evaluation'][rate]['router'][key] for rate in rates)
@@ -153,6 +185,11 @@ def summarize(output):
         original_flat=original, candidate=candidate, paired_difference_pp=paired,
         three_seed_original=three_seed_stats(original), three_seed_candidate=three_seed_stats(candidate),
         provenance=provenance)
+    result['plain_core_bridge'] = dict(
+        exact_audited_hash_pairs=PLAIN_CORE_TRANSITIONS,
+        optional_modules_required_inactive=True,
+        evidence='CORE_BRIDGE.json: original/current seed66 150 train MSE/masks/update ledgers and all eight selected prediction arrays exact',
+        original_and_candidate_internal_core_hashes_strictly_checked=True)
     (output / 'REPORT.json').write_text(json.dumps(result, indent=2, allow_nan=False) + '\n')
     with (output / 'PER_RATE.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=['seed', 'model', 'rate', 'epoch', *METRICS])
