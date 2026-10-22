@@ -28,8 +28,11 @@ def initialization_check(expected, actual):
     if expected.keys() != actual.keys():
         raise ValueError('Initial prediction schema differs')
     for key in expected:
-        if not np.isfinite(actual[key]).all():
+        value = np.asarray(actual[key])
+        if value.dtype.kind in 'biufc' and not np.isfinite(value).all():
             raise ValueError('Nonfinite direct-initialization output: ' + key)
+        if value.dtype.kind not in 'biufc':
+            np.testing.assert_array_equal(expected[key], value)
     return dict(decoder_initialization='random', readout_identity_initialization=False,
                 initial_predictions_exact_same_width_flat=all(
                     np.array_equal(expected[key], actual[key]) for key in expected))

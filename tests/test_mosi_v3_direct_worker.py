@@ -47,6 +47,13 @@ def test_direct_initialization_does_not_claim_identity_of_random_read_replacemen
     assert schedule('CMUMOSI') == dict(epochs=100, first_lr=3e-4, final_lr=3e-4)
 
 
+def test_direct_initialization_handles_real_string_conversation_metadata():
+    from experiments.osram_mosi_v3_direct_20261022.worker import initialization_check
+    arrays = {'conversation_ids': np.array(['clip_a', 'clip_b']),
+              'prediction': np.array([.1, -.2]), 'eligible': np.array([False, False])}
+    assert initialization_check(arrays, arrays)['initial_predictions_exact_same_width_flat']
+
+
 def test_direct_wrapper_uses_one_mode_and_tracks_own_sources(monkeypatch):
     from experiments.osram_mosi_v3_direct_20261022 import worker
     calls = []

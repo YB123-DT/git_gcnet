@@ -17,3 +17,10 @@ only this wrapper injects100-epoch schedule metadata and non-identity init check
 Real GPU smoke is pending at this source commit. Completion and measured memory,
 time and restoration evidence will be appended after actual remote execution.
 No formal score or training success is claimed by these unit tests.
+
+First remote smoke (source b93209e,execution_v1) stopped BEFORE any optimizer
+updates: the initialization diagnostic called isfinite on string conversation
+IDs. This was a metadata-check bug, not a model nonfinite or mask error. A new
+regression reproduced the TypeError; fix checks numeric fields for finiteness
+and string metadata for exact equality. Failed output/source are retained.
+Retry uses a new immutable source and execution_v2, without modifying live code.
