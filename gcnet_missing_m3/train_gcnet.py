@@ -131,6 +131,8 @@ class TrainConfig:
     osram_source_relation: bool = False
     osram_source_relation_layout: str = 'source-mean'
     osram_source_role_v3: bool = False
+    osram_source_role_v3_dim: int = 64
+    osram_source_role_v3_pair_hidden: int = 128
     osram_num_heads: int = 4
     osram_key_dim: int = 32
     osram_value_dim: int = 32
@@ -208,6 +210,11 @@ class TrainConfig:
     def __post_init__(self) -> None:
         from .meaningful_input_structured import validate_rpca_config
         from .meaningful_input_representation import validate_mbt_config
+        for name in ('osram_source_role_v3_dim', 'osram_source_role_v3_pair_hidden'):
+            if type(getattr(self, name)) is not int or getattr(self, name) <= 0:
+                raise ValueError(f'{name} must be a positive integer')
+        if self.osram_source_role_v3_dim % 4:
+            raise ValueError('osram_source_role_v3_dim must be divisible by four')
         validate_mbt_config(self.osram_mbt_bottlenecks, self.osram_mbt_rounds,
                             self.osram_mbt_dim, self.osram_mbt_heads, self.osram_mbt_ffn_hidden)
         if (isinstance(self.osram_mbt_lr_multiplier, bool)
@@ -3463,6 +3470,8 @@ def run_experiment(
         osram_source_relation=config_value.osram_source_relation,
         osram_source_relation_layout=config_value.osram_source_relation_layout,
         osram_source_role_v3=config_value.osram_source_role_v3,
+        osram_source_role_v3_dim=config_value.osram_source_role_v3_dim,
+        osram_source_role_v3_pair_hidden=config_value.osram_source_role_v3_pair_hidden,
         osram_num_heads=config_value.osram_num_heads,
         osram_key_dim=config_value.osram_key_dim,
         osram_value_dim=config_value.osram_value_dim,
@@ -4220,6 +4229,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help='Legacy three-source Gap mean, or twelve independent role/source tokens.')
     parser.add_argument('--osram-source-role-v3', action='store_true',
                         help='Hierarchical same-source pair / same-role source interaction on Flat read inputs.')
+    parser.add_argument('--osram-source-role-v3-dim', type=int, default=64,
+                        help='V3 interaction width; positive multiple of four (default: 64).')
+    parser.add_argument('--osram-source-role-v3-pair-hidden', type=int, default=128,
+                        help='V3 shared pair MLP hidden width (default: 128).')
     parser.add_argument('--missing-mask-protocol',
                         choices=('conversation-mask-v2', 'gcnet-random-mask-v1', 'gcnet-legacy-fixed-v1'),
                         default='conversation-mask-v2')
@@ -4623,6 +4636,8 @@ def main(argv=None) -> None:
         osram_source_relation=args.osram_source_relation,
         osram_source_relation_layout=args.osram_source_relation_layout,
         osram_source_role_v3=args.osram_source_role_v3,
+        osram_source_role_v3_dim=args.osram_source_role_v3_dim,
+        osram_source_role_v3_pair_hidden=args.osram_source_role_v3_pair_hidden,
         osram_num_heads=args.osram_num_heads,
         osram_key_dim=args.osram_key_dim,
         osram_value_dim=args.osram_value_dim,

@@ -873,6 +873,8 @@ class OSRAMBackbone(nn.Module):
         osram_source_relation: bool = False,
         osram_source_relation_layout: str = 'source-mean',
         osram_source_role_v3: bool = False,
+        osram_source_role_v3_dim: int = 64,
+        osram_source_role_v3_pair_hidden: int = 128,
     ) -> None:
         super().__init__()
         self.osram_source_role = bool(osram_source_role)
@@ -1387,7 +1389,9 @@ class OSRAMBackbone(nn.Module):
             from .source_role_v3 import HierarchicalSourceRoleV3
             with torch.random.fork_rng(devices=[]):
                 self.source_role_v3 = HierarchicalSourceRoleV3(
-                    self.latent_dim, self.num_heads * self.value_dim)
+                    self.latent_dim, self.num_heads * self.value_dim,
+                    width=osram_source_role_v3_dim,
+                    pair_hidden=osram_source_role_v3_pair_hidden)
 
     def _causal_gru_forward(self, node, availability, valid):
         safe_node = torch.where(valid[..., None], node, torch.zeros_like(node))

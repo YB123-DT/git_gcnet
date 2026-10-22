@@ -10,27 +10,32 @@ from torch import nn
 
 
 class HierarchicalSourceRoleV3(nn.Module):
-    def __init__(self, local_dim=256, forward_dim=512):
+    def __init__(self, local_dim=256, forward_dim=512, width=64, pair_hidden=128):
         super().__init__()
-        for name, value in (('local_dim', local_dim), ('forward_dim', forward_dim)):
+        for name, value in (('local_dim', local_dim), ('forward_dim', forward_dim),
+                            ('width', width), ('pair_hidden', pair_hidden)):
             if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
                 raise ValueError(f'{name} must be a positive integer')
+        if width % 4:
+            raise ValueError('width must be divisible by the fixed four attention heads')
         self.local_dim = local_dim
         self.forward_dim = forward_dim
+        self.width = width
         # A single coordinate system for products/differences across all roles.
-        self.memory_projection = nn.Linear(forward_dim, 64, bias=False)
-        self.local_projection = nn.Linear(local_dim, 64)
+        self.memory_projection = nn.Linear(forward_dim, width, bias=False)
+        self.local_projection = nn.Linear(local_dim, width)
         self.source_embedding = nn.Embedding(3, 8)
         self.gap_role_embedding = nn.Embedding(3, 8)
         self.pair_mlp = nn.Sequential(
-            nn.LayerNorm(343), nn.Linear(343, 128), nn.GELU(), nn.Linear(128, 64))
-        self.attention_source_embedding = nn.Embedding(3, 64)
-        self.attention_role_embedding = nn.Embedding(4, 64)
-        self.source_attention = nn.MultiheadAttention(64, 4, dropout=0., batch_first=True)
-        self.source_norm = nn.LayerNorm(64)
-        self.role_queries = nn.ModuleList(nn.Linear(local_dim, 64) for _ in range(4))
-        self.output_attention = nn.MultiheadAttention(64, 4, dropout=0., batch_first=True)
-        self.decoders = nn.ModuleList(nn.Linear(64, forward_dim) for _ in range(4))
+            nn.LayerNorm(5 * width + 23), nn.Linear(5 * width + 23, pair_hidden),
+            nn.GELU(), nn.Linear(pair_hidden, width))
+        self.attention_source_embedding = nn.Embedding(3, width)
+        self.attention_role_embedding = nn.Embedding(4, width)
+        self.source_attention = nn.MultiheadAttention(width, 4, dropout=0., batch_first=True)
+        self.source_norm = nn.LayerNorm(width)
+        self.role_queries = nn.ModuleList(nn.Linear(local_dim, width) for _ in range(4))
+        self.output_attention = nn.MultiheadAttention(width, 4, dropout=0., batch_first=True)
+        self.decoders = nn.ModuleList(nn.Linear(width, forward_dim) for _ in range(4))
         for decoder in self.decoders:
             nn.init.zeros_(decoder.weight)
             nn.init.zeros_(decoder.bias)
@@ -48,21 +53,21 @@ class HierarchicalSourceRoleV3(nn.Module):
         """
         t, b = tokens.shape[:2]
         safe_tokens = torch.where(active[..., None], tokens, torch.zeros_like(tokens))
-        flat_tokens = safe_tokens.reshape(t * b * 4, 3, 64)
+        flat_tokens = safe_tokens.reshape(t * b * 4, 3, self.width)
         flat_active = active.reshape(t * b * 4, 3)
         count = flat_active.sum(-1)
         result = flat_tokens.clone()
         multiple = count >= 2
         if multiple.any():
-            identities = self._identities()[None].expand(t * b, 4, 3, 64)
-            keys = (safe_tokens.reshape(t * b, 4, 3, 64) + identities)
-            keys = keys.reshape(t * b * 4, 3, 64)[multiple]
+            identities = self._identities()[None].expand(t * b, 4, 3, self.width)
+            keys = (safe_tokens.reshape(t * b, 4, 3, self.width) + identities)
+            keys = keys.reshape(t * b * 4, 3, self.width)[multiple]
             values = flat_tokens[multiple]
             related, _ = self.source_attention(
                 keys, keys, values, key_padding_mask=~flat_active[multiple], need_weights=False)
             result[multiple] = self.source_norm(values + related)
         result = torch.where(flat_active[..., None], result, torch.zeros_like(result))
-        return result.reshape(t, b, 4, 3, 64)
+        return result.reshape(t, b, 4, 3, self.width)
 
     def forward(self, local, source_base, source_gap, trajectory, availability, umask):
         if local.ndim != 3 or local.shape[-1] != self.local_dim:
@@ -94,10 +99,10 @@ class HierarchicalSourceRoleV3(nn.Module):
         # stays zero and is distinguished by ever_seen=0, rather than infinity.
         meta = torch.stack((meta[..., 0].clamp_min(0).log1p(), meta[..., 1],
                             meta[..., 2].clamp_min(0).log1p(), meta[..., 3]), dim=-1)
-        base = projected[:, :, 0].unsqueeze(2).expand(t, b, 3, 3, 64)
+        base = projected[:, :, 0].unsqueeze(2).expand(t, b, 3, 3, self.width)
         gap = projected[:, :, 1:]
         features = torch.cat((base, gap, base * gap, (base - gap).abs(),
-            current[:, :, None, None, :].expand(t, b, 3, 3, 64),
+            current[:, :, None, None, :].expand(t, b, 3, 3, self.width),
             availability[:, :, None, None, :].to(local.dtype).expand(t, b, 3, 3, 3),
             meta[:, :, None, :, :].to(local.dtype).expand(t, b, 3, 3, 4),
             self.source_embedding.weight[None, None, None].expand(t, b, 3, 3, 8),
@@ -111,23 +116,23 @@ class HierarchicalSourceRoleV3(nn.Module):
         tokens = torch.where(active[..., None], tokens, torch.zeros_like(tokens))
         mixed = self._mix_sources(tokens, active)
 
-        flat_mixed = mixed.reshape(t * b * 4, 3, 64)
+        flat_mixed = mixed.reshape(t * b * 4, 3, self.width)
         flat_active = active.reshape(t * b * 4, 3)
         role_rows = roles.reshape(t * b * 4)
-        context = local.new_zeros(t * b * 4, 64)
+        context = local.new_zeros(t * b * 4, self.width)
         weights = local.new_zeros(t * b * 4, 3)
         if role_rows.any():
             query = torch.stack([p(safe_local) for p in self.role_queries], dim=2)
-            query = query.reshape(t * b * 4, 1, 64)[role_rows]
-            identities = self._identities()[None].expand(t * b, 4, 3, 64)
-            keys = (mixed.reshape(t * b, 4, 3, 64) + identities)
-            keys = keys.reshape(t * b * 4, 3, 64)[role_rows]
+            query = query.reshape(t * b * 4, 1, self.width)[role_rows]
+            identities = self._identities()[None].expand(t * b, 4, 3, self.width)
+            keys = (mixed.reshape(t * b, 4, 3, self.width) + identities)
+            keys = keys.reshape(t * b * 4, 3, self.width)[role_rows]
             selected, attention = self.output_attention(
                 query, keys, flat_mixed[role_rows],
                 key_padding_mask=~flat_active[role_rows])
             context[role_rows] = selected.squeeze(1)
             weights[role_rows] = attention.squeeze(1)
-        context = context.reshape(t, b, 4, 64)
+        context = context.reshape(t, b, 4, self.width)
         delta = torch.stack([p(context[:, :, role])
                              for role, p in enumerate(self.decoders)], dim=2)
         delta = torch.where(roles[..., None], delta, torch.zeros_like(delta))
