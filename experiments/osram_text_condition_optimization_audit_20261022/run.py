@@ -125,19 +125,24 @@ def test_strata(bundle, model, banks, output):
                     np.testing.assert_array_equal(value, record[k])
                 a = record['availability'].to(data[7].device)
                 view = trainer._prepare_view_from_primary_masks(data, a, a, bundle['dimensions'])
-                captured = []
+                captured, captured_skip = [], []
                 handle = model.osram.emotion_adapter.register_forward_pre_hook(
                     lambda _, args: captured.append(args[0]))
+                skip_handle = model.osram.local_skip.register_forward_hook(
+                    lambda _, args, result: captured_skip.append(result))
                 try:
                     full = forward(model, view)
                 finally:
                     handle.remove()
-                if len(captured) != 1:
+                    skip_handle.remove()
+                if len(captured) != 1 or len(captured_skip) != 1:
                     raise RuntimeError('Require exactly one original Flat/CHM forward')
                 features = captured[0]
                 ld = model.osram.latent_dim
-                local = features[..., :ld]
-                skip = model.osram.local_skip(local)
+                # Reuse the ACTUAL original skip. Recomputing it from a
+                # noncontiguous concatenation slice can choose another GEMM
+                # kernel and differ by ~1e-7 even with identical values.
+                skip = captured_skip[0]
                 def classify(x):
                     hidden = model.osram.emotion_norm(skip+model.osram.emotion_adapter(x))
                     hidden = hidden*view['umask'].T[..., None]

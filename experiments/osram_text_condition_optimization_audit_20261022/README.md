@@ -62,3 +62,11 @@ Run at most2 diagnostic processes on healthyGPU7 after memory checks. NeverGPU4,
 never signal other tasks. Full paired details/predictions stay remote; small
 reports/config/hash provenance and CSV summaries go to Git. Existing weights,
 predictions and masks are never overwritten or deleted.
+
+Implementation correction: execution_v1 completed MOSI but MOSEI stopped during
+the exact full-readout assertion (maximum difference1.19e-7). The original Skip
+had been recomputed from a strided concatenation slice. Reuse its actual output
+from the same original forward instead. execution_v2 replays BOTH datasets from
+one corrected source snapshot; retain v1 evidence but do not mix its results
+into the final tables. No sampling, model parameters or scientific conditions
+were changed by this correction.

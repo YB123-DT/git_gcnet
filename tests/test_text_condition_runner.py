@@ -64,3 +64,52 @@ def test_real_tiny_flat_pair_shares_prewrite_state_and_preserves_past_outputs():
     model.train()
     with pytest.raises(ValueError,match='eval mode'):
         target_loss(model,yes)
+
+
+def test_test_strata_reuses_actual_skip_and_executes_one_scan(tmp_path,monkeypatch):
+    import numpy as np
+    from types import SimpleNamespace
+    from experiments.osram_text_condition_optimization_audit_20261022 import run
+    from experiments.osram_text_path_router_joint_mosi_20261019.run import metadata
+    class Tiny(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.osram=torch.nn.Module()
+            self.osram.latent_dim=2
+            self.osram.local_skip=torch.nn.Linear(2,3)
+            self.osram.emotion_adapter=torch.nn.Linear(6,3)
+            self.osram.emotion_norm=torch.nn.LayerNorm(3)
+            self.smax_fc=torch.nn.Linear(3,1)
+            self.scans=0
+        def forward(self,features,availability,qmask,umask,lengths,**kwargs):
+            self.scans+=1
+            x=features[0]
+            hidden=self.osram.emotion_norm(self.osram.local_skip(x[...,:2].contiguous())+
+                                          self.osram.emotion_adapter(x))
+            return self.smax_fc(hidden),None,None,None
+    model=Tiny().eval()
+    features=torch.randn(3,1,6)
+    a=torch.ones(3,1,3)
+    data=[None]*10
+    data[6]=torch.zeros(1,3);data[7]=torch.ones(1,3)
+    data[8]=torch.tensor([[1.,-1.,1.]]);data[9]=['a']
+    view=dict(incomplete=features,availability=a,qmask=data[6],umask=data[7],lengths=[3])
+    with torch.no_grad():
+        prediction=model([features],a,data[6],data[7],[3])[0].reshape(-1).numpy()
+    meta=metadata(data)
+    np.savez(tmp_path/'saved.npz',**meta,availability=a.transpose(0,1).reshape(-1,3).numpy(),
+             prediction=prediction)
+    loader=type('Loader',(list,),{})([data])
+    loader.sampler=SimpleNamespace(set_epoch=lambda epoch:None)
+    trainer=SimpleNamespace(_move_batch=lambda raw,device:raw,
+        _prepare_view_from_primary_masks=lambda *args:view)
+    bundle=dict(trainer=trainer,test_loader=loader,dimensions=(2,2,2),reference=tmp_path,
+                reference_summary={'best_by_rate':{'0.3':{'predictions':'saved.npz'}}})
+    count=[]
+    handle=model.osram.local_skip.register_forward_hook(lambda *args:count.append(1))
+    monkeypatch.setattr(run,'RATES',('0.3',))
+    result=run.test_strata(bundle,model,{'0.3':[dict(meta,availability=a)]},tmp_path)
+    handle.remove()
+    assert model.scans==2  # one saved-reference setup plus one actual replay
+    assert len(count)==1  # never recompute skip from the concatenated slice
+    assert result['pooled_test_slots']['overall']['N']==3
