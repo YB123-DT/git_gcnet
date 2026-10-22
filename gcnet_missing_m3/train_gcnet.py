@@ -221,7 +221,9 @@ class TrainConfig:
             raise ValueError('osram_source_role_v3_mode must be residual or direct')
         if self.osram_source_role_v3_mode == 'direct' and not self.osram_source_role_v3:
             raise ValueError('direct V3 mode requires osram_source_role_v3')
-        if self.osram_source_role_v3_variant not in ('standard', 'head-preserving', 'source-slots', 'flat-hidden'):
+        if self.osram_source_role_v3_variant not in ('standard', 'head-preserving', 'source-slots', 'flat-hidden',
+                'topology-full', 'topology-diagonal', 'local-adapter', 'local-shared',
+                'task-pre-norm', 'task-post-norm'):
             raise ValueError('Unknown V3 connection variant')
         if self.osram_source_role_v3_variant != 'standard' and (
             not self.osram_source_role_v3 or self.osram_source_role_v3_mode != 'residual'
@@ -4252,7 +4254,9 @@ def build_parser() -> argparse.ArgumentParser:
                         default='residual',
                         help='Add zero-init V3 corrections, or directly replace active read inputs.')
     parser.add_argument('--osram-source-role-v3-variant',
-                        choices=('standard', 'head-preserving', 'source-slots', 'flat-hidden'),
+                        choices=('standard', 'head-preserving', 'source-slots', 'flat-hidden',
+                                 'topology-full', 'topology-diagonal', 'local-adapter',
+                                 'local-shared', 'task-pre-norm', 'task-post-norm'),
                         default='standard', help='Independent opt-in V3 connection experiment; standard preserves old V3.')
     parser.add_argument('--missing-mask-protocol',
                         choices=('conversation-mask-v2', 'gcnet-random-mask-v1', 'gcnet-legacy-fixed-v1'),

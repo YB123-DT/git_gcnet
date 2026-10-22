@@ -887,7 +887,9 @@ class OSRAMBackbone(nn.Module):
         if osram_source_role_v3_mode == 'direct' and not self.osram_source_role_v3:
             raise ValueError('direct V3 mode requires osram_source_role_v3')
         self.osram_source_role_v3_mode = osram_source_role_v3_mode
-        if osram_source_role_v3_variant not in ('standard', 'head-preserving', 'source-slots', 'flat-hidden'):
+        if osram_source_role_v3_variant not in ('standard', 'head-preserving', 'source-slots', 'flat-hidden',
+                'topology-full', 'topology-diagonal', 'local-adapter', 'local-shared',
+                'task-pre-norm', 'task-post-norm'):
             raise ValueError('Unknown V3 connection variant')
         if osram_source_role_v3_variant != 'standard' and (
             not self.osram_source_role_v3 or osram_source_role_v3_mode != 'residual'
@@ -1409,6 +1411,14 @@ class OSRAMBackbone(nn.Module):
                         width=osram_source_role_v3_dim,
                         pair_hidden=osram_source_role_v3_pair_hidden,
                         mode=osram_source_role_v3_mode)
+                elif self.osram_source_role_v3_variant in (
+                        'topology-full', 'topology-diagonal', 'local-adapter',
+                        'local-shared', 'task-pre-norm', 'task-post-norm'):
+                    from .source_role_v3_paired import PairedV3Block
+                    self.source_role_v3 = PairedV3Block(
+                        local_dim=self.latent_dim, forward_dim=self.num_heads * self.value_dim,
+                        width=osram_source_role_v3_dim, pair_hidden=osram_source_role_v3_pair_hidden,
+                        output_dim=self.output_dim, variant=self.osram_source_role_v3_variant)
                 else:
                     from .source_role_v3_connections import V3ConnectionBlock
                     self.source_role_v3 = V3ConnectionBlock(
@@ -2003,6 +2013,8 @@ class OSRAMBackbone(nn.Module):
         local = local_input + self.local_path(local_input)
         local = local * valid.unsqueeze(-1).to(local.dtype)
         v3_flat_hidden = None
+        v3_local_delta = None
+        v3_task_delta = None
         if self.osram_source_role_v3:
             trace = self.last_source_trace
             base_enabled = (self.osram_ablation != 'local-only'
@@ -2013,11 +2025,16 @@ class OSRAMBackbone(nn.Module):
             source_gap = trace['source_gap'] if gap_enabled else torch.zeros_like(trace['source_gap'])
             delta = self.source_role_v3(local, source_base, source_gap,
                 trace['trajectory'], availability, umask)
-            # Change only Flat's guarded read inputs, never raw contexts,
-            # Local Skip, memory trajectories or the original Flat/head.
+            # Route the selected task-side interface only. Raw contexts and
+            # memory trajectories stay original; local-shared explicitly uses
+            # corrected Local for Skip, and task variants place delta at Norm.
             enabled = (valid & trace['trajectory'][..., 3].bool().any(-1)
                        & (~availability.bool()).any(-1))
-            if self.osram_source_role_v3_variant == 'flat-hidden':
+            if self.osram_source_role_v3_variant in ('local-adapter', 'local-shared'):
+                v3_local_delta = delta if base_enabled and gap_enabled else torch.zeros_like(delta)
+            elif self.osram_source_role_v3_variant in ('task-pre-norm', 'task-post-norm'):
+                v3_task_delta = delta if base_enabled and gap_enabled else torch.zeros_like(delta)
+            elif self.osram_source_role_v3_variant == 'flat-hidden':
                 # Inject only at the original first Linear's preactivation.
                 # A classifier ablation must never recover removed evidence
                 # through this coupled hidden branch; bypass it for ablations.
@@ -2027,7 +2044,7 @@ class OSRAMBackbone(nn.Module):
                 candidate = (correction if self.osram_source_role_v3_mode == 'direct'
                              else emotion_base + correction)
                 emotion_base = torch.where(enabled[..., None], candidate, emotion_base)
-            if gap_enabled and self.osram_source_role_v3_variant != 'flat-hidden':
+            if gap_enabled and v3_local_delta is None and v3_task_delta is None and self.osram_source_role_v3_variant != 'flat-hidden':
                 correction = torch.cat((delta[..., 1:, :], torch.zeros_like(delta[..., 1:, :])), -1)
                 active = enabled[..., None] & ~availability.bool()
                 candidate = (correction if self.osram_source_role_v3_mode == 'direct'
@@ -2172,6 +2189,10 @@ class OSRAMBackbone(nn.Module):
                 emotion_gap = alpha.unsqueeze(-1) * emotion_gap
                 missing = torch.where(valid.unsqueeze(-1), missing, torch.zeros_like(missing))
             readout_local = local
+            if v3_local_delta is not None:
+                # The corrected Local exists only on task-side paths. CHM,
+                # queries, source encoding and returned raw Local stay original.
+                readout_local = local + v3_local_delta
             if self.meaningful_input_mode:
                 readout_local, emotion_base, emotion_gap = self.meaningful_block(
                     local,emotion_base,emotion_gap,availability,umask)
@@ -2194,7 +2215,18 @@ class OSRAMBackbone(nn.Module):
                     availability, umask).to(device=local.device, dtype=local.dtype)
                 self.last_history_recency = history_recency.detach()
                 emotion_input = torch.cat((emotion_input, history_recency), dim=-1)
-            if v3_flat_hidden is not None:
+            if v3_local_delta is not None:
+                skip_local = readout_local if self.osram_source_role_v3_variant == 'local-shared' else local
+                hidden = self.emotion_norm(self.local_skip(skip_local) + self.emotion_adapter(emotion_input))
+            elif v3_task_delta is not None:
+                flat_anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)
+                if self.osram_source_role_v3_variant == 'task-pre-norm':
+                    hidden = self.emotion_norm(flat_anchor + v3_task_delta)
+                else:
+                    # The unchanged single linear task head consumes this once:
+                    # w^T [LN(anchor)+delta] + b, sharing w and applying b once.
+                    hidden = self.emotion_norm(flat_anchor) + v3_task_delta
+            elif v3_flat_hidden is not None:
                 adapter_hidden = self.emotion_adapter[1](self.emotion_adapter[0](emotion_input))
                 adapter_hidden = adapter_hidden + v3_flat_hidden
                 for layer in self.emotion_adapter[2:]:
