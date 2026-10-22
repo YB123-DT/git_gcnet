@@ -1,4 +1,4 @@
-"""Six finite MOSI capacity arms under the protected seed66 training protocol."""
+"""Finite MOSI capacity arms under their protected per-seed training protocol."""
 import argparse
 from dataclasses import asdict, replace
 import hashlib
@@ -99,16 +99,26 @@ def source_catalog(prior_sources):
     return sorted(sources)
 
 
-def main(argv=None):
+def default_reference(seed):
+    if seed != 66:
+        raise ValueError('Original capacity screen supports only seed66')
+    return REFERENCE
+
+
+def main(argv=None, *, allowed_seeds=(66,), allowed_modes=MODES,
+         config_factory=candidate_config, reference_factory=default_reference,
+         source_catalog_factory=source_catalog):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--mode', choices=MODES, required=True)
+    parser.add_argument('--mode', choices=allowed_modes, required=True)
     parser.add_argument('--phase', choices=('smoke', 'train'), required=True)
-    parser.add_argument('--seed', type=int, choices=(66,), default=66)
+    parser.add_argument('--seed', type=int, choices=allowed_seeds,
+                        default=66 if 66 in allowed_seeds else None, required=66 not in allowed_seeds)
     parser.add_argument('--gpu-uuid', required=True)
     parser.add_argument('--source-commit', required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--resume', action='store_true')
     args = parser.parse_args(argv)
+    reference = reference_factory(args.seed)
     os.environ.update(CUDA_VISIBLE_DEVICES=args.gpu_uuid, OMP_NUM_THREADS='1',
                       MKL_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1')
     import fcntl
@@ -131,20 +141,20 @@ def main(argv=None):
         raise ValueError('Completed experiment cannot repeat')
     tick = time.monotonic()
     capture = scan_hook = None
-    summary = dict(status='preflight', dataset='CMUMOSI', mode=args.mode, seed=66,
+    summary = dict(status='preflight', dataset='CMUMOSI', mode=args.mode, seed=args.seed,
         source_commit=args.source_commit, phase=args.phase, pid=os.getpid(),
         label='INTERNAL TEST-ORACLE SCREEN')
     try:
         torch.set_num_threads(1)
         h.write_json(path, summary)
-        bundle = old.setup(args.gpu_uuid, args.output, 66)
+        bundle = old.setup(args.gpu_uuid, args.output, args.seed)
         from gcnet_modality_jepa.train_gcnet import reset_training_stochasticity
         from gcnet_missing_m3.train_gcnet import TrainConfig
         large = bundle.pop('model')
         original_cfg = replace(selected.testbest_config(bundle['cfg']), learning_rate=3e-4)
-        cfg = candidate_config(original_cfg, args.mode)
+        cfg = config_factory(original_cfg, args.mode)
         plain_mode = 'f' + str(MODES[args.mode][0]) + '_plain'
-        plain = old.fresh_backbone(candidate_config(original_cfg, plain_mode),
+        plain = old.fresh_backbone(config_factory(original_cfg, plain_mode),
                                    bundle['dimensions'], torch.device('cuda:0'))
         model = (old.fresh_backbone(cfg, bundle['dimensions'], torch.device('cuda:0'))
                  if cfg.osram_source_role_v3 else plain)
@@ -159,9 +169,9 @@ def main(argv=None):
         masks = {'test': old.build_masks(bundle, 'test')}
         hashes = {'test': {rate: hashlib.sha256(b''.join(row['availability'].numpy().tobytes()
             for row in bank)).hexdigest() for rate, bank in masks['test'].items()}}
-        prior = json.loads((REFERENCE/'SUMMARY.json').read_text())
+        prior = json.loads((reference/'SUMMARY.json').read_text())
         if prior.get('status') != 'complete' or prior.get('epoch') != 150:
-            raise ValueError('Complete original MOSI150 Flat66 reference required')
+            raise ValueError(f'Complete original MOSI150 Flat{args.seed} reference required')
         normalize = lambda value: json.loads(json.dumps(asdict(value)))
         if normalize(TrainConfig(**prior['identity']['config'])) != normalize(original_cfg):
             raise ValueError('Current original config differs from accepted reference')
@@ -172,7 +182,7 @@ def main(argv=None):
         for key in ('split', 'seed_protocol', 'data_files'):
             if bundle[key] != prior['identity'][key]:
                 raise ValueError('Original reference differs: ' + key)
-        reference_history = json.loads((REFERENCE/'history.json').read_text())
+        reference_history = json.loads((reference/'history.json').read_text())
         if len(reference_history) != 150:
             raise ValueError('Complete reference training history required')
         _, a = scalar.evaluate(bundle, plain.eval(), 'flat', 'test', masks['test']['0.3'], max_batches=1)
@@ -185,8 +195,8 @@ def main(argv=None):
             cumulative_until_validated=True, remove_gradient_hooks_after_validation=True,
             memory_scan_counter='all training epochs', scalar_train_epoch_diagnostics='unchanged')
         identity = dict(source_commit=args.source_commit,
-            source_hashes={f: h.sha(ROOT/f) for f in source_catalog(prior['identity']['source_hashes'])},
-            config=asdict(cfg), dataset='CMUMOSI', seed=66, mode=args.mode,
+            source_hashes={f: h.sha(ROOT/f) for f in source_catalog_factory(prior['identity']['source_hashes'])},
+            config=asdict(cfg), dataset='CMUMOSI', seed=args.seed, mode=args.mode,
             split=bundle['split'], seed_protocol=bundle['seed_protocol'], mask_hashes=hashes,
             data_files=bundle['data_files'], data_manifest=bundle['data_manifest'],
             dataset_manifest_sha256=bundle['data_manifest_sha256'], environment=bundle['environment'],
@@ -195,8 +205,8 @@ def main(argv=None):
             same_width_flat_initial_sha256=plain_initial,
             model_initial_sha256=h.backbone_digest(model),
             historical_bridge=bundle['bridge'], instrumentation=instrumentation,
-            reference=dict(path=str(REFERENCE), summary_sha256=h.sha(REFERENCE/'SUMMARY.json'),
-                history_sha256=h.sha(REFERENCE/'history.json'), masks_exact=True,
+            reference=dict(path=str(reference), summary_sha256=h.sha(reference/'SUMMARY.json'),
+                history_sha256=h.sha(reference/'history.json'), masks_exact=True,
                 baseline_config_exact=True, untouched_original_initialization_exact=True),
             learning_rates=settings('CMUMOSI'),
             selection='per-rate TEST weighted_f1; strict improvement, earliest tie')
@@ -228,7 +238,7 @@ def main(argv=None):
         h.write_json(path, summary)
         scans = [0]
         scan_hook = model.osram.register_forward_hook(lambda *unused: scans.__setitem__(0, scans[0]+1))
-        reset_training_stochasticity(66, cfg.fold)
+        reset_training_stochasticity(args.seed, cfg.fold)
         torch.cuda.reset_peak_memory_stats()
         best, history, start = {}, [], 0
         if args.resume:
