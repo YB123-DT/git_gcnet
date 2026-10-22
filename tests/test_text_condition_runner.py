@@ -39,7 +39,7 @@ def test_real_tiny_flat_pair_shares_prewrite_state_and_preserves_past_outputs():
     cfg=TrainConfig(dataset='CMUMOSI',backbone_type='osram',training_objective='emotion-only',
         disable_unused_aux_modules=True,latent_dim=8,osram_output_dim=10,osram_num_heads=2,
         osram_key_dim=3,osram_value_dim=4,osram_bidirectional=False,osram_write_step=.6)
-    model=_build_model(cfg,(4,5,6),torch.device('cpu')).eval()
+    model=_build_model(cfg,(4,5,6),torch.device('cpu')).requires_grad_(True).eval()
     original=dict(complete=torch.randn(3,1,15),availability=torch.ones(3,1,3),
         qmask=torch.zeros(1,3),umask=torch.ones(1,3),labels=torch.ones(1,3),
         lengths=[3],conversation_ids=['a'])
