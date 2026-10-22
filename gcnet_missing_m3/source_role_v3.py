@@ -1,6 +1,6 @@
 """Hierarchical same-source Base--Gap and same-role cross-source interactions.
 
-Only forward-half read corrections are returned. The original CHM, Local Skip,
+Only forward-half read outputs are returned. The original CHM, Local Skip,
 Flat adapter and final normalization remain the caller's unchanged paths.
 Sources denote Value-slot contributions of the joint update, not pure semantic
 modalities. Trajectories are strict-past count/coverage/age/ever-seen statistics.
@@ -10,8 +10,12 @@ from torch import nn
 
 
 class HierarchicalSourceRoleV3(nn.Module):
-    def __init__(self, local_dim=256, forward_dim=512, width=64, pair_hidden=128):
+    def __init__(self, local_dim=256, forward_dim=512, width=64, pair_hidden=128,
+                 mode='residual'):
         super().__init__()
+        if mode not in ('residual', 'direct'):
+            raise ValueError('V3 mode must be residual or direct')
+        self.mode = mode
         for name, value in (('local_dim', local_dim), ('forward_dim', forward_dim),
                             ('width', width), ('pair_hidden', pair_hidden)):
             if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
@@ -36,9 +40,12 @@ class HierarchicalSourceRoleV3(nn.Module):
         self.role_queries = nn.ModuleList(nn.Linear(local_dim, width) for _ in range(4))
         self.output_attention = nn.MultiheadAttention(width, 4, dropout=0., batch_first=True)
         self.decoders = nn.ModuleList(nn.Linear(width, forward_dim) for _ in range(4))
-        for decoder in self.decoders:
-            nn.init.zeros_(decoder.weight)
-            nn.init.zeros_(decoder.bias)
+        # Direct evidence must not begin with all history erased. Retain the
+        # normal Linear initialization there; residual keeps the old zero-init.
+        if mode == 'residual':
+            for decoder in self.decoders:
+                nn.init.zeros_(decoder.weight)
+                nn.init.zeros_(decoder.bias)
         self.last_diagnostics = {}
 
     def _identities(self):

@@ -105,9 +105,16 @@ def default_reference(seed):
     return REFERENCE
 
 
+def check_zero_initialization(expected, actual):
+    for key in expected:
+        np.testing.assert_array_equal(expected[key], actual[key])
+    return dict(zero_init_predictions_exact=True)
+
+
 def main(argv=None, *, allowed_seeds=(66,), allowed_modes=MODES,
          config_factory=candidate_config, reference_factory=default_reference,
-         source_catalog_factory=source_catalog):
+         source_catalog_factory=source_catalog, schedule_factory=settings,
+         initialization_check=check_zero_initialization):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode', choices=allowed_modes, required=True)
     parser.add_argument('--phase', choices=('smoke', 'train'), required=True)
@@ -187,8 +194,7 @@ def main(argv=None, *, allowed_seeds=(66,), allowed_modes=MODES,
             raise ValueError('Complete reference training history required')
         _, a = scalar.evaluate(bundle, plain.eval(), 'flat', 'test', masks['test']['0.3'], max_batches=1)
         _, b = scalar.evaluate(bundle, model.eval(), 'flat', 'test', masks['test']['0.3'], max_batches=1)
-        for key in a:
-            np.testing.assert_array_equal(a[key], b[key])
+        initialization = initialization_check(a, b)
         if cfg.osram_source_role_v3:
             del plain
         instrumentation = dict(v3_gradient_epochs=[1, 2] if cfg.osram_source_role_v3 else [],
@@ -208,7 +214,7 @@ def main(argv=None, *, allowed_seeds=(66,), allowed_modes=MODES,
             reference=dict(path=str(reference), summary_sha256=h.sha(reference/'SUMMARY.json'),
                 history_sha256=h.sha(reference/'history.json'), masks_exact=True,
                 baseline_config_exact=True, untouched_original_initialization_exact=True),
-            learning_rates=settings('CMUMOSI'),
+            learning_rates=schedule_factory('CMUMOSI'),
             selection='per-rate TEST weighted_f1; strict improvement, earliest tie')
         optimizer = scalar.make_optimizer(model, cfg, 'flat')
         if args.resume:
@@ -231,7 +237,7 @@ def main(argv=None, *, allowed_seeds=(66,), allowed_modes=MODES,
             flat_adapter=sum(p.numel() for p in model.osram.emotion_adapter.parameters()),
             v3=sum(p.numel() for p in module.parameters()) if module else 0)
         summary.update(status='running', identity=identity, config=asdict(cfg), parameters=counts,
-            environment=bundle['environment'], gpu=bundle['gpu'], zero_init_predictions_exact=True,
+            environment=bundle['environment'], gpu=bundle['gpu'], **initialization,
             initial_backbone_sha256=bundle['initial_backbone_sha256'],
             instrumentation=instrumentation)
         h.write_json(args.output/'config.json', asdict(cfg))

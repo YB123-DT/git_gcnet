@@ -133,6 +133,7 @@ class TrainConfig:
     osram_source_role_v3: bool = False
     osram_source_role_v3_dim: int = 64
     osram_source_role_v3_pair_hidden: int = 128
+    osram_source_role_v3_mode: str = 'residual'
     osram_num_heads: int = 4
     osram_key_dim: int = 32
     osram_value_dim: int = 32
@@ -215,6 +216,10 @@ class TrainConfig:
                 raise ValueError(f'{name} must be a positive integer')
         if self.osram_source_role_v3_dim % 4:
             raise ValueError('osram_source_role_v3_dim must be divisible by four')
+        if self.osram_source_role_v3_mode not in ('residual', 'direct'):
+            raise ValueError('osram_source_role_v3_mode must be residual or direct')
+        if self.osram_source_role_v3_mode == 'direct' and not self.osram_source_role_v3:
+            raise ValueError('direct V3 mode requires osram_source_role_v3')
         validate_mbt_config(self.osram_mbt_bottlenecks, self.osram_mbt_rounds,
                             self.osram_mbt_dim, self.osram_mbt_heads, self.osram_mbt_ffn_hidden)
         if (isinstance(self.osram_mbt_lr_multiplier, bool)
@@ -3472,6 +3477,7 @@ def run_experiment(
         osram_source_role_v3=config_value.osram_source_role_v3,
         osram_source_role_v3_dim=config_value.osram_source_role_v3_dim,
         osram_source_role_v3_pair_hidden=config_value.osram_source_role_v3_pair_hidden,
+        osram_source_role_v3_mode=config_value.osram_source_role_v3_mode,
         osram_num_heads=config_value.osram_num_heads,
         osram_key_dim=config_value.osram_key_dim,
         osram_value_dim=config_value.osram_value_dim,
@@ -4233,6 +4239,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help='V3 interaction width; positive multiple of four (default: 64).')
     parser.add_argument('--osram-source-role-v3-pair-hidden', type=int, default=128,
                         help='V3 shared pair MLP hidden width (default: 128).')
+    parser.add_argument('--osram-source-role-v3-mode', choices=('residual', 'direct'),
+                        default='residual',
+                        help='Add zero-init V3 corrections, or directly replace active read inputs.')
     parser.add_argument('--missing-mask-protocol',
                         choices=('conversation-mask-v2', 'gcnet-random-mask-v1', 'gcnet-legacy-fixed-v1'),
                         default='conversation-mask-v2')
@@ -4638,6 +4647,7 @@ def main(argv=None) -> None:
         osram_source_role_v3=args.osram_source_role_v3,
         osram_source_role_v3_dim=args.osram_source_role_v3_dim,
         osram_source_role_v3_pair_hidden=args.osram_source_role_v3_pair_hidden,
+        osram_source_role_v3_mode=args.osram_source_role_v3_mode,
         osram_num_heads=args.osram_num_heads,
         osram_key_dim=args.osram_key_dim,
         osram_value_dim=args.osram_value_dim,

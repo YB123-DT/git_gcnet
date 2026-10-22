@@ -1312,6 +1312,7 @@ class MissingM3GraphModel(GraphModel):
         osram_source_role_v3=False,
         osram_source_role_v3_dim=64,
         osram_source_role_v3_pair_hidden=128,
+        osram_source_role_v3_mode='residual',
     ) -> None:
         from .meaningful_input_structured import validate_rpca_config
         from .meaningful_input_representation import validate_mbt_config
@@ -1826,6 +1827,7 @@ class MissingM3GraphModel(GraphModel):
                 osram_source_role_v3=osram_source_role_v3,
                 osram_source_role_v3_dim=osram_source_role_v3_dim,
                 osram_source_role_v3_pair_hidden=osram_source_role_v3_pair_hidden,
+                osram_source_role_v3_mode=osram_source_role_v3_mode,
                 query_use_availability=osram_query_availability,
                 bidirectional=osram_bidirectional,
                 forward_slot_reuse=osram_forward_slot_reuse,

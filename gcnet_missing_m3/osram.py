@@ -875,11 +875,17 @@ class OSRAMBackbone(nn.Module):
         osram_source_role_v3: bool = False,
         osram_source_role_v3_dim: int = 64,
         osram_source_role_v3_pair_hidden: int = 128,
+        osram_source_role_v3_mode: str = 'residual',
     ) -> None:
         super().__init__()
         self.osram_source_role = bool(osram_source_role)
         self.osram_source_relation = bool(osram_source_relation)
         self.osram_source_role_v3 = bool(osram_source_role_v3)
+        if osram_source_role_v3_mode not in ('residual', 'direct'):
+            raise ValueError('V3 mode must be residual or direct')
+        if osram_source_role_v3_mode == 'direct' and not self.osram_source_role_v3:
+            raise ValueError('direct V3 mode requires osram_source_role_v3')
+        self.osram_source_role_v3_mode = osram_source_role_v3_mode
         if self.osram_source_role_v3 and (osram_source_role or osram_source_relation or osram_tasr):
             raise ValueError('V3 is independent of old Source-Role, Source Relation and TASR')
         if osram_source_relation_layout not in ('source-mean', 'role-tokens'):
@@ -1391,7 +1397,8 @@ class OSRAMBackbone(nn.Module):
                 self.source_role_v3 = HierarchicalSourceRoleV3(
                     self.latent_dim, self.num_heads * self.value_dim,
                     width=osram_source_role_v3_dim,
-                    pair_hidden=osram_source_role_v3_pair_hidden)
+                    pair_hidden=osram_source_role_v3_pair_hidden,
+                    mode=osram_source_role_v3_mode)
 
     def _causal_gru_forward(self, node, availability, valid):
         safe_node = torch.where(valid[..., None], node, torch.zeros_like(node))
@@ -1987,17 +1994,21 @@ class OSRAMBackbone(nn.Module):
             source_gap = trace['source_gap'] if gap_enabled else torch.zeros_like(trace['source_gap'])
             delta = self.source_role_v3(local, source_base, source_gap,
                 trace['trajectory'], availability, umask)
-            # V3 only corrects existing read inputs. Raw contexts, Local Skip,
-            # original memory trajectories and the Flat/head remain unchanged.
+            # Change only Flat's guarded read inputs, never raw contexts,
+            # Local Skip, memory trajectories or the original Flat/head.
             enabled = (valid & trace['trajectory'][..., 3].bool().any(-1)
                        & (~availability.bool()).any(-1))
             if base_enabled:
                 correction = torch.cat((delta[..., 0, :], torch.zeros_like(delta[..., 0, :])), -1)
-                emotion_base = torch.where(enabled[..., None], emotion_base + correction, emotion_base)
+                candidate = (correction if self.osram_source_role_v3_mode == 'direct'
+                             else emotion_base + correction)
+                emotion_base = torch.where(enabled[..., None], candidate, emotion_base)
             if gap_enabled:
                 correction = torch.cat((delta[..., 1:, :], torch.zeros_like(delta[..., 1:, :])), -1)
                 active = enabled[..., None] & ~availability.bool()
-                emotion_gap = torch.where(active[..., None], emotion_gap + correction, emotion_gap)
+                candidate = (correction if self.osram_source_role_v3_mode == 'direct'
+                             else emotion_gap + correction)
+                emotion_gap = torch.where(active[..., None], candidate, emotion_gap)
         if self.osram_source_role:
             trace = self.last_source_trace
             base_enabled = (self.osram_ablation != 'local-only'
