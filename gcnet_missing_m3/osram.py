@@ -876,6 +876,7 @@ class OSRAMBackbone(nn.Module):
         osram_source_role_v3_dim: int = 64,
         osram_source_role_v3_pair_hidden: int = 128,
         osram_source_role_v3_mode: str = 'residual',
+        osram_source_role_v3_variant: str = 'standard',
     ) -> None:
         super().__init__()
         self.osram_source_role = bool(osram_source_role)
@@ -886,6 +887,14 @@ class OSRAMBackbone(nn.Module):
         if osram_source_role_v3_mode == 'direct' and not self.osram_source_role_v3:
             raise ValueError('direct V3 mode requires osram_source_role_v3')
         self.osram_source_role_v3_mode = osram_source_role_v3_mode
+        if osram_source_role_v3_variant not in ('standard', 'head-preserving', 'source-slots', 'flat-hidden'):
+            raise ValueError('Unknown V3 connection variant')
+        if osram_source_role_v3_variant != 'standard' and (
+            not self.osram_source_role_v3 or osram_source_role_v3_mode != 'residual'
+            or osram_disable_local_skip
+        ):
+            raise ValueError('V3 connection variants require enabled residual-mode V3 and original Local Skip')
+        self.osram_source_role_v3_variant = osram_source_role_v3_variant
         if self.osram_source_role_v3 and (osram_source_role or osram_source_relation or osram_tasr):
             raise ValueError('V3 is independent of old Source-Role, Source Relation and TASR')
         if osram_source_relation_layout not in ('source-mean', 'role-tokens'):
@@ -1392,13 +1401,22 @@ class OSRAMBackbone(nn.Module):
                 self.source_relation = Relation(
                     self.latent_dim, self.num_heads * self.value_dim, self.output_dim)
         if self.osram_source_role_v3:
-            from .source_role_v3 import HierarchicalSourceRoleV3
             with torch.random.fork_rng(devices=[]):
-                self.source_role_v3 = HierarchicalSourceRoleV3(
-                    self.latent_dim, self.num_heads * self.value_dim,
-                    width=osram_source_role_v3_dim,
-                    pair_hidden=osram_source_role_v3_pair_hidden,
-                    mode=osram_source_role_v3_mode)
+                if self.osram_source_role_v3_variant == 'standard':
+                    from .source_role_v3 import HierarchicalSourceRoleV3
+                    self.source_role_v3 = HierarchicalSourceRoleV3(
+                        self.latent_dim, self.num_heads * self.value_dim,
+                        width=osram_source_role_v3_dim,
+                        pair_hidden=osram_source_role_v3_pair_hidden,
+                        mode=osram_source_role_v3_mode)
+                else:
+                    from .source_role_v3_connections import V3ConnectionBlock
+                    self.source_role_v3 = V3ConnectionBlock(
+                        local_dim=self.latent_dim, forward_dim=self.num_heads * self.value_dim,
+                        width=osram_source_role_v3_dim, pair_hidden=osram_source_role_v3_pair_hidden,
+                        num_memory_heads=self.num_heads,
+                        flat_hidden_dim=self.emotion_adapter[1].out_features,
+                        variant=self.osram_source_role_v3_variant)
 
     def _causal_gru_forward(self, node, availability, valid):
         safe_node = torch.where(valid[..., None], node, torch.zeros_like(node))
@@ -1984,6 +2002,7 @@ class OSRAMBackbone(nn.Module):
             local_input = read_node + residual
         local = local_input + self.local_path(local_input)
         local = local * valid.unsqueeze(-1).to(local.dtype)
+        v3_flat_hidden = None
         if self.osram_source_role_v3:
             trace = self.last_source_trace
             base_enabled = (self.osram_ablation != 'local-only'
@@ -1998,12 +2017,17 @@ class OSRAMBackbone(nn.Module):
             # Local Skip, memory trajectories or the original Flat/head.
             enabled = (valid & trace['trajectory'][..., 3].bool().any(-1)
                        & (~availability.bool()).any(-1))
-            if base_enabled:
+            if self.osram_source_role_v3_variant == 'flat-hidden':
+                # Inject only at the original first Linear's preactivation.
+                # A classifier ablation must never recover removed evidence
+                # through this coupled hidden branch; bypass it for ablations.
+                v3_flat_hidden = delta if base_enabled and gap_enabled else torch.zeros_like(delta)
+            elif base_enabled:
                 correction = torch.cat((delta[..., 0, :], torch.zeros_like(delta[..., 0, :])), -1)
                 candidate = (correction if self.osram_source_role_v3_mode == 'direct'
                              else emotion_base + correction)
                 emotion_base = torch.where(enabled[..., None], candidate, emotion_base)
-            if gap_enabled:
+            if gap_enabled and self.osram_source_role_v3_variant != 'flat-hidden':
                 correction = torch.cat((delta[..., 1:, :], torch.zeros_like(delta[..., 1:, :])), -1)
                 active = enabled[..., None] & ~availability.bool()
                 candidate = (correction if self.osram_source_role_v3_mode == 'direct'
@@ -2170,7 +2194,13 @@ class OSRAMBackbone(nn.Module):
                     availability, umask).to(device=local.device, dtype=local.dtype)
                 self.last_history_recency = history_recency.detach()
                 emotion_input = torch.cat((emotion_input, history_recency), dim=-1)
-            if self.nested_concat_mode:
+            if v3_flat_hidden is not None:
+                adapter_hidden = self.emotion_adapter[1](self.emotion_adapter[0](emotion_input))
+                adapter_hidden = adapter_hidden + v3_flat_hidden
+                for layer in self.emotion_adapter[2:]:
+                    adapter_hidden = layer(adapter_hidden)
+                hidden = self.emotion_norm(self.local_skip(local) + adapter_hidden)
+            elif self.nested_concat_mode:
                 if self.osram_meaningful_block == 'nested_rooted_concat':
                     graph_features = self.meaningful_block(
                         local, emotion_base, emotion_gap, availability, umask)
