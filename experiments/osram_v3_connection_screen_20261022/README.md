@@ -13,6 +13,13 @@ MOSI 150轮，前100轮3e-4、后50轮3e-5；MOSEI 60轮，恒定1e-3。
 
 由主代理在 biggpu 的不可变源码快照内，用原 s0 Python 启动持久 controller：
 
+部署只传代码时，还须提供原 `dataset/` 标签文件目录。已有导入链可能在设置
+`GCNET_DATASET_ROOT` 前载入根 `config.py`，因此默认标签路径也必须指向同一份已核验
+数据。本次使用已验证旧快照的 `dataset` 只读链接；MOSI/MOSEI pickle SHA256分别为
+`931ee50f3a77b2eb18786840a880a439f3ae6542bf2dfb5e14ecc9690702af84`、
+`0621d2cc93bee23642ef260f045f90c484136299d497df61a43527b34187f5d6`，
+与原 manifest 指向的标签文件相同。原模态特征根目录仍由既有 manifest 校验。
+
 ```bash
 /data2/yb/reproduction_workspace/envs/s0/bin/python -u -m \
   experiments.osram_v3_connection_screen_20261022.run \

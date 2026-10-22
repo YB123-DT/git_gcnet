@@ -85,3 +85,55 @@ empty. The queue saves its final state before publishing the report.
 Final combined suite after these changes: **91 passed in 7.74 s**. The Local Skip
 rejection and stale-summary recovery checks were observed failing before their
 fixes. Remote real-data GPU verification remains required before formal launch.
+
+## Remote deployment verification
+
+Immutable runtime code commit: `d00d0629d3cca484526cc9718a6ade883925ca45`,
+deployed to `/data2/yb/remote_experiments/osram_v3_connection_screen_20261022/source_d00d062`.
+Core module, OSRAM and worker SHA256 matched the committed local bytes. The actual
+s0 environment passed **65 tests in 8.96 s** (new core, integration and runner;
+the Git-history test was excluded because the deployed archive has no `.git`).
+
+`execution_v1` stopped during the first smoke before any optimization because the
+code-only archive omitted the default `dataset/` label path. The original import
+chain resolves this path before the later environment override. This was a
+deployment omission; the error log and failed queue remain intact. Provided a
+link to the existing verified dataset directory, checked both pickle hashes
+against their original manifest paths, and launched independent `execution_v2`
+from the same code commit. No model, mask or training hyperparameter changed.
+
+The controller is persistent under tmux socket `osram_v3_connections`, session
+`screen_v2`. It uses physical GPU2 / GPU7 by their verified UUIDs and admits at
+most three formal jobs per card according to measured smoke peaks. Actual final
+smoke states and formal PIDs are captured in `LAUNCH.json` after observation.
+
+## Six real-data CUDA smokes
+
+All six completed successfully in the original s0 environment. Each performed
+four actual Adam updates, verified finite nonzero task gradients in all required
+variant parameter groups and the source-read inputs, checked original and added
+parameter updates, exact original initialization/RNG, eight-rate first-batch
+initial prediction equality, and optimizer/RNG/prediction equality after full
+checkpoint reload. Original reference masks/configuration/data were accepted.
+
+| Dataset | Variant | Smoke peak allocated MiB | Total parameters |
+|---|---|---:|---:|
+| MOSI | head-preserving | 4544 | 13,845,311 |
+| MOSEI | head-preserving | 3244 | 13,845,311 |
+| MOSI | source-slots | 3300 | 14,024,511 |
+| MOSEI | source-slots | 2046 | 14,024,511 |
+| MOSI | flat-hidden | 3366 | 14,121,791 |
+| MOSEI | flat-hidden | 2334 | 14,121,791 |
+
+The six formal jobs were then admitted by the controller. Smoke scores are not
+reported as model performance; training results remain running until their full
+150/60-epoch budgets and selected-checkpoint integrity checks finish.
+
+At `2026-10-22T17:06:37Z`, all six formal processes were alive with command lines
+matching their queue records, had passed the four-update gradient check, and had
+saved formal epoch records. MOSI head/source/hidden were at epochs19/16/14;
+MOSEI all at epoch1. Every saved last training row reported exact reference mask
+trace/update/LR parity and one CHM call per optimizer update. Snapshot PID/GPU
+assignments and current formal memory peaks are in `LAUNCH.json`; formal peaks
+can exceed the limited smoke measurements, and are not presented as isolated
+benchmark measurements. No existing jobs were signalled or changed.
