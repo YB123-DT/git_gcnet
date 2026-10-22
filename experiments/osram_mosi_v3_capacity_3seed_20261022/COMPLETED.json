@@ -1,0 +1,202 @@
+{
+  "captured_utc": "2026-10-22T04:15:01.668100+00:00",
+  "server": "biggpu",
+  "execution_root": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1",
+  "queue": {
+    "status": "complete",
+    "source_commit": "83000b3faa0f56979afb80cdd62351e1a8ef32bd",
+    "pid": 2974014,
+    "physical_gpu": 2,
+    "gpu_uuid": "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+    "max_parallel": 2,
+    "smokes": [
+      {
+        "seed": 67,
+        "returncode": 0,
+        "status": "complete",
+        "peak_memory_mib": 3335.9638671875,
+        "seconds": 40.69882339698961,
+        "log": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/smoke_seed_67.log"
+      },
+      {
+        "seed": 68,
+        "returncode": 0,
+        "status": "complete",
+        "peak_memory_mib": 3191.89404296875,
+        "seconds": 43.97872776596341,
+        "log": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/smoke_seed_68.log"
+      }
+    ],
+    "jobs": [
+      {
+        "seed": 67,
+        "pid": 2981007,
+        "status": "complete",
+        "command": [
+          "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+          "-u",
+          "-m",
+          "experiments.osram_mosi_v3_capacity_3seed_20261022.worker",
+          "--mode",
+          "f512_v128",
+          "--phase",
+          "train",
+          "--seed",
+          "67",
+          "--gpu-uuid",
+          "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+          "--source-commit",
+          "83000b3faa0f56979afb80cdd62351e1a8ef32bd",
+          "--output",
+          "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/runs/seed_67"
+        ],
+        "log": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/train_seed_67.log",
+        "output": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/runs/seed_67",
+        "epoch": 150,
+        "worker_status": "complete",
+        "returncode": 0
+      },
+      {
+        "seed": 68,
+        "pid": 2981016,
+        "status": "complete",
+        "command": [
+          "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+          "-u",
+          "-m",
+          "experiments.osram_mosi_v3_capacity_3seed_20261022.worker",
+          "--mode",
+          "f512_v128",
+          "--phase",
+          "train",
+          "--seed",
+          "68",
+          "--gpu-uuid",
+          "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+          "--source-commit",
+          "83000b3faa0f56979afb80cdd62351e1a8ef32bd",
+          "--output",
+          "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/runs/seed_68"
+        ],
+        "log": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/train_seed_68.log",
+        "output": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/runs/seed_68",
+        "epoch": 150,
+        "worker_status": "complete",
+        "returncode": 0
+      }
+    ],
+    "seconds": 1716.584957374027,
+    "estimated_required_mib": 11791.786865234375
+  },
+  "runs": {
+    "66": {
+      "path": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_20261022/execution_v1/runs/f512_v128",
+      "source_commit": "86e3900d7fb5f3ee03ce214362e0fececb42887e",
+      "summary_sha256": "a48b6b87252240c617c37bcdccedccf972e8dfcaa57d1c925bd3611eb829552c",
+      "history_sha256": "69a20008a015867298904fd2be19d98f80470cea9fad1a2546cc4a9a41c1f20f",
+      "parameters": {
+        "flat_adapter": 3058240,
+        "total": 7864639,
+        "v3": 831710
+      },
+      "checkpoint_and_prediction_files_present": 18,
+      "selected_prediction_hashes_verified": true,
+      "selected_epochs": {
+        "0.0": 26,
+        "0.1": 28,
+        "0.2": 44,
+        "0.3": 28,
+        "0.4": 28,
+        "0.5": 42,
+        "0.6": 42,
+        "0.7": 46
+      },
+      "initialization": "fresh joint training; protected bridge weights discarded",
+      "aggregate": {
+        "high": {
+          "ACC": 73.47560975609757,
+          "MSE": 1.7641216119130452,
+          "WF1": 73.51889196785186
+        },
+        "mean": {
+          "ACC": 79.4969512195122,
+          "MSE": 1.457980215549469,
+          "WF1": 79.45324616488719
+        }
+      }
+    },
+    "67": {
+      "path": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/runs/seed_67",
+      "source_commit": "83000b3faa0f56979afb80cdd62351e1a8ef32bd",
+      "summary_sha256": "063710565321b9ea7e7a0d98dc5e43ab77aba22e72d5fd0ed699090cdc9ed4fc",
+      "history_sha256": "409a8108a18a18f2349572308918a597ae1ba2bfd98d2cc6e5e66c4b0ac487bb",
+      "parameters": {
+        "flat_adapter": 3058240,
+        "total": 7864639,
+        "v3": 831710
+      },
+      "checkpoint_and_prediction_files_present": 18,
+      "selected_prediction_hashes_verified": true,
+      "selected_epochs": {
+        "0.0": 26,
+        "0.1": 31,
+        "0.2": 28,
+        "0.3": 30,
+        "0.4": 32,
+        "0.5": 30,
+        "0.6": 45,
+        "0.7": 55
+      },
+      "initialization": "fresh joint training; protected bridge weights discarded",
+      "aggregate": {
+        "high": {
+          "ACC": 72.66260162601627,
+          "MSE": 1.833143949508667,
+          "WF1": 72.48253883855057
+        },
+        "mean": {
+          "ACC": 78.98246951219514,
+          "MSE": 1.5143515169620514,
+          "WF1": 78.9393968265734
+        }
+      }
+    },
+    "68": {
+      "path": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/runs/seed_68",
+      "source_commit": "83000b3faa0f56979afb80cdd62351e1a8ef32bd",
+      "summary_sha256": "7117346b92a0f9726cd6e2b0f93ae14f976af805f341e545ced08fc01a0d1049",
+      "history_sha256": "af1af2e41d8a91af10df7875f796a1c3a576d0496bdf6c64079038c4543b543c",
+      "parameters": {
+        "flat_adapter": 3058240,
+        "total": 7864639,
+        "v3": 831710
+      },
+      "checkpoint_and_prediction_files_present": 18,
+      "selected_prediction_hashes_verified": true,
+      "selected_epochs": {
+        "0.0": 31,
+        "0.1": 39,
+        "0.2": 47,
+        "0.3": 40,
+        "0.4": 39,
+        "0.5": 45,
+        "0.6": 22,
+        "0.7": 92
+      },
+      "initialization": "fresh joint training; protected bridge weights discarded",
+      "aggregate": {
+        "high": {
+          "ACC": 73.52642276422766,
+          "MSE": 1.8023645083109539,
+          "WF1": 73.3948701716592
+        },
+        "mean": {
+          "ACC": 79.66844512195122,
+          "MSE": 1.4489784836769104,
+          "WF1": 79.55098907152123
+        }
+      }
+    }
+  },
+  "report_sha256": "0e6c6d9b935531a11c555ccb27c44dd6302f0c614a47a23c30089787bf427eea"
+}
