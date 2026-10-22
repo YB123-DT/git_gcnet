@@ -1,0 +1,212 @@
+{
+  "captured_utc": "2026-10-22T03:38:17.638232+00:00",
+  "server": "biggpu",
+  "source_root": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/source_83000b3",
+  "execution_root": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1",
+  "tmux_socket": "osram_mosi_capacity_3seed",
+  "tmux_session": "mosi_v3_67_68",
+  "queue": {
+    "status": "running",
+    "source_commit": "83000b3faa0f56979afb80cdd62351e1a8ef32bd",
+    "pid": 2974014,
+    "physical_gpu": 2,
+    "gpu_uuid": "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+    "max_parallel": 2,
+    "smokes": [
+      {
+        "seed": 67,
+        "returncode": 0,
+        "status": "complete",
+        "peak_memory_mib": 3335.9638671875,
+        "seconds": 40.69882339698961,
+        "log": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/smoke_seed_67.log"
+      },
+      {
+        "seed": 68,
+        "returncode": 0,
+        "status": "complete",
+        "peak_memory_mib": 3191.89404296875,
+        "seconds": 43.97872776596341,
+        "log": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/smoke_seed_68.log"
+      }
+    ],
+    "jobs": [
+      {
+        "seed": 67,
+        "pid": 2981007,
+        "status": "running",
+        "command": [
+          "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+          "-u",
+          "-m",
+          "experiments.osram_mosi_v3_capacity_3seed_20261022.worker",
+          "--mode",
+          "f512_v128",
+          "--phase",
+          "train",
+          "--seed",
+          "67",
+          "--gpu-uuid",
+          "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+          "--source-commit",
+          "83000b3faa0f56979afb80cdd62351e1a8ef32bd",
+          "--output",
+          "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/runs/seed_67"
+        ],
+        "log": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/train_seed_67.log",
+        "output": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/runs/seed_67",
+        "epoch": 2,
+        "worker_status": "running"
+      },
+      {
+        "seed": 68,
+        "pid": 2981016,
+        "status": "running",
+        "command": [
+          "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+          "-u",
+          "-m",
+          "experiments.osram_mosi_v3_capacity_3seed_20261022.worker",
+          "--mode",
+          "f512_v128",
+          "--phase",
+          "train",
+          "--seed",
+          "68",
+          "--gpu-uuid",
+          "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+          "--source-commit",
+          "83000b3faa0f56979afb80cdd62351e1a8ef32bd",
+          "--output",
+          "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/runs/seed_68"
+        ],
+        "log": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/train_seed_68.log",
+        "output": "/data2/yb/remote_experiments/osram_mosi_v3_capacity_3seed_20261022/execution_v1/runs/seed_68",
+        "epoch": 1,
+        "worker_status": "running"
+      }
+    ],
+    "seconds": 143.25136394798756,
+    "estimated_required_mib": 11791.786865234375
+  },
+  "smoke": {
+    "67": {
+      "status": "complete",
+      "parameters": {
+        "flat_adapter": 3058240,
+        "total": 7864639,
+        "v3": 831710
+      },
+      "zero_init_predictions_exact": true,
+      "full_checkpoint_reloaded": true,
+      "optimizer_rng_prediction_reload_exact": true,
+      "smoke_optimizer_steps": 4,
+      "peak_memory_mib": 3335.9638671875,
+      "seconds": 40.69882339698961,
+      "v3_gradient_hooks_removed": true,
+      "environment": {
+        "numpy": "1.24.3",
+        "python": "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+        "python_version": "3.10.20 | packaged by conda-forge | (main, Jun 11 2026, 03:31:56) [GCC 14.3.0]",
+        "sklearn": "1.3.2",
+        "torch": "2.2.2+cu121"
+      },
+      "gpu": {
+        "host_index": 2,
+        "logical_device": "cuda:0",
+        "uuid": "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4"
+      },
+      "reference": {
+        "baseline_config_exact": true,
+        "history_sha256": "73872bd6f341ed9370ec7a7bec2f891b857fbb278a046d96591d4402a849b481",
+        "masks_exact": true,
+        "path": "/data2/yb/remote_experiments/osram_mosi_mid_lr_3seed_20261021/execution_v1/runs/MOSI/seed_67/flat",
+        "summary_sha256": "1a8e18d1b5282129f29278c149841583c81b059d41de26c490a198056dd07e23",
+        "untouched_original_initialization_exact": true
+      },
+      "mask_hashes": {
+        "test": {
+          "0.0": "39dc6d8f9d328896ef9b21779f84fccad3f8aaf280e6a98e99b27bf601156282",
+          "0.1": "7efaa20c60c3f39edd98d85d29f906daa2b9621487cc8e2420b9e754c5790e6a",
+          "0.2": "54af65e5f70ae884fc782d3b38a69d51fb592de08f50b7a66e0040f257396788",
+          "0.3": "94157af997d932aebde3a666de32fce2dcc1dbf708f4d7c1bb51851254cbccef",
+          "0.4": "5f3cdcb5c320c49f9a5f0d0b8e22e3c4703b90856122c9eba16e2b3460e85b19",
+          "0.5": "e5f58a4bbe660527b7ac0b3e7de1839382e0e438ca19816734aa67bdd2dc46d4",
+          "0.6": "975fc719730ef857a4fd299dcceddce1d51c0ceb1c06dc1fc93f8b2ee8263da1",
+          "0.7": "b8ab75f87409735fefee07cdc56382fd1cc1459572e826755c24a2ee94f3e4ac"
+        }
+      }
+    },
+    "68": {
+      "status": "complete",
+      "parameters": {
+        "flat_adapter": 3058240,
+        "total": 7864639,
+        "v3": 831710
+      },
+      "zero_init_predictions_exact": true,
+      "full_checkpoint_reloaded": true,
+      "optimizer_rng_prediction_reload_exact": true,
+      "smoke_optimizer_steps": 4,
+      "peak_memory_mib": 3191.89404296875,
+      "seconds": 43.97872776596341,
+      "v3_gradient_hooks_removed": true,
+      "environment": {
+        "numpy": "1.24.3",
+        "python": "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+        "python_version": "3.10.20 | packaged by conda-forge | (main, Jun 11 2026, 03:31:56) [GCC 14.3.0]",
+        "sklearn": "1.3.2",
+        "torch": "2.2.2+cu121"
+      },
+      "gpu": {
+        "host_index": 2,
+        "logical_device": "cuda:0",
+        "uuid": "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4"
+      },
+      "reference": {
+        "baseline_config_exact": true,
+        "history_sha256": "884df2134bf2751c42f450bd5b0d6189e236cb38000be325a35ae078bd9311c5",
+        "masks_exact": true,
+        "path": "/data2/yb/remote_experiments/osram_mosi_mid_lr_3seed_20261021/execution_v1/runs/MOSI/seed_68/flat",
+        "summary_sha256": "5713f7c5157113352f664b12bd329df0fd922fe17fd512f22b245dd6e0a8d267",
+        "untouched_original_initialization_exact": true
+      },
+      "mask_hashes": {
+        "test": {
+          "0.0": "39dc6d8f9d328896ef9b21779f84fccad3f8aaf280e6a98e99b27bf601156282",
+          "0.1": "7efaa20c60c3f39edd98d85d29f906daa2b9621487cc8e2420b9e754c5790e6a",
+          "0.2": "54af65e5f70ae884fc782d3b38a69d51fb592de08f50b7a66e0040f257396788",
+          "0.3": "94157af997d932aebde3a666de32fce2dcc1dbf708f4d7c1bb51851254cbccef",
+          "0.4": "5f3cdcb5c320c49f9a5f0d0b8e22e3c4703b90856122c9eba16e2b3460e85b19",
+          "0.5": "e5f58a4bbe660527b7ac0b3e7de1839382e0e438ca19816734aa67bdd2dc46d4",
+          "0.6": "975fc719730ef857a4fd299dcceddce1d51c0ceb1c06dc1fc93f8b2ee8263da1",
+          "0.7": "b8ab75f87409735fefee07cdc56382fd1cc1459572e826755c24a2ee94f3e4ac"
+        }
+      }
+    }
+  },
+  "formal": {
+    "67": {
+      "status": "running",
+      "pid": 2981007,
+      "epoch": 3,
+      "error": null,
+      "parameters": {
+        "flat_adapter": 3058240,
+        "total": 7864639,
+        "v3": 831710
+      }
+    },
+    "68": {
+      "status": "running",
+      "pid": 2981016,
+      "epoch": 2,
+      "error": null,
+      "parameters": {
+        "flat_adapter": 3058240,
+        "total": 7864639,
+        "v3": 831710
+      }
+    }
+  }
+}

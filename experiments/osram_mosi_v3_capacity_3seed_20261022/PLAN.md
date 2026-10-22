@@ -10,16 +10,16 @@ archiveds0,official split,new gcnet-random-mask-v1,cyclic0..0.7,original CHM.
 The user's earlier100epoch change was conditional;its all-best<=100 condition
 was not met,so this supplement keeps the actual seed66 budget.
 
-- [ ] Tests-first narrow seed67/68 entry point and default-preserving base-worker
+- [x] Tests-first narrow seed67/68 entry point and default-preserving base-worker
   dependency injection. Each seed validates against its OWN completed original
   Flat history/initialization/training order/masks/LRs;test masks remainseed66.
-- [ ] Implement persistent two-run queue on healthy idle biggpu GPU2,two real
+- [x] Implement persistent two-run queue on healthy idle biggpu GPU2,two real
   four-update smoke checks then both formal runs concurrently if memory permits.
-- [ ] Report separate seeds and per-rate ACC/WF1/MSE against original Flat66/67/68.
+- [x] Report separate seeds and per-rate ACC/WF1/MSE against original Flat66/67/68.
   Only compute a three-seed mean/SD when all three candidates are complete.
   Compare unchanged model/math hashes across candidates;new entrypoint hashes
   can differ from the original seed66 immutable snapshot and must be recorded.
-- [ ] Regression tests,commit immutable snapshot,deploy,real smoke/launch evidence,
+- [x] Regression tests,commit immutable snapshot,deploy,real smoke/launch evidence,
   commit/push small records. Preserve all old/new weights and MOSEI jobs.
 
 Internal per-rate TEST-best WF1 only,not single-checkpoint independent test
