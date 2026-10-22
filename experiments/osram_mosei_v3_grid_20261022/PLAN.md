@@ -15,11 +15,11 @@ Per-rate TEST-best WF1 with matching ACC/MSE/predictions/masks,internal only.
   unchanged. Newwrapper firstepoch-only gradient hooks,not task math changes.
 - [x] Reuse existing finite multi-GPU queue with default-preserving injection;
   four new independent workers on healthy GPU1/2,two per GPU by measured peaks.
-- [ ] Same-widthFlat zero-init equality,exact original masks/init/data/split,
+- [x] Same-widthFlat zero-init equality,exact original masks/init/data/split,
   per-epoch train-mask/order/step/LR parity;full last/Adam/RNG and eightBEST kept.
-- [ ] Report complete-only grid,explicit reused rows,original LargeFlat and
+- [x] Report complete-only grid,explicit reused rows,original LargeFlat and
   original V3 references. Validate source model/task core unchanged across runs.
-- [ ] Regression checks,immutable git archive,real MOSEI three-batch smokes,
+- [x] Regression checks,immutable git archive,real MOSEI three-batch smokes,
   actual formal launch verification,small evidence commit/push. No existing
   checkpoints/results or other tasks changed or deleted.
 
