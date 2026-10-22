@@ -16,8 +16,8 @@ from experiments.osram_source_relation_attention_20261021.worker import (
 ROOT=Path(__file__).resolve().parents[2]
 
 
-def align_fresh_initialization(original,target):
-    """Match common tensors to the same UNTRAINED seed66 Flat initialization.
+def align_fresh_initialization(original,target,*,seed=66):
+    """Match common tensors to the same UNTRAINED same-seed Flat initialization.
 
     Changing K/V shapes otherwise shifts constructor RNG for unrelated layers.
     Shape-changed tensors retain their fresh seeded initialization. No trained
@@ -39,7 +39,7 @@ def align_fresh_initialization(original,target):
     if not all(torch.equal(actual[name],source[name]) for name in copied):
         raise RuntimeError('Common original initialization changed')
     return dict(same_shape_parameters_exact=True,copied=copied,shape_changed=changed,
-                source='fresh untrained original seed66 Flat; not checkpoint weights')
+                source=f'fresh untrained original seed{seed} Flat; not checkpoint weights')
 
 
 def source_catalog(prior):
@@ -61,11 +61,20 @@ def source_catalog(prior):
     return sorted(paths)
 
 
-def main(argv=None):
+def default_reference(seed):
+    if seed!=66:
+        raise ValueError('The original grid only admits seed66')
+    return REFERENCES['CMUMOSI']
+
+
+def main(argv=None,*,allowed_seeds=(66,),allowed_modes=MODES,
+         config_factory=candidate_config,reference_factory=default_reference,
+         source_catalog_factory=source_catalog):
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--mode',choices=MODES,required=True)
+    p.add_argument('--mode',choices=allowed_modes,required=True)
     p.add_argument('--phase',choices=('smoke','train'),required=True)
-    p.add_argument('--seed',type=int,choices=(66,),default=66)
+    p.add_argument('--seed',type=int,choices=allowed_seeds,
+                   default=66 if 66 in allowed_seeds else None,required=66 not in allowed_seeds)
     p.add_argument('--gpu-uuid',required=True)
     p.add_argument('--source-commit',required=True)
     p.add_argument('--output',type=Path,required=True)
@@ -94,14 +103,14 @@ def main(argv=None):
     if previous.get('status')=='complete':
         raise ValueError('Do not repeat a completed run')
     start_clock=time.monotonic()
-    summary=dict(status='preflight',dataset='CMUMOSI',seed=66,mode=args.mode,phase=args.phase,
+    summary=dict(status='preflight',dataset='CMUMOSI',seed=args.seed,mode=args.mode,phase=args.phase,
         source_commit=args.source_commit,pid=os.getpid(),label='INTERNAL TEST-ORACLE SCREEN')
     handle=None
     try:
         torch.set_num_threads(1)
         h.write_json(path,summary)
-        bundle=original.setup(args.gpu_uuid,args.output,66)
-        reference=REFERENCES['CMUMOSI']
+        bundle=original.setup(args.gpu_uuid,args.output,args.seed)
+        reference=reference_factory(args.seed)
         prior=json.loads((reference/'SUMMARY.json').read_text())
         base_cfg=replace(selected.testbest_config(bundle['cfg']),learning_rate=3e-4)
         canonical=lambda cfg: json.loads(json.dumps(asdict(cfg)))
@@ -112,10 +121,10 @@ def main(argv=None):
         for k in ('split','seed_protocol','data_files'):
             if bundle[k]!=prior['identity'][k]:
                 raise ValueError('Accepted MOSI reference differs: '+k)
-        cfg=candidate_config(base_cfg,args.mode)
+        cfg=config_factory(base_cfg,args.mode)
         fresh=bundle.pop('model')
         model=original.fresh_backbone(cfg,bundle['dimensions'],torch.device('cuda:0'))
-        proof=align_fresh_initialization(fresh,model)
+        proof=align_fresh_initialization(fresh,model,seed=args.seed)
         if cfg.osram_key_dim==64 and h.backbone_digest(model)!=bundle['initial_backbone_sha256']:
             raise ValueError('Write-strength sweep changed original initialization')
         del fresh
@@ -129,8 +138,8 @@ def main(argv=None):
         if len(reference_history)!=150:
             raise ValueError('Require original complete training Mask/LR ledger')
         identity=dict(source_commit=args.source_commit,
-            source_hashes={name:h.sha(ROOT/name) for name in source_catalog(prior['identity']['source_hashes'])},
-            config=asdict(cfg),mode=args.mode,seed=66,dataset='CMUMOSI',split=bundle['split'],
+            source_hashes={name:h.sha(ROOT/name) for name in source_catalog_factory(prior['identity']['source_hashes'])},
+            config=asdict(cfg),mode=args.mode,seed=args.seed,dataset='CMUMOSI',split=bundle['split'],
             seed_protocol=bundle['seed_protocol'],data_files=bundle['data_files'],
             data_manifest=bundle['data_manifest'],environment=bundle['environment'],mask_hashes=hashes,
             initialization_proof=proof,initial_model_sha256=h.backbone_digest(model),
@@ -158,7 +167,7 @@ def main(argv=None):
         h.write_json(args.output/'config.json',asdict(cfg));h.write_json(path,summary)
         scans=[0]
         handle=model.osram.register_forward_hook(lambda *unused:scans.__setitem__(0,scans[0]+1))
-        reset_training_stochasticity(66,cfg.fold)
+        reset_training_stochasticity(args.seed,cfg.fold)
         torch.cuda.reset_peak_memory_stats()
         best,history,first={},[],0
         if args.resume:
