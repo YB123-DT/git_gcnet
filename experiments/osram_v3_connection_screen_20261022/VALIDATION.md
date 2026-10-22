@@ -137,3 +137,20 @@ trace/update/LR parity and one CHM call per optimizer update. Snapshot PID/GPU
 assignments and current formal memory peaks are in `LAUNCH.json`; formal peaks
 can exceed the limited smoke measurements, and are not presented as isolated
 benchmark measurements. No existing jobs were signalled or changed.
+
+## Completed result check (2026-10-22 22:43 UTC)
+
+The controller and all six workers report `complete`, with MOSI150/MOSEI60 fully
+finished and no errors. Each run retains eight BEST checkpoints and corresponding
+predictions. All 48 BEST checkpoint paths were present, and all 48 selected
+prediction SHA256 values matched their ledgers. The generated report contains
+64 per-rate rows (six candidates plus two existing Flat references), and sixteen
+mean/high aggregate rows. Completed reports are synced as RESULT.md, REPORT.json
+and PER_RATE.csv; LAUNCH.json remains the original observed launch snapshot.
+
+Head-preserving is the best candidate on both datasets, but eight-rate W-F1 gains
+are only +0.082274 pp on MOSI and +0.013645 pp on MOSEI. Its high-missing gains are
++0.028592/+0.006054 pp respectively. Source-slots and flat-hidden decline on both
+datasets. This single-seed internal Test-oracle screen supports near-parity for
+the head-preserving connection, not a demonstrated stable performance gain.
+No additional seeds, HPO or new experiments were automatically launched.
