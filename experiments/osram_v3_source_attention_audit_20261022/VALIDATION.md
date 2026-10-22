@@ -12,6 +12,9 @@ implementation,9 statistics tests failed before implementation, then passed.
 Leader's final related suite:30passed in5.99s,including original V3 regression.
 Extra capture regression checks no-history/ATV empty rows and exact one-source
 weight1 without treating it as learned confidence. Compile/diff checks passed.
+Export round-trip checks validated64FOCUS+256HEADS+24FOLDS+768ROLES+2304STRATA
+=3416CSV data rows (3421lines including five headers). The c60d2bc commit trailer
+mistyped that sum as3420; individual tables and all reported statistics are unchanged.
 
 ## Actual complete-cohort replay
 
