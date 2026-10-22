@@ -39,3 +39,21 @@ def test_query_donors_never_cross_role_availability_source_set_or_same_conversat
     ids = np.array(['a', 'b', 'c', 'd', 'e'])
     donor = matched_donors(role, avail, seen, ids)
     assert donor.tolist() == [1, 0, -1, -1, -1]
+
+
+def test_no_history_and_atv_capture_zero_and_single_source_is_exactly_one():
+    from experiments.osram_v3_source_attention_audit_20261022.capture import AttentionCapture
+    module = HierarchicalSourceRoleV3(local_dim=5, forward_dim=7).eval()
+    args = inputs()
+    args[3][0] = 0  # Strict-past first utterance has no source support.
+    args[4][1] = 1  # All observed: V3 correction/attention is bypassed.
+    args[3][2, :, 1:, :] = 0  # Last utterance: historical Audio alone.
+    with AttentionCapture(module) as capture:
+        module(*args)
+        arrays = capture.arrays
+    assert not arrays['attention'][~arrays['seen'].any(-1)].any()
+    assert not arrays['attention'][arrays['availability'].all(-1)].any()
+    one = arrays['seen'].sum(-1) == 1
+    for role in (0, 2, 3):
+        np.testing.assert_array_equal(arrays['attention'][one, role, :, 0], 1.)
+        assert not arrays['attention'][one, role, :, 1:].any()

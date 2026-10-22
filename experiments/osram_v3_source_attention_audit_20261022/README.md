@@ -48,3 +48,27 @@ causal contribution or usefulness. Gold labels are offline strata only.
 Persistent controller launches at most2 frozen replays, within measured free
 memory, with each dataset's original Python. Existing training is never stopped,
 reconfigured or moved. GPU4 is forbidden. No automatic seed or method expansion.
+
+## Completed evidence and compact exports
+
+Immutable replay source:`220b878c11d2d93697bfe4193c5c411b1ce09312`.
+Actual output:`/data2/yb/remote_experiments/osram_v3_source_attention_audit_20261022/execution_v1`.
+All4 jobs/96 checkpoint replays completed successfully; no new training steps.
+
+- `RESULT.md`: pooled focus table and all8 rates, with limitations.
+- `FOCUS.csv`:64 role/rate rows, IEMOCAP test folds descriptively pooled.
+- `HEADS.csv`:256 individual-head focus rows, same populations as FOCUS.
+- `FOLDS.csv`:24 role/fold rows pooled over rates; exposes IEMOCAP fold differences.
+- `ROLES.csv`:768 role/rate/source-count/correctness rows including population std.
+- `STRATA.csv`:2304 additional role/rate rows for availability,historyText seen,
+  coverage and age. Derived from full remoteREPORT `per_rate[rate].rows`; column
+  meanings match ROLES. Null values are N/A, never missing-score zeros.
+- `SUMMARY.json`:compact pooled diagnostics, query sensitivity and validation.
+- `COMPLETED.json`:commands,source hashes,environment,completion and raw-report SHA.
+
+Full9MB `REPORT.json` and96 per-fold/rateJSON/NPZ remain remote (not committed).
+CSV exports retain reported numeric values; newline normalization is immaterial
+and bytewise CSV equivalence is not claimed. Fold weights/entropy in FOLDS are
+weighted by focus-row support across the8 saved per-rate summaries. Raw model,
+mask and prediction artifacts are untouched. Query-swap tests ONLY the final
+Local Query path: original Local-conditioned PairMLP/keys/values are retained.
