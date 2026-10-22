@@ -1,5 +1,11 @@
 # OSRAM task delivery agreement
 
+- 权重清理记录（2026-10-22）：用户要求删除V3之前两版被替代实现的checkpoint。
+  SourceRelation与12-token SourceRoleTokens合计81个BEST/last/smoke/恢复副本已删，
+  13.244GiB，不可恢复；代码、Mask、预测、日志、历史与报告保留，189个证据文件
+  SHA256未变。V3/Flat/Nested及其他实验未动，不得把旧版本写成仍可权重恢复。
+  精确清单与回执见 `experiments/osram_pre_v3_checkpoint_cleanup_20261022/`。
+
 - 最新补齐授权（2026-10-21）：用户明确V3要三种子，不是仅seed66。保留原seed66
   队列/结果，只新增67/68：MELD2组、IEMOCAP4/6各10组（每seed五折）、MOSEI2组，
   共24组，最终四数据集36个训练作业。MOSI不在本次补齐范围，不增加HPO/方法。
