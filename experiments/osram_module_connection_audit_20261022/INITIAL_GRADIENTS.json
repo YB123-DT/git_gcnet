@@ -1,0 +1,64 @@
+{
+  "scope": "Synthetic CPU topology check, not performance or training-trajectory evidence",
+  "torch_version": "2.2.2+cu121",
+  "seed": 66,
+  "differences_from_experiment": [
+    "synthetic latents/labels",
+    "dropout=0",
+    "weight_decay=0",
+    "four ephemeral updates"
+  ],
+  "flat_adapter_parameters": 9535104,
+  "v3_parameters": 335006,
+  "steps": [
+    {
+      "backward": 1,
+      "loss": 1.0891553163528442,
+      "gradient_norms": {
+        "flat_final": 7.639774799346924,
+        "v3_base_decoder": 0.0,
+        "v3_pair_mlp": 0.0,
+        "v3_attention": 0.0,
+        "v3_query": 0.0,
+        "writer_value_audio": 0.0
+      }
+    },
+    {
+      "backward": 2,
+      "loss": 0.9117903709411621,
+      "gradient_norms": {
+        "flat_final": 7.064045429229736,
+        "v3_base_decoder": 0.2842283248901367,
+        "v3_pair_mlp": 0.0,
+        "v3_attention": 0.0,
+        "v3_query": 0.0,
+        "writer_value_audio": 0.19476613402366638
+      }
+    },
+    {
+      "backward": 3,
+      "loss": 0.48951634764671326,
+      "gradient_norms": {
+        "flat_final": 5.017678737640381,
+        "v3_base_decoder": 0.313444048166275,
+        "v3_pair_mlp": 0.10197221487760544,
+        "v3_attention": 0.014747838489711285,
+        "v3_query": 0.0024147334042936563,
+        "writer_value_audio": 0.40671777725219727
+      }
+    },
+    {
+      "backward": 4,
+      "loss": 0.9449520111083984,
+      "gradient_norms": {
+        "flat_final": 8.913265228271484,
+        "v3_base_decoder": 0.6341381072998047,
+        "v3_pair_mlp": 0.22026467323303223,
+        "v3_attention": 0.03286439925432205,
+        "v3_query": 0.004964550491422415,
+        "writer_value_audio": 1.2439589500427246
+      }
+    }
+  ],
+  "conclusion": "Stacked zero-initialized layers delay gradients; they do not permanently disconnect V3."
+}
