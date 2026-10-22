@@ -1,0 +1,229 @@
+{
+  "captured_utc": "2026-10-22T01:49:17.795682+00:00",
+  "server": "biggpu",
+  "execution_root": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1",
+  "source_root": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/source_5a86f7e",
+  "tmux_socket": "osram_capacity",
+  "tmux_session": "mosei_capacity",
+  "queue": {
+    "status": "running",
+    "source_commit": "5a86f7e98bcbe8eead96b10410be6175d0abd832",
+    "pid": 2650147,
+    "gpu_uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+    "physical_gpu": 1,
+    "max_parallel": 2,
+    "jobs": [
+      {
+        "mode": "small_flat",
+        "pid": 2653980,
+        "status": "running",
+        "command": [
+          "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+          "-u",
+          "-m",
+          "experiments.osram_mosei_v3_capacity_20261022.worker",
+          "--mode",
+          "small_flat",
+          "--phase",
+          "train",
+          "--seed",
+          "66",
+          "--gpu-uuid",
+          "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+          "--source-commit",
+          "5a86f7e98bcbe8eead96b10410be6175d0abd832",
+          "--output",
+          "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/runs/small_flat"
+        ],
+        "output": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/runs/small_flat",
+        "log": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/train_small_flat.log",
+        "epoch": null,
+        "worker_status": "preflight"
+      },
+      {
+        "mode": "wide_v3",
+        "pid": 2653987,
+        "status": "running",
+        "command": [
+          "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+          "-u",
+          "-m",
+          "experiments.osram_mosei_v3_capacity_20261022.worker",
+          "--mode",
+          "wide_v3",
+          "--phase",
+          "train",
+          "--seed",
+          "66",
+          "--gpu-uuid",
+          "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+          "--source-commit",
+          "5a86f7e98bcbe8eead96b10410be6175d0abd832",
+          "--output",
+          "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/runs/wide_v3"
+        ],
+        "output": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/runs/wide_v3",
+        "log": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/train_wide_v3.log",
+        "epoch": null,
+        "worker_status": "preflight"
+      }
+    ],
+    "smokes": [
+      {
+        "mode": "small_flat",
+        "status": "complete",
+        "returncode": 0,
+        "peak_memory_mib": 607.283203125,
+        "seconds": 73.27939361601602,
+        "log": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/smoke_small_flat.log"
+      },
+      {
+        "mode": "wide_v3",
+        "status": "complete",
+        "returncode": 0,
+        "peak_memory_mib": 2218.8857421875,
+        "seconds": 40.58035630796803,
+        "log": "/data2/yb/remote_experiments/osram_mosei_v3_capacity_20261022/execution_v1/smoke_wide_v3.log"
+      }
+    ],
+    "free_before_train_mib": 32491,
+    "estimated_required_mib": 6521.8703125,
+    "seconds": 177.72817120695254
+  },
+  "smoke": {
+    "small_flat": {
+      "status": "complete",
+      "parameters": {
+        "flat_adapter": 6106176,
+        "total": 10080865,
+        "v3": 0
+      },
+      "zero_init_predictions_exact": true,
+      "full_checkpoint_reloaded": true,
+      "optimizer_rng_prediction_reload_exact": true,
+      "smoke_optimizer_steps": 3,
+      "peak_memory_mib": 607.283203125,
+      "seconds": 73.27939361601602,
+      "gradient_paths": {},
+      "environment": {
+        "numpy": "1.24.3",
+        "python": "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+        "python_version": "3.10.20 | packaged by conda-forge | (main, Jun 11 2026, 03:31:56) [GCC 14.3.0]",
+        "sklearn": "1.3.2",
+        "torch": "2.2.2+cu121"
+      },
+      "gpu": {
+        "host_index": 1,
+        "logical_device": "cuda:0",
+        "uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049"
+      },
+      "mask_hashes": {
+        "test": {
+          "0.0": "41f45c24f3012554c87ddab4ce3b918d42dff8edb8dd09c56acb921fc1f36172",
+          "0.1": "108cdfca332c1b03eea0a6a5440e9eb10416727748df799c30fb621cf2d786a1",
+          "0.2": "98d81b25911a637626aa3f7fcc8bba9f8a8f20511a3373ad9e6e98dab1f44f30",
+          "0.3": "4e95c30de45ba22720f52aa43f2bf247e39d86ddb472c71a85bc5dcd68acc1d4",
+          "0.4": "9a12cc1023fb206ce8ef4b46679c0ac4da3b77d8199f28189d485818f2147cdf",
+          "0.5": "7aca4d77537fe5ab1fdea444aae393b98a129128dfeacbba1d2ac6cce038eee7",
+          "0.6": "f14e547f1fd126d74e14170015f48c0eb946065daaec49c9992a498fb4a1b6b9",
+          "0.7": "759d1abc3aca383876345de6e85bbd39d0ef49807e543491ed121f4311de54d4"
+        }
+      },
+      "small_flat_initial_sha256": "72ddc9fa1bc50f43c1ca09f821bf9165d98a667c603e6c5ab6204db91ac86a9a",
+      "reference": {
+        "masks_exact": true,
+        "path": "/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/flat",
+        "summary_sha256": "0306e24e78026f7bd6d70c2ac47369c5041c7fc1d027ef8321d68e03be1eb81c",
+        "untouched_original_initialization_exact": true
+      }
+    },
+    "wide_v3": {
+      "status": "complete",
+      "parameters": {
+        "flat_adapter": 6106176,
+        "total": 12397503,
+        "v3": 2316638
+      },
+      "zero_init_predictions_exact": true,
+      "full_checkpoint_reloaded": true,
+      "optimizer_rng_prediction_reload_exact": true,
+      "smoke_optimizer_steps": 3,
+      "peak_memory_mib": 2218.8857421875,
+      "seconds": 40.58035630796803,
+      "gradient_paths": {
+        "attention_role_embedding.weight": true,
+        "attention_source_embedding.weight": true,
+        "decoders.0.bias": true,
+        "decoders.0.weight": true,
+        "decoders.1.bias": true,
+        "decoders.1.weight": true,
+        "decoders.2.bias": true,
+        "decoders.2.weight": true,
+        "decoders.3.bias": true,
+        "decoders.3.weight": true,
+        "gap_role_embedding.weight": true,
+        "input.source_base": true,
+        "input.source_gap": true,
+        "local_projection.bias": true,
+        "local_projection.weight": true,
+        "memory_projection.weight": true,
+        "output_attention.in_proj_bias": true,
+        "output_attention.in_proj_weight": true,
+        "output_attention.out_proj.bias": true,
+        "output_attention.out_proj.weight": true,
+        "pair_mlp.0.bias": true,
+        "pair_mlp.0.weight": true,
+        "pair_mlp.1.bias": true,
+        "pair_mlp.1.weight": true,
+        "pair_mlp.3.bias": true,
+        "pair_mlp.3.weight": true,
+        "role_queries.0.bias": true,
+        "role_queries.0.weight": true,
+        "role_queries.1.bias": true,
+        "role_queries.1.weight": true,
+        "role_queries.2.bias": true,
+        "role_queries.2.weight": true,
+        "role_queries.3.bias": true,
+        "role_queries.3.weight": true,
+        "source_attention.in_proj_bias": true,
+        "source_attention.in_proj_weight": true,
+        "source_attention.out_proj.bias": true,
+        "source_attention.out_proj.weight": true,
+        "source_embedding.weight": true,
+        "source_norm.bias": true,
+        "source_norm.weight": true
+      },
+      "environment": {
+        "numpy": "1.24.3",
+        "python": "/data2/yb/reproduction_workspace/envs/s0/bin/python",
+        "python_version": "3.10.20 | packaged by conda-forge | (main, Jun 11 2026, 03:31:56) [GCC 14.3.0]",
+        "sklearn": "1.3.2",
+        "torch": "2.2.2+cu121"
+      },
+      "gpu": {
+        "host_index": 1,
+        "logical_device": "cuda:0",
+        "uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049"
+      },
+      "mask_hashes": {
+        "test": {
+          "0.0": "41f45c24f3012554c87ddab4ce3b918d42dff8edb8dd09c56acb921fc1f36172",
+          "0.1": "108cdfca332c1b03eea0a6a5440e9eb10416727748df799c30fb621cf2d786a1",
+          "0.2": "98d81b25911a637626aa3f7fcc8bba9f8a8f20511a3373ad9e6e98dab1f44f30",
+          "0.3": "4e95c30de45ba22720f52aa43f2bf247e39d86ddb472c71a85bc5dcd68acc1d4",
+          "0.4": "9a12cc1023fb206ce8ef4b46679c0ac4da3b77d8199f28189d485818f2147cdf",
+          "0.5": "7aca4d77537fe5ab1fdea444aae393b98a129128dfeacbba1d2ac6cce038eee7",
+          "0.6": "f14e547f1fd126d74e14170015f48c0eb946065daaec49c9992a498fb4a1b6b9",
+          "0.7": "759d1abc3aca383876345de6e85bbd39d0ef49807e543491ed121f4311de54d4"
+        }
+      },
+      "small_flat_initial_sha256": "72ddc9fa1bc50f43c1ca09f821bf9165d98a667c603e6c5ab6204db91ac86a9a",
+      "reference": {
+        "masks_exact": true,
+        "path": "/data2/yb/remote_experiments/osram_mosei_gcnet_router_20261020/execution_v1/runs/CMUMOSEI/seed_66/flat",
+        "summary_sha256": "0306e24e78026f7bd6d70c2ac47369c5041c7fc1d027ef8321d68e03be1eb81c",
+        "untouched_original_initialization_exact": true
+      }
+    }
+  }
+}
