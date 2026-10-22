@@ -1,4 +1,4 @@
-"""Two finite MOSEI capacity arms; no CHM, data, mask or objective changes."""
+"""Finite MOSEI capacity arms; no CHM, data, mask or objective changes."""
 import argparse
 from dataclasses import asdict, replace
 import hashlib
@@ -37,6 +37,41 @@ def candidate_config(cfg, mode):
         osram_source_role_v3_pair_hidden=512 if mode=='wide_v3' else 128)
 
 
+def expected_counts(mode):
+    if mode not in MODES:
+        raise ValueError('Only the two approved capacity arms')
+    return dict(total=12397503 if mode == 'wide_v3' else 10080865,
+                flat_adapter=6106176, v3=2316638 if mode == 'wide_v3' else 0)
+
+
+class GradientCapture:
+    """Own parameter and input hooks so a finite capture can be fully removed."""
+    def __init__(self, module):
+        self.observed = {}
+        self.handles = []
+        for name, parameter in module.named_parameters():
+            self.handles.append(parameter.register_hook(self.capture(name)))
+        self.handles.append(module.register_forward_pre_hook(self.watch_inputs))
+
+    def capture(self, name):
+        def hook(grad):
+            import torch
+            if not torch.isfinite(grad).all():
+                raise RuntimeError('Nonfinite V3 gradient: ' + name)
+            self.observed[name] = self.observed.get(name, False) or bool(grad.ne(0).any())
+        return hook
+
+    def watch_inputs(self, unused, inputs):
+        for name, value in zip(('source_base', 'source_gap'), inputs[1:3]):
+            if value.requires_grad:
+                self.handles.append(value.register_hook(self.capture('input.' + name)))
+
+    def remove(self):
+        for handle in self.handles:
+            handle.remove()
+        self.handles.clear()
+
+
 def digest_without(model, prefixes):
     digest = hashlib.sha256()
     for name, value in sorted(model.state_dict().items()):
@@ -67,16 +102,18 @@ def same_state(actual, expected):
         raise RuntimeError('Restored state scalar differs')
 
 
-def main():
+def main(argv=None, *, allowed_modes=MODES, config_factory=candidate_config,
+         expected_counts_factory=expected_counts, source_catalog_additions=(),
+         capture_first_epoch_only=False):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--mode', choices=MODES, required=True)
+    p.add_argument('--mode', choices=allowed_modes, required=True)
     p.add_argument('--phase', choices=('smoke', 'train'), required=True)
     p.add_argument('--seed', type=int, choices=(66,), default=66)
     p.add_argument('--gpu-uuid', required=True)
     p.add_argument('--source-commit', required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--resume', action='store_true')
-    args = p.parse_args()
+    args = p.parse_args(argv)
     os.environ.update(CUDA_VISIBLE_DEVICES=args.gpu_uuid, OMP_NUM_THREADS='1',
                       MKL_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1')
     import fcntl
@@ -95,7 +132,7 @@ def main():
         raise ValueError('Only complete-state train resume is supported')
     args.output.mkdir(parents=True, exist_ok=args.resume)
     lock = (args.output/'RUN.lock').open('a'); fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    path = args.output/'SUMMARY.json'; tick = time.monotonic(); hooks = []
+    path = args.output/'SUMMARY.json'; tick = time.monotonic(); hooks = []; gradient_capture = None
     if path.exists() and json.loads(path.read_text()).get('status') == 'complete':
         raise ValueError('Completed experiment cannot repeat')
     summary = dict(status='preflight', dataset='CMUMOSEI', mode=args.mode, seed=66,
@@ -104,10 +141,11 @@ def main():
         torch.set_num_threads(1); h.write_json(path, summary)
         bundle = old.setup(args.gpu_uuid, args.output, 66)
         large = bundle.pop('model')
-        original_cfg = bundle['cfg']; cfg = candidate_config(original_cfg, args.mode)
-        small_cfg = candidate_config(original_cfg, 'small_flat')
+        original_cfg = bundle['cfg']; cfg = config_factory(original_cfg, args.mode)
+        small_cfg = replace(cfg, osram_source_role_v3=False,
+                            osram_source_role_v3_dim=64, osram_source_role_v3_pair_hidden=128)
         small = old.fresh_backbone(small_cfg, bundle['dimensions'], torch.device('cuda:0'))
-        model = old.fresh_backbone(cfg, bundle['dimensions'], torch.device('cuda:0')) if args.mode=='wide_v3' else small
+        model = old.fresh_backbone(cfg, bundle['dimensions'], torch.device('cuda:0')) if cfg.osram_source_role_v3 else small
         untouched = ('osram.emotion_adapter.', 'osram.source_role_v3.')
         if digest_without(large, untouched) != digest_without(model, untouched):
             raise RuntimeError('Shrinking Flat altered unrelated original initialization')
@@ -136,12 +174,13 @@ def main():
         _, b = scalar.evaluate(bundle, model.eval(), 'flat', 'test', masks['test']['0.3'], max_batches=1)
         for key in a:
             np.testing.assert_array_equal(a[key], b[key])
-        if args.mode == 'wide_v3':
+        if cfg.osram_source_role_v3:
             del small
         sources = set(prior['identity']['source_hashes'])
         for package in ('gcnet_missing_m3', 'gcnet_modality_jepa'):
             sources.update(str(f.relative_to(ROOT)) for f in (ROOT/package).rglob('*.py'))
         sources.update('experiments/osram_mosei_v3_capacity_20261022/' + n for n in ('worker.py','run.py','report.py'))
+        sources.update(source_catalog_additions)
         identity = dict(source_commit=args.source_commit, source_hashes={f:h.sha(ROOT/f) for f in sorted(sources)},
             config=asdict(cfg), dataset='CMUMOSEI', seed=66, mode=args.mode,
             split=bundle['split'], seed_protocol=bundle['seed_protocol'], mask_hashes=hashes,
@@ -151,34 +190,24 @@ def main():
             reference=dict(path=str(REFERENCE), summary_sha256=h.sha(REFERENCE/'SUMMARY.json'),
                            masks_exact=True, untouched_original_initialization_exact=True),
             selection='per-rate TEST weighted_f1; strict improvement, earliest tie')
+        if capture_first_epoch_only:
+            identity['instrumentation'] = dict(v3_gradient_epochs=[1] if cfg.osram_source_role_v3 else [],
+                remove_gradient_hooks_after_validation=True, memory_scan_counter='all training epochs',
+                scalar_train_epoch_diagnostics='unchanged')
         optimizer = scalar.make_optimizer(model, cfg, 'flat')
         torch.save(masks, args.output/'fixed_masks.pt')
-        module = model.osram.source_role_v3 if args.mode=='wide_v3' else None
+        module = model.osram.source_role_v3 if cfg.osram_source_role_v3 else None
         counts = dict(total=sum(p.numel() for p in model.parameters()),
             flat_adapter=sum(p.numel() for p in model.osram.emotion_adapter.parameters()),
             v3=sum(p.numel() for p in module.parameters()) if module else 0)
-        expected_counts = dict(total=12397503 if module else 10080865,
-                               flat_adapter=6106176, v3=2316638 if module else 0)
-        if counts != expected_counts:
+        if counts != expected_counts_factory(args.mode):
             raise RuntimeError('Actual capacity/wiring differs: ' + str(counts))
         summary.update(status='running', identity=identity, config=asdict(cfg), parameters=counts,
             environment=bundle['environment'], gpu=bundle['gpu'], zero_init_predictions_exact=True)
+        if capture_first_epoch_only:
+            summary['instrumentation'] = identity['instrumentation']
         h.write_json(args.output/'config.json', asdict(cfg)); h.write_json(path, summary)
         observed = {}; scans = [0]
-        if module:
-            def capture(name):
-                def hook(grad):
-                    if not torch.isfinite(grad).all():
-                        raise RuntimeError('Nonfinite V3 gradient: ' + name)
-                    observed[name] = observed.get(name, False) or bool(grad.ne(0).any())
-                return hook
-            for name, parameter in module.named_parameters():
-                hooks.append(parameter.register_hook(capture(name)))
-            def watch_inputs(unused, inputs):
-                for name, value in zip(('source_base', 'source_gap'), inputs[1:3]):
-                    if value.requires_grad:
-                        value.register_hook(capture('input.' + name))
-            hooks.append(module.register_forward_pre_hook(watch_inputs))
         hooks.append(model.osram.register_forward_hook(lambda *unused: scans.__setitem__(0, scans[0]+1)))
         reset_training_stochasticity(66, 1); torch.cuda.reset_peak_memory_stats()
         best, history, start = {}, [], 0
@@ -187,6 +216,18 @@ def main():
             restore(model, optimizer, state, identity)
             start, history, best = state['epoch'], state['history'], state['best_by_rate']
             validate_selected(args.output, best)
+        if len(history) != start or not 0 <= start <= 60:
+            raise ValueError('Invalid full-state epoch/history')
+        if module is not None:
+            if capture_first_epoch_only and start:
+                validate_gradients(history[0]['v3_gradient_paths'])
+            else:
+                gradient_capture = GradientCapture(module)
+                observed = gradient_capture.observed
+        summary.update(epoch=start, best_by_rate=best)
+        if capture_first_epoch_only:
+            summary['first_epoch_v3_gradient_paths'] = history[0]['v3_gradient_paths'] if history else {}
+            summary['v3_gradient_hooks_removed'] = gradient_capture is None
         reference_history = json.loads((REFERENCE/'history.json').read_text())
         initial_model = h.backbone_digest(model) if args.phase=='smoke' else None
         for epoch in (range(1) if args.phase=='smoke' else range(start, 60)):
@@ -198,6 +239,8 @@ def main():
                 check_training_parity(row, reference_history[epoch])
             if module and epoch==0:
                 validate_gradients(observed)
+                if capture_first_epoch_only:
+                    gradient_capture.remove()
             row.update(actual_memory_scans=scans[0], v3_gradient_paths=dict(observed))
             if module:
                 from experiments.osram_coupled_source_role_20261020.worker import serial
@@ -209,6 +252,9 @@ def main():
                                      history=history,best=best,evaluated=evaluated)
             summary.update(epoch=epoch+1,best_by_rate=best,
                 seconds=time.monotonic()-tick,peak_memory_mib=torch.cuda.max_memory_allocated()/2**20)
+            if capture_first_epoch_only:
+                summary['first_epoch_v3_gradient_paths'] = history[0]['v3_gradient_paths']
+                summary['v3_gradient_hooks_removed'] = not gradient_capture or not gradient_capture.handles
             h.write_json(path,summary)
             print(json.dumps(dict(event='epoch',mode=args.mode,epoch=epoch+1,task_MSE=row['task_MSE'],
                 improved_rates=improved,test_WF1={r:v[0]['router']['WF1'] for r,v in evaluated.items()})),flush=True)
@@ -237,6 +283,8 @@ def main():
         summary.update(status='failed',error=repr(error),seconds=time.monotonic()-tick)
         raise
     finally:
+        if gradient_capture is not None:
+            gradient_capture.remove()
         for hook in hooks:
             hook.remove()
         h.write_json(path,summary)

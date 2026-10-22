@@ -39,13 +39,15 @@ def resident_memory():
     return values
 
 
-def main():
+def main(argv=None, *, modes=MODES, command_factory=worker_command,
+         report_factory=summarize, assignment_factory=None,
+         default_per_gpu=3, max_per_gpu=3):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--source-commit', required=True)
     p.add_argument('--gpu-uuids', nargs=2, required=True)
-    p.add_argument('--per-gpu', type=int, choices=(1, 2, 3), default=3)
-    args = p.parse_args()
+    p.add_argument('--per-gpu', type=int, choices=tuple(range(1, max_per_gpu + 1)), default=default_per_gpu)
+    args = p.parse_args(argv)
     from experiments.osram_text_path_router_3seed_20261019.resource_gate import available_gib
     if args.output.exists():
         raise FileExistsError('Fresh independent queue required; no silent duplicate')
@@ -58,10 +60,11 @@ def main():
     lock = (args.output / 'QUEUE.lock').open('a')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     # Widths stay together for direct same-width comparisons, one on each GPU.
-    jobs = [dict(mode=mode, gpu_uuid=args.gpu_uuids[0 if MODES[mode][0] == 512 else 1],
-                 status='pending') for mode in MODES]
+    jobs = [dict(mode=mode, gpu_uuid=(assignment_factory(args, mode, index) if assignment_factory
+                 else args.gpu_uuids[0 if modes[mode][0] == 512 else 1]), status='pending')
+            for index, mode in enumerate(modes)]
     state = dict(status='smoke', pid=os.getpid(), source_commit=args.source_commit,
-                 gpus=gpus, per_gpu=args.per_gpu, jobs=jobs, smoke=[], max_jobs=6)
+                 gpus=gpus, per_gpu=args.per_gpu, jobs=jobs, smoke=[], max_jobs=len(jobs))
     start = time.monotonic()
     def save():
         state['seconds'] = time.monotonic() - start
@@ -70,7 +73,7 @@ def main():
     def spawn(job, phase):
         mode, uuid = job['mode'], job['gpu_uuid']
         log = args.output / (phase + '_' + mode + '.log')
-        cmd = worker_command(args, mode, phase, uuid)
+        cmd = command_factory(args, mode, phase, uuid)
         with log.open('w') as stream:
             proc = subprocess.Popen(cmd, stdout=stream, stderr=subprocess.STDOUT,
                 env=dict(os.environ, CUDA_VISIBLE_DEVICES=uuid, OMP_NUM_THREADS='1',
@@ -95,7 +98,7 @@ def main():
                 job.update(returncode=code, peak_memory_mib=s.get('peak_memory_mib'),
                            seconds=s.get('seconds'), status='complete' if code == 0 and s.get('status') == 'complete' else 'failed')
                 if job['status'] == 'failed':
-                    save(); raise RuntimeError('Real MOSI smoke failed: ' + job['mode'])
+                    save(); raise RuntimeError('Real data smoke failed: ' + job['mode'])
             for uuid in args.gpu_uuids:
                 if any(j['status'] == 'running' and j['gpu_uuid'] == uuid for j in smokes):
                     continue
@@ -132,11 +135,11 @@ def main():
                     if available_gib() < 64 or gpu_free(uuid)[1] < needed:
                         continue
                     active[job['mode']] = spawn(job, 'train'); live.append(job); save()
-            save(); summarize(args.output)
+            save(); report_factory(args.output)
             if any(j['status'] in ('pending', 'running') for j in jobs):
                 time.sleep(15)
         state['status'] = 'complete' if all(j['status'] == 'complete' for j in jobs) else 'failed'
-        summarize(args.output)
+        report_factory(args.output)
     except BaseException as error:
         # No process signals, no implicit retries or protocol changes.
         state.update(status='failed', error=repr(error)); raise
