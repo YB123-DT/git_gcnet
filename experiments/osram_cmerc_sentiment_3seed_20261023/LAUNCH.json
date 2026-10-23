@@ -1,0 +1,32 @@
+{
+  "status": "running",
+  "date_utc": "2026-10-23",
+  "label": "INTERNAL TEST-ORACLE SCREEN",
+  "server": "biggpu",
+  "source_commit": "b0a712ed42085477fea986fbd8cd7bfc6a803e53",
+  "numerical_commit": "0da38b3326fdad09da0195e49b8b7d6424b4f613",
+  "immutable_source": "/data2/yb/remote_experiments/osram_cmerc_sentiment_3seed_20261023/source_0da38b3_runner_b0a712e",
+  "output": "/data2/yb/remote_experiments/osram_cmerc_sentiment_3seed_20261023/execution_v1",
+  "controller_log": "/data2/yb/remote_experiments/osram_cmerc_sentiment_3seed_20261023/controller_v1.log",
+  "tmux_session": "cmerc_sentiment_3seed_20261023",
+  "controller_pid": 2770608,
+  "gpu": {"physical_index": 7, "uuid": "GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e", "logical_device": "cuda:0"},
+  "environment": {"python": "/data2/yb/conda_envs/cmerc-repro/bin/python", "torch": "1.13.1+cu117", "numpy": "1.26.4", "sklearn": "1.3.2"},
+  "model": "Original cfg84 no-JEPA Flat1600 plus Local Skip, 13509793 parameters; no extra Block or auxiliary loss",
+  "optimizer": "Adam,batch32,weight_decay1e-5,MSE,original clipping",
+  "missing": "gcnet-random-mask-v1,cyclic0.0-0.7; exact retained same-seed test masks reused",
+  "selection": "Per-rate TEST-best W-F1,earliest strict-best tie; ACC/MSE from same prediction/mask",
+  "jobs": [
+    {"dataset": "CMUMOSI", "seed": 67, "pid": 2770620, "epochs": 150, "learning_rate": "3e-4 first100,3e-4/10 last50", "verified_epoch": 4},
+    {"dataset": "CMUMOSI", "seed": 68, "pid": 2770765, "epochs": 150, "learning_rate": "3e-4 first100,3e-4/10 last50", "verified_epoch": 4},
+    {"dataset": "CMUMOSEI", "seed": 66, "pid": 2771014, "epochs": 60, "learning_rate": "constant1e-4", "verified_status": "running,first_epoch_in_progress"},
+    {"dataset": "CMUMOSEI", "seed": 67, "pid": 2771844, "epochs": 60, "learning_rate": "constant1e-4", "verified_status": "running,first_epoch_in_progress"},
+    {"dataset": "CMUMOSEI", "seed": 68, "pid": 2772047, "epochs": 60, "learning_rate": "constant1e-4", "verified_status": "running,first_epoch_in_progress"}
+  ],
+  "reused_mosi66": "/data2/yb/remote_experiments/osram_mosi_cmerc_20261023/execution_v2",
+  "maximum_new_jobs": 5,
+  "same_seed_initialization_data_split_mask_checks_passed_all_five": true,
+  "runtime_config_and_source_hashes": "Saved in each run config.json and SUMMARY.json.identity; no old model weights loaded",
+  "stopped_second_read_jobs": "Remain stopped; old controller/four worker PIDs independently verified absent",
+  "no_automatic_expansion": true
+}
