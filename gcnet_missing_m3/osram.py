@@ -877,11 +877,31 @@ class OSRAMBackbone(nn.Module):
         osram_source_role_v3_pair_hidden: int = 128,
         osram_source_role_v3_mode: str = 'residual',
         osram_source_role_v3_variant: str = 'standard',
+        osram_conditional_reread: bool = False,
+        osram_reread_mode: str = 'free',
+        osram_reread_rank_rtol: float = 1e-5,
+        osram_reread_rank_atol: float = 1e-7,
     ) -> None:
         super().__init__()
         self.osram_source_role = bool(osram_source_role)
         self.osram_source_relation = bool(osram_source_relation)
         self.osram_source_role_v3 = bool(osram_source_role_v3)
+        self.osram_conditional_reread = bool(osram_conditional_reread)
+        if osram_reread_mode not in ('free', 'span'):
+            raise ValueError('Second read mode must be free or span')
+        if self.osram_conditional_reread and (
+            bidirectional or forward_slot_reuse or osram_readout_fusion != 'flat'
+            or osram_source_role_v3 or osram_source_relation or osram_source_role
+            or osram_tasr or osram_source_tracking or osram_causal_gru_history
+            or history_query_adapter or osram_meaningful_block != 'none'
+            or osram_readout_candidate != 'none' or osram_post_grn
+            or osram_relation_block or osram_gap_increment_filter or osram_decision_correction
+            or osram_local_evidence_gate or osram_hierarchical_evidence_gate
+            or osram_history_input_gate or osram_local_skip_gate or osram_disable_local_skip
+            or osram_memory_only_adapter or osram_base_first_gap or osram_history_recency
+            or osram_counterfactual_readout != 'none'
+        ):
+            raise ValueError('Second read requires the original causal Flat without other blocks')
         if osram_source_role_v3_mode not in ('residual', 'direct'):
             raise ValueError('V3 mode must be residual or direct')
         if osram_source_role_v3_mode == 'direct' and not self.osram_source_role_v3:
@@ -1428,6 +1448,14 @@ class OSRAMBackbone(nn.Module):
                         flat_hidden_dim=self.emotion_adapter[1].out_features,
                         variant=self.osram_source_role_v3_variant)
 
+        if self.osram_conditional_reread:
+            from .conditional_reread import ConditionalMemoryReread
+            with torch.random.fork_rng(devices=[]):
+                self.conditional_reread = ConditionalMemoryReread(
+                    self.latent_dim, self.num_heads, self.key_dim, self.value_dim,
+                    mode=osram_reread_mode, rank_rtol=osram_reread_rank_rtol,
+                    rank_atol=osram_reread_rank_atol)
+
     def _causal_gru_forward(self, node, availability, valid):
         safe_node = torch.where(valid[..., None], node, torch.zeros_like(node))
         forward = self.causal_gru_history(safe_node, valid)
@@ -1689,6 +1717,7 @@ class OSRAMBackbone(nn.Module):
         write_mask_override=None,
         write_node_collector=None,
         source_tracker=None,
+        reread=None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, list[float]]]:
         if hasattr(self, 'core20_memory'):
             if reverse or any(x is not None for x in (retention_diagnostics, write_completion, post_write_observer)):
@@ -1715,6 +1744,8 @@ class OSRAMBackbone(nn.Module):
         beta = torch.sigmoid(self.beta_logits).to(dtype=dtype)
         identity_mask = valid.to(dtype=dtype)
         order = range(length - 1, -1, -1) if reverse else range(length)
+        if reread is not None:
+            has_history = torch.zeros(batch, dtype=torch.bool, device=queries.device)
         for time_index in order:
             active = valid[time_index]
             if not bool(active.any()):
@@ -1751,6 +1782,8 @@ class OSRAMBackbone(nn.Module):
                                          base[time_index], active, read_memory)
 
             missing = 1.0 - availability[time_index].to(dtype)
+            if reread is not None:
+                effective_queries = [queries[time_index, :, 0]]
             for modality_index, name in enumerate(MODALITIES):
                 query = queries[time_index, :, modality_index + 1]
                 projected_query = self._address_residual(slot_keys, query)
@@ -1760,6 +1793,8 @@ class OSRAMBackbone(nn.Module):
                     else self.gap_residual_strength
                 )
                 residual_query = query - residual_strength * (query - projected_query)
+                if reread is not None:
+                    effective_queries.append(residual_query)
                 original_norm = query.norm(dim=-1)
                 residual_norm = residual_query.norm(dim=-1)
                 cosine = F.cosine_similarity(
@@ -1793,6 +1828,16 @@ class OSRAMBackbone(nn.Module):
                     source_tracker.read(time_index, modality_index, residual_query,
                                         gap[time_index, :, modality_index],
                                         active & ~availability[time_index, :, modality_index].bool())
+
+            if reread is not None:
+                query_active = torch.cat((active[:, None],
+                    active[:, None] & ~availability[time_index].bool()), dim=-1)
+                reread['delta'][time_index] = self.conditional_reread(
+                    reread['local'][time_index], base_read.reshape(batch, -1),
+                    availability[time_index], read_memory,
+                    torch.stack(effective_queries, dim=-1), query_active,
+                    active, has_history)
+                has_history = has_history | active
 
             write_keys, write_values, write_mask = slot_keys, slot_values, availability[time_index]
             if write_mask_override is not None:
@@ -1873,6 +1918,13 @@ class OSRAMBackbone(nn.Module):
         """
         self.last_relation_base_hidden = None
         read_node = node if read_node is None else read_node
+        if self.osram_conditional_reread and (
+            read_node is not node or write_node is not None or write_completion is not None
+            or context_read_residual is not None or write_mask_override is not None
+            or write_node_collector is not None or collect_memory_retention_diagnostics
+            or hasattr(self, 'core20_memory') or hasattr(self, 'core20_value')
+        ):
+            raise ValueError('Second read requires unchanged observed-only CHM')
         self.last_decision_evidence = None
         if self.osram_decision_correction and (
             write_node is not None or read_node is not node or write_completion is not None
@@ -1953,6 +2005,16 @@ class OSRAMBackbone(nn.Module):
                 audit=getattr(self, 'osram_source_audit', False),
                 **({'differentiable_base': True}
                    if getattr(self, 'osram_source_grad', False) else {}))
+        reread = None
+        if self.osram_conditional_reread:
+            # The original local path is evaluated ONCE. The ordinary scan has
+            # no stochastic operations; moving this draw before it preserves
+            # task/dropout RNG while allowing read-before-write access to L_t.
+            reread_local = read_node + self.local_path(read_node)
+            reread_local = reread_local * valid.unsqueeze(-1).to(reread_local.dtype)
+            reread = dict(local=reread_local,
+                delta=[node.new_zeros(node.shape[1], self.num_heads*self.value_dim)
+                       for _ in range(node.shape[0])])
         base_forward, gap_forward, diag_forward = self._scan(
             keys, values, queries, availability, valid, reverse=False,
             retention_diagnostics=(memory_retention_diagnostics
@@ -1960,6 +2022,7 @@ class OSRAMBackbone(nn.Module):
             write_completion=write_completion,
             post_write_observer=post_write_observer,
             **({'source_tracker': source_tracker} if source_tracker is not None else {}),
+            **({'reread': reread} if reread is not None else {}),
             **({'write_mask_override': write_mask_override,
                 'write_node_collector': write_node_collector}
                if write_mask_override is not None or write_node_collector is not None else {}),
@@ -2010,8 +2073,16 @@ class OSRAMBackbone(nn.Module):
                     "context_read_residual must return [L, B, latent_dim]"
                 )
             local_input = read_node + residual
-        local = local_input + self.local_path(local_input)
-        local = local * valid.unsqueeze(-1).to(local.dtype)
+        if reread is None:
+            local = local_input + self.local_path(local_input)
+            local = local * valid.unsqueeze(-1).to(local.dtype)
+        else:
+            local = reread['local']
+            if (self.osram_ablation != 'local-only'
+                    and self.osram_emotion_ablation not in ('local-only', 'local-gap')):
+                correction = torch.stack(reread['delta'])
+                emotion_base = torch.cat((emotion_base[..., :self.num_heads*self.value_dim]
+                    + correction, emotion_base[..., self.num_heads*self.value_dim:]), dim=-1)
         v3_flat_hidden = None
         v3_local_delta = None
         v3_task_delta = None

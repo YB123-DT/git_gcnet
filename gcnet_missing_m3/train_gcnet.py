@@ -135,6 +135,10 @@ class TrainConfig:
     osram_source_role_v3_pair_hidden: int = 128
     osram_source_role_v3_mode: str = 'residual'
     osram_source_role_v3_variant: str = 'standard'
+    osram_conditional_reread: bool = False
+    osram_reread_mode: str = 'free'
+    osram_reread_rank_rtol: float = 1e-5
+    osram_reread_rank_atol: float = 1e-7
     osram_num_heads: int = 4
     osram_key_dim: int = 32
     osram_value_dim: int = 32
@@ -210,6 +214,12 @@ class TrainConfig:
     osram_ced_block: bool = False
 
     def __post_init__(self) -> None:
+        if self.osram_reread_mode not in ('free', 'span'):
+            raise ValueError('Second read mode must be free or span')
+        for name in ('osram_reread_rank_rtol', 'osram_reread_rank_atol'):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, Real) or not math.isfinite(value) or value < 0:
+                raise ValueError(name + ' must be finite and nonnegative')
         from .meaningful_input_structured import validate_rpca_config
         from .meaningful_input_representation import validate_mbt_config
         for name in ('osram_source_role_v3_dim', 'osram_source_role_v3_pair_hidden'):
@@ -3489,6 +3499,10 @@ def run_experiment(
         osram_source_role_v3_pair_hidden=config_value.osram_source_role_v3_pair_hidden,
         osram_source_role_v3_mode=config_value.osram_source_role_v3_mode,
         osram_source_role_v3_variant=config_value.osram_source_role_v3_variant,
+        osram_conditional_reread=config_value.osram_conditional_reread,
+        osram_reread_mode=config_value.osram_reread_mode,
+        osram_reread_rank_rtol=config_value.osram_reread_rank_rtol,
+        osram_reread_rank_atol=config_value.osram_reread_rank_atol,
         osram_num_heads=config_value.osram_num_heads,
         osram_key_dim=config_value.osram_key_dim,
         osram_value_dim=config_value.osram_value_dim,
@@ -4244,6 +4258,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--osram-source-relation-layout', choices=('source-mean', 'role-tokens'),
                         default='source-mean',
                         help='Legacy three-source Gap mean, or twelve independent role/source tokens.')
+    parser.add_argument('--osram-conditional-reread', action='store_true',
+                        help='Read the same pre-write CHM once more and correct forward Base only.')
+    parser.add_argument('--osram-reread-mode', choices=('free', 'span'), default='free')
+    parser.add_argument('--osram-reread-rank-rtol', type=float, default=1e-5)
+    parser.add_argument('--osram-reread-rank-atol', type=float, default=1e-7)
     parser.add_argument('--osram-source-role-v3', action='store_true',
                         help='Hierarchical same-source pair / same-role source interaction on Flat read inputs.')
     parser.add_argument('--osram-source-role-v3-dim', type=int, default=64,
@@ -4665,6 +4684,10 @@ def main(argv=None) -> None:
         osram_source_role_v3_pair_hidden=args.osram_source_role_v3_pair_hidden,
         osram_source_role_v3_mode=args.osram_source_role_v3_mode,
         osram_source_role_v3_variant=args.osram_source_role_v3_variant,
+        osram_conditional_reread=args.osram_conditional_reread,
+        osram_reread_mode=args.osram_reread_mode,
+        osram_reread_rank_rtol=args.osram_reread_rank_rtol,
+        osram_reread_rank_atol=args.osram_reread_rank_atol,
         osram_num_heads=args.osram_num_heads,
         osram_key_dim=args.osram_key_dim,
         osram_value_dim=args.osram_value_dim,
