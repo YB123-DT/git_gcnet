@@ -1,8 +1,28 @@
 # Launch and verification handoff
 
-INTERNAL TEST-ORACLE SCREEN. Training in progress; no final performance claim.
+INTERNAL TEST-ORACLE SCREEN. Active v2 completed150epochs. The launch notes
+below are retained as historical provenance, not current running status.
 
-## Active run
+## Completion verified2026-10-23 10:10 UTC
+
+`execution_v2/SUMMARY.json` is complete at150epochs,1632.720seconds(27.21minutes).
+All8 checkpoint/prediction SHA256 pairs verified; independent sklearn recomputed
+selected W-F1 from686valid targets per rate. Labels,speaker,utterance IDs/order
+and exact availability match s0. All150 training mask traces,update counts and
+LRs match. Each selected epoch is the earliest strict TEST-best W-F1. Initial
+weights are byte-identical. No new inference or training was performed to report.
+
+| Environment | Mean ACC | Mean W-F1 | High ACC | High W-F1 |
+|---|---:|---:|---:|---:|
+| s0 |79.2683|79.2491|73.3740|73.4098|
+| cmerc-repro |79.5351|79.4604|73.4756|73.3516|
+
+Mean W-F1+0.2114pp,high W-F1-0.0582pp. This single seed does not establish a
+stable environment advantage; mean MSE1.496185 vs s0's1.494741 is slightly worse.
+Small original RESULT.md/JSON are archived in `completed_v2/`; all weights and
+large predictions remain remote. No additional seeds/modules are launched.
+
+## Retained launch identity
 
 - Server: `ssh biggpu`; physical GPU7,
   `GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e`; process-local cuda:0.
@@ -52,7 +72,7 @@ files are retained unchanged and excluded from performance comparison. It may
 have a partially interrupted atomic checkpoint transaction; never select it as a
 completed run. No old/new-missing checkpoint was deleted.
 
-## Remaining work
+## Original pending-work note, now completed
 
 Active training must reach150epochs and complete the selected-artifact integrity
 checks before reporting final scores. It automatically emits RESULT.md/JSON

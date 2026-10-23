@@ -1,4 +1,28 @@
-# Seed66 completion: running, not a final score
+# Seed66 completion: verified complete
+
+## Completion verified2026-10-23 10:10 UTC
+
+Seed66 completed60epochs in5256.768seconds(87.61minutes); controller and worker
+both exited successfully. All8 selected checkpoint/prediction hash pairs were
+reverified; sklearn W-F1 independently recomputed from4659valid targets per rate.
+The controller also validated the retained67/68 artifacts before publishing all
+three seeds. No new inference,reselection,training or dependency changes here.
+
+| Seed | Eight-rate ACC | W-F1 | High ACC | High W-F1 |
+|---:|---:|---:|---:|---:|
+|66|83.5099|83.3650|80.4531|80.1083|
+|67|83.4274|83.2445|80.2880|80.0437|
+|68|83.5718|83.3268|80.3797|79.9281|
+|Mean|83.5030|83.3121|80.3736|80.0267|
+
+Three-seed sample SD:mean W-F1.06154,high W-F1.09131. Constant1e-3 historical
+matched three-seed Flat is83.241mean/80.086high W-F1:small overall increase,
+small high-missing decrease,not a demonstrated uniform improvement.
+Small original RESULT.md/JSON/PER_RATE.csv archived under `completed/`. All
+checkpoints,exact masks,predictions and complete last states remain remote.
+No further jobs,HPO or Nested capacity trials were started.
+
+## Historical launch verification, retained below
 
 2026-10-23 08:08 UTC. INTERNAL TEST-ORACLE SCREEN.
 
