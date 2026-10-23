@@ -20,23 +20,23 @@ Files and ownership:
 
 ## Execution
 
-- [ ] Write tests before implementation: use tiny deterministic tensors to
+- [x] Write tests before implementation: use tiny deterministic tensors to
   assert same-conversation exclusion, zero-neighbor result, no inactive feature
   influence, feature-only label invariance, label-aware gradient and RNG safety.
   Run `python -m pytest tests/test_exemplar.py -q`; observe missing feature failure.
-- [ ] Implement `TrainExemplarReadout` with shared LayerNorm/Key, exact top16
+- [x] Implement `TrainExemplarReadout` with shared LayerNorm/Key, exact top16
   negative squared-L2, `Linear(y)+T(k-k_i)`, and128→1600 output. Keep TRAIN-only
   bank manifest independent of checkpoint parameters. No new dependencies.
-- [ ] Add callback path in original Flat-only branch; test original disabled
+- [x] Add callback path in original Flat-only branch; test original disabled
   state_dict/output/RNG identity, one scan, eval target-label independence,
   finite gradients and model/bank save-reload identity.
-- [ ] Runner reuses accepted setup, sampler and persist_epoch; Adam/batch32/
+- [x] Runner reuses accepted setup, sampler and persist_epoch; Adam/batch32/
   WD1e-5/MSE; LR3e-4 for100epochs then3e-5 for50. Retain eight exact BESTs,
   same-call masks/predictions plus full last model/optimizer/RNG/bank identity.
-- [ ] Run unit/integration checks in the original s0 environment; then real
+- [x] Run unit/integration checks in the original s0 environment; then real
   MOSI GPU smoke for both arms. Check dataset SHA, baseline initial digest,
   masks and optimizer updates against accepted reference. Record actual cost.
-- [ ] Commit implementation with Lore trailers; archive immutable tracked
+- [x] Commit implementation with Lore trailers; archive immutable tracked
   source on biggpu. Run only two jobs with UUID binding on a healthy GPU,
   resource-gated concurrency; never use physical GPU4 or alter other jobs.
 - [ ] Summarize complete/partial status truthfully and push small records;
