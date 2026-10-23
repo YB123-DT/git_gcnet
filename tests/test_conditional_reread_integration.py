@@ -118,3 +118,27 @@ def test_second_read_rejects_counterfactual_readout_stacking():
     with pytest.raises(ValueError,match='Second read'):
         OSRAMBackbone(bidirectional=False,osram_conditional_reread=True,
                       osram_counterfactual_readout='marginal')
+
+
+@pytest.mark.parametrize('mode',['free','span'])
+def test_added_read_has_a_real_gradient_path_to_past_write_key_and_value(mode):
+    torch.manual_seed(66);model=make(True,mode,dropout=0)
+    with torch.no_grad():
+        model.conditional_reread.output_projection.weight.copy_(torch.eye(8))
+    outputs={};deltas=[]
+    def capture(name):
+        def hook(_,args,value):
+            value.retain_grad();outputs[name]=value
+        return hook
+    handles=[model.key_projectors['audio'].register_forward_hook(capture('key')),
+             model.value_projectors['audio'].register_forward_hook(capture('value')),
+             model.conditional_reread.register_forward_hook(lambda _,a,v:deltas.append(v))]
+    model(*_inputs())
+    # Directly supervise only the additional read at t=1. Its Memory was
+    # produced by t=0's joint write, not by either current/future writes.
+    deltas[1][0].square().sum().backward()
+    for handle in handles:handle.remove()
+    for tensor in outputs.values():
+        assert tensor.grad is not None and torch.isfinite(tensor.grad).all()
+        assert tensor.grad[0,0].abs().sum()>0
+        assert not tensor.grad[2:].any()

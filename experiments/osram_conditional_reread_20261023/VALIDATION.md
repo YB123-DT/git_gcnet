@@ -29,6 +29,8 @@ Added parameters: **429,062** in each default variant (166,406 Query MLP +
 262,656 output projection). Only forward Base is corrected. No source tracker,
 new classifier, new loss, extra Local computation or changed Memory write.
 
-GPU smoke and formal training have not yet completed at this validation stage.
-Their actual outcomes belong in the separate launch/results records, not in
-this pre-launch CPU report.
+At the time of this pre-launch check GPU smoke was pending. Subsequent actual
+GPU outcomes are recorded in `SMOKE.md` and `LAUNCH.json`. Two further CPU
+tests verified the added read's gradients to past real Key/Value outputs;
+the expanded suite passed **67 tests in 7.97 seconds**. Only tests/docs changed
+after the immutable runtime source was created; training code is unchanged.

@@ -19,16 +19,16 @@ deficiency. No historical source tracker is required.
 
 ## Implementation and verification sequence
 
-- [ ] Core module and red/green tests: projection, rank, zero output, causal
+- [x] Core module and red/green tests: projection, rank, zero output, causal
   masking, genuine access to directions outside original query span, gradients.
-- [ ] Opt-in OSRAM scan integration and config/parser/model plumbing; tests
+- [x] Opt-in OSRAM scan integration and config/parser/model plumbing; tests
   against pre-change implementation for default parameters, forward/backward,
   RNG, single Local evaluation, one scan, raw Gap/write invariance and causality.
-- [ ] Independent finite experiment runner, exact reference masks/config/data,
+- [x] Independent finite experiment runner, exact reference masks/config/data,
   complete BEST/last/optimizer/RNG state and paired initialization checks.
-- [ ] CPU regression tests and real MOSI/MOSEI GPU smoke, then immutable source
-  commit and resource-admitted parallel seed66 free/span training.
-- [ ] Preserve all old runs, publish provenance and explicit running/completed
+- [x] CPU regression tests, immutable source commit, and real MOSI/MOSEI GPU
+  smoke followed by resource-admitted parallel seed66 free/span training.
+- [x] Preserve all old runs, publish provenance and explicit running/completed
   state. No unrequested seeds, HPO, query rounds or new losses.
 
 ## Training scope

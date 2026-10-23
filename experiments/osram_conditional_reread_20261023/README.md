@@ -84,6 +84,8 @@ use a stack of source tensors that was absent from the real computation graph.
 - Real-data smoke verifies complete model/optimizer/RNG/output restoration.
 - `history.json`: training loss, mask trace, original reference update/LR
   parity, selected-rate metrics, reread diagnostics and gradient coverage.
+  Reread diagnostics describe the last valid time of the last training batch;
+  they are not aggregate test-set estimates of addressing behavior.
 - `REPORT.json`, `PER_RATE.csv`, `RESULT.md`: completed-only per-rate and
   eight-rate/high-missing ACC/W-F1/MSE. Pair differences are **free minus span**
   within the same dataset; partial jobs and smoke scores are never ranked.
