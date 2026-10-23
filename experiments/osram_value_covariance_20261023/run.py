@@ -144,7 +144,7 @@ class Capture:
 
 def run_rate(bundle, rate, stream, output, *, max_batches=None):
     import torch
-    from .core import replay_value_noise, flat_logits, task_direction_variance
+    from .core import replay_value_noise, evaluate_sequence_draws, task_direction_variance
     from experiments.osram_text_path_router_joint_mosi_20261019.run import metadata
     from experiments.osram_tasr_20261018.runner_helpers import forward, isolated_rng
     model, trainer, loader = (bundle[k] for k in ('model', 'trainer', 'loader'))
@@ -190,31 +190,39 @@ def run_rate(bundle, rate, stream, output, *, max_batches=None):
             cursor += n
             arrays = {'G': [], 'kappa': [], 'cov_empirical': [], 't': [], 'batch_index': []}
             history = torch.zeros(valid.shape[1], dtype=torch.long, device=valid.device)
-            for t, row in replay_value_noise(model.osram, capture.keys, capture.values,
-                    capture.queries, a, valid, draws=DRAWS, sigmas=SIGMAS, seed=66 + index):
-                clean = row['clean']
+            rows = list(replay_value_noise(model.osram, capture.keys, capture.values,
+                capture.queries, a, valid, draws=DRAWS, sigmas=SIGMAS, seed=66 + index))
+            if [t for t, _ in rows] != list(range(valid.shape[0])):
+                raise RuntimeError('Replay must preserve every original sequence time position')
+            clean_sequence = torch.stack([row['clean'] for _, row in rows], dim=0)
+            delta_sequence = torch.stack([row['deltas'] for _, row in rows], dim=2)
+            covariance_sequence = torch.stack([row['G'] for _, row in rows], dim=0)
+            # Preserve the production [T,B] Flat GEMM shape for clean, every
+            # noisy draw and every head intervention. Per-time or flattened-draw
+            # evaluation changes CUDA accumulation rounding at tiny noise scales.
+            with torch.no_grad():
+                sequence_predictions = evaluate_sequence_draws(model, capture.flat.local,
+                    clean_sequence, delta_sequence, valid)
+            clean_predictions = sequence_predictions['clean_prediction'].squeeze(-1)
+            torch.testing.assert_close(clean_predictions[valid], prediction[..., 0][valid], rtol=1e-6, atol=1e-6)
+            max_parity = max(max_parity, float((clean_predictions[valid] - prediction[..., 0][valid]).abs().max()))
+            noisy_predictions = sequence_predictions['noisy_predictions'].squeeze(-1)
+            head_predictions = sequence_predictions['head_predictions'].squeeze(-1)
+            task_variances = task_direction_variance(model, capture.flat.local,
+                clean_sequence, covariance_sequence, valid).detach()
+            for t, row in rows:
                 for key in ('clean', 'deltas', 'G', 'kappa', 'cov_empirical'):
                     if not torch.isfinite(row[key]).all():
                         raise RuntimeError('Nonfinite replay tensor: ' + key)
                 if float(row['kappa'].min()) < -1e-9:
                     raise RuntimeError('Negative covariance diagonal')
-                local, active = capture.flat.local[t], valid[t]
+                active = valid[t]
                 if not bool(active.any()):
                     continue
-                with torch.no_grad():
-                    replay = flat_logits(model, local, clean, active).squeeze(-1)
-                    torch.testing.assert_close(replay[active], prediction[t, active, 0], rtol=1e-6, atol=1e-6)
-                    max_parity = max(max_parity, float((replay[active] - prediction[t, active, 0]).abs().max()))
-                    noisy = flat_logits(model, local[None, None].expand(len(SIGMAS), DRAWS, -1, -1),
-                        clean[None, None] + row['deltas'], active[None, None].expand(len(SIGMAS), DRAWS, -1)).squeeze(-1)
-                    # Independent per-head diagnostics share the exact draw0 realization.
-                    heads = clean.shape[1]
-                    head_delta = torch.zeros((heads,) + clean.shape, device=clean.device, dtype=clean.dtype)
-                    for head in range(heads):
-                        head_delta[head, :, head] = row['deltas'][1, 0, :, head]
-                    head_pred = flat_logits(model, local[None].expand(heads, -1, -1),
-                        clean[None] + head_delta, active[None].expand(heads, -1)).squeeze(-1)
-                taskvar = task_direction_variance(model, local, clean, row['G'], active).detach()
+                replay = clean_predictions[t]
+                noisy = noisy_predictions[:, :, t]
+                head_pred = head_predictions[:, t]
+                taskvar = task_variances[t]
                 G, empirical = row['G'][active], row['cov_empirical'][active]
                 empirical_sqerror += float((empirical.double() - G.double()).square().sum())
                 analytic_sqnorm += float(G.double().square().sum())

@@ -48,8 +48,28 @@ def task_direction_variance(model, local, reads, covariance, valid):
         prediction = flat_logits(model, local.detach(), variable, valid)
         gradient = torch.autograd.grad(prediction.sum(), variable, create_graph=False)[0]
     g = gradient.detach().to(covariance)
-    result = torch.einsum('bhvi,bhij,bhvj->bh', g, covariance, g)
+    result = torch.einsum('...hvi,...hij,...hvj->...h', g, covariance, g)
     return result.clamp_min(0).detach()
+
+
+@torch.no_grad()
+def evaluate_sequence_draws(model, local, clean, deltas, valid):
+    """Preserve original [T,B] Linear/GEMM shapes, including zero-noise parity.
+
+    Flattening draws into the original batch or evaluating one timestep at a
+    time can select different float32 GEMM kernels. Every task replay therefore
+    uses precisely the original sequence/batch dimensions.
+    """
+    prediction = flat_logits(model, local, clean, valid)
+    noisy = torch.stack([torch.stack([flat_logits(model, local, clean + draw, valid)
+                                     for draw in sigma]) for sigma in deltas])
+    head_predictions = []
+    for h in range(clean.shape[-3]):
+        only_head = torch.zeros_like(clean)
+        only_head[..., h, :, :] = deltas[-1, 0, ..., h, :, :]
+        head_predictions.append(flat_logits(model, local, clean + only_head, valid))
+    return dict(clean_prediction=prediction, noisy_predictions=noisy,
+                head_predictions=torch.stack(head_predictions))
 
 
 @torch.no_grad()
@@ -99,8 +119,15 @@ def replay_value_noise(osram, keys, values, queries, availability, valid, *,
             columns.append(q - strength * (q - projected))
         role_active = torch.cat((active[:, None], active[:, None] & ~a.bool()), dim=-1)
         effective = torch.stack(columns, dim=-1) * role_active[:, None, None, :].to(dtype)
-        clean = memory_before @ effective
-        actual_delta = noisy_before @ effective[None, None] - clean[None, None]
+        # Match production's four separate vector reads, not a four-column
+        # GEMM with a potentially different float32 accumulation kernel.
+        def production_reads(state):
+            return torch.stack([
+                (state @ column.unsqueeze(-1)).squeeze(-1) *
+                role_active[:, r, None, None].to(dtype)
+                for r, column in enumerate(columns)], dim=-1)
+        clean = production_reads(memory_before)
+        actual_delta = production_reads(noisy_before) - clean[None, None]
         predicted_unit = linear_before @ effective.double()[None]
         predicted_delta = sigma.double()[:, None, None, None, None, None] * predicted_unit[None]
         difference = actual_delta.double() - predicted_delta

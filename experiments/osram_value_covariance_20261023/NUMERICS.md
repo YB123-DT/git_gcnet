@@ -1,0 +1,28 @@
+# Replay-shape numerical investigation
+
+The first full MOSEI diagnostic (source799adcc, execution_v1) failed the
+unchanged1e-6 clean-prediction check in batch4. No failed partial MOSEI score is
+accepted. Old artifacts are retained; do not merge versions in final tables.
+
+A read-only probe of the first four exact original MOSEI test batches isolated
+the boundaries using ACTUAL reads sliced from the original Flat input:
+
+| Batch (zero-based) | Full original [T,B] Flat, actual reads | Per-timestep [B] Flat, actual reads | Side replay versus actual reads |
+|---|---:|---:|---:|
+| 0 | 0 | 2.3842e-7 | 2.3842e-6 |
+| 1 | 0 | 3.5763e-7 | 2.8610e-6 |
+| 2 | 0 | 3.5763e-7 | 2.8610e-6 |
+| 3 | 0 | 5.2452e-6 | 2.3842e-6 |
+
+Both differences are float32 operation-shape effects, not different masks,
+weights, Local or task definitions: full-shape Flat on original reads was
+bitwise equal to the original valid predictions in all four batches.
+
+The correction preserves production arithmetic shapes rather than relaxing
+tolerance: four separate vector reads (not a four-column M@Q GEMM), followed
+by one original [T,B] Flat invocation per noise draw/head. The task Jacobian
+also runs on the full sequence. A zero-delta regression requires exact clean
+outputs for every draw/head; synthetic tests pass. Real-data revalidation and
+both full dataset reruns must use the corrected immutable source.
+
+No CHM equation, checkpoint, noise distribution, seed, scope or Missing changes.

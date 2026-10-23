@@ -18,7 +18,7 @@ class CovarianceTests(unittest.TestCase):
             generator.close()
 
     def test_original_flat_replay_and_task_covariance_projection(self):
-        from experiments.osram_value_covariance_20261023.core import flat_logits, task_direction_variance
+        from experiments.osram_value_covariance_20261023.core import flat_logits, task_direction_variance, evaluate_sequence_draws
         from types import SimpleNamespace
         from torch import nn
         torch.manual_seed(17)
@@ -50,6 +50,15 @@ class CovarianceTests(unittest.TestCase):
                                                    for v in range(3)) for h in range(2)])
         torch.testing.assert_close(variance[0],expected_variance)
         self.assertTrue(all(p.grad is None for p in model.parameters()))
+        sequence_local = local.unsqueeze(0).expand(3,-1,-1)
+        sequence_reads = reads.unsqueeze(0).expand(3,-1,-1,-1,-1)
+        sequence_valid = valid.unsqueeze(0).expand(3,-1)
+        zeros = torch.zeros(2,2,*sequence_reads.shape)
+        results = evaluate_sequence_draws(model,sequence_local,sequence_reads,zeros,sequence_valid)
+        for sample in results['noisy_predictions'].flatten(0,1):
+            self.assertTrue(torch.equal(sample,results['clean_prediction']))
+        for sample in results['head_predictions']:
+            self.assertTrue(torch.equal(sample,results['clean_prediction']))
 
     def test_omega_matches_explicit_history_value_jacobian(self):
         from experiments.osram_value_covariance_20261023.core import update_omega, read_covariance
