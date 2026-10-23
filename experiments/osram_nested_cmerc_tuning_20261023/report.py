@@ -14,9 +14,9 @@ def metric_deltas(candidate, baseline):
 
 def write_report(output, state):
     jobs = state['jobs']
-    if (len(jobs) != 21 or any(j['status'] != 'complete' for j in jobs)
+    if (len(jobs) != 14 or any(j['status'] != 'complete' for j in jobs)
             or {(j['dataset'], j['method']) for j in jobs} != {(d, m) for d in DATASETS for m in METHODS}):
-        raise ValueError('Require all21 approved jobs; no partial ranking')
+        raise ValueError('Require all14 approved jobs; no partial ranking')
     from .run import validate_summary
     from experiments.osram_iemocap6_gcnet_testbest_20261020.worker import validate_selected
     runs, rows, compact = {}, [], []
@@ -45,7 +45,7 @@ def write_report(output, state):
             seconds=summary['seconds'], peak_memory_mib=summary['peak_memory_mib'],
             selected=summary['best_by_rate']))
     lines = ['# Existing Nested cmerc finite screen', '', 'INTERNAL TEST-ORACLE SCREEN', '',
-        'Seed66 only. IEMOCAP4/6 cover fold5 ONLY, not fivefold means.',
+        'Seed66 only. IEMOCAP6 covers fold5 ONLY, not a fivefold mean. IEMOCAP4 cancelled by user.',
         'Original tasks, CHM/Flat1600/LocalSkip and gcnet-random-mask-v1 unchanged.',
         'Evaluation replays fixed accepted masks. Historical IEMOCAP resampled per-epoch test masks;',
         'only the newly trained same-source Flat is the paired score comparator.',
@@ -85,7 +85,7 @@ def write_report(output, state):
             'Best primary-metric candidate (descriptive, no automatic promotion): ' + ranking[dataset][0]['method'], '']
     output = Path(output)
     payload = dict(status='complete', source_commit=state['source_commit'], label='INTERNAL TEST-ORACLE SCREEN',
-        scope='MOSEI seed66 and IEMOCAP4/6 seed66 fold5 only', runs=compact, ranking=ranking)
+        scope='MOSEI seed66 and IEMOCAP6 seed66 fold5 only', runs=compact, ranking=ranking)
     (output / 'RESULT.json').write_text(json.dumps(payload, indent=2, sort_keys=True) + '\n')
     (output / 'RESULT.md').write_text('\n'.join(lines) + '\n')
     with (output / 'PER_RATE.csv').open('w', newline='') as stream:

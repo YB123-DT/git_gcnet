@@ -17,17 +17,17 @@ class NestedCmercQueueTests(unittest.TestCase):
         self.assertIsNotNone(spec, 'The finite Nested-only controller is missing')
         return __import__(name, fromlist=['main'])
 
-    def test_exact_twenty_one_jobs_no_new_seeds_or_mosi(self):
+    def test_exact_fourteen_jobs_no_iemocap_four_or_new_seeds(self):
         run = self.runner()
         jobs = run.plan_jobs(Path('/fresh'), 'sha', run.GPU)
-        self.assertEqual(len(jobs), 21)
-        self.assertEqual(len({j['output'] for j in jobs}), 21)
-        self.assertEqual({j['dataset'] for j in jobs}, {'CMUMOSEI', 'IEMOCAPFour', 'IEMOCAPSix'})
-        self.assertEqual([j['dataset'] for j in jobs[:3]], ['CMUMOSEI', 'IEMOCAPFour', 'IEMOCAPSix'])
-        self.assertEqual([j['method'] for j in jobs[:3]], ['none'] * 3)
+        self.assertEqual(len(jobs), 14)
+        self.assertEqual(len({j['output'] for j in jobs}), 14)
+        self.assertEqual({j['dataset'] for j in jobs}, {'CMUMOSEI', 'IEMOCAPSix'})
+        self.assertEqual([j['dataset'] for j in jobs[:2]], ['CMUMOSEI', 'IEMOCAPSix'])
+        self.assertEqual([j['method'] for j in jobs[:2]], ['none'] * 2)
         methods = {'none', 'nested_gnn_rooted_evidence', 'nested_dim32', 'nested_dim128',
                    'mosei_nested_depth2', 'mosei_nested_mlp128', 'mosei_nested_groups4'}
-        for dataset in ('CMUMOSEI', 'IEMOCAPFour', 'IEMOCAPSix'):
+        for dataset in ('CMUMOSEI', 'IEMOCAPSix'):
             selected = [j for j in jobs if j['dataset'] == dataset]
             self.assertEqual({j['method'] for j in selected}, methods)
             for job in selected:

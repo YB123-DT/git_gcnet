@@ -1,6 +1,6 @@
 """Finite cmerc Nested screen: six variants and one matched Flat per dataset.
 
-This controller does not kill workers, silently retry, or expand the 21-job plan.
+This controller does not kill workers, silently retry, or expand the 14-job plan.
 It is intended to run from an immutable committed worktree under tmux.
 """
 from __future__ import annotations
@@ -40,8 +40,7 @@ def plan_jobs(output, source_commit, gpu_uuid):
     jobs = []
     for method in METHODS:
         for dataset, fold, epochs, learning_rate in (
-                ('CMUMOSEI', 1, 60, 1e-4), ('IEMOCAPFour', 5, 100, 1e-3),
-                ('IEMOCAPSix', 5, 100, 1e-3)):
+                ('CMUMOSEI', 1, 60, 1e-4), ('IEMOCAPSix', 5, 100, 1e-3)):
             path = Path(output) / 'runs' / dataset / f'fold_{fold}' / 'seed_66' / method
             command = [PYTHON, '-u', '-m', MODULE, '--dataset', dataset, '--method', method,
                        '--seed', '66', '--fold', str(fold), '--phase', 'train',
@@ -198,7 +197,7 @@ def main(argv=None):
     else:
         state = dict(status='preflight', identity=identity, source_commit=args.source_commit,
                      gpu_uuid=args.gpu_uuid, maximum_parallel=args.per_gpu, pid=os.getpid(), jobs=jobs,
-                     started_at=time.time(), label='INTERNAL TEST-ORACLE SCREEN', maximum_jobs=21,
+                     started_at=time.time(), label='INTERNAL TEST-ORACLE SCREEN', maximum_jobs=14,
                      minimum_ram_gib=64, minimum_disk_gib=25, reserved_worker_gib=args.reserve_mib / 1024,
                      admission_margin_gib=2, gpu_preflight=devices)
         write(args.output / 'SOURCE_MANIFEST.json', manifest)

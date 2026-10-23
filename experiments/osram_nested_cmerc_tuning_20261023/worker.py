@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 RATES = tuple(f'{i/10:.1f}' for i in range(8))
 METHODS = ('none', 'nested_gnn_rooted_evidence', 'nested_dim32', 'nested_dim128',
            'mosei_nested_depth2', 'mosei_nested_mlp128', 'mosei_nested_groups4')
-DATASETS = ('CMUMOSEI', 'IEMOCAPFour', 'IEMOCAPSix')
+DATASETS = ('CMUMOSEI', 'IEMOCAPSix')
 MOSEI = Path('/data2/yb/remote_experiments/osram_cmerc_sentiment_3seed_20261023/execution_v1/runs/CMUMOSEI/seed_66/flat')
 IEMOCAP = Path('/home/qinjinghui/remote_experiments/osram_iemocap_flat_seed66_restore_20261016/runs')
 DATA_ROOT = Path('/data2/yb/paper/GCNet_TPAMI_modality_jepa_20260818/dataset')

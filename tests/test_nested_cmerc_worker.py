@@ -29,7 +29,7 @@ def config(dataset):
     return cls(**fields)
 
 
-@pytest.mark.parametrize('dataset', ['CMUMOSEI', 'IEMOCAPFour', 'IEMOCAPSix'])
+@pytest.mark.parametrize('dataset', ['CMUMOSEI', 'IEMOCAPSix'])
 def test_existing_nested_only_changes_module_switch(dataset):
     from dataclasses import asdict
     w = worker()
@@ -55,7 +55,7 @@ def test_scope_never_includes_mosi_meld_allfold_or_direct():
     assert len(w.METHODS) == 7 and 'none' in w.METHODS
     assert 'nested_gnn_rooted_evidence' in w.METHODS
     assert all('direct' not in name for name in w.METHODS)
-    for changes in [dict(dataset='CMUMOSI'), dict(fold=1)]:
+    for changes in [dict(dataset='CMUMOSI'), dict(dataset='IEMOCAPFour'), dict(fold=1)]:
         with pytest.raises(ValueError):
             w.candidate_config(replace(config('IEMOCAPSix'), **changes), 'none')
 

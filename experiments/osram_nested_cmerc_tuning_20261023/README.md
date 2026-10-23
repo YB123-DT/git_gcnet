@@ -1,8 +1,14 @@
 # Nested only: MOSEI and IEMOCAP cmerc screen
 
-INTERNAL TEST-ORACLE SCREEN. Finite21 jobs, seed66 only; no automatic expansion.
-User requested these two dataset families only. IEMOCAP4 and6 use fold5 for
-initial screening, never labelled full fivefold results.
+LATEST USER SCOPE: IEMOCAP4 cancelled. Only MOSEI and IEMOCAP6 remain,14 jobs
+(7 each), seed66 only. IEMOCAP6 uses fold5, not a fivefold mean. The original
+21-job launch receipt remains historical evidence, NOT the current plan.
+
+INTERNAL TEST-ORACLE SCREEN. No automatic expansion. A scope-only supervisor
+adopts the original live MOSEI worker and keeps the old immutable worker source
+3777ab1 for all14 retained jobs. No model, optimizer, RNG, masks or weights are
+changed/restarted. Cancelled4-class artifacts are preserved and excluded from
+ranking. See IEMOCAP4_CANCELLED.md for the operational handoff.
 
 | Method | Graph dim | Depth | Groups | GIN hidden |
 |---|---:|---:|---:|---:|
@@ -20,7 +26,7 @@ graph dim when unspecified); do not call these pure dimension-only changes.
 Groups alter graph tokenization, NOT the original8 CHM memory heads.
 Original nested residual/zero-initialized decoders remain unchanged. No new module.
 
-MOSEI60 epochs at constant1e-4/MSE; IEMOCAP100 at constant1e-3/CE. Both batch32,
+MOSEI60 epochs at constant1e-4/MSE; IEMOCAP6 100 at constant1e-3/CE. Both batch32,
 Adam/WD1e-5/cyclic0–.7/new gcnet-random-mask-v1/no-JEPA/Flat1600/LocalSkip.
 All original parameters train end-to-end. Missing samplers and CHM math untouched.
 Each rate selects its strict TEST-best (MOSEI W-F1; IEMOCAP ACC, same-call UA/W-F1).
@@ -55,7 +61,7 @@ Conservative admission may run fewer than4. No unrelated task is touched. No OOM
 retry or scope expansion. Explicit interrupted-controller recovery requires
 `--resume`, identical identity and complete Adam/CPU/CUDA RNG state.
 
-Complete-only RESULT.md/json/PER_RATE.csv rank only new same-source runs. All
+Complete-only RESULT.md/json/PER_RATE.csv rank only the14 retained same-source runs. All
 conditions and failed/pending jobs remain visible in QUEUE.json. Training cost,
 parameters, exact mask hashes and gradient paths are retained. No success claim
 follows from smoke; no automatic multi-seed follow-up regardless of score.
