@@ -1,0 +1,29 @@
+{
+  "status": "cancelled_by_user",
+  "date_utc": "2026-10-23",
+  "server": "biggpu",
+  "output": "/data2/yb/remote_experiments/osram_conditional_reread_20261023/execution_v1",
+  "source_commit": "8f15f5315e1bd23fa89765d4a8344128719858e7",
+  "controller_pid": 40242,
+  "action": "Sent SIGINT only to the command-verified controller. Its tmux session exited and all four workers were subsequently verified absent. No further worker signals were sent after a process-identity guard refused the already-exiting first worker.",
+  "all_target_processes_absent": true,
+  "gpu": {
+    "physical_index": 1,
+    "uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+    "used_mib_after": 6,
+    "utilization_percent_after": 0
+  },
+  "workers": [
+    {"id": "CMUMOSI_free", "pid": 86047, "last_reported_epoch": 109},
+    {"id": "CMUMOSI_span", "pid": 88522, "last_reported_epoch": 108},
+    {"id": "CMUMOSEI_free", "pid": 87276, "last_reported_epoch": 8},
+    {"id": "CMUMOSEI_span", "pid": 89731, "last_reported_epoch": 8}
+  ],
+  "last_checkpoints_present_all_four": true,
+  "files_deleted": 0,
+  "preserved": ["checkpoints", "exact_masks", "predictions", "history", "logs", "source_snapshots"],
+  "limitation": "Workers exited with the tmux process group and did not finalize their own SUMMARY status. Retained running labels are stale, not proof of live training. Full recovery integrity has not been revalidated after interruption; no complete-performance claim.",
+  "no_automatic_resume": true,
+  "unrelated_tasks_signalled": false,
+  "cmerc_flat_supplement": "Separate authorization remains: MOSI67/68 at3e-4 then3e-5; MOSEI66/67/68 constant1e-4. Not started at this cancellation check."
+}
