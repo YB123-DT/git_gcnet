@@ -26,3 +26,13 @@ outputs for every draw/head; synthetic tests pass. Real-data revalidation and
 both full dataset reruns must use the corrected immutable source.
 
 No CHM equation, checkpoint, noise distribution, seed, scope or Missing changes.
+
+## Completed revalidation
+
+Both full diagnostics completed under immutable source
+`b8d4ccfef6e5824d37541fdcbf0833a0342322bf`, execution_v2.
+Clean prediction replay was bitwise equal on every valid target in both rates,
+including all22 MOSEI batches/rate and the previously failing batch4.
+CPU and remote environment each passed all8 tests. Real GPU smoke completed
+for both datasets. The old execution_v1 failure is retained, not included in
+completed_v2 summaries. Neither the1e-6 tolerance nor the model was changed.

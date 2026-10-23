@@ -21,21 +21,21 @@ INTERNAL DIAGNOSTIC ONLY. No training, optimizer, regularization or new model.
 
 ## Implementation and tests
 
-- [ ] Tests-first `tests/test_value_covariance.py`: Omega equals explicit
+- [x] Tests-first `tests/test_value_covariance.py`: Omega equals explicit
   Value-Jacobian Gram; correlated off-diagonal terms; first-read/padding/Gap
   masks; production perturbed block_write versus linear coefficient replay;
   causality and finite gradient-to-read task variance.
-- [ ] `core.py`: read-only Omega recurrence, masked effective Queries,
+- [x] `core.py`: read-only Omega recurrence, masked effective Queries,
   production noisy Value replay, analytic covariance and local task Jacobian.
   Reuse production block_write terms; never alter its equation or core files.
-- [ ] `run.py`: strict checkpoint/data/mask identity and clean prediction parity,
+- [x] `run.py`: strict checkpoint/data/mask identity and clean prediction parity,
   all-sample per-head G/kappa, MC covariance fit and actual perturbed task
   predictions, nonzero-label polarity corrections/harms, all-label MSE.
-- [ ] `report.py`: by dataset/rate/pattern/correctness/head/kappa groups;
+- [x] `report.py`: by dataset/rate/pattern/correctness/head/kappa groups;
   actual changes and projected first-order variance remain distinct.
-- [ ] Verify on CPU and a real GPU batch, freeze immutable source, run the
+- [x] Verify on CPU and a real GPU batch, freeze immutable source, run the
   two datasets with healthy UUID binding without touching existing tasks.
-- [ ] Publish code, small summaries and source hashes; preserve full covariance
+- [x] Publish code, small summaries and source hashes; preserve full covariance
   and predictions remotely. Report failure/absence of sensitivity as valid results.
 
 ## Interpretation gate

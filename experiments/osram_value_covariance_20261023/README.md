@@ -66,3 +66,17 @@ python -m unittest tests.test_value_covariance tests.test_value_covariance_runne
 
 These tests require Torch/NumPy but not remote data. Real data parity, smoke and
 full coverage are only claimed once their actual STATUS artifacts say complete.
+
+## Completed run
+
+See [RESULT.md](RESULT.md) and `completed_v2/OVERALL.csv`. Both datasets completed
+the locked two-rate scope with no training. `completed_v2/PROVENANCE.json`
+contains compact identities and hashes of the complete remote STATUS files;
+the omitted per-feature-file manifests remain in the remote originals.
+
+Immutable execution source: `b8d4ccfef6e5824d37541fdcbf0833a0342322bf`.
+Remote root: `/data2/yb/remote_experiments/osram_value_covariance_20261023`.
+Run `bash experiments/osram_value_covariance_20261023/launch.sh FULL_SHA FRESH_VERSION`
+from that source snapshot to reproduce the bounded checks and inference runs.
+`export_completed.py` rejects partial runs, mixed source versions, incomplete
+target/covariance coverage and changed frozen weights before exporting summaries.
