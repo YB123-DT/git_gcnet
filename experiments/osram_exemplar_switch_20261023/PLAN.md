@@ -14,13 +14,13 @@ and harms, prediction changes and residual norm, and compare both to original
 same-protocol Flat. OFF minus Flat is a trained-main-path comparison, not a
 causal decomposition of the training process. No OFF-specific epoch selection.
 
-- [ ] Small red-first metric/alignment/readout tests.
-- [ ] Reuse training setup, protected TRAIN bank and GCNet evaluation masks.
-- [ ] Freeze weights; strict selected-checkpoint/data/source/mask integrity.
-- [ ] Healthy biggpu UUID7, original s0 environment, persistent inference run.
-- [ ] ON reproduces saved predictions; OFF reproduces explicit disabled path;
+- [x] Small red-first metric/alignment/readout tests.
+- [x] Reuse training setup, protected TRAIN bank and GCNet evaluation masks.
+- [x] Freeze weights; strict selected-checkpoint/data/source/mask integrity.
+- [x] Healthy biggpu UUID7, original s0 environment, persistent inference run.
+- [x] ON reproduces saved predictions; OFF reproduces explicit disabled path;
       full valid-target coverage, no parameter/RNG updates, originals untouched.
-- [ ] Complete result/stop decision, commit and push small records only.
+- [x] Complete result/stop decision, commit and push small records only.
 
 Decision: prioritize label-aware. If ON does not improve OFF, stop this retrieval
 implementation. If it does but ON does not improve original Flat, only the
