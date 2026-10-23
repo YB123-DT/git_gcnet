@@ -8,7 +8,7 @@ def worker():
     return importlib.import_module('experiments.osram_mosei_gcnet_flat_lr1e4_20261021.worker')
 
 
-@pytest.mark.parametrize('seed',[67,68])
+@pytest.mark.parametrize('seed',[66,67,68])
 def test_only_seed_and_learning_rate_change_the_current_flat_config(seed):
     from gcnet_missing_m3.train_gcnet import TrainConfig
     cfg=replace(TrainConfig(),dataset='CMUMOSEI',fold=1,epochs=60,learning_rate=.001,
@@ -31,6 +31,6 @@ def test_plan_only_runs_flat67_and68_with_no_other_models_or_seeds(tmp_path):
     assert all(j['command'][2]=='experiments.osram_mosei_gcnet_flat_lr1e4_20261021.worker' for j in jobs)
 
 
-def test_bad_seed_is_not_implicitly_added():
+def test_invalid_setup_is_not_implicitly_enabled():
     from gcnet_missing_m3.train_gcnet import TrainConfig
     with pytest.raises(ValueError):worker().low_lr_config(TrainConfig(),66)

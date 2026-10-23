@@ -1,6 +1,6 @@
-"""Only the requested MOSEI Flat seeds67/68 at constant1e-4,GCNet-v1."""
+"""MOSEI Flat constant1e-4,GCNet-v1; seed66 completion is separately launched."""
 import argparse
-from dataclasses import asdict, replace
+from dataclasses import asdict, replace, fields, MISSING
 import hashlib
 import json
 import os
@@ -13,7 +13,7 @@ REFERENCE=Path('/data2/yb/remote_experiments/osram_source_role_direct_cross_2026
 
 
 def low_lr_config(cfg,seed):
-    if seed not in (67,68):raise ValueError('Only requested seeds67/68')
+    if seed not in (66,67,68):raise ValueError('Only approved seeds66/67/68')
     required=dict(dataset='CMUMOSEI',fold=1,seed=66,epochs=60,batch_size=32,
         learning_rate=.001,weight_decay=1e-5,optimizer='adam',lr_schedule='constant',
         backbone_type='osram',osram_readout_fusion='flat',osram_bidirectional=False,
@@ -31,7 +31,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--phase',choices=('train',),required=True)
     parser.add_argument('--mode',choices=('flat',),required=True)
-    parser.add_argument('--seed',type=int,choices=(67,68),required=True)
+    parser.add_argument('--seed',type=int,choices=(66,67,68),required=True)
     parser.add_argument('--source-commit',required=True)
     parser.add_argument('--gpu-uuid',required=True)
     parser.add_argument('--output',type=Path,required=True)
@@ -46,6 +46,7 @@ def main():
     from experiments.osram_text_path_router_joint_20261019.run import seed_training_loader,restore
     from experiments.osram_mosi_gcnet_testbest_20261020.worker import persist_epoch,publish_selected,validate_selected
     from experiments.osram_tasr_20261018 import runner_helpers as h
+    from experiments.osram_exemplar_mosi_20261023.worker import validate_reference_config
     tick=time.monotonic();path=args.output/'SUMMARY.json'
     if args.output.exists() and not args.resume:raise FileExistsError('Fresh output required')
     args.output.mkdir(parents=True,exist_ok=args.resume)
@@ -67,7 +68,8 @@ def main():
         prior=json.loads((prior_path/'SUMMARY.json').read_text())
         if prior['status']!='complete' or prior['epoch']!=60:raise ValueError('Require complete same-seed current-protocol reference')
         expected=dict(prior['config'],osram_source_role=False,osram_source_role_mode='residual',learning_rate=1e-4)
-        if json.loads(json.dumps(asdict(bundle['cfg'])))!=expected:raise ValueError('Unexpected changes beyond source-role disabling and LR')
+        validate_reference_config(asdict(bundle['cfg']),expected,
+            {f.name:f.default for f in fields(bundle['cfg']) if f.default is not MISSING})
         initial=h.backbone_digest(model)
         if prior['initial_backbone_sha256']!=initial:raise ValueError('Same-seed original initialization differs')
         if prior['identity']['mask_hashes']!=hashes or prior['identity']['split']!=bundle['split']:
@@ -77,6 +79,7 @@ def main():
         torch.save(masks,args.output/'fixed_masks.pt')
         sources=tuple(prior['identity']['source_hashes'])+(
             'experiments/osram_mosei_gcnet_flat_lr1e4_20261021/worker.py',
+            'experiments/osram_exemplar_mosi_20261023/worker.py',
             'experiments/osram_mosei_gcnet_flat_lr1e4_20261021/run.py')
         identity=dict(source_commit=args.source_commit,source_hashes={p:h.sha(ROOT/p) for p in sources},
             config=asdict(bundle['cfg']),seed=args.seed,mode='flat',split=bundle['split'],
