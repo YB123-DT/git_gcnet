@@ -11,6 +11,7 @@ import time
 
 REFERENCE = Path('/data2/yb/remote_experiments/osram_mosi_mid_lr_20261021/execution_v2/runs/MOSI/seed_66/flat_lr_0.0003')
 NUMERICAL_COMMIT = '5877678ce3fac9358a94f1217e3dbac5509f6f58'
+FINAL_LR = 3e-4 / 10  # Preserve the reference's exact Python float, not a new literal.
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -194,7 +195,7 @@ def main():
                 check_training_parity(row, reference_history[i])
         torch.cuda.reset_peak_memory_stats()
         for epoch in range(start, 150):
-            lr_common.set_epoch_lrs(optimizer, epoch, backbone_lr=3e-4, final_backbone_lr=3e-5)
+            lr_common.set_epoch_lrs(optimizer, epoch, backbone_lr=3e-4, final_backbone_lr=FINAL_LR)
             row = scalar.train_epoch(bundle, model, optimizer, epoch, 'flat')
             check_training_parity(row, reference_history[epoch])
             evaluated = {rate: scalar.evaluate(bundle, model, 'flat', 'test', masks['test'][rate])

@@ -33,6 +33,9 @@ class EnvironmentControlTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             worker.validate_source_hashes({'model': 'changed'}, {'model': 'original'})
 
+    def test_final_lr_uses_the_references_exact_division(self):
+        self.assertEqual(self.worker().FINAL_LR, 3e-4 / 10)
+
 
 if __name__ == '__main__':
     unittest.main()
