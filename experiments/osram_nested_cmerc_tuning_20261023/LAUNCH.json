@@ -1,0 +1,61 @@
+{
+  "status": "launched_not_finished",
+  "label": "INTERNAL TEST-ORACLE SCREEN",
+  "started_at_utc": "2026-10-23T13:51:05.650338+00:00",
+  "server": "biggpu",
+  "source_commit": "3777ab1a9210eecf83ffa5c47fb0ba87a37edae5",
+  "source_root": "/data2/yb/remote_experiments/osram_nested_cmerc_tuning_20261023/source_v2",
+  "source_manifest_sha256": "4431f48da8dca1a02f6ca63309b9532812427b7b800ce48fb04c30713fe3eb3f",
+  "verified_source_files": 1457,
+  "python": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+  "output": "/data2/yb/remote_experiments/osram_nested_cmerc_tuning_20261023/execution_v1",
+  "queue": "/data2/yb/remote_experiments/osram_nested_cmerc_tuning_20261023/execution_v1/QUEUE.json",
+  "controller_log": "/data2/yb/remote_experiments/osram_nested_cmerc_tuning_20261023/controller_v1.log",
+  "tmux_session": "nested_cmerc_tuning_20261023",
+  "controller_pid": 3725311,
+  "host_gpu": 7,
+  "gpu_uuid": "GPU-c38d9fe1-0b58-158f-a289-32d21e96df2e",
+  "maximum_parallel": 4,
+  "admitted_at_initial_check": 2,
+  "reserve_mib_per_active_worker": 8192,
+  "admission_margin_mib": 2048,
+  "planned_jobs": 21,
+  "seed": 66,
+  "scope": {
+    "CMUMOSEI": {"fold": 1, "epochs": 60, "learning_rate": 0.0001, "jobs": 7},
+    "IEMOCAPFour": {"fold": 5, "epochs": 100, "learning_rate": 0.001, "jobs": 7},
+    "IEMOCAPSix": {"fold": 5, "epochs": 100, "learning_rate": 0.001, "jobs": 7}
+  },
+  "smoke": {
+    "CMUMOSEI": {
+      "path": "/data2/yb/remote_experiments/osram_nested_cmerc_tuning_20261023/smoke_v1/CMUMOSEI/SUMMARY.json",
+      "sha256": "2a01a5fe3d3bb72607b1cc11d5894e0108e68a44841539454541289280355c77",
+      "source_commit": "b9af9a9",
+      "status": "complete",
+      "method": "nested_dim128",
+      "seconds": 71.46615290996851,
+      "peak_memory_mib": 813.453125,
+      "nested_parameters": 432387,
+      "selected_checkpoint_reload_exact": true,
+      "cuda_rng_states_saved": 1
+    },
+    "IEMOCAPSix": {
+      "path": "/data2/yb/remote_experiments/osram_nested_cmerc_tuning_20261023/smoke_v2/IEMOCAPSix/SUMMARY.json",
+      "sha256": "a8b34196f2eaeb1e75a53d1343a984c62d2b4cf52f71c9f55a08947728c62fbf",
+      "source_commit": "3777ab1a9210eecf83ffa5c47fb0ba87a37edae5",
+      "status": "complete",
+      "method": "nested_dim128",
+      "seconds": 70.7291219990002,
+      "peak_memory_mib": 3515.2431640625,
+      "nested_parameters": 432387,
+      "zero_init_prediction_max_abs_error": 7.152557373046875e-7,
+      "zero_init_classes_exact": true,
+      "selected_checkpoint_reload_exact": true,
+      "cuda_rng_states_saved": 1
+    }
+  },
+  "tests": {"local_passed": 23, "cmerc_remote_passed": 23},
+  "historical_checkpoints_overwritten": false,
+  "other_tasks_killed": false,
+  "automatic_multi_seed_or_fivefold_extension": false
+}
