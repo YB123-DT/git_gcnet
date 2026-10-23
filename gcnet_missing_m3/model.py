@@ -2024,6 +2024,7 @@ class MissingM3GraphModel(GraphModel):
         completion_predictions_override=None,
         write_mask_override=None,
         write_node_collector=None,
+        flat_anchor_residual=None,
     ):
         self.last_relation_base_logits = None
         self.last_decision_outputs = None
@@ -2050,6 +2051,10 @@ class MissingM3GraphModel(GraphModel):
         osram_context = None
         internal_predictions = None
         osram_nodes = {}
+        if flat_anchor_residual is not None:
+            if self.backbone_type != 'osram' or predict_missing:
+                raise ValueError('Flat residual callback requires emotion-only OSRAM')
+            osram_nodes['flat_anchor_residual'] = flat_anchor_residual
         if write_mask_override is not None:
             osram_nodes['write_mask_override'] = write_mask_override
         if write_node_collector is not None:

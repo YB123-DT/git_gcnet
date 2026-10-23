@@ -1903,6 +1903,7 @@ class OSRAMBackbone(nn.Module):
         core20_reconstruction_targets=None,
         write_mask_override: torch.Tensor | None = None,
         write_node_collector: dict | None = None,
+        flat_anchor_residual=None,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """Condition reads/local features separately from real-observation writes.
 
@@ -2375,6 +2376,12 @@ class OSRAMBackbone(nn.Module):
                 )
             elif self.osram_disable_local_skip:
                 hidden = self.emotion_norm(self.emotion_adapter(emotion_input))
+            elif flat_anchor_residual is not None:
+                anchor = self.local_skip(local) + self.emotion_adapter(emotion_input)
+                residual = flat_anchor_residual(local, availability, umask)
+                if residual.shape != anchor.shape:
+                    raise ValueError('Flat residual callback returned an incompatible shape')
+                hidden = self.emotion_norm(anchor + residual)
             else:
                 hidden = self.emotion_norm(
                     self.local_skip(local) + self.emotion_adapter(emotion_input)
