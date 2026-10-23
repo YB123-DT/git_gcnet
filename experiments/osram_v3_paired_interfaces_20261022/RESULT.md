@@ -1,6 +1,35 @@
-# Three MOSI paired interfaces: launch status
+# Three MOSI paired interfaces: completed seed66 results
 
 INTERNAL TEST-ORACLE SCREEN
+
+All six jobs completed 150/150 epochs without reported errors, verified on
+2026-10-23. The final completed-only machine report, per-rate scores/selected
+epochs and artifact existence check are in `completed/REPORT.json`,
+`completed/PER_RATE.csv` and `completed/ARTIFACT_CHECK.json`.
+
+| Model | Eight-rate W-F1 | Delta vs Flat (pp) | High-missing W-F1 |
+|---|---:|---:|---:|
+| Accepted Flat66 | 79.249 | 0.000 | 73.410 |
+| 1A full source interaction | 79.139 | -0.110 | 73.713 |
+| 1B diagonal source interaction | 78.617 | -0.632 | 72.976 |
+| 2A updated Local in Adapter only | 79.323 | +0.074 | 73.551 |
+| 2B updated Local in Adapter and Skip | 78.871 | -0.378 | 72.779 |
+| 3A task increment before Norm | 78.860 | -0.389 | 73.156 |
+| 3B task increment after Norm | 78.806 | -0.443 | 72.581 |
+
+Within-pair B minus A W-F1 is -0.523 / -0.452 / -0.054 pp for pairs1/2/3;
+high-missing differences are -0.737 / -0.772 / -0.575 pp. Thus none of the
+three B-side alternatives improves W-F1 in this seed66 screen. The small
+2A-over-Flat gain is not evidence of a stable multi-seed improvement.
+
+Selection is per-rate Test-best; the mean can combine checkpoints from
+different epochs and is not single-checkpoint deployment performance. No
+significance claim is made from one seed. No additional inference/training
+was run for this report. All eight BEST/prediction pairs, fixed masks and
+full last state exist for each completed run. Original source, mask and
+initialization identity checks were enforced by the immutable workers.
+
+## Historical launch record (not current run state)
 
 Observed 2026-10-22T23:46:05.666136+00:00. All six authorized seed66 formal workers are training;
 all six four-update real-data CUDA smokes passed. No final performance is available.
