@@ -1,5 +1,7 @@
 """Bounded experiment contract; no dataset/GPU needed for this layer."""
 import importlib
+import ast
+import inspect
 import types
 import unittest
 from pathlib import Path
@@ -54,6 +56,19 @@ class ExemplarRunnerTests(unittest.TestCase):
         job = dict(run.approved_jobs()[0], output='/tmp/nonexistent_exemplar')
         self.assertFalse(run.completion_matches(job, dict(status='complete', phase='train',
             seed=66, dataset='CMUMOSI', variant='feature-only', epoch=150), 'train'))
+
+    def test_resume_flag_survives_a_failed_resource_admission(self):
+        run = importlib.import_module('experiments.osram_exemplar_mosi_20261023.run')
+        tree = ast.parse(inspect.getsource(run.main))
+        spawn = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+                     and node.name == 'spawn')
+        calls = [node for node in ast.walk(spawn) if isinstance(node, ast.Call)]
+        consume = next(node for node in calls if isinstance(node.func, ast.Attribute)
+            and node.func.attr == 'pop' and node.args
+            and isinstance(node.args[0], ast.Constant) and node.args[0].value == 'resume_requested')
+        launch = next(node for node in calls if isinstance(node.func, ast.Attribute)
+                      and node.func.attr == 'Popen')
+        self.assertGreater(consume.lineno, launch.lineno)
 
 
 if __name__ == '__main__':

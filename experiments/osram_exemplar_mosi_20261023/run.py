@@ -142,7 +142,7 @@ def main(argv=None):
                 peak_memory_mib=summary.get('peak_memory_mib'), error=summary.get('error'))
 
     def spawn(job, phase, uuid, required):
-        resume = job.pop('resume_requested', False)
+        resume = job.get('resume_requested', False)
         output = args.output / ('smoke' if phase == 'smoke' else 'runs') / job['id']
         if output.exists() and not resume:
             raise FileExistsError('Existing worker output requires recovery: ' + str(output))
@@ -153,6 +153,7 @@ def main(argv=None):
         with log.open('a' if resume else 'w') as stream:
             process = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT,
                 env=dict(os.environ, CUDA_VISIBLE_DEVICES=uuid, OMP_NUM_THREADS='1', MKL_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1'))
+        job.pop('resume_requested', None)
         record = process_record(process.pid)
         job.update(status='running', gpu_uuid=uuid, physical_gpu=gpus[uuid], pid=process.pid,
             start_ticks=record['start_ticks'] if record else None, command=command, output=str(output),

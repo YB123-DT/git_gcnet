@@ -10,9 +10,10 @@
   zero-neighbor safety, gradients, exact disabled output/RNG, missing-current
   and missing-support feature safety, causality, cache invalidation, one scan,
   reload and Dropout RNG protection are covered.
-- Six stdlib runner contract tests passed: finite two-arm seed66 budget,
+- Seven stdlib runner contract tests passed: finite two-arm seed66 budget,
   original LR schedule, mask/update parity, strict config normalization,
-  scope-preserving worker command and artifact-backed completion.
+  scope-preserving worker command, artifact-backed completion, and retaining
+  the explicit recovery flag until a process is successfully started.
 - All14 original `tests/test_osram.py` regression tests passed on biggpu s0.
 - Python parse/compile checks and whitespace diff checks passed.
 - The only observed test warning is the installed PyG distributed deprecation;
