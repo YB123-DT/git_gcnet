@@ -1,7 +1,8 @@
 """Existing Nested structural screen, matched Flat, original tasks and masks.
 
-INTERNAL TEST-ORACLE SCREEN. IEMOCAP results cover fold5 only. No trained
-weights initialize a run; historical Flat artifacts provide configs/masks only.
+INTERNAL TEST-ORACLE SCREEN. Original IEMOCAP screen covers fold5; the selected
+Nested128 alone may extend to seeds66/67/68 and all five folds. No trained
+weights initialize a new run; historical Flat artifacts provide configs/masks only.
 """
 import argparse
 from dataclasses import asdict, replace
@@ -21,18 +22,29 @@ IEMOCAP = Path('/home/qinjinghui/remote_experiments/osram_iemocap_flat_seed66_re
 DATA_ROOT = Path('/data2/yb/paper/GCNet_TPAMI_modality_jepa_20260818/dataset')
 
 
-def reference_path(dataset):
+def reference_path(dataset, *, fold=None):
     if dataset not in DATASETS:
-        raise ValueError('Only MOSEI and IEMOCAP4/6 approved')
-    return MOSEI if dataset == 'CMUMOSEI' else IEMOCAP / (
-        'iemocap4' if dataset == 'IEMOCAPFour' else 'iemocap6') / 'seed_66/fold_5'
+        raise ValueError('Only MOSEI and IEMOCAP6 approved')
+    fold = (1 if dataset == 'CMUMOSEI' else 5) if fold is None else fold
+    if fold not in range(1, 6) or (dataset == 'CMUMOSEI' and fold != 1):
+        raise ValueError('Invalid reference fold')
+    return MOSEI if dataset == 'CMUMOSEI' else IEMOCAP / 'iemocap6' / f'seed_66/fold_{fold}'
 
 
-def candidate_config(base, method):
-    if base.dataset not in DATASETS or method not in METHODS:
+def validate_scope(dataset, method, seed, fold):
+    if dataset not in DATASETS or method not in METHODS:
         raise ValueError('Outside finite existing-Nested screen')
+    if dataset == 'IEMOCAPSix' and method == 'nested_dim128' and seed in (66, 67, 68) and fold in range(1, 6):
+        return
+    if seed != 66 or fold != (1 if dataset == 'CMUMOSEI' else 5):
+        raise ValueError('Only the selected IEMOCAP6 Nested128 may extend seeds/folds')
+
+
+def candidate_config(base, method, *, seed=66, fold=None):
+    fold = (1 if base.dataset == 'CMUMOSEI' else 5) if fold is None else fold
+    validate_scope(base.dataset, method, seed, fold)
     scalar = base.dataset == 'CMUMOSEI'
-    required = dict(seed=66, fold=1 if scalar else 5, epochs=60 if scalar else 100,
+    required = dict(seed=seed, fold=fold, epochs=60 if scalar else 100,
         learning_rate=1e-4 if scalar else 1e-3, weight_decay=1e-5,
         optimizer='adam', lr_schedule='constant', batch_size=32,
         missing_mask_protocol='gcnet-random-mask-v1', train_rate_mode='cyclic',
@@ -72,7 +84,7 @@ def prediction_parity(old, new, *, scalar):
         classes_exact=True)
 
 
-def setup(dataset, method, uuid, output):
+def setup(dataset, method, uuid, output, *, seed=66, fold=None):
     import numpy as np
     import torch
     from experiments.osram_tasr_20261018 import runner_helpers as h
@@ -82,7 +94,9 @@ def setup(dataset, method, uuid, output):
     environment = require_replication_environment(torch)
     rng_repair = repair_uuid_rng(torch)
     gpu = guard_gpu(uuid)
-    ref = reference_path(dataset)
+    fold = (1 if dataset == 'CMUMOSEI' else 5) if fold is None else fold
+    validate_scope(dataset, method, seed, fold)
+    ref = reference_path(dataset, fold=fold)
     prior = json.loads((ref / 'SUMMARY.json').read_text())
     if prior['status'] != 'complete':
         raise ValueError('Complete protected Flat reference required')
@@ -112,8 +126,8 @@ def setup(dataset, method, uuid, output):
     from experiments.osram_mosei_nested_gcnet_3seed_20261021.worker import original_digest
     base = trainer.TrainConfig(**raw)
     # Retention-only defaults are logged explicitly, never a hidden loss/mask change.
-    base = replace(base, device='cuda:0', preserve_selection_artifacts=True)
-    cfg = candidate_config(base, method)
+    base = replace(base, device='cuda:0', preserve_selection_artifacts=True, seed=seed)
+    cfg = candidate_config(base, method, seed=seed, fold=fold)
     train, validation, test, *dimensions = trainer.get_loaders(*roots, dataset=dataset,
         num_folder=1 if dataset == 'CMUMOSEI' else 5, batch_size=32, num_workers=0, seed=66,
         validation_fraction=cfg.validation_fraction, evaluation_protocol=cfg.evaluation_protocol)
@@ -124,7 +138,7 @@ def setup(dataset, method, uuid, output):
     bundle['split'] = ({n: loader.protocol_metadata for n, loader in
         (('train', train[fold]), ('validation', validation[fold]), ('test', test[fold]))}
         if dataset == 'CMUMOSEI' else full_training_split(train[fold], test[fold], cfg.fold))
-    bundle['seed_protocol'] = seed_training_loader(bundle, 66)
+    bundle['seed_protocol'] = seed_training_loader(bundle, seed)
     baseline = _build_model(base, tuple(dimensions), torch.device('cuda:0'))
     initial = h.backbone_digest(baseline)
     model = baseline if method == 'none' else _build_model(cfg, tuple(dimensions), torch.device('cuda:0'))
@@ -167,15 +181,14 @@ def main():
     p.add_argument('--dataset', choices=DATASETS, required=True)
     p.add_argument('--method', choices=METHODS, required=True)
     p.add_argument('--fold', type=int, required=True)
-    p.add_argument('--seed', type=int, choices=(66,), default=66)
+    p.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     p.add_argument('--phase', choices=('train', 'smoke'), required=True)
     p.add_argument('--gpu-uuid', required=True)
     p.add_argument('--source-commit', required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--resume', action='store_true')
     args = p.parse_args()
-    if args.fold != (1 if args.dataset == 'CMUMOSEI' else 5):
-        raise ValueError('Only approved screening fold permitted')
+    validate_scope(args.dataset, args.method, args.seed, args.fold)
     os.environ.update(CUDA_VISIBLE_DEVICES=args.gpu_uuid, OMP_NUM_THREADS='1',
         MKL_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1')
     import fcntl
@@ -195,12 +208,12 @@ def main():
     path, tick, hooks = args.output / 'SUMMARY.json', time.monotonic(), []
     if path.exists() and json.loads(path.read_text()).get('status') == 'complete':
         raise ValueError('Do not repeat completed run')
-    summary = dict(status='preflight', dataset=args.dataset, method=args.method, seed=66, fold=args.fold,
+    summary = dict(status='preflight', dataset=args.dataset, method=args.method, seed=args.seed, fold=args.fold,
         phase=args.phase, source_commit=args.source_commit, pid=os.getpid(), label='INTERNAL TEST-ORACLE SCREEN')
     h.write_json(path, summary)
     try:
         torch.set_num_threads(1)
-        bundle, baseline = setup(args.dataset, args.method, args.gpu_uuid, args.output)
+        bundle, baseline = setup(args.dataset, args.method, args.gpu_uuid, args.output, seed=args.seed, fold=args.fold)
         model, cfg, masks = bundle['model'], bundle['cfg'], bundle['masks']
         is_scalar = args.dataset == 'CMUMOSEI'
         task, selection = (scalar, scalar_selected) if is_scalar else (classification, class_selected)
@@ -228,7 +241,7 @@ def main():
             rel = 'experiments/osram_nested_cmerc_tuning_20261023/' + name
             source_hashes[rel] = h.sha(ROOT / rel)
         identity = dict(source_commit=args.source_commit, source_hashes=source_hashes, config=asdict(cfg),
-            dataset=args.dataset, method=args.method, fold=args.fold, seed=66, split=bundle['split'],
+            dataset=args.dataset, method=args.method, fold=args.fold, seed=args.seed, split=bundle['split'],
             seed_protocol=bundle['seed_protocol'], environment=bundle['environment'], rng_repair=bundle['rng_repair'],
             data=bundle['data'], reference=bundle['reference'], mask_reference=bundle['mask_reference'],
             initialization='fresh canonical original factory; no trained weights',
@@ -254,7 +267,7 @@ def main():
             for name, parameter in model.osram.meaningful_block.core.named_parameters():
                 hooks.append(parameter.register_hook(capture(name)))
         hooks.append(model.osram.register_forward_hook(lambda *unused: scans.__setitem__(0, scans[0]+1)))
-        reset_training_stochasticity(66, args.fold)
+        reset_training_stochasticity(args.seed, args.fold)
         if len(h.rng_state()['cuda']) != 1:
             raise RuntimeError('UUID-bound CUDA RNG must actually be captured')
         torch.cuda.reset_peak_memory_stats()
