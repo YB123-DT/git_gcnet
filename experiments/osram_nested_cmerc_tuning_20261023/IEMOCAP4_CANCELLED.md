@@ -24,3 +24,13 @@ Verification:23 targeted scope/protocol/source/parity tests pass, including a
 regression that reduction leaves the living MOSEI command and PID unchanged,
 does not add --resume and preserves the original worker source SHA. No new GPU
 smoke is needed: no numerical model, optimizer, loss or sampler was changed.
+
+Remote handoff verified: new controllerPID3776376 is running with active_jobs14
+and all7 IEMOCAP4 entries cancelled_by_user. Original parentPID3725311 and
+IEMOCAP4 workerPID3726264 have exited. Original MOSEI workerPID3725708 remains
+the SAME live process and has advanced to epoch3/60, with no error. Worker source
+remains3777ab1; scope supervisor source is3114dda. New persistent session:
+`nested_cmerc_scope6_20261023`; log: `controller_scope6.log` in the remote task root.
+All23 tests also passed in the actual remote cmerc-repro environment. No files
+or checkpoints were deleted. IEMOCAP6 and remaining Nested jobs continue through
+the reduced queue's existing GPU/RAM/disk admission, not a new training protocol.
