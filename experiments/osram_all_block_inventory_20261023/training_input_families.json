@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "inventory_date": "2026-10-23",
+  "scope": "训练目标、输入表征、CHM超参数、训练超参数、数据/缺失协议与诊断的语义去重；不重复论文候选注册表的逐方法清单",
+  "evidence_policy": "只读本地现存源码/报告/配置；status为记录中的状态，不代表今天重新探测远程进程。无结果文件不推断失败或未训练。",
+  "limitations": [
+    "不同missing sampler、环境、数据特征、选点方式、轮数、fold、seed及共同mask结果不可全局混排。",
+    "同一训练轨迹的8个BEST是8个选点，不是8次独立训练；固定rate8模型与cyclic单模型另列。",
+    "诊断中的参数覆盖、来源移除、oracle拼接或probe不计作新的端到端Block训练。",
+    "只有实现/计划/launch而缺完成证据的项明确标注；不把smoke当性能实验。",
+    "与历史源文档冲突时优先较新的完成/重提取记录，例如B2 DESIGN早于已完成RESULT。"
+  ],
+  "families": [
+    {
+      "family_id": "T01", "name": "双视图 task-only / CoMM-style paired history", "category": "training_strategy",
+      "mechanism": "View1原cyclic；View2仅额外删已可见模态，非空；共享参数、两次独立零初始Memory，两个task loss。",
+      "experiment_dirs": ["experiments/osram_paired_history_views_20261001"],
+      "tunable_parameters": ["history_drop_prob=0.2", "rho=0.5", "epochs=100", "View2非空恢复规则"],
+      "status": "completed_seed66", "protocol": "历史MOSI cfg84；per-rate Test-oracle W-F1；不冒充新GCNet missing结果",
+      "representative_results": [{"dataset":"MOSI","seed":66,"metric":"8-rate W-F1","baseline":81.068,"method":80.386},{"dataset":"MOSI","seed":66,"metric":"persistent-six W-F1","baseline":67.639,"method":71.583}],
+      "sources": ["experiments/osram_paired_history_views_20261001/README.md", "experiments/osram_paired_history_views_20261001/RESULT.md", "experiments/osram_paired_history_views_20261001/FIXED_RESULT.md"],
+      "notes": "推理单视图，无额外Block；task loss在两个view的全部valid话语计算，不只contrast anchors。"
+    },
+    {
+      "family_id": "T02", "name": "双视图 + symmetric InfoNCE", "category": "training_objective",
+      "mechanism": "当前availability相同且严格过去不同的anchor；1600→256→128 projector；排除同conversation negatives。",
+      "experiment_dirs": ["experiments/osram_paired_history_views_20261001", "experiments/osram_paired_rho010_infonce_20261011"],
+      "tunable_parameters": ["lambda_con=0.1", "temperature=0.1", "rho=0.5或0.1", "history_drop_prob=0.2"],
+      "status": "completed_seed66", "protocol": "旧MOSI100 epochs/per-rate Test-oracle；projector仅训练期",
+      "representative_results": [{"dataset":"MOSI","seed":66,"rho":0.5,"task_only_wf1":80.386,"infonce_wf1":80.267},{"dataset":"MOSI","seed":66,"rho":0.1,"task_only_wf1":81.231,"infonce_wf1":80.191}],
+      "sources": ["experiments/osram_paired_history_views_20261001/README.md", "experiments/osram_paired_history_views_20261001/RESULT.md", "experiments/osram_paired_rho010_infonce_20261011/RESULT.md"]
+    },
+    {
+      "family_id": "T03", "name": "双视图task loss权重rho扫参及三种子", "category": "training_hpo",
+      "mechanism": "(1-rho)*L_view1+rho*L_view2，其他配置保持A不变。",
+      "experiment_dirs": ["experiments/osram_paired_history_rho025_20261002"],
+      "tunable_parameters": ["rho:0.05/0.10/0.15/0.20/0.25/0.30/0.35/0.40/0.45/0.60", "rho0.5为既有对照", "复验rho0.05/0.10/0.25×seeds66/67/68"],
+      "status": "completed_10_screen_plus_6_new_replications", "protocol": "旧MOSI100epochs；逐率Test-best；不得把rho.1的随机高分与rho.5的Persistent收益拼接",
+      "representative_results": [{"scope":"seed66 rho.1","wf1":81.231,"flat_wf1":81.068},{"scope":"3seed rho.1","wf1":80.260,"flat_wf1":80.559},{"scope":"3seed rho.25","wf1":80.014,"flat_wf1":80.559}],
+      "sources": ["experiments/osram_paired_history_rho025_20261002/RESULT.md", "experiments/osram_paired_history_rho025_20261002/THREE_SEED_RESULT.md"]
+    },
+    {
+      "family_id": "T04", "name": "双视图task-only迁移MELD/IEMOCAP6", "category": "training_strategy_transfer",
+      "mechanism": "rho.5/drop.2；不改变推理架构；IEMOCAP6五折seed66。",
+      "experiment_dirs": ["experiments/osram_paired_meld_iemocap6_20261018"],
+      "tunable_parameters": ["MELD50epochs/lr1e-5/wd1e-5", "IEMOCAP6 100epochs/lr1e-3/wd1e-5"],
+      "status": "completed_6_jobs", "protocol": "gcnet-random-mask-v1；Test-best ACC同次UA/WF1；seed66，不是三种子",
+      "representative_results": [{"dataset":"MELD","metric":"Random8 ACC/UA/WF1 delta pp","delta":[-0.211,0.552,0.037]},{"dataset":"IEMOCAP6","metric":"Random8 ACC/UA/WF1 delta pp","delta":[-0.278,-0.171,0.087]},{"dataset":"IEMOCAP6","metric":"persistent-six ACC/UA/WF1 delta pp","delta":[0.805,0.501,1.038]}],
+      "sources": ["experiments/osram_paired_meld_iemocap6_20261018/RESULT.md", "experiments/osram_paired_meld_iemocap6_20261018/POINTWISE.md"]
+    },
+    {
+      "family_id": "T05", "name": "MC-FWC未来写入credit及E0–E4对照", "category": "write_directed_training_objective",
+      "mechanism": "同输入Keep/Omit单次源写入反事实；tau softplus调制future task gradient；E4仅source K/V projector VJP，普通task全模型BPTT不变。",
+      "experiment_dirs": ["experiments/osram_mc_fwc_20261011"],
+      "tunable_parameters": ["H=4", "tau=1.0", "lambda_fwc=0.1", "Random/Transition/Persistent轨迹比例", "E0 original/E1 MixedERM/E2uniform/E3fullgradient/E4writeronly/shuffled"],
+      "status": "cancelled_by_user_after_partial_suite", "protocol": "MOSI3seeds150epochs；一份validation八率均值选点，与历史per-rate Test-oracle不同",
+      "representative_results": [],
+      "sources": ["experiments/osram_mc_fwc_20261011/AUDIT.md", "experiments/osram_mc_fwc_20261011/REPORT.md", "experiments/osram_mc_fwc_20261011/RESULT.md", "experiments/osram_mc_fwc_20261011/CANCELLED.json"],
+      "notes": "69 tests/真实batch smoke通过不等于提分；报告记录6完成、4停止、5取消，不自动恢复。无新增推理参数；不属第二推理Block。"
+    },
+    {
+      "family_id": "T06", "name": "Complete-View Local-State JEPA", "category": "training_objective",
+      "mechanism": "完整视图Local-state target替代原modality目标，保留原emotion任务。",
+      "experiment_dirs": ["experiments/osram_complete_state_20260910"],
+      "tunable_parameters": ["state target/predictor", "state loss weight", "EMA", "100epochs/seeds66–70"],
+      "status": "completed_5seeds", "protocol": "旧MOSI causal Flat step.6；逐seed逐率Test-best W-F1",
+      "representative_results": [{"metric":"8-rate W-F1","joint":80.002,"emotion_only":80.076,"state_jepa":79.890}],
+      "sources": ["experiments/osram_complete_state_20260910/DESIGN.md", "experiments/osram_complete_state_20260910/results/RESULT.md"]
+    },
+    {
+      "family_id": "T07", "name": "WSC / Write-State JEPA", "category": "training_objective",
+      "mechanism": "写后状态监督；与Joint/No-JEPA/State-JEPA对照。",
+      "experiment_dirs": ["experiments/osram_write_state_20260914"],
+      "tunable_parameters": ["write-state loss", "参数预算匹配", "EMA", "100epochs/seeds66–70"],
+      "status": "completed_5seeds", "protocol": "旧MOSI causal Flat step.6；逐率Test-oracle",
+      "representative_results": [{"metric":"8-rate W-F1","wsc":79.787,"joint":80.002,"no_jepa":80.076}],
+      "sources": ["experiments/osram_write_state_20260914/DESIGN.md", "experiments/osram_write_state_20260914/results/RESULT.md"]
+    },
+    {
+      "family_id": "T08", "name": "Future-State JEPA", "category": "training_objective",
+      "mechanism": "当前post-write Memory→state query/predictor→下一句full-view EMA Local；邻接合法时刻监督。",
+      "experiment_dirs": ["experiments/osram_future_state_20260914"],
+      "tunable_parameters": ["future weight=.1", "SmoothL1", "EMA", "参数匹配hidden487（当H8/d32/output700）"],
+      "status": "implemented_and_real_gpu_smoke_only", "protocol": "无正式训练/无新F1结果；推理关闭observer/teacher",
+      "representative_results": [], "sources": ["experiments/osram_future_state_20260914/DESIGN.md", "experiments/osram_future_state_20260914/RESULT.md"]
+    },
+    {
+      "family_id": "T09", "name": "监督预训练Frozen Teacher替代EMA目标", "category": "teacher_training",
+      "mechanism": "Stage1 complete emotion训练projector，Stage2使用冻结Teacher targets；student仍原任务和JEPA。",
+      "experiment_dirs": ["experiments/osram_supervised_teacher_20260914"],
+      "tunable_parameters": ["teacher_mode=ema/pretrained-frozen", "Stage1选点与成本", "source/projector维度"],
+      "status": "report_is_implementation_smoke_evidence_later_runs_referenced_elsewhere", "protocol": "原报告仅工程验证；后续reg-only runner引用已训练Teacher路径，不能以早期文档断言从未训练",
+      "representative_results": [], "sources": ["experiments/osram_supervised_teacher_20260914/RESULT.md", "experiments/osram_reg_only_20260919/run_cfg84_capacity.py"]
+    },
+    {
+      "family_id": "T10", "name": "Missing-Text predictable subspace", "category": "teacher_target_representation",
+      "mechanism": "Stage1训练R/C/Q的Text32维目标、sentiment/predictability/variance/covariance约束；Stage2冻结R辅助Text-only目标。",
+      "experiment_dirs": ["experiments/osram_text_subspace_20260915"],
+      "tunable_parameters": ["target_dim32", "variance_floor1", "covariance正则", "beta1", "target_space"],
+      "status": "implemented_bounded_two_update_smoke_not_full_training", "protocol": "Stage1 train/validation；未宣称F1；不能把低rank直接等同训练坍塌",
+      "representative_results": [], "sources": ["experiments/osram_text_subspace_20260915/RESULT.md", "experiments/osram_text_subspace_20260915/DYNAMICS.md"]
+    },
+    {
+      "family_id": "T11", "name": "M3 utterance-level跨数据预训练及MOSI-only控制", "category": "pretraining",
+      "mechanism": "三数据集均匀抽样、全部9个有向模态预测路径；MOSI-only按24 vs71updates/epoch匹配MOSI暴露。",
+      "experiment_dirs": ["experiments/m3_pretrain_three_datasets_20260921", "experiments/m3_pretrain_mosi_only_20260922"],
+      "tunable_parameters": ["dataset mixing", "steps_per_epoch", "100epochs", "seeds66–70", "reg/cl预测分支"],
+      "status": "completed_5seed_representation_pretraining", "protocol": "train/validation centered cosine，不是情绪分类W-F1",
+      "representative_results": [{"metric":"MOSI validation all-route centered cosine","mosi_only":0.1019,"joint":0.1433}],
+      "sources": ["experiments/m3_pretrain_mosi_only_20260922/RESULT.md"]
+    },
+    {
+      "family_id": "T12", "name": "Source-only Pre-OSRAM Completion（旧B2）", "category": "input_completion",
+      "mechanism": "source-only MMoE先预训；预测缺失latent经CompletedReadFusion回灌read node，但真实observed write路径不变。",
+      "experiment_dirs": ["experiments/osram_b2_20260909"],
+      "tunable_parameters": ["Stage1/Stage2 100+100epochs", "read-node fusion", "regression/contrastive branches"],
+      "status": "completed_5seeds_supersedes_early_design_status", "protocol": "同目录有8率均值单epoch Test-oracle与逐率重提取两套口径，必须分开",
+      "representative_results": [{"selection":"per-rate Test-oracle","p0_wf1":80.0022,"b2_wf1":79.7584},{"selection":"8-rate-mean Test-oracle singleepoch","p0_wf1":79.4407,"b2_wf1":79.0772}],
+      "sources": ["experiments/osram_b2_20260909/DESIGN.md", "experiments/osram_b2_20260909/RESULT.md", "experiments/osram_b2_20260909/RESULT_PER_RATE_ORACLE.md"],
+      "notes": "此B2不是后来的DualSymbolicAttention B2，也不是RelatedHistory情感关系B2。"
+    },
+    {
+      "family_id": "T13", "name": "Joint-pretrained冻结completion/双projector回灌与初始化控制", "category": "input_completion",
+      "mechanism": "三数据预训latent predictor冻结；second projector bank预测只进入read node，不写persistent Memory；另有初始化控制。",
+      "experiment_dirs": ["experiments/osram_joint_frozen_reinjection_20260922", "experiments/osram_joint_dual_projector_completion_20260922", "experiments/osram_joint_pretrained_init_control_20260922", "experiments/osram_joint_pretrained_fixed_modality_ablation_20260923"],
+      "tunable_parameters": ["single/dual projector", "冻结/联合训练", "completed read fusion", "pretrained initialization"],
+      "status": "dual_projector_completed_3seed_other_dirs_individual_evidence", "protocol": "旧cfg84逐率Test-oracle；fixed-modality目录是冻结诊断，不是额外训练方法",
+      "representative_results": [{"metric":"8-rate W-F1","baseline":80.559,"dual_projector":78.842,"high_baseline":75.594,"high_method":73.412}],
+      "sources": ["experiments/osram_joint_dual_projector_completion_20260922/RESULT.md", "experiments/osram_joint_pretrained_init_control_20260922/README.md"]
+    },
+    {
+      "family_id": "T14", "name": "Regression-only JEPA/MMoE/simple masked-mean目标对照", "category": "training_objective_hpo",
+      "mechanism": "原fullMMoE保留reg-only vs简单masked-mean predictor vs去全部辅助；复用90规格筛选但排除不兼容teacher维度。",
+      "experiment_dirs": ["experiments/osram_reg_only_20260916", "experiments/osram_reg_only_20260919", "experiments/osram_reg_only_hparam_sweep_20260919", "experiments/osram_masked_mean_reg_20260919", "experiments/osram_no_aux_cfg84_20260919"],
+      "tunable_parameters": ["training_objective=joint-reg-only/emotion-only", "simple_regression_predictor", "teacher mode", "JEPAloss权重", "cfg84 output1600/KV64/H8"],
+      "status": "runners_and_archived_experiment_references_no_single_unified_final_report", "protocol": "历史cfg84；逐率Test-oracle；不把无本地汇总写成全部未跑",
+      "representative_results": [],
+      "sources": ["experiments/osram_reg_only_hparam_sweep_20260919/run.py", "experiments/osram_reg_only_20260919/run_cfg84_capacity.py", "experiments/osram_masked_mean_reg_20260919/run.py", "experiments/osram_no_aux_cfg84_20260919/run.py"]
+    },
+    {
+      "family_id": "T15", "name": "MOSI情绪任务定义：binary/threeclass/MSE+BCE", "category": "task_objective",
+      "mechanism": "改分类输出/标签或原标量MSE上额外BCE sign loss；不是新的融合Block。",
+      "experiment_dirs": ["experiments/osram_mosi_binary_20260918", "experiments/osram_mosi_threeclass_20260918", "experiments/osram_mosi_dual_loss_20260918"],
+      "tunable_parameters": ["binary/threeclass/regression", "dual loss coefficient", "neutral过滤与阈值"],
+      "status": "dual_loss_completed_5seeds_other_dirs_have_individual_records", "protocol": "旧MOSI per-rate Test-oracle；binary指标须原nonzero样本",
+      "representative_results": [{"metric":"8-rate W-F1","regression":80.08,"dual_loss":80.14}],
+      "sources": ["experiments/osram_mosi_dual_loss_20260918/RESULT.md"]
+    },
+    {
+      "family_id": "T16", "name": "训练缺失分布：Uniform-forced-Text / cyclic去miss0", "category": "mask_distribution_training",
+      "mechanism": "一组r~Uniform(0,1)+Text强缺失.25；另一组只在.1–.7训练仍测.0–.7。",
+      "experiment_dirs": ["experiments/osram_uniform_forced_text_20260918", "experiments/osram_no_aux_cfg84_cyclic_no0_20260920"],
+      "tunable_parameters": ["forced_text_prob=.25", "train_missing_rates", "r distribution"],
+      "status": "completed_5seeds", "protocol": "历史missing；独立训练分布变化，非当前原GCNet sampler等价改造",
+      "representative_results": [{"scope":"uniform forcedText","flat_wf1":80.08,"method_wf1":79.74},{"scope":"cyclic去0","flat_wf1":80.445,"method_wf1":80.038}],
+      "sources": ["experiments/osram_uniform_forced_text_20260918/RESULT.md", "experiments/osram_no_aux_cfg84_cyclic_no0_20260920/RESULT.md"]
+    },
+    {
+      "family_id": "T17", "name": "CED Coalition Evidence Decomposition输入块", "category": "input_block",
+      "mechanism": "对当前真实observed非空子集共享encoder；Möbius/Harsanyi一二三阶分解，三个结构槽concat生成256维node。",
+      "experiment_dirs": ["experiments/osram_ced_20261005"],
+      "tunable_parameters": ["P1/P2/P3", "shared coalition dropout", "node replacement vs任务侧使用边界"],
+      "status": "completed_seed66_100epochs", "protocol": "旧cfg84MOSI；noGate/noJEPA/no额外loss；单scan",
+      "representative_results": [{"metric":"8-rate W-F1","flat":81.068,"ced":79.875,"high_flat":76.352,"high_ced":74.512,"added_parameters":398086}],
+      "sources": ["experiments/osram_ced_20261005/RESULT.md"],
+      "notes": "实际node进入OSRAM，node-dependent Key/Query/Local轨迹随之改变；不能再写成仅任务侧Local。"
+    },
+    {
+      "family_id": "T18", "name": "One-stage Full-History Teacher独立模型", "category": "alternative_history_architecture",
+      "mechanism": "原observed-set encoder；3层causalTransformer历史encoder；Local predictor+g(e,c)-g(e,0)决策校正，final-onlyMSE。",
+      "experiment_dirs": ["experiments/full_history_teacher_20261022"],
+      "tunable_parameters": ["width512/heads8/FF1792/layers3", "约11M预算", "MOSI66 150epochs/3e-4→3e-5"],
+      "status": "plan_and_code_present_no_completed_result_in_dir", "protocol": "单独模型，不是OSRAM第二Block；不自动视为已跑完",
+      "representative_results": [], "sources": ["experiments/full_history_teacher_20261022/PLAN.md", "gcnet_missing_m3/full_history_teacher.py"]
+    },
+    {
+      "family_id": "T19", "name": "早期OSRAM容量/Head/KeyValue/output维度", "category": "architecture_hpo",
+      "mechanism": "OSRAM heads、K/V、Local/output尺寸及forward-only/bidirectional容量配置。",
+      "experiment_dirs": ["experiments/osram_capacity_sweep_20260906", "experiments/osram_heads8_20260906", "experiments/osram_heads8_out700_20260906", "experiments/osram_heads8_v64_out700_20260906", "experiments/osram_kv64_20260906", "experiments/osram_kv64_out700_20260906", "experiments/osram_out700_20260906", "experiments/osram_out900_20260906", "experiments/osram_out1000_20260906", "experiments/osram_v64_20260906", "experiments/osram_forward_only_mosi_20260908", "experiments/osram_forward_only_iemocap_20260908", "experiments/osram_forward_slot_reuse_20260909"],
+      "tunable_parameters": ["num_heads", "key_dim", "value_dim", "output_dim", "bidirectional", "forward_slot_reuse"],
+      "status": "historical_individual_result_archives", "protocol": "各目录历史训练/选点口径独立；不与新missing统一排名",
+      "representative_results": [], "sources": ["experiments/osram_capacity_sweep_20260906", "experiments/osram_forward_slot_reuse_20260909"]
+    },
+    {
+      "family_id": "T20", "name": "MOSI90规格优化/容量联合筛选", "category": "training_and_capacity_hpo",
+      "mechanism": "有限90规格而非完整Cartesian：optimization、capacity、schedule分组；源码保留后续自动复验入口。",
+      "experiment_dirs": ["experiments/osram_mosi_hparam_sweep_20260918"],
+      "tunable_parameters": ["lr", "batch", "Adam/AdamW", "weight_decay", "dropout", "projector_dropout", "block_lr_multiplier", "clip", "schedule", "epochs", "latent/output/heads/KV"],
+      "status": "local_evidence_is_seed66_partial_screen_not_all90_completion", "protocol": "旧causal/noJEPA/cyclic/mean/Flat；per-rate Test-oracle",
+      "representative_results": [{"record":"partial60spec table cfg01","wf1":80.828,"high_wf1":76.088,"output_dim":700,"key_value":32}],
+      "sources": ["experiments/osram_mosi_hparam_sweep_20260918/EXPERIMENT.md", "experiments/osram_mosi_hparam_sweep_20260918/results/seed66_partial/SUMMARY.md"],
+      "notes": "90是计划/规格数量，现有partial表60行；不可据目录宣称90全部完成或90个不同Block。"
+    },
+    {
+      "family_id": "T21", "name": "Flat cfg84大容量/2400宽/200轮派生", "category": "flat_capacity_training",
+      "mechanism": "原Flat隐藏或output容量和训练预算改变，非新增机制。",
+      "experiment_dirs": ["experiments/osram_nojepa_capacity2400_20260919", "experiments/osram_nojepa_capacity2400_200_20260919", "experiments/osram_small_flat_20261009", "experiments/osram_small_flat_3seed_20261009", "experiments/osram_medium_flat_nested_20261009"],
+      "tunable_parameters": ["adapter hidden width", "output_dim", "epochs", "与Nested容量分配"],
+      "status": "individual_runners_and_completed_jsons", "protocol": "大Flat/小Flat容量实验；Nested部分由模块清单详列，避免重复计数",
+      "representative_results": [], "sources": ["experiments/osram_nojepa_capacity2400_20260919/run.py", "experiments/osram_small_flat_20261009/COMPLETED_RESULT.json", "experiments/osram_medium_flat_nested_20261009/COMPLETED_RESULT.json"]
+    },
+    {
+      "family_id": "T22", "name": "100→150轮完整续训/constant与降低LR", "category": "training_budget_schedule",
+      "mechanism": "完整model/optimizer/RNG从epoch100恢复，后50轮LR1e-4；与constant150等单独记录。",
+      "experiment_dirs": ["experiments/osram_complete150_20261011", "experiments/osram_nested_extend150_20261010", "experiments/osram_nested_low_lr_extend150_20261010", "experiments/osram_flat_nested_seed65_150_20261010"],
+      "tunable_parameters": ["epochs100/150", "stage2lr1e-4", "constant150", "seed65/66/67/68"],
+      "status": "complete150_report47completed_15iemocap4flatcancelled", "protocol": "旧missing与历史环境；Test-oracle；不把loadBEST当完整恢复",
+      "representative_results": [{"scope":"MOSI三种子150旧协议","flat_wf1":80.747,"nested_wf1":80.562},{"scope":"IEMOCAP6五折三种子150","flat_acc":61.312,"flat_ua":59.632,"nested_acc":61.480,"nested_ua":60.156}],
+      "sources": ["experiments/osram_complete150_20261011/RESULT.md"]
+    },
+    {
+      "family_id": "T23", "name": "MOSI/MOSEI低LR和batch64比例LR", "category": "optimizer_batch_hpo",
+      "mechanism": "Flat/Nested相同constant1e-4；MOSEI batch32→64且lr1e-3→2e-3。",
+      "experiment_dirs": ["experiments/osram_lr_batch_screen_20261011", "experiments/osram_lr_screen_mosi_20260907", "experiments/osram_mosei_gcnet_flat_lr1e4_20261021"],
+      "tunable_parameters": ["batch32/64", "lr1e-3/1e-4/2e-3", "epochs60/100/150"],
+      "status": "completed_tables_legacy_screen_and_new_mask67_68_separate", "protocol": "20261011旧协议与20261021新GCNet missing不可混排",
+      "representative_results": [{"scope":"旧MOSEI66 60epochs","batch64_lr2e3_wf1":83.787,"flat32_lr1e4_wf1":83.939,"nested32_lr1e4_wf1":84.020},{"scope":"新MOSEI Flat1e-4 seeds67/68","wf1":[83.2445,83.3268]}],
+      "sources": ["experiments/osram_lr_batch_screen_20261011/RESULT.md", "experiments/osram_mosei_gcnet_flat_lr1e4_20261021/completed/RESULT.md"]
+    },
+    {
+      "family_id": "T24", "name": "新GCNet MOSI学习率定版3e-4→3e-5", "category": "optimizer_schedule_hpo",
+      "mechanism": "原Flat seed66比较1e-3/5e-4/3e-4，epoch101降10倍；3e-4补67/68。",
+      "experiment_dirs": ["experiments/osram_mosi_mid_lr_20261021", "experiments/osram_mosi_mid_lr_3seed_20261021"],
+      "tunable_parameters": ["base_lr1e-3/5e-4/3e-4", "epoch101gamma.1", "150epochs"],
+      "status": "completed_3seed_selected_schedule", "protocol": "gcnet-random-mask-v1/s0/Test-best W-F1；当前MOSI原Flat对照",
+      "representative_results": [{"metric":"3seed8rate W-F1","original1e3":78.8909,"lr3e4":79.2817,"high_original":72.9079,"high_lr3e4":73.4715},{"metric":"newFlat66 W-F1","wf1":79.2491}],
+      "sources": ["experiments/osram_mosi_mid_lr_20261021/completed/RESULT.md", "experiments/osram_mosi_mid_lr_3seed_20261021/completed/RESULT.md"]
+    },
+    {
+      "family_id": "T25", "name": "MELD Flat LR/WD优化与锁定baseline", "category": "optimizer_hpo",
+      "mechanism": "只改Adam LR与weight_decay；先8配置66，再lr1e-5的WD控制、三种子。",
+      "experiment_dirs": ["experiments/osram_meld_optimizer_screen_20261018", "experiments/osram_meld_small_lr_3seed_20261018", "experiments/osram_meld_fixed_lr_wd_20261018", "experiments/osram_meld_wd_seed66_20261018"],
+      "tunable_parameters": ["lr2e-4/1e-4/3e-5/1e-5", "wd0/1e-5/1e-4/2e-4/5e-4/1e-3", "50epochs"],
+      "status": "completed_current_baseline_registered", "protocol": "GCNet random/cmerc-repro/Flat1600+LocalSkip；ACC-best同次UA/WF1",
+      "representative_results": [{"scope":"O6 seed66 lr1e-5 wd2e-4","acc":61.786,"ua":38.435,"wf1":58.918},{"scope":"current3seed lr1e-5 wd1e-5","acc":61.557,"ua":37.728,"wf1":58.509}],
+      "sources": ["experiments/osram_meld_optimizer_screen_20261018/RESULT.md", "experiments/osram_meld_fixed_lr_wd_20261018/RESULT.md", "experiments/osram_meld_wd_seed66_20261018/BASELINE.md"],
+      "notes": "61.786/38.435是旧wd2e-4单种子，不与当前baseline66的61.786/38.420混成同一个结果。"
+    },
+    {
+      "family_id": "T26", "name": "MELD warmup+cosine及step.3三种子", "category": "schedule_and_memory_hpo",
+      "mechanism": "两轮warmup再cosine至0；保持peakLR.001；比较write_step.6与.3。",
+      "experiment_dirs": ["experiments/osram_meld_cosine_20261017", "experiments/osram_meld_cosine_step03_3seed_20261017"],
+      "tunable_parameters": ["lr_schedule=constant/cosine", "warmup_ratio=.05", "write_step.3/.6"],
+      "status": "completed_3seeds", "protocol": "新GCNet/cmerc-repro；ACC-best与额外UA-best另列",
+      "representative_results": [{"scope":"step.6 3seed ACC-selected","acc":60.749,"ua":36.781,"wf1":57.279},{"scope":"step.3 3seed ACC-selected","acc":60.611,"ua":36.474,"wf1":57.077}],
+      "sources": ["experiments/osram_meld_cosine_20261017/RESULT.md", "experiments/osram_meld_cosine_step03_3seed_20261017/RESULT.md"]
+    },
+    {
+      "family_id": "T27", "name": "每率独立训练vs单模型cyclic", "category": "training_distribution",
+      "mechanism": "8个模型分别固定train/test rate；不是fixed mask，也不是persistent。",
+      "experiment_dirs": ["experiments/osram_mosi_cfg84_nojepa_fixed_rate_20260920", "experiments/osram_meld_fixed_rates_20261018", "experiments/osram_mosi_fixed_rate_seed66_20261021"],
+      "tunable_parameters": ["train_rate_mode=fixed/cyclic", "fixed_missing_rate.0–.7", "MELD50/MOSI150"],
+      "status": "newMELD8models_and_newMOSI8models_completed_older_runner_separate", "protocol": "GCNet random v1（两个新目录）；八率均值来自8个独立模型",
+      "representative_results": [{"scope":"MOSI66","fixed_wf1":78.681,"cyclic_wf1":79.249},{"scope":"MELD66","fixed_acc":60.886,"fixed_ua":37.069,"fixed_wf1":57.586}],
+      "sources": ["experiments/osram_meld_fixed_rates_20261018/RESULT.md", "experiments/osram_mosi_fixed_rate_seed66_20261021/RESULT.md"]
+    },
+    {
+      "family_id": "T28", "name": "MELD写入eta/ridge五配置从头训练", "category": "memory_hpo",
+      "mechanism": "只改变联合写入scalar，CHM方程/KeyQuery/Flat均不变。",
+      "experiment_dirs": ["experiments/osram_meld_write_tuning_20261017"],
+      "tunable_parameters": ["write_step.3/.6/.9", "write_ridge1e-4/1e-3/1e-2"],
+      "status": "completed_5jobs_seed66", "protocol": "GCNet random/cmerc-repro/LR.001/50epochs；ACC-selected",
+      "representative_results": [{"scope":"W0step.6ridge.001","acc":60.838,"ua":35.633,"wf1":56.789},{"scope":"W1step.3","acc":60.948,"ua":35.653,"wf1":57.054},{"scope":"W4ridge.01","acc":60.560,"ua":36.717,"wf1":56.711}],
+      "sources": ["experiments/osram_meld_write_tuning_20261017/README.md", "experiments/osram_meld_write_tuning_20261017/RESULT.md"]
+    },
+    {
+      "family_id": "T29", "name": "MOSI写入强度与每Head维度五档", "category": "memory_and_capacity_hpo",
+      "mechanism": "eta五档和KV五档共享一个baseline，共9独立配置；heads固定8。",
+      "experiment_dirs": ["experiments/osram_mosi_memory_grid_20261022", "experiments/osram_mosi_head48_3seed_20261022", "experiments/osram_mosi_head48_step04_20261022"],
+      "tunable_parameters": ["eta=.2/.4/.6/.8/1", "K=V=32/48/64/96/128", "head48补3seed", "head48+step.4 seed66"],
+      "status": "head48_3seed_completed_grid_and_step04_status_by_own_queue", "protocol": "新GCNet/s0/MOSI150/3e-4→3e-5；维度变化也改变Flat输入和参数量",
+      "representative_results": [{"scope":"3seedhead64","wf1":79.282,"high_wf1":73.471,"parameters":13509793},{"scope":"3seedhead48","wf1":79.293,"high_wf1":73.510,"parameters":11245857}],
+      "sources": ["experiments/osram_mosi_memory_grid_20261022/README.md", "experiments/osram_mosi_head48_3seed_20261022/RESULT.md"],
+      "notes": "不是纯Memory大小因果实验：forward宽度8*d、context2*8*d、Flat输入256+4*context均变化。"
+    },
+    {
+      "family_id": "T30", "name": "历史write-step冻结覆盖/保留与alpha-beta-head敏感性", "category": "diagnostic_not_training",
+      "mechanism": "固定模型覆盖eta/alpha/beta或屏蔽head，重放状态/读取/任务；训练后参数提取与关联保留审计。",
+      "experiment_dirs": ["experiments/osram_retention_20260909", "experiments/osram_write_step_grid_20260909", "experiments/osram_write_step_range_20260909", "experiments/osram_write_intervention_20260909", "experiments/osram_meld_memory_sensitivity_20261017", "experiments/osram_meld_write_retention_20261014", "experiments/osram_kv_task_utility_20261022"],
+      "tunable_parameters": ["frozen alpha .95/.98/.995", "frozen beta .05/.5/.95", "eta override", "leave-head-out", "history distance", "write interventions"],
+      "status": "read_only_diagnostic_reports_available", "protocol": "覆盖值不是重新训练或正式最优超参；读写干预与分类端消融须区别",
+      "representative_results": [{"scope":"MELD trainedalpha means seeds66/67/68","values":[0.974787,0.975972,0.974309]},{"scope":"MELD trainedbeta means seeds66/67/68","values":[0.499392,0.499456,0.499266]}],
+      "sources": ["experiments/osram_meld_memory_sensitivity_20261017/RESULT.md", "experiments/osram_meld_memory_sensitivity_20261017/SENSITIVITY_RESULT.md", "experiments/osram_retention_20260909/RESULT.md", "experiments/osram_write_step_grid_20260909/PROTOCOL.md"]
+    },
+    {
+      "family_id": "T31", "name": "早期write_step1→.6训练及三种query/write参数衍生", "category": "memory_training_and_read_parameters",
+      "mechanism": "write_step原默认1到.6从头训练；另有read参数/Gap residual/写入门控runner。",
+      "experiment_dirs": ["experiments/osram_write_step_train_20260909", "experiments/osram_mosi_write_gate_gap_strength_20260920", "experiments/osram_query_no_availability_mosi_20260907", "experiments/osram_cfg84_history_query_random_20260928"],
+      "tunable_parameters": ["osram_write_step", "write gate", "gap_residual_strength", "query availability input", "history support query conditioning"],
+      "status": "historical_runners_and_early_launch_reports_status_not_current_runtime", "protocol": "不要把freezeeta曲线当.6重训成绩；未核实最终范围不填数",
+      "representative_results": [], "sources": ["experiments/osram_write_step_train_20260909/RESULT.md", "experiments/osram_mosi_write_gate_gap_strength_20260920", "experiments/osram_cfg84_history_query_random_20260928"]
+    },
+    {
+      "family_id": "T32", "name": "MELD输入特征切换：ECERC/MAGTKD/MM-Align/MMGCN", "category": "dataset_feature_adaptation",
+      "mechanism": "只替换官方预提取特征及必要输入维度，保留原Flat/训练/GCNet missing。",
+      "experiment_dirs": ["experiments/osram_ecerc_features_20261012", "experiments/osram_meld_alternate_features_20261017", "experiments/osram_meld_mmgcn_features_20261018"],
+      "tunable_parameters": ["feature source/utterance coverage", "feature input dimensions", "pickle SHA256", "split/label order"],
+      "status": "MAGTKD_and_MMGCN_completed_MMAlign_download_coverage_blocked", "protocol": "MELD66/cmerc-repro/50epochs/新GCNet；不同维度/数值源码可能改变初始化，不称完全配对",
+      "representative_results": [{"scope":"historicalECERC66","acc":60.675,"ua":35.436,"wf1":56.807},{"scope":"MAGTKD66","acc":54.631,"ua":31.942,"wf1":51.376},{"scope":"MMGCN66","acc":57.826,"ua":30.562,"wf1":53.540}],
+      "sources": ["experiments/osram_meld_alternate_features_20261017/RESULT.md", "experiments/osram_meld_mmgcn_features_20261018/RESULT.md", "experiments/osram_ecerc_features_20261012/prepare_features.py"],
+      "notes": "不可称换数据集；MELD数据集相同，是特征来源变化。MM-Align没有完整训练，不能填成绩。"
+    },
+    {
+      "family_id": "T33", "name": "Missing协议纠正、Test-best UA恢复与环境对账", "category": "protocol_correction_not_block",
+      "mechanism": "conversation-mask-v2、gcnet-legacy-fixed-v1与gcnet-random-mask-v1分开；保存ACC最佳同次prediction/mask重算UA。",
+      "experiment_dirs": ["experiments/osram_gcnet_random_mask_20261013", "experiments/osram_meld_legacy_mask_20261013", "experiments/osram_meld_testbest_ua_20261014", "experiments/osram_result_environment_inventory_20261016", "experiments/osram_mosi_gcnet_testbest_20261020", "experiments/osram_iemocap6_gcnet_testbest_20261020"],
+      "tunable_parameters": ["missing sampler version", "checkpoint_selection_metric", "Test-best vs final random retest", "s0/adapter/cmerc environment", "equalfold/pooled aggregation"],
+      "status": "protocol_and_baseline_reproductions_archived", "protocol": "这不是多套可互换的同一baseline；必须保留更正链，不删除低分证据",
+      "representative_results": [{"scope":"MELD旧adapter环境GCNet复跑3seed","acc":60.498,"wf1":56.754,"ua":null},{"scope":"MELD原代码cmerc复跑3seed历史baseline","acc":60.693,"ua":36.255,"wf1":57.045}],
+      "sources": ["experiments/osram_gcnet_random_mask_20261013/RESULT.md", "experiments/osram_meld_testbest_ua_20261014/RESULT.md", "experiments/osram_meld_testbest_ua_20261014/BASELINE.md", "experiments/osram_result_environment_inventory_20261016/RESULT.md"]
+    },
+    {
+      "family_id": "T34", "name": "IEMOCAP4/6 Flat新环境五折三种子锁定", "category": "baseline_reproduction",
+      "mechanism": "30fold runs：2数据集×3seed×5fold，复用seed66补67/68。",
+      "experiment_dirs": ["experiments/osram_iemocap_flat_seed66_restore_20261016", "experiments/osram_iemocap_flat_3seed_cmerc_20261016"],
+      "tunable_parameters": ["环境一致性", "fold1–5", "seeds66/67/68", "100epochs"],
+      "status": "completed_30foldruns", "protocol": "gcnet-random-mask-v1/cmerc-repro/Test-bestACC；先等权fold再seed，不是pooled样本",
+      "representative_results": [{"dataset":"IEMOCAP4","acc":79.351,"ua":79.632,"wf1":79.233},{"dataset":"IEMOCAP6","acc":61.714,"ua":60.101,"wf1":61.362}],
+      "sources": ["experiments/osram_iemocap_flat_3seed_cmerc_20261016/RESULT.md"]
+    },
+    {
+      "family_id": "T35", "name": "ComP因果/非因果复现对照", "category": "external_baseline_not_block",
+      "mechanism": "外部ComP baseline，与Flat/Nested对比；每rate分别训练，非cyclic同一模型。",
+      "experiment_dirs": [],
+      "tunable_parameters": ["causal/noncausal", "dataset", "seeds", "originalrate-specifictraining"],
+      "status": "scores_and_environment_limits_recorded_in_existing_inventory", "protocol": "不把ComP当接到OSRAM上的Block；历史实际环境未全部充分记录",
+      "representative_results": [{"scope":"MELD causal3seed Test-best","acc":60.532,"ua":33.742,"wf1":56.440}],
+      "sources": ["experiments/osram_result_environment_inventory_20261016/RESULT.md"],
+      "notes": "此read-only lane未定位到本repo独立ComP实现目录，不根据对话补造实现或新运行状态。"
+    },
+    {
+      "family_id": "T36", "name": "早期Missing-M3任务/损失/优化筛选（OSRAM以前）", "category": "historical_pre_osram_experiments",
+      "mechanism": "原GCNet+MissingM3阶段的JEPA权重、任务、LR/WD/dropout/hiddenwindow及fixed/cyclic/twostage/frozen/jointcompletion。",
+      "experiment_dirs": ["experiments/modality_jepa_seed66_20260818", "experiments/jepa_all_missing_10trials_20260819", "experiments/gcnet_all_missing_10trials_20260819", "experiments/gcnet_miss07_10trials_20260819", "experiments/missing_m3_mosi_jepa_ablation_20260829", "experiments/missing_m3_mosi_jepa_weight_screen_20260829", "experiments/missing_m3_mosi_lr_screen_20260829", "experiments/missing_m3_mosi_weight_decay_screen_20260829", "experiments/missing_m3_mosi_hidden_window_sweep_20260829", "experiments/missing_m3_mosi_differential_lr_20260831", "experiments/missing_m3_mosi_binary_task_20260829", "experiments/missing_m3_mosi_soft_ordinal_head_20260831", "experiments/missing_m3_mosi_classification_completion_20260829", "experiments/missing_m3_mosi_joint_completion_20260831", "experiments/missing_m3_mosi_frozen_completion_20260831", "experiments/missing_m3_mosi_two_stage_20260831", "experiments/missing_m3_mosi_cyclic_20260830", "experiments/missing_m3_mosi_fixed_rate_20260830"],
+      "tunable_parameters": ["JEPAweight", "lr/WD", "differentiallr", "hidden/window", "binary/ordinal", "pretrain/freeze/joint", "fixed/cyclic schedule"],
+      "status": "historical_subdirectory_records_exist_not_reaudited_as_current_osram", "protocol": "不是当前cfg84主干；全实验目录台账应保留，不计作新OSRAM第二Block数量",
+      "representative_results": [], "sources": ["experiments/missing_m3_mosi_classification_completion_20260829/EXPERIMENT.md", "experiments/missing_m3_mosi_frozen_completion_20260831/SUMMARY.json"]
+    },
+    {
+      "family_id": "T37", "name": "Frozen probes/历史干预/梯度与12格审计", "category": "diagnostic_not_end_to_end_block_training",
+      "mechanism": "Frozen heads可训练但不是改原OSRAM；history delete/donor/zero、sourceShapley、gradient冲突等只读冻结诊断。",
+      "experiment_dirs": ["experiments/osram_frozen_memory_audit_20261009", "experiments/osram_probe_direction_20261009", "experiments/osram_frozen_residual_20261009", "experiments/osram_meld_information_availability_20261014", "experiments/osram_iemocap_information_availability_20261018", "experiments/osram_history_effect_stratification_20261013", "experiments/osram_history_content_intervention_20261014", "experiments/osram_meld_visual_zero_audit_20261017", "experiments/osram_text_condition_optimization_audit_20261022", "experiments/osram_current_pattern_history_audit_20261022", "experiments/osram_mosi_lr_curve_audit_20261021"],
+      "tunable_parameters": ["probe features", "donor matching", "history deletion", "finite gradient step", "fixed masks", "threshold仅既定离线分层"],
+      "status": "individual_diagnostic_reports", "protocol": "分类为分析/Probe或冻结校正，不能统算正式Block方法；旧MELDprobe采用legacy-fixed，不能直接支持当前GCNet baseline",
+      "representative_results": [], "sources": ["experiments/osram_meld_information_availability_20261014", "experiments/osram_frozen_memory_audit_20261009", "experiments/osram_text_condition_optimization_audit_20261022"]
+    },
+    {
+      "family_id": "T38", "name": "持续/七种组合/LocalBaseGap推理评价", "category": "evaluation_not_training",
+      "mechanism": "完整模型同checkpoint冻结改最终读出或整段固定observedset；不改参数，不是另一个训练模块。",
+      "experiment_dirs": ["experiments/osram_cfg84_fixed_modality_ablation_20260923", "experiments/osram_mosi_memory_gap_ablation_20260920", "experiments/osram_meld_persistent_unimodal_20261018", "experiments/osram_persistent_patterns_20261018", "experiments/osram_meld_flat_source_combinations_20261013", "experiments/osram_iemocap_flat_source_combinations_20261013", "experiments/osram_flat_base_gap_interaction_20261011", "experiments/osram_paired_aonly_localization_20261011", "experiments/osram_cfg84_history_scale_20260929", "experiments/osram_cfg84_history_scale_fine_20260929"],
+      "tunable_parameters": ["Local/Base/Gap on-off", "A/T/V/AT/AV/TV/ATV", "history_scale alpha", "oracle纠错空间", "readout interaction"],
+      "status": "frozen_inference_and_offline_analysis_archives", "protocol": "固定checkpoint跨rate与每rateBEST分开；事后oracle不可当部署成绩；不新增训练计数",
+      "representative_results": [], "sources": ["experiments/osram_paired_history_views_20261001/REVISIT_20261018.md", "experiments/osram_meld_flat_source_combinations_20261013", "experiments/osram_cfg84_history_scale_fine_20260929"]
+    }
+  ]
+}

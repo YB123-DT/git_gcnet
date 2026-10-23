@@ -1,0 +1,2053 @@
+{
+  "scope": "Custom readout/connection/source/Nested/gate family mapping; parent global metadata crawl and catalog agent cover all per-run records and generic method registries.",
+  "generated_date": "2026-10-23",
+  "limitations": [
+    "This lane is a semantic catalog, not an exhaustive global run count. One family is not one experiment; variants/seeds/folds/trials are different granularities.",
+    "Representative numbers copied from explicit archived reports only; no new training or inference, no live run status verification.",
+    "Historical cfg84 80–81% scores and current GCNet mask 79% MOSI scores cannot be merged into a single leaderboard.",
+    "Sampler/environment unknown in a source are unknown; do not infer from directory date or nearby run.",
+    "A stale launch report can coexist with newer completed artifacts; report existence does not prove run completion.",
+    "Some directories contain frozen-only diagnosis and must not count as trained modules. Some implemented controls were not trained.",
+    "All performance references here are exploratory per-rate Test-oracle unless explicitly marked validation-selected frozen adapter."
+  ],
+  "families": [
+    {
+      "family_id": "legacy_fusion",
+      "name": "早期 Local/历史融合替换",
+      "category": "architecture_or_training_variant",
+      "mechanism": "LocalCrossAttentionFusion / LocalCenteredContextFusion；替换旧融合，不等同cfg84后置残差",
+      "experiment_dirs": [
+        "osram_local_cross_attn_20260910",
+        "osram_local_gated_20260910",
+        "osram_causal_readout_20260910",
+        "osram_mosi_modality_tracks_20260918"
+      ],
+      "tunable_parameters": [
+        "local-cross-attn",
+        "local-gated",
+        "local-centered",
+        "modality-tracks"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "history_innovation",
+      "name": "History–Innovation插值读出",
+      "category": "architecture_or_training_variant",
+      "mechanism": "历史与当前映射后scalar K插值；当前注册已移除，只有旧审计引用",
+      "experiment_dirs": [
+        "osram_cfg84_history_innovation_20260928"
+      ],
+      "tunable_parameters": [
+        "history-innovation（取消的历史归档）"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [],
+      "representative_results": [],
+      "notes": "No current experiment directory or registration found; historical readout-path audit references cancelled untracked archive. Do not claim current registered/trained completion."
+    },
+    {
+      "family_id": "memory_shift",
+      "name": "Memory-Shift-Residual / scalar filter",
+      "category": "architecture_or_training_variant",
+      "mechanism": "Relation128；四证据共享scalar filter；零初始化映射加Flat pre-norm",
+      "experiment_dirs": [
+        "osram_cfg84_memory_shift_residual_20260928",
+        "osram_shift_capacity_20261002"
+      ],
+      "tunable_parameters": [
+        "D1-W128",
+        "D2-W128",
+        "D2-W256",
+        "D3-W128",
+        "D3-W256"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "memory_shift",
+          "variant": "D3-W256 scalar shift filter",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.932,
+            "wf1_high": 76.2
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_shift_capacity_20261002/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "memory_shift",
+          "variant": "D3-W256 scalar shift filter three seeds",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.953,
+            "wf1_high": 74.992
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_readout_path_audit_20261009/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "post_grn",
+      "name": "Flat后GRN",
+      "category": "architecture_or_training_variant",
+      "mechanism": "x=Flat hidden，condition=读出消融后的Local/Base/Gap/a；channel gate×value加x",
+      "experiment_dirs": [
+        "osram_cfg84_post_grn_20260929"
+      ],
+      "tunable_parameters": [
+        "post-GRN开/关"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "post_grn",
+          "variant": "Flat+postGRN",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.521,
+            "wf1_high": 74.665
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_cfg84_post_grn_20260929/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "history_input_gate",
+      "name": "总历史scalar Gate",
+      "category": "architecture_or_training_variant",
+      "mechanism": "alpha=1+0.2tanh，统一缩放Base/三个Gap",
+      "experiment_dirs": [
+        "osram_cfg84_history_input_gate_20260929"
+      ],
+      "tunable_parameters": [
+        "one-stage joint"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "history_input_gate",
+          "variant": "History-input Gate",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.892,
+            "wf1_high": 75.239
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_cfg84_history_input_gate_20260929/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "history_query",
+      "name": "历史支持条件化Gap Query",
+      "category": "architecture_or_training_variant",
+      "mechanism": "Query adapter，不是读出Gate",
+      "experiment_dirs": [
+        "osram_cfg84_history_query_random_20260928"
+      ],
+      "tunable_parameters": [
+        "random-missing history-support query"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "evidence_gate",
+      "name": "Local-conditioned scalar evidence Gate",
+      "category": "architecture_or_training_variant",
+      "mechanism": "每证据单scalar，中心1，L2保持正则",
+      "experiment_dirs": [
+        "osram_local_evidence_gate_20260930",
+        "osram_gap_only_evidence_gate_20261005",
+        "osram_evidence_gate_l1_20260930"
+      ],
+      "tunable_parameters": [
+        "Base+Gap四gate",
+        "Gap-only",
+        "L1约束"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "evidence_gate",
+          "variant": "Local-conditioned evidence Gate+L2",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.286,
+            "wf1_high": 75.955
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_local_evidence_gate_20260930/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "frozen_evidence_gate",
+      "name": "冻结Flat二阶段Gate",
+      "category": "architecture_or_training_variant",
+      "mechanism": "3seeds×8父checkpoint，各训练gate；与一阶段不能混排",
+      "experiment_dirs": [
+        "osram_frozen_evidence_gate_20260930"
+      ],
+      "tunable_parameters": [
+        "epoch0",
+        "oracle-best含epoch0",
+        "final100"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "frozen_evidence_gate",
+          "variant": "Frozen Gate oracle-best including epoch0",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.741,
+            "wf1_high": 75.782
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_frozen_evidence_gate_20260930/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "hierarchical_gate",
+      "name": "Feature Gate＋Evidence Softmax",
+      "category": "architecture_or_training_variant",
+      "mechanism": "每路内部feature/head过滤再active evidence间竞争；K×softmax",
+      "experiment_dirs": [
+        "osram_hierarchical_evidence_gate_20260930"
+      ],
+      "tunable_parameters": [
+        "feature＋evidence two-level"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "hierarchical_gate",
+          "variant": "Hierarchical feature+evidence Gate",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.018,
+            "wf1_high": 75.267
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_hierarchical_evidence_gate_20260930/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "feature_gate",
+      "name": "仅8×64 Feature Gate",
+      "category": "architecture_or_training_variant",
+      "mechanism": "无evidence-level softmax竞争",
+      "experiment_dirs": [
+        "osram_feature_only_gate_20260930"
+      ],
+      "tunable_parameters": [
+        "8×64 feature-only"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "feature_gate",
+          "variant": "Feature-only Gate",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.957,
+            "wf1_high": 75.158
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_feature_only_gate_20260930/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "local_skip_gate",
+      "name": "Local Skip Gate",
+      "category": "architecture_or_training_variant",
+      "mechanism": "只门控完整LocalSkip输出",
+      "experiment_dirs": [
+        "osram_local_skip_gate_20261001"
+      ],
+      "tunable_parameters": [
+        "scalar/channel配置以run.py为准"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "memory_only_adapter",
+      "name": "Adapter不含Local",
+      "category": "architecture_or_training_variant",
+      "mechanism": "保留原LocalSkip；Adapter只接Base和Gap",
+      "experiment_dirs": [
+        "osram_memory_only_adapter_20261001"
+      ],
+      "tunable_parameters": [
+        "memory-only adapter"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "memory_only_adapter",
+          "variant": "Memory-only Adapter+originalLocalSkip",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.679,
+            "wf1_high": 74.6
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_memory_only_adapter_20261001/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "current_history_relation",
+      "name": "Current–History Relation",
+      "category": "architecture_or_training_variant",
+      "mechanism": "共享投影+逐证据[q,k,q*k,|q-k|,type]→mean→Flat残差；非Gate",
+      "experiment_dirs": [
+        "osram_current_history_relation_20261003",
+        "osram_relation_dual_readout_20261003"
+      ],
+      "tunable_parameters": [
+        "pairwise relation",
+        "同容量pooled control（仅实现未训练）",
+        "0.5base+0.5full任务监督",
+        "near-only splice（离线）",
+        "relation-off（冻结）"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "current_history_relation",
+          "variant": "Pairwise CurrentHistoryRelation",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.576,
+            "wf1_high": 75.685
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_current_history_relation_20261003/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "current_history_relation",
+          "variant": "Relation dual task0.5base+0.5full",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.649,
+            "wf1_high": 75.716
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_relation_dual_readout_20261003/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "gap_increment_filter",
+      "name": "Gap增量scalar filter",
+      "category": "architecture_or_training_variant",
+      "mechanism": "同轨迹uFull-uBase；LN(uFull+(g-1)increment)",
+      "experiment_dirs": [
+        "osram_gap_increment_filter_20261003"
+      ],
+      "tunable_parameters": [
+        "3seeds"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "gap_increment_filter",
+          "variant": "Gap-increment Filter",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.579,
+            "wf1_high": 74.699
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_gap_increment_filter_20261003/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "decision_correction",
+      "name": "Evidence-Centered Hierarchical Decision",
+      "category": "architecture_or_training_variant",
+      "mechanism": "新Local决策+中心化Base/Gap决策差值；三个出口各1/3任务监督；旧Flat不执行",
+      "experiment_dirs": [
+        "osram_decision_correction_20261003"
+      ],
+      "tunable_parameters": [
+        "Local",
+        "Local+Base",
+        "Local+Base+Gap"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/decision_correction.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "base_first_gap",
+      "name": "Base-first Gap-correction",
+      "category": "architecture_or_training_variant",
+      "mechanism": "u=Skip(L)+FB(L,B)，Gap后修正u；不是原Flat保留",
+      "experiment_dirs": [
+        "osram_base_first_gap_20261011"
+      ],
+      "tunable_parameters": [
+        "Base-first Gap correction"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "counterfactual_readouts",
+      "name": "多候选/边际读出",
+      "category": "architecture_or_training_variant",
+      "mechanism": "冻结或新训练的边际组合路径；需区分是否单独头",
+      "experiment_dirs": [
+        "osram_counterfactual_readouts_20261011",
+        "osram_flat_history_recency_20261011"
+      ],
+      "tunable_parameters": [
+        "原Flat历史recency元数据",
+        "counterfactual候选"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/counterfactual_readout.py",
+          "exists": true
+        },
+        {
+          "path": "gcnet_missing_m3/history_recency.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "nested",
+      "name": "原始Nested GNN及结构消融",
+      "category": "architecture_or_training_variant",
+      "mechanism": "Rooted子图GIN，解码修改Adapter输入Local/Base/Gap；Skip保持原Local",
+      "experiment_dirs": [
+        "osram_nested_sweep_20261005",
+        "osram_nested_rootaware_20261005",
+        "osram_nested_local8_20261006",
+        "osram_nested_groups1_dim512_20261008"
+      ],
+      "tunable_parameters": [
+        "old dim64 depth3 groups8",
+        "plain-GIN",
+        "no-markers",
+        "no-head-edges",
+        "last-layer",
+        "dim32/128",
+        "depth1/2",
+        "groups1/4",
+        "root-aware pooling",
+        "Local8",
+        "groups1dim512"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/meaningful_new40_structure.py",
+          "exists": true
+        },
+        {
+          "path": "gcnet_missing_m3/nested_sweep.py",
+          "exists": true
+        },
+        {
+          "path": "gcnet_missing_m3/nested_local8.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "nested",
+          "variant": "Original Nested residual",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.489,
+            "wf1_high": 75.252
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_high_score_review_20261009/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "nested_capacity",
+      "name": "Nested容量/Flat参数重分配",
+      "category": "architecture_or_training_variant",
+      "mechanism": "扩大图节点宽度或GIN MLP；缩小Flat；必须同时记录Flat/Nested容量",
+      "experiment_dirs": [
+        "osram_nested_mlp256_20261008",
+        "osram_small_flat_nested_mlp256_20261009",
+        "osram_small_flat_nested_mlp512_20261009",
+        "osram_nested_equal_budget_20261009",
+        "osram_medium_flat_nested_20261009"
+      ],
+      "tunable_parameters": [
+        "GIN MLP256/512",
+        "Flat256+Nested704",
+        "Flat widths384/512/768/1024/1280"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/nested_sweep.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "nested_capacity",
+          "variant": "Flat256+Nested704",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 78.151615,
+            "wf1_high": 72.358131
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_nested_equal_budget_20261009/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "small_flat",
+      "name": "Flat容量 / 小Flat+模块",
+      "category": "architecture_or_training_variant",
+      "mechanism": "只改emotion_adapter hidden width；原output_dim1600/Skip不变",
+      "experiment_dirs": [
+        "osram_small_flat_20261009",
+        "osram_small_flat_3seed_20261009"
+      ],
+      "tunable_parameters": [
+        "Flat256",
+        "Flat256+NPS",
+        "Flat256+Nested64"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "small_flat",
+          "variant": "Flat256+Nested64",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.362122,
+            "wf1_high": 75.89942
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_nested_equal_budget_20261009/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "small_flat",
+          "variant": "Flat256",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.529424,
+            "wf1_high": 74.421931
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_nested_equal_budget_20261009/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "nested_direct",
+      "name": "Nested直接替换Adapter证据输入",
+      "category": "architecture_or_training_variant",
+      "mechanism": "去掉输入residual，不删除Flat；zero/random decoder初始化分开",
+      "experiment_dirs": [
+        "osram_nested_direct_20261008",
+        "osram_nested_direct_random_20261008",
+        "osram_nested_direct_capacity_20261011",
+        "osram_nested_direct_capacity_more_20261011"
+      ],
+      "tunable_parameters": [
+        "direct-zero64/64",
+        "direct-random64/64",
+        "64/128",
+        "64/256",
+        "64/512",
+        "128/128",
+        "128/256",
+        "128/512",
+        "256/256",
+        "256/512"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/meaningful_input_new40.py",
+          "exists": true
+        },
+        {
+          "path": "gcnet_missing_m3/nested_sweep.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "nested_direct",
+          "variant": "Nested direct zero",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 77.315,
+            "wf1_high": 71.312
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_nested_direct_20261008/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "nested_direct",
+          "variant": "Nested direct random",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.177,
+            "wf1_high": 74.8
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_nested_direct_random_20261008/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "nested_training",
+      "name": "Nested训练/LR/epoch/跨数据集",
+      "category": "architecture_or_training_variant",
+      "mechanism": "原图模块不同优化/训练预算，不能当新机制",
+      "experiment_dirs": [
+        "osram_nested_cross_dataset_20261006",
+        "osram_nested_diagnostics_20261007",
+        "osram_nested_extend150_20261010",
+        "osram_nested_low_lr_extend150_20261010",
+        "osram_nested_cosine_20261010",
+        "osram_nested_local_lr_warmup_random_20261010",
+        "osram_flat_nested_seed65_150_20261010",
+        "osram_mosei_nested_tuning_20261011",
+        "osram_mosei_dim32_depth2_followup_20261012",
+        "osram_meld_nested_screen_20261012",
+        "osram_mosei_nested_gcnet_3seed_20261021"
+      ],
+      "tunable_parameters": [
+        "100/150epoch",
+        "constant/cosine",
+        "局部LR+warmup+randomDecoder",
+        "MOSEI dim32+depth2",
+        "MELD d32-l4-g2-m64等"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/nested_sweep.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "nested_gate",
+      "name": "Nested解码残差Gate/固定系数",
+      "category": "architecture_or_training_variant",
+      "mechanism": "只修改Nested输入校正强度，不能描述成CHM Gate",
+      "experiment_dirs": [
+        "osram_nested_gap_residual_gate_20261010",
+        "osram_nested_gap_t_residual_gate_20261010",
+        "osram_nested_residual_scale_20261012"
+      ],
+      "tunable_parameters": [
+        "allGap Gate",
+        "GapT-only Gate",
+        "fixed residual scale grid"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/nested_gap_gate.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "nested_concat",
+      "name": "Nested Rooted concat独立读出",
+      "category": "architecture_or_training_variant",
+      "mechanism": "保留rooted表示与Flat表示concat/Probe，不是相同残差架构",
+      "experiment_dirs": [
+        "osram_nested_concat_20261011",
+        "osram_nested_root_probe_20261011",
+        "osram_frozen_nested_20261009"
+      ],
+      "tunable_parameters": [
+        "concat",
+        "frozenNested-only学习",
+        "frozenRepresentationProbe"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/nested_concat.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "nested_diagnostics",
+      "name": "Nested只读消融/梯度",
+      "category": "frozen_diagnostic_or_archival_review",
+      "mechanism": "无新训练；不是调参方法数",
+      "experiment_dirs": [
+        "osram_nested_four_dataset_per_rate_20261012",
+        "osram_nested_delta_off_missing_text_20261010",
+        "osram_nested_delta_subsets_20261011",
+        "osram_nested_slot_delta_off_20261011",
+        "osram_nested_input_gradient_20261010",
+        "osram_nested_training_gradients_20261010"
+      ],
+      "tunable_parameters": [
+        "单槽关",
+        "全部/组合关",
+        "输入梯度",
+        "训练梯度",
+        "四数据集逐rate汇总"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/nested_sweep.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "nps",
+      "name": "Neural Production",
+      "category": "architecture_or_training_variant",
+      "mechanism": "四规则共享多步选择/更新；原版Base/Gap输入残差，Local改版独立",
+      "experiment_dirs": [
+        "osram_nps_local_20261009",
+        "osram_nps_local_w256_20261009"
+      ],
+      "tunable_parameters": [
+        "Base/Gap-only四规则三步width96",
+        "Local+Base/Gap width96",
+        "Local+Base/Gap width256"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/meaningful_new40_conditional.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "nps",
+          "variant": "Original NeuralProduction BaseGap-only",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.981,
+            "wf1_high": 76.475
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_high_score_review_20261009/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "nps",
+          "variant": "Original NeuralProduction three seeds",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.459,
+            "wf1_high": 75.558
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_high_score_review_20261009/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "nps",
+          "variant": "NeuralProduction Local+BaseGap width96",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.443,
+            "wf1_high": 75.648
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_readout_path_audit_20261009/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "nps",
+          "variant": "NeuralProduction Local+BaseGap width256",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 80.342549,
+            "wf1_high": 75.595904
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 100,
+          "protocol": "historical cfg84 cyclic random missing; per-rate Test-best W-F1; exact sampler version/environment must be joined from run provenance (do not equate with gcnet-random-mask-v1)",
+          "source": "experiments/osram_nps_local_w256_20261009/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "direct_other_modules",
+      "name": "多机制去输入残差",
+      "category": "architecture_or_training_variant",
+      "mechanism": "XCA / NPS /其他输入adapter direct不是全部删Flat",
+      "experiment_dirs": [
+        "osram_xca_direct_20261010",
+        "osram_direct_input4_20261010"
+      ],
+      "tunable_parameters": [
+        "XCA direct",
+        "four direct input candidates"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/meaningful_input.py",
+          "exists": true
+        },
+        {
+          "path": "gcnet_missing_m3/meaningful_input_priority40.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "related_history",
+      "name": "B1 R / B2 R+S短窗历史",
+      "category": "architecture_or_training_variant",
+      "mechanism": "历史Local短窗8；B1检索；B2额外训练关系BCE及same/change拆分",
+      "experiment_dirs": [
+        "osram_meld_related_history_20261018",
+        "osram_meld_related_history_diagnostic_20261018",
+        "osram_meld_related_history_learning_audit_20261018",
+        "osram_mosi_recent_history_20261018"
+      ],
+      "tunable_parameters": [
+        "B1输入2435",
+        "B2输入2564",
+        "B2关系loss0.05",
+        "分支off/S=0.5（诊断）"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/related_history.py",
+          "exists": true
+        },
+        {
+          "path": "gcnet_missing_m3/recent_history.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "related_history",
+          "variant": "B1",
+          "dataset": "MELD",
+          "seeds": [
+            66
+          ],
+          "epochs": 50,
+          "protocol": "gcnet-random-mask-v1; cmerc-repro; lr1e-5 wd2e-4; per-rate ACC Test-best same-prediction UA",
+          "metrics_percent": {
+            "acc_mean8": 61.796,
+            "ua_mean8": 38.502,
+            "wf1_mean8": 58.936
+          },
+          "source": "experiments/osram_meld_related_history_20261018/RESULT.md",
+          "status": "completed_as_explicitly_reported"
+        },
+        {
+          "family_id": "related_history",
+          "variant": "B2",
+          "dataset": "MELD",
+          "seeds": [
+            66
+          ],
+          "epochs": 50,
+          "protocol": "same as B1",
+          "metrics_percent": {
+            "acc_mean8": 61.758,
+            "ua_mean8": 38.005,
+            "wf1_mean8": 58.809
+          },
+          "source": "experiments/osram_meld_related_history_20261018/RESULT.md",
+          "status": "completed_as_explicitly_reported"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "tasr",
+      "name": "TASR Gap来源轨迹校准",
+      "category": "architecture_or_training_variant",
+      "mechanism": "JointSourceTracker精确Value槽来源分解；Gap9路 bounded0.25tanh加原Gap",
+      "experiment_dirs": [
+        "osram_tasr_20261018",
+        "osram_tasr_lr_20261019",
+        "osram_tasr_random_only_20261019",
+        "osram_tasr_joint_20261019"
+      ],
+      "tunable_parameters": [
+        "F0",
+        "F1 source-neutral=Gap/3",
+        "F2 source-real",
+        "adapterLR3e-6/1e-5/3e-5/3e-4",
+        "冻结双视图0.8/0.2",
+        "冻结random-only",
+        "joint random-only"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/tasr.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "tasr",
+          "variant": "frozen F2",
+          "dataset": "MELD",
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 30,
+          "protocol": "fixed historical miss0.3 Test-oracle backbone; validation-random8 ACC then CE selects adapter; same-checkpoint paired eval; Adam3e-4 wd1e-5; dual task0.8random0.2persistent",
+          "metrics_percent": {
+            "acc_mean8": 61.307,
+            "ua_mean8": 38.965,
+            "wf1_mean8": 58.637,
+            "persistent6_acc": 57.637,
+            "persistent6_ua": 32.095,
+            "persistent6_wf1": 50.919
+          },
+          "source": "experiments/osram_tasr_20261018/RESULT.md",
+          "status": "completed_as_explicitly_reported"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "text_path_router",
+      "name": "BaseText/GapText候选Router",
+      "category": "architecture_or_training_variant",
+      "mechanism": "Full/去GapT←T/去Base←T三候选预测，训练概率混合或标量混合；不是TASR",
+      "experiment_dirs": [
+        "osram_text_path_router_20261019",
+        "osram_text_path_router_3seed_20261019",
+        "osram_text_path_router_joint_20261019",
+        "osram_text_path_router_joint_mosi_20261019",
+        "osram_mosi_gcnet_router_3seed_20261019",
+        "osram_mosi_router_lr1e5_20261020",
+        "osram_mosi_router_lr2e5_20261020",
+        "osram_mosei_gcnet_router_20261020",
+        "osram_iemocap6_router_fivefold_20261019",
+        "osram_iemocap6_gcnet_testbest_20261020"
+      ],
+      "tunable_parameters": [
+        "frozenRouter",
+        "jointRouter",
+        "主干1e-5/2e-5",
+        "IEMOCAP6五折",
+        "MOSI新Miss/选点修正"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/tasr.py",
+          "exists": true
+        },
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "coupled_source_role",
+      "name": "Base-Gap Partner Source Role",
+      "category": "architecture_or_training_variant",
+      "mechanism": "12来源角色共享MLP；原版原读出+0.25tanh权重delta；direct版2sigmoid来源重构",
+      "experiment_dirs": [
+        "osram_coupled_source_role_20261020",
+        "osram_mosi_source_role_direct_20261020",
+        "osram_mosi_source_role_direct_3seed_20261020",
+        "osram_source_role_direct_cross_20261020",
+        "osram_mosei_source_role_switch_20261021"
+      ],
+      "tunable_parameters": [
+        "residual MOSI/MOSEI",
+        "direct MOSI3seed",
+        "direct MOSEI/MELD/IEMOCAP6",
+        "gamma=1冻结"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/source_role.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "coupled_source_role",
+          "variant": "Coupled residual",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.0506,
+            "wf1_high": 73.1139
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_coupled_source_role_20261020/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "coupled_source_role",
+          "variant": "Direct2sigmoid 3seed",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 78.833,
+            "wf1_high": 72.62
+          },
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_mosi_source_role_direct_3seed_20261020/completed/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "coupled_source_role",
+          "variant": "Direct2sigmoid",
+          "dataset": "MOSEI",
+          "seeds": [
+            66,
+            67,
+            68
+          ],
+          "epochs": 60,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "metrics_percent": {
+            "acc_mean8": 83.4526,
+            "wf1_mean8": 83.2609,
+            "wf1_high": 80.0743
+          },
+          "source": "experiments/osram_source_role_direct_cross_20261020/completed/RESULT.md",
+          "status": "completed_as_explicitly_reported"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "source_relation_v1",
+      "name": "SourceRelation Base/Gap均值包",
+      "category": "architecture_or_training_variant",
+      "mechanism": "每来源Base与masked-meanGap交互→三个128tokens→SA→LocalCA→全局1600残差；原提示明确含mean",
+      "experiment_dirs": [
+        "osram_source_relation_attention_20261021"
+      ],
+      "tunable_parameters": [
+        "MOSI150",
+        "MOSEI60"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/source_relation.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "source_role_tokens_v2",
+      "name": "12-source-role tokens重做",
+      "category": "architecture_or_training_variant",
+      "mechanism": "不提前meanGap；12个128tokens Attention→全局Flat残差；用户取消未完成MOSEI",
+      "experiment_dirs": [
+        "osram_source_role_tokens_20261021"
+      ],
+      "tunable_parameters": [
+        "MOSI完成150",
+        "MOSEI20后取消"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/source_role_tokens.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "source_role_tokens_v2",
+          "variant": "12token source-role",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 78.870661,
+            "wf1_high": 73.162256
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_source_role_tokens_20261021/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "v3",
+      "name": "V3 Hierarchical Source–Role",
+      "category": "architecture_or_training_variant",
+      "mechanism": "同源Base-eachGap343pair→同role跨sourceSA→Local roleCA→四零初始化64→512decoders回填Base/Gap",
+      "experiment_dirs": [
+        "osram_source_role_v3_20261021",
+        "osram_v3_classification_20261021",
+        "osram_v3_three_seed_20261021"
+      ],
+      "tunable_parameters": [
+        "MOSI seed66/67/68",
+        "MOSEI",
+        "MELD",
+        "IEMOCAP4/6五折",
+        "classification调度+3seed补充"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/source_role_v3.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": "Original RESULT.md and three-seed RESULT.md are stale launch records; join newer reports."
+    },
+    {
+      "family_id": "v3_capacity",
+      "name": "V3宽度/Flat宽度协调",
+      "category": "architecture_or_training_variant",
+      "mechanism": "缩小Flat hidden、扩大V3width；容量对照同协议",
+      "experiment_dirs": [
+        "osram_mosi_v3_capacity_20261022",
+        "osram_mosi_v3_capacity_3seed_20261022",
+        "osram_mosei_v3_capacity_20261022",
+        "osram_mosei_v3_grid_20261022"
+      ],
+      "tunable_parameters": [
+        "Flat512/1024",
+        "V3width128/256",
+        "Plain匹配control",
+        "MOSI f512v128三种子"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/source_role_v3.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "v3_capacity",
+          "variant": "Flat512+V3width128",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.453,
+            "wf1_high": 73.519
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_mosi_v3_capacity_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "v3_capacity",
+          "variant": "Flat512 plain",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 78.882,
+            "wf1_high": 72.949
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_mosi_v3_capacity_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "v3_direct",
+      "name": "V3非残差读出替换",
+      "category": "architecture_or_training_variant",
+      "mechanism": "V3 decoder输出直接作为Flat Base/Gap输入；不再加原read",
+      "experiment_dirs": [
+        "osram_mosi_v3_direct_20261022"
+      ],
+      "tunable_parameters": [
+        "MOSI direct",
+        "MOSEI direct role"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/source_role_v3.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "v3_connections",
+      "name": "V3三种连接位置",
+      "category": "architecture_or_training_variant",
+      "mechanism": "保head回填/来源槽/Flat隐藏层接口",
+      "experiment_dirs": [
+        "osram_v3_connection_options_20261022",
+        "osram_v3_connection_screen_20261022"
+      ],
+      "tunable_parameters": [
+        "head-preserving",
+        "source-slots",
+        "flat-hidden"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/source_role_v3_connections.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "v3_connections",
+          "variant": "head-preserving",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.331,
+            "wf1_high": 73.438
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_v3_connection_screen_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "v3_connections",
+          "variant": "source-slots",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.213,
+            "wf1_high": 73.228
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_v3_connection_screen_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "v3_connections",
+          "variant": "flat-hidden",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.112,
+            "wf1_high": 72.725
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_v3_connection_screen_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "v3_connections",
+          "variant": "head-preserving",
+          "dataset": "MOSEI",
+          "seeds": [
+            66
+          ],
+          "epochs": 60,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "metrics_percent": {
+            "wf1_mean8": 83.293,
+            "wf1_high": 80.188
+          },
+          "source": "experiments/osram_v3_connection_screen_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "v3_paired",
+      "name": "V3六组成对接口",
+      "category": "architecture_or_training_variant",
+      "mechanism": "来源连接拓扑；更新Local与Skip一致性；任务增量Norm前后",
+      "experiment_dirs": [
+        "osram_v3_paired_interfaces_20261022"
+      ],
+      "tunable_parameters": [
+        "topology-full",
+        "topology-diagonal",
+        "local-adapter",
+        "local-shared",
+        "task-pre-norm",
+        "task-post-norm"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/source_role_v3_paired.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [
+        {
+          "family_id": "v3_paired",
+          "variant": "topology-full",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.139,
+            "wf1_high": 73.713
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_v3_paired_interfaces_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "v3_paired",
+          "variant": "topology-diagonal",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 78.617,
+            "wf1_high": 72.976
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_v3_paired_interfaces_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "v3_paired",
+          "variant": "local-adapter",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 79.323,
+            "wf1_high": 73.551
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_v3_paired_interfaces_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "v3_paired",
+          "variant": "local-shared",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 78.871,
+            "wf1_high": 72.779
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_v3_paired_interfaces_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "v3_paired",
+          "variant": "task-pre-norm",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 78.86,
+            "wf1_high": 73.156
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_v3_paired_interfaces_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        },
+        {
+          "family_id": "v3_paired",
+          "variant": "task-post-norm",
+          "dataset": "MOSI",
+          "metrics_percent": {
+            "wf1_mean8": 78.806,
+            "wf1_high": 72.581
+          },
+          "seeds": [
+            66
+          ],
+          "folds": null,
+          "epochs": 150,
+          "protocol": "gcnet-random-mask-v1 cyclic0.0–0.7; per-rate Test-best W-F1; s0 environment; MSE; seed66 unless stated",
+          "source": "experiments/osram_v3_paired_interfaces_20261022/RESULT.md",
+          "status": "completed_as_explicitly_reported",
+          "warning": "Representative archived evidence; not an exhaustive per-run record or cross-protocol ranking."
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "family_id": "reread",
+      "name": "Conditional Memory Reread",
+      "category": "architecture_or_training_variant",
+      "mechanism": "首读Local/Base/a生成第二query，再读同一alpha衰减prewriteM；Base校正",
+      "experiment_dirs": [
+        "osram_conditional_reread_20261023"
+      ],
+      "tunable_parameters": [
+        "free-query",
+        "original-effective-query-span"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/conditional_reread.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": "Latest local RESULT is startup only. No completed formal score established in this lane."
+    },
+    {
+      "family_id": "evidence_audits",
+      "name": "历史来源/组合/Query决策冻结诊断",
+      "category": "frozen_diagnostic_or_archival_review",
+      "mechanism": "12路消融+8来源Shapley+BaseTextGapText交互；不是新模块或正式训练",
+      "experiment_dirs": [
+        "osram_12_source_evidence_audit_20261019",
+        "osram_scalar_12_source_audit_20261020",
+        "osram_scalar_router_candidate_ceiling_20261020",
+        "osram_mosi_source_role_neutral_audit_20261020",
+        "osram_meld_base_text_gap_text_20261019",
+        "osram_iemocap_base_text_gap_text_20261019",
+        "osram_meld_flat_source_combinations_20261013",
+        "osram_iemocap_flat_source_combinations_20261013",
+        "osram_v3_source_attention_audit_20261022",
+        "osram_meld_query_decision_20261014",
+        "osram_meld_query_decision_design_20261014",
+        "osram_mosei_direct_role_readout_20261021"
+      ],
+      "tunable_parameters": [
+        "Local/Base/Gap组合",
+        "12格移除",
+        "3source Shapley",
+        "query vs readout frozen probe"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/tasr.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "reporting_audits",
+      "name": "历史读出/高分审查",
+      "category": "frozen_diagnostic_or_archival_review",
+      "mechanism": "已有结果证据整理，不增加训练",
+      "experiment_dirs": [
+        "osram_readout_path_audit_20261009",
+        "osram_readout_retrospective_20261011",
+        "osram_high_score_review_20261009",
+        "osram_module_connection_audit_20261022",
+        "osram_post_temporal_connection_review_20261022"
+      ],
+      "tunable_parameters": [
+        "placement review",
+        "historical shortlist"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "meld_b3",
+      "name": "MELD B3 MBT瓶颈局部/HPO",
+      "category": "architecture_or_training_variant",
+      "mechanism": "同Block2输入adapter；bottleneck数/交换轮数与局部参数搜索",
+      "experiment_dirs": [
+        "osram_meld_b3_structure_hpo_20261016",
+        "osram_meld_b3_capacity_hpo_20261016",
+        "osram_meld_b3_fixed43_hpo_20261016",
+        "osram_meld_b3_gpu3_extension_20261016",
+        "osram_meld_b3_default43_3seed_20261016"
+      ],
+      "tunable_parameters": [
+        "tokens1..8",
+        "rounds1..4",
+        "默认4/3",
+        "局部宽度/学习率参数按trialconfig"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/meaningful_input.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "meld_b6",
+      "name": "MELD B6 Learned Robust PCA局部/HPO",
+      "category": "architecture_or_training_variant",
+      "mechanism": "unrolled low-rank/sparse evidence decomposition输入校正",
+      "experiment_dirs": [
+        "osram_meld_b6_structure_hpo_20261015",
+        "osram_meld_b6_threshold_hpo_20261015",
+        "osram_meld_b6_top2_matched_flat_3seed_20261015",
+        "osram_meld_block2_topacc_3seed_20261015",
+        "osram_iemocap_b6_transfer_20261015"
+      ],
+      "tunable_parameters": [
+        "rank",
+        "迭代步数",
+        "阈值初始化",
+        "B6独立LR",
+        "training lr/wd/dropout"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/meaningful_input.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "meld_block2_screen",
+      "name": "MELD六Block+同协议Flat筛选",
+      "category": "architecture_or_training_variant",
+      "mechanism": "统一MeaningfulInputAdapter路由；不是六种完全新机制",
+      "experiment_dirs": [
+        "osram_meld_block2_auto_20261014"
+      ],
+      "tunable_parameters": [
+        "B1 graph_matching_base_gap_pairs",
+        "B2 dual_attention_symbolic_relations",
+        "B3 mbt_role_bottleneck",
+        "B4 conditional_new_07_neural_production",
+        "B5 tokenlearner_fuser_v11",
+        "B6 learned_robust_pca_evidence_decomposition"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/meaningful_input.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    },
+    {
+      "family_id": "meld_flat_width_skip",
+      "name": "MELD Flat宽度/Local Skip结构对照",
+      "category": "architecture_or_training_variant",
+      "mechanism": "改变Flat adapter容量/去LocalSkip重新训练及冻结证据消融",
+      "experiment_dirs": [
+        "osram_meld_flat_width_20261014",
+        "osram_meld_local_skip_ablation_20261014",
+        "osram_meld_retrained_no_local_skip_20261014",
+        "osram_meld_no_skip_evidence_ablation_20261014",
+        "osram_meld_gcnet_random_no_local_skip_20261014",
+        "osram_meld_gcnet_random_no_skip_evidence_20261014"
+      ],
+      "tunable_parameters": [
+        "adapter512等宽度",
+        "LocalSkip on/off",
+        "BaseGap readout combinations（诊断）"
+      ],
+      "status": "mixed; see individual per-run metadata; folder existence/README titles do not prove formal completion",
+      "status_basis": "Read-only semantic mapping of actual model source and archived RESULT/README/PLAN files; global inventory must join per-run artifacts.",
+      "protocol": "Must retain each experiment's exact missing version/environment/checkpoint selection/seed/fold; do not rank family across protocols.",
+      "sources": [
+        {
+          "path": "gcnet_missing_m3/osram.py",
+          "exists": true
+        }
+      ],
+      "representative_results": [],
+      "notes": ""
+    }
+  ]
+}
