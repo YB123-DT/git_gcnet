@@ -59,3 +59,13 @@ Complete-only RESULT.md/json/PER_RATE.csv rank only new same-source runs. All
 conditions and failed/pending jobs remain visible in QUEUE.json. Training cost,
 parameters, exact mask hashes and gradient paths are retained. No success claim
 follows from smoke; no automatic multi-seed follow-up regardless of score.
+
+Preflight note: the first IEMOCAP6 smoke stopped at a too-strict bitwise-output
+assertion (max log-probability difference7.1525574e-7, zero changed classes).
+Read-only hooks verified original Flat Adapter/LocalSkip inputs exactly equal
+(max difference0, identical strides), identical original parameter digests and
+Nested input_change_norm=0. Matching requires_grad flags did not remove roundoff.
+The check now retains strict original parameter/input-correction/class equality,
+allows float32 prediction tolerance atol=rtol=1e-6 and records BOTH measured
+max error and whether bytes actually match. It never reports approximate parity
+as exact. No model math, optimizer, loss or mask code was changed by this fix.

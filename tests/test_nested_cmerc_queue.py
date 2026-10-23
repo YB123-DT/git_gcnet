@@ -1,5 +1,6 @@
 """Bounded, no-GPU tests for the authorized Nested-only screening queue."""
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -87,6 +88,33 @@ class NestedCmercQueueTests(unittest.TestCase):
         job.update(status='failed')
         with self.assertRaises(RuntimeError):
             run.recover_jobs({'jobs': [job]})
+
+    def test_plain_archive_manifest_checks_bytes_commit_and_unlisted_code(self):
+        run = self.runner()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            code = root / 'gcnet_missing_m3' / 'osram.py'
+            code.parent.mkdir()
+            code.write_text('value = 1\n')
+            files = {'gcnet_missing_m3/osram.py': hashlib.sha256(code.read_bytes()).hexdigest()}
+            digest = hashlib.sha256(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            manifest = dict(source_commit='sha', files=files, manifest_sha256=digest)
+            (root / 'SOURCE_SNAPSHOT.json').write_text(json.dumps(manifest))
+            self.assertEqual(run.verify_source_snapshot(root, 'sha')['manifest_sha256'], digest)
+            with self.assertRaises(ValueError):
+                run.verify_source_snapshot(root, 'wrong')
+            code.write_text('value = 2\n')
+            with self.assertRaises(ValueError):
+                run.verify_source_snapshot(root, 'sha')
+            code.write_text('value = 1\n')
+            extra = code.parent / 'extra.py'
+            extra.write_text('unexpected = True\n')
+            with self.assertRaises(ValueError):
+                run.verify_source_snapshot(root, 'sha')
+            extra.unlink()
+            (root / 'SOURCE_SNAPSHOT.json').write_text(json.dumps(dict(manifest, manifest_sha256='wrong')))
+            with self.assertRaises(ValueError):
+                run.verify_source_snapshot(root, 'sha')
 
 
 if __name__ == '__main__':

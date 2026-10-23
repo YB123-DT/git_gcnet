@@ -66,20 +66,41 @@ def can_admit(*, free_gpu_gib, ram_gib, disk_gib, active_count, per_gpu=4, reser
 
 def verify_source_snapshot(root, expected_commit):
     root = Path(root)
-    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+    snapshot_path = root / 'SOURCE_SNAPSHOT.json'
+    if not (root / '.git').exists():
+        snapshot = json.loads(snapshot_path.read_text())
+        commit = snapshot['source_commit']
+        files = snapshot['files']
+        if not isinstance(files, dict) or not files:
+            raise ValueError('Archive snapshot must enumerate committed Python/AGENTS source')
+        for relative, expected_hash in files.items():
+            path = root / relative
+            if Path(relative).is_absolute() or '..' in Path(relative).parts or not path.resolve().is_relative_to(root.resolve()):
+                raise ValueError('Archive manifest source path escapes snapshot')
+            if hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
+                raise ValueError('Archive source bytes differ from committed manifest: ' + relative)
+        for directory in ('gcnet_missing_m3', 'gcnet_modality_jepa',
+                          'experiments/osram_nested_cmerc_tuning_20261023'):
+            for path in (root / directory).rglob('*.py'):
+                if str(path.relative_to(root)) not in files:
+                    raise ValueError('Unlisted Python source contaminates immutable archive: ' + str(path))
+    else:
+        commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+        if subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=no'], cwd=root, text=True).strip():
+            raise ValueError('Tracked source changes would contaminate this experiment')
+        tracked = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).split(b'\0')
+        files = {}
+        for raw in tracked:
+            if not raw:
+                continue
+            relative = os.fsdecode(raw)
+            if relative.endswith('.py') or Path(relative).name == 'AGENTS.md':
+                files[relative] = hashlib.sha256((root / relative).read_bytes()).hexdigest()
     if commit != expected_commit:
         raise ValueError('Controller source commit does not match the immutable snapshot')
-    if subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=no'], cwd=root, text=True).strip():
-        raise ValueError('Tracked source changes would contaminate this experiment')
-    tracked = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).split(b'\0')
-    files = {}
-    for raw in tracked:
-        if not raw:
-            continue
-        relative = os.fsdecode(raw)
-        if relative.endswith('.py') or Path(relative).name == 'AGENTS.md':
-            files[relative] = hashlib.sha256((root / relative).read_bytes()).hexdigest()
     digest = hashlib.sha256(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    if not (root / '.git').exists() and digest != snapshot['manifest_sha256']:
+        raise ValueError('Archive manifest canonical digest differs')
     return dict(source_commit=commit, source_root=str(root), tracked_python_and_agents_sha256=files,
                 manifest_sha256=digest)
 

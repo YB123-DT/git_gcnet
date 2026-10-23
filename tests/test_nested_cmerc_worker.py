@@ -67,3 +67,17 @@ def test_gradient_guard_rejects_only_decoder_connections():
     w.check_nested_gradients({name: True for name in ('tokenizer.local.weight',
         'core.layers.0.0.weight', 'core.pool.0.weight', 'core.readout.0.weight',
         'local_decoder.weight', 'memory_decoders.0.weight')})
+
+
+def test_parity_reports_roundoff_honestly_and_rejects_prediction_changes():
+    import numpy as np
+    w = worker()
+    old = np.array([[-1., -2., -3.]], dtype=np.float32)
+    new = old.copy(); new[0, 0] += 7e-7
+    parity = w.prediction_parity(old, new, scalar=False)
+    assert parity['numerically_equal'] and not parity['bitwise_equal']
+    assert 0 < parity['max_absolute_error'] < 1e-6
+    with pytest.raises(AssertionError):
+        w.prediction_parity(old, old + .01, scalar=False)
+    with pytest.raises(AssertionError):
+        w.prediction_parity(np.array([[1e-8]]), np.array([[-1e-8]]), scalar=True)

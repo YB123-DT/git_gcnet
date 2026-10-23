@@ -61,6 +61,17 @@ def check_nested_gradients(observed):
         raise RuntimeError('No finite nonzero Nested task gradients: ' + str(missing))
 
 
+def prediction_parity(old, new, *, scalar):
+    """Allow float32 roundoff, never call it bitwise equality or allow class flips."""
+    import numpy as np
+    np.testing.assert_allclose(old, new, atol=1e-6, rtol=1e-6)
+    np.testing.assert_array_equal(old > 0, new > 0) if scalar else np.testing.assert_array_equal(
+        old.argmax(-1), new.argmax(-1))
+    return dict(numerically_equal=True, bitwise_equal=bool(np.array_equal(old, new)),
+        max_absolute_error=float(np.max(np.abs(old-new))), atol=1e-6, rtol=1e-6,
+        classes_exact=True)
+
+
 def setup(dataset, method, uuid, output):
     import numpy as np
     import torch
@@ -197,11 +208,16 @@ def main():
             if is_scalar:
                 return scalar.evaluate(bundle, current, 'flat', 'test', masks[rate], max_batches=max_batches)
             return classification.evaluate(bundle, current, 'flat', bundle['test_loader'], saved=masks[rate], max_batches=max_batches)
+        parity = None
         if args.method != 'none':
             _, old = evaluate(baseline, '0.3', 1)
             _, new = evaluate(model, '0.3', 1)
-            for name in ('labels', 'availability', 'prediction' if is_scalar else 'log_probs_router'):
+            for name in ('labels', 'availability'):
                 np.testing.assert_array_equal(old[name], new[name], err_msg='Nested zero-init equivalence: ' + name)
+            key = 'prediction' if is_scalar else 'log_probs_router'
+            parity = prediction_parity(old[key], new[key], scalar=is_scalar)
+            if model.osram.meaningful_block.last_diagnostics['input_change_norm'] != 0.:
+                raise RuntimeError('Zero decoder must produce exactly zero input correction')
             del baseline, old, new
         optimizer = task.make_optimizer(model, cfg, 'flat')
         if {id(p) for p in model.parameters()} != {id(p) for g in optimizer.param_groups for p in g['params']}:
@@ -222,7 +238,8 @@ def main():
         h.write_json(args.output / 'config.json', asdict(cfg))
         summary.update(status='running', config=asdict(cfg), identity=identity,
             environment=bundle['environment'], gpu=bundle['gpu'], config_reference_delta=bundle['config_reference_delta'],
-            initial_backbone_sha256=bundle['initial_backbone_sha256'], zero_init_predictions_exact=True,
+            initial_backbone_sha256=bundle['initial_backbone_sha256'], zero_init_parity=parity,
+            zero_init_predictions_exact=parity['bitwise_equal'] if parity else None,
             total_parameters=sum(p.numel() for p in model.parameters()),
             nested_parameters=sum(p.numel() for p in model.osram.meaningful_block.parameters()) if args.method != 'none' else 0)
         h.write_json(path, summary)
