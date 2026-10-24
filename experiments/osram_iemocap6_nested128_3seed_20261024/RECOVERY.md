@@ -42,6 +42,18 @@ Original failed QUEUE and SUMMARY are archived exclusively before requeueing.
 recovery-policy tests. Actual resumed progress must be verified separately;
 tests alone do not establish successful recovery or final performance.
 
+Actual recovery verified on2026-10-24: controllerPID2789485 in persistent tmux
+`nested128_recovery_20261024`; seed68/fold5 PID2789927 completed epoch12 after
+restoring epoch11. seed68/fold1 PID2790806 and seed66/fold3 PID2790990 each
+completed epoch1. Queue is running, error null. Original failed QUEUE/SUMMARY
+are retained as `OOM_FAILURE_QUEUE.json` / `OOM_FAILED_SUMMARY.json`.
+Recovery script SHA256:
+`1dca36027ea274627a248a71ff345997278b3428496ee15ddb6fe41b3f43acf6`.
+Restored last.pt SHA256:
+`34431a83e5eaa666a723dc70b783414732c3d51729ea7fc7679fc5defa8a6a99`.
+No complete three-seed/fivefold mean exists yet. Original launch STATUS.md
+and LAUNCH.json are historical receipts, superseded by this recovery record.
+
 ```bash
 /data2/yb/conda_envs/cmerc-repro/bin/python -u /absolute/recover_oom.py \
   --source-root /data2/yb/remote_experiments/osram_iemocap6_nested128_3seed_20261024/source_v1 \
