@@ -1,0 +1,40 @@
+{
+  "status": "running_not_complete",
+  "checked_at_utc": "2026-10-24T02:11:03Z",
+  "server": "biggpu",
+  "physical_gpu": 2,
+  "gpu_uuid": "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+  "source_commit": "8f53c8c1f6ffa6febc73659df5b792c506552379",
+  "source_manifest_sha256": "ee8a78bd3618a832f2cf1ff59ba9f2aef3e42c502e50e453bff439e19376c39e",
+  "source_root": "/data2/yb/remote_experiments/osram_mosei_nested_combinations_20261024/source_v1",
+  "output": "/data2/yb/remote_experiments/osram_mosei_nested_combinations_20261024/execution_v1",
+  "tmux": "mosei_nested_combos_20261024",
+  "controller_pid": 2910610,
+  "actual_parallel_at_check": 4,
+  "workers": [
+    {"method": "mosei_nested_d32_l3_g8_m128", "pid": 2910649, "nested_parameters": 109155},
+    {"method": "mosei_nested_d32_l3_g8_m64", "pid": 2911226, "nested_parameters": 80163},
+    {"method": "mosei_nested_d32_l2_g8_m128", "pid": 2911754, "nested_parameters": 96642},
+    {"method": "mosei_nested_d32_l3_g4_m128", "pid": 2911925, "nested_parameters": 108899}
+  ],
+  "training": {
+    "dataset": "CMUMOSEI", "seed": 66, "epochs": 60,
+    "learning_rate": 0.0001, "lr_schedule": "constant", "batch_size": 32,
+    "weight_decay": 0.00001, "optimizer": "Adam", "loss": "original MSE",
+    "missing": "gcnet-random-mask-v1", "selection": "per-rate TEST-best W-F1",
+    "environment": "cmerc-repro; Python3.10.13/Torch1.13.1+cu117/NumPy1.26.4"
+  },
+  "verification": {
+    "local_tests_passed": 45,
+    "remote_tests_passed": 57,
+    "manifest_files_verified": 1470,
+    "unchanged_numerical_files": 130,
+    "registry_difference": "exactly four new configuration entries",
+    "all_original_initializations_match_completed_flat": true,
+    "all_test_masks_match_completed_flat": true,
+    "all_splits_match_completed_flat": true,
+    "all_effective_protocol_configs_checked": true,
+    "completed_training_epochs_at_check": 0,
+    "final_performance": "pending"
+  }
+}
