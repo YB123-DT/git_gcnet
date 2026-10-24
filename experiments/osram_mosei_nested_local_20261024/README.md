@@ -1,5 +1,12 @@
 # Four local tests around MOSEI Nested32
 
+Current execution (2026-10-24): the user authorized relocation to idle physical
+GPU1. Follow `MIGRATION_GPU1.md` and remote `execution_gpu1_v1/QUEUE.json` for
+live status. The original GPU2 `execution_v1` is preserved and marked migrated;
+it is NOT the active queue. Three full checkpoints resume at epochs14/12/13,
+and the pre-epoch OOM arm receives one fresh retry. No new configurations.
+The GPU2 launch command and resource notes below document the original setup.
+
 INTERNAL TEST-ORACLE SCREEN. Exactly four fresh seed66/fold1 runs on biggpu
 physical GPU2, not an automatic HPO or multi-seed expansion.
 
