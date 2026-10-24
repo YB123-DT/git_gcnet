@@ -18,6 +18,7 @@ METHODS = ('none', 'nested_gnn_rooted_evidence', 'nested_dim32', 'nested_dim128'
            'mosei_nested_depth2', 'mosei_nested_mlp128', 'mosei_nested_groups4')
 MOSEI_COMBINATIONS = ('mosei_nested_d32_l3_g8_m128', 'mosei_nested_d32_l3_g8_m64',
                       'mosei_nested_d32_l2_g8_m128', 'mosei_nested_d32_l3_g4_m128')
+MOSEI_LOCAL_STRUCTURES = ('mosei_nested_dim32_depth2', 'mosei_nested_d32_l3_g4_m32')
 DATASETS = ('CMUMOSEI', 'IEMOCAPSix')
 MOSEI = Path('/data2/yb/remote_experiments/osram_cmerc_sentiment_3seed_20261023/execution_v1/runs/CMUMOSEI/seed_66/flat')
 IEMOCAP = Path('/home/qinjinghui/remote_experiments/osram_iemocap_flat_seed66_restore_20261016/runs')
@@ -34,7 +35,7 @@ def reference_path(dataset, *, fold=None):
 
 
 def validate_scope(dataset, method, seed, fold):
-    if method in MOSEI_COMBINATIONS:
+    if method in MOSEI_COMBINATIONS + MOSEI_LOCAL_STRUCTURES:
         if (dataset, seed, fold) != ('CMUMOSEI', 66, 1):
             raise ValueError('The four MOSEI combinations authorize seed66/fold1 only')
         return
@@ -68,6 +69,33 @@ def candidate_config(base, method, *, seed=66, fold=None):
     if tuple(base.train_missing_rates) != tuple(float(r) for r in RATES):
         raise ValueError('Original cyclic rates changed')
     return replace(base, osram_meaningful_block=method)
+
+
+def make_task_optimizer(model, cfg, task, nested_learning_rate=None):
+    """Default is the exact old optimizer; opt-in partitions the entire Nested."""
+    if nested_learning_rate is None:
+        return task.make_optimizer(model, cfg, 'flat')
+    if (nested_learning_rate not in (5e-5, 2e-4)
+            or (cfg.dataset, cfg.seed, cfg.fold, cfg.osram_meaningful_block)
+            != ('CMUMOSEI', 66, 1, 'nested_dim32')
+            or cfg.learning_rate != 1e-4):
+        raise ValueError('Only approved Nested32 local learning rates on MOSEI66 are allowed')
+    optimizer = task.make_optimizer(model, cfg, 'flat')
+    if len(optimizer.param_groups) != 1:
+        raise ValueError('Expected the original single-group optimizer before partition')
+    nested = list(model.osram.meaningful_block.parameters())
+    nested_ids = {id(p) for p in nested}
+    group = optimizer.param_groups[0]
+    original = list(group['params'])
+    backbone = [p for p in original if id(p) not in nested_ids]
+    if not backbone or not nested or not nested_ids.issubset({id(p) for p in original}):
+        raise ValueError('Both backbone and complete Nested parameter sets must exist')
+    group['params'] = backbone
+    optimizer.add_param_group(dict(params=nested, lr=nested_learning_rate, name='nested'))
+    assigned = [id(p) for g in optimizer.param_groups for p in g['params']]
+    if len(assigned) != len(set(assigned)) or set(assigned) != {id(p) for p in model.parameters()}:
+        raise ValueError('Optimizer must contain every model parameter exactly once')
+    return optimizer
 
 
 def check_nested_gradients(observed):
@@ -185,7 +213,8 @@ def setup(dataset, method, uuid, output, *, seed=66, fold=None):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dataset', choices=DATASETS, required=True)
-    p.add_argument('--method', choices=METHODS + MOSEI_COMBINATIONS, required=True)
+    p.add_argument('--method', choices=METHODS + MOSEI_COMBINATIONS + MOSEI_LOCAL_STRUCTURES, required=True)
+    p.add_argument('--nested-learning-rate', type=float, choices=(5e-5, 2e-4), default=None)
     p.add_argument('--fold', type=int, required=True)
     p.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     p.add_argument('--phase', choices=('train', 'smoke'), required=True)
@@ -238,7 +267,7 @@ def main():
             if model.osram.meaningful_block.last_diagnostics['input_change_norm'] != 0.:
                 raise RuntimeError('Zero decoder must produce exactly zero input correction')
             del baseline, old, new
-        optimizer = task.make_optimizer(model, cfg, 'flat')
+        optimizer = make_task_optimizer(model, cfg, task, args.nested_learning_rate)
         if {id(p) for p in model.parameters()} != {id(p) for g in optimizer.param_groups for p in g['params']}:
             raise RuntimeError('One-stage optimizer must include every parameter')
         source_hashes = {str(path.relative_to(ROOT)): h.sha(path)
@@ -253,6 +282,11 @@ def main():
             initialization='fresh canonical original factory; no trained weights',
             selection='per-rate TEST W-F1' if is_scalar else 'per-rate TEST ACC; same-call UA/W-F1',
             protocol_note='fixed accepted mask replay; historical IEMOCAP resampled per-epoch masks; compare new matched Flat')
+        if args.nested_learning_rate is not None:
+            optimizer_groups = [dict(name=g['name'], lr=g['lr'],
+                parameters=sum(p.numel() for p in g['params'])) for g in optimizer.param_groups]
+            identity.update(nested_learning_rate=args.nested_learning_rate, optimizer_groups=optimizer_groups)
+            summary.update(nested_learning_rate=args.nested_learning_rate, optimizer_groups=optimizer_groups)
         torch.save(masks, args.output / 'test_masks.pt')
         h.write_json(args.output / 'config.json', asdict(cfg))
         summary.update(status='running', config=asdict(cfg), identity=identity,

@@ -108,6 +108,7 @@ MELD_NESTED_LOCAL14 = {
 
 # Pooling variants are comparisons, not additional independent catalog methods.
 NESTED_SWEEP = {
+    'mosei_nested_d32_l3_g4_m32': {'dim': 32, 'depth': 3, 'groups': 4, 'mlp_hidden': 32},
     'mosei_nested_d32_l3_g8_m128': {'dim': 32, 'depth': 3, 'groups': 8, 'mlp_hidden': 128},
     'mosei_nested_d32_l3_g8_m64': {'dim': 32, 'depth': 3, 'groups': 8, 'mlp_hidden': 64},
     'mosei_nested_d32_l2_g8_m128': {'dim': 32, 'depth': 2, 'groups': 8, 'mlp_hidden': 128},

@@ -46,7 +46,7 @@ def can_admit(**r):
             and external + reserved + RESERVE_MIB + MARGIN_MIB <= r['total_mib'])
 
 
-def main(argv=None):
+def main(argv=None, *, planner=None, report_writer=None, source_validator=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--source-commit', required=True)
@@ -55,8 +55,8 @@ def main(argv=None):
     args.output = args.output.resolve()
     manifest = common.verify_source_snapshot(ROOT, args.source_commit)
     from .report import validate_source_extension
-    extension_proof = validate_source_extension(ROOT)
-    jobs = plan_jobs(args.output, args.source_commit, GPU)
+    extension_proof = (source_validator or validate_source_extension)(ROOT)
+    jobs = (planner or plan_jobs)(args.output, args.source_commit, GPU)
     device = common.base.devices([GPU])[GPU]
     if device['index'] != 2:
         raise ValueError('GPU UUID no longer maps to physical GPU2')
@@ -101,7 +101,7 @@ def main(argv=None):
                     raise RuntimeError('A child failed; no silent retry or protocol changes')
             elif not children and not pending:
                 from .report import write_report
-                write_report(args.output, state)
+                (report_writer or write_report)(args.output, state)
                 state.update(status='complete', finished_at=time.time())
                 record(); return
             else:
