@@ -1,0 +1,33 @@
+{
+  "status": "running_not_complete",
+  "checked_at_utc": "2026-10-24T06:55:09Z",
+  "server": "biggpu",
+  "source_commit": "0867fb061c965326e95ec06b29a6239c867cc70a",
+  "source_manifest_sha256": "375662cb6e7088b8eaa801df7d9f350ac7e832af8aec18a7ebf03cda3007106f",
+  "source_root": "/data2/yb/remote_experiments/osram_mosei_nested_local_20261024/source_v1",
+  "output": "/data2/yb/remote_experiments/osram_mosei_nested_local_20261024/execution_v1",
+  "tmux": "mosei_nested_local_20261024",
+  "controller_pid": 4189811,
+  "gpu_physical_index": 2,
+  "gpu_uuid": "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+  "maximum_parallel": 4,
+  "actual_parallel_at_check": 1,
+  "running": {"variant": "nested32_lr5e5", "pid": 4189900, "status": "running", "completed_epochs_at_check": 0},
+  "pending": ["nested32_lr2e4", "nested32_depth2", "nested32_groups4"],
+  "effective_optimizer_groups": [
+    {"name": "backbone", "lr": 0.0001, "parameters": 13509793},
+    {"name": "nested", "lr": 0.00005, "parameters": 65667}
+  ],
+  "protocol": {"dataset": "CMUMOSEI", "seed": 66, "epochs": 60,
+    "batch_size": 32, "weight_decay": 0.00001, "gradient_clip_norm": 1.0,
+    "missing": "gcnet-random-mask-v1", "selection": "per-rate TEST-best W-F1",
+    "environment": "cmerc-repro"},
+  "resource_note": "Unrelated cv_fmnv.py PID4154859 uses about23GB on GPU2; left untouched. One worker admitted with6144MiB reservation plus2048MiB global margin; automatic refill when capacity permits.",
+  "verification": {"local_tests_passed": 72, "local_torch_test_module_skipped": true,
+    "remote_tests_passed": 74, "remote_real_adam_cpu_tests_passed": true,
+    "manifest_files_verified": 1475, "unchanged_numerical_files": 130,
+    "registry_note": "only one new configuration entry in this task; five accumulated entries versus original controls",
+    "actual_gpu_optimizer_group_metadata_checked": true,
+    "first_full_gpu_epoch_completed_at_check": false,
+    "performance_result": "pending"}
+}
