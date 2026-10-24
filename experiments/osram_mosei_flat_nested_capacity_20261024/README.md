@@ -1,5 +1,9 @@
 # MOSEI: small Flat and existing Nested capacity
 
+SUPERSEDED/CANCELLED: the user explicitly rejected s0. The8s0 workers were
+stopped with all artifacts preserved. Do not restart this queue. Active
+replacement: `experiments/osram_mosei_capacity_cmerc_20261024/`, cmerc/constant1e-4.
+
 INTERNAL TEST-ORACLE SCREEN. User authorized physical GPU0/1 for more Flat
 widths and several Flat+Nested arms. Exactly seven new workers plus the
 already-running pure Flat256; never duplicate that worker. No MOSI/seeds/HPO.

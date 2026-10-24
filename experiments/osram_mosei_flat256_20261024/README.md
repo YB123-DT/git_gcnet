@@ -1,5 +1,9 @@
 # MOSEI pure Flat256, one seed
 
+SUPERSEDED/CANCELLED: the user requires cmerc, not s0. This standalone s0 worker
+was stopped and retained, not resumed. Flat256 is restarted from scratch as
+one of the8arms in `experiments/osram_mosei_capacity_cmerc_20261024/`.
+
 INTERNAL TEST-ORACLE SCREEN. Exactly one additional seed66 run, no Nested,
 V3, auxiliary loss, new seeds, or hyperparameter search. No MOSI job is launched.
 

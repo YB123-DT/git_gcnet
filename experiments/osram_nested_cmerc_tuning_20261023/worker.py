@@ -210,10 +210,11 @@ def setup(dataset, method, uuid, output, *, seed=66, fold=None):
     return bundle, baseline
 
 
-def main():
+def main(argv=None, *, setup_function=None, scope_validator=None, method_choices=None,
+         additional_source_files=()):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dataset', choices=DATASETS, required=True)
-    p.add_argument('--method', choices=METHODS + MOSEI_COMBINATIONS + MOSEI_LOCAL_STRUCTURES, required=True)
+    p.add_argument('--method', choices=method_choices or METHODS + MOSEI_COMBINATIONS + MOSEI_LOCAL_STRUCTURES, required=True)
     p.add_argument('--nested-learning-rate', type=float, choices=(5e-5, 2e-4), default=None)
     p.add_argument('--fold', type=int, required=True)
     p.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
@@ -222,8 +223,8 @@ def main():
     p.add_argument('--source-commit', required=True)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--resume', action='store_true')
-    args = p.parse_args()
-    validate_scope(args.dataset, args.method, args.seed, args.fold)
+    args = p.parse_args(argv)
+    (scope_validator or validate_scope)(args.dataset, args.method, args.seed, args.fold)
     os.environ.update(CUDA_VISIBLE_DEVICES=args.gpu_uuid, OMP_NUM_THREADS='1',
         MKL_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1')
     import fcntl
@@ -248,7 +249,8 @@ def main():
     h.write_json(path, summary)
     try:
         torch.set_num_threads(1)
-        bundle, baseline = setup(args.dataset, args.method, args.gpu_uuid, args.output, seed=args.seed, fold=args.fold)
+        bundle, baseline = (setup_function or setup)(args.dataset, args.method, args.gpu_uuid,
+            args.output, seed=args.seed, fold=args.fold)
         model, cfg, masks = bundle['model'], bundle['cfg'], bundle['masks']
         is_scalar = args.dataset == 'CMUMOSEI'
         task, selection = (scalar, scalar_selected) if is_scalar else (classification, class_selected)
@@ -274,6 +276,8 @@ def main():
             for package in ('gcnet_missing_m3', 'gcnet_modality_jepa') for path in sorted((ROOT / package).glob('*.py'))}
         for name in ('worker.py', 'run.py', 'report.py'):
             rel = 'experiments/osram_nested_cmerc_tuning_20261023/' + name
+            source_hashes[rel] = h.sha(ROOT / rel)
+        for rel in additional_source_files:
             source_hashes[rel] = h.sha(ROOT / rel)
         identity = dict(source_commit=args.source_commit, source_hashes=source_hashes, config=asdict(cfg),
             dataset=args.dataset, method=args.method, fold=args.fold, seed=args.seed, split=bundle['split'],

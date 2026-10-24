@@ -32,16 +32,17 @@ def plan_jobs(output,source_commit):
     return jobs
 
 
-def main():
+def main(argv=None, *, planner=None, reporter=None, external=EXTERNAL):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--source-commit',required=True)
     p.add_argument('--resume',action='store_true')
-    args=p.parse_args()
+    args=p.parse_args(argv)
     from experiments.osram_text_path_router_3seed_20261019.resource_gate import available_gib,write
     from experiments.osram_mosi_v3_capacity_20261022.run import resident_memory
     from experiments.osram_source_relation_attention_20261021.run import gpu_free
     from .report import summarize
+    summarize=reporter or summarize
     if args.output.exists() and not args.resume:raise FileExistsError('Independent output required')
     args.output.mkdir(parents=True,exist_ok=args.resume)
     lock=(args.output/'QUEUE.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -53,7 +54,7 @@ def main():
     verify()
     for uuid,index in ((GPU0,0),(GPU1,1)):
         if gpu_free(uuid)[0]!=index:raise RuntimeError('Physical GPU UUID mapping changed')
-    jobs=plan_jobs(args.output,args.source_commit)
+    jobs=(planner or plan_jobs)(args.output,args.source_commit)
     if args.resume:
         state=json.loads((args.output/'QUEUE.json').read_text())
         if state['source_commit']!=args.source_commit:raise ValueError('Source identity differs')
@@ -71,8 +72,9 @@ def main():
         state.update(pid=os.getpid(),status='resuming')
     else:
         state=dict(status='pending',pid=os.getpid(),source_commit=args.source_commit,jobs=jobs,
-            maximum_new_jobs=7,total_including_existing=8,maximum_per_gpu=4,
-            existing_flat256=str(EXTERNAL),started_at=time.time(),label='INTERNAL TEST-ORACLE SCREEN')
+            maximum_new_jobs=len(jobs),total_including_existing=len(jobs)+int(external is not None),maximum_per_gpu=4,
+            existing_flat256=str(external) if external is not None else None,
+            started_at=time.time(),label='INTERNAL TEST-ORACLE SCREEN')
     children={}
     def record():
         state['updated_at']=time.time();write(args.output/'QUEUE.json',state)
@@ -85,7 +87,7 @@ def main():
             s=json.loads(f.read_text()) if f.exists() else {}
             j.update(status='complete' if code==0 and s.get('status')=='complete' and s.get('epoch')==60 else 'failed',
                 returncode=code,finished_at=time.time());del children[i]
-        e=json.loads((EXTERNAL/'SUMMARY.json').read_text())
+        e=json.loads((external/'SUMMARY.json').read_text()) if external is not None else dict(status='complete')
         state['existing_flat256_status']=e['status'];state['existing_flat256_epoch']=e.get('epoch')
         external_live=e['status'] not in ('failed','complete')
         if external_live and not Path('/proc/'+str(e['pid'])).exists():
