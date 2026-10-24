@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[2]
 RATES = tuple(f'{i/10:.1f}' for i in range(8))
 METHODS = ('none', 'nested_gnn_rooted_evidence', 'nested_dim32', 'nested_dim128',
            'mosei_nested_depth2', 'mosei_nested_mlp128', 'mosei_nested_groups4')
+MOSEI_COMBINATIONS = ('mosei_nested_d32_l3_g8_m128', 'mosei_nested_d32_l3_g8_m64',
+                      'mosei_nested_d32_l2_g8_m128', 'mosei_nested_d32_l3_g4_m128')
 DATASETS = ('CMUMOSEI', 'IEMOCAPSix')
 MOSEI = Path('/data2/yb/remote_experiments/osram_cmerc_sentiment_3seed_20261023/execution_v1/runs/CMUMOSEI/seed_66/flat')
 IEMOCAP = Path('/home/qinjinghui/remote_experiments/osram_iemocap_flat_seed66_restore_20261016/runs')
@@ -32,6 +34,10 @@ def reference_path(dataset, *, fold=None):
 
 
 def validate_scope(dataset, method, seed, fold):
+    if method in MOSEI_COMBINATIONS:
+        if (dataset, seed, fold) != ('CMUMOSEI', 66, 1):
+            raise ValueError('The four MOSEI combinations authorize seed66/fold1 only')
+        return
     if dataset not in DATASETS or method not in METHODS:
         raise ValueError('Outside finite existing-Nested screen')
     if dataset == 'IEMOCAPSix' and method == 'nested_dim128' and seed in (66, 67, 68) and fold in range(1, 6):
@@ -179,7 +185,7 @@ def setup(dataset, method, uuid, output, *, seed=66, fold=None):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dataset', choices=DATASETS, required=True)
-    p.add_argument('--method', choices=METHODS, required=True)
+    p.add_argument('--method', choices=METHODS + MOSEI_COMBINATIONS, required=True)
     p.add_argument('--fold', type=int, required=True)
     p.add_argument('--seed', type=int, choices=(66, 67, 68), default=66)
     p.add_argument('--phase', choices=('train', 'smoke'), required=True)
