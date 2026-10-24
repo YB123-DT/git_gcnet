@@ -1,0 +1,2972 @@
+{
+  "aggregate": {
+    "0.0": {
+      "high": {
+        "ACC": 80.38891946431848,
+        "MSE": 0.7384753028551737,
+        "WF1": 80.01660892043729
+      },
+      "mean": {
+        "ACC": 83.62341772151899,
+        "MSE": 0.6171567477285862,
+        "WF1": 83.36635782502694
+      }
+    },
+    "0.5": {
+      "high": {
+        "ACC": 80.35222894881673,
+        "MSE": 0.7368954221407572,
+        "WF1": 80.01335428503016
+      },
+      "mean": {
+        "ACC": 83.6165382498624,
+        "MSE": 0.6160727739334106,
+        "WF1": 83.37925489683182
+      }
+    },
+    "1.0": {
+      "high": {
+        "ACC": 80.25133003118692,
+        "MSE": 0.7357529799143473,
+        "WF1": 79.95656008148727
+      },
+      "mean": {
+        "ACC": 83.5924600990644,
+        "MSE": 0.6152375191450119,
+        "WF1": 83.3774615321492
+      }
+    }
+  },
+  "all_parameters_unchanged": true,
+  "config": {
+    "b2_base_checkpoint": null,
+    "b2_pretrain_checkpoint": null,
+    "backbone_lr_multiplier": 1,
+    "backbone_type": "osram",
+    "base_model": "LSTM",
+    "batch_size": 32,
+    "beta_mode": "embedded",
+    "checkpoint_selection": "test-oracle-per-rate",
+    "checkpoint_selection_metric": "weighted_f1",
+    "classification_completion": false,
+    "classifier_lr_multiplier": 1,
+    "completion_path": "none",
+    "completion_write_to_memory": false,
+    "core20_aux_weight": 1,
+    "core20_method": "none",
+    "dataset": "CMUMOSEI",
+    "device": "cuda:0",
+    "disable_unused_aux_modules": true,
+    "dropout": 0.5,
+    "ema_tau": 0.996,
+    "emotion_loss_mode": "sample-mean",
+    "epochs": 60,
+    "evaluate_test": true,
+    "evaluation_protocol": "official",
+    "fixed_missing_rate": null,
+    "fold": 1,
+    "fusion_type": "mean",
+    "gap_residual_strength": 1,
+    "gradient_clip_norm": 1,
+    "graph_branch_mode": "both",
+    "graph_message_calibration": "none",
+    "graph_second_layer": "graphconv",
+    "group_dro_eta": 0.1,
+    "hidden": 200,
+    "history_contrast_temperature": 0.1,
+    "history_contrast_weight": 0.1,
+    "history_drop_prob": 0.2,
+    "history_task_view2_weight": 0.5,
+    "initial_backbone_checkpoint": null,
+    "jepa_contrastive_source": "contrastive",
+    "jepa_rate_weighting": "uniform",
+    "jepa_regression_aggregation": "target",
+    "jepa_weight": 0.1,
+    "joint_pretrain_checkpoint": null,
+    "joint_pretrain_freeze": true,
+    "latent_dim": 256,
+    "learning_rate": 0.0001,
+    "local_context_residual": false,
+    "local_fusion_dropout": 0.2,
+    "local_fusion_hidden_dim": 256,
+    "lr_schedule": "constant",
+    "missing_mask_protocol": "gcnet-random-mask-v1",
+    "mmoe_variant": "dual-gate",
+    "mosi_task_mode": "regression",
+    "node_interaction_residual": false,
+    "num_experts": 4,
+    "optimizer": "adam",
+    "osram_ablation": "full",
+    "osram_adapter_hidden_dim": 128,
+    "osram_base_first_gap": false,
+    "osram_bidirectional": false,
+    "osram_causal_gru_history": false,
+    "osram_ced_block": false,
+    "osram_conditional_reread": false,
+    "osram_counterfactual_readout": "none",
+    "osram_decision_correction": false,
+    "osram_disable_local_skip": false,
+    "osram_emotion_ablation": "full",
+    "osram_forward_slot_reuse": false,
+    "osram_gap_increment_filter": false,
+    "osram_gap_read": "residual",
+    "osram_hierarchical_evidence_gate": false,
+    "osram_hierarchical_feature_only": false,
+    "osram_history_input_gate": false,
+    "osram_history_query_adapter": false,
+    "osram_history_recency": false,
+    "osram_key_dim": 64,
+    "osram_local_evidence_gate": false,
+    "osram_local_evidence_gate_gap_only": false,
+    "osram_local_evidence_gate_reg_type": "l2",
+    "osram_local_evidence_gate_reg_weight": 0.001,
+    "osram_local_skip_gate": false,
+    "osram_mbt_bottlenecks": 4,
+    "osram_mbt_dim": 128,
+    "osram_mbt_ffn_hidden": 256,
+    "osram_mbt_heads": 4,
+    "osram_mbt_lr_multiplier": 1,
+    "osram_mbt_rounds": 2,
+    "osram_meaningful_block": "mosei_f128_n10",
+    "osram_memory_only_adapter": false,
+    "osram_num_heads": 8,
+    "osram_output_dim": 1600,
+    "osram_post_grn": false,
+    "osram_predictor_mode": "structured",
+    "osram_query_availability": true,
+    "osram_read_ridge": 0.001,
+    "osram_readout_candidate": "none",
+    "osram_readout_fusion": "flat",
+    "osram_relation_block": false,
+    "osram_relation_dim": 128,
+    "osram_relation_dual_readout": false,
+    "osram_relation_mode": "pairwise",
+    "osram_relation_out_dim": 64,
+    "osram_reread_mode": "free",
+    "osram_reread_rank_atol": 1e-7,
+    "osram_reread_rank_rtol": 0.00001,
+    "osram_rpca_lr_multiplier": 1,
+    "osram_rpca_rank": 1,
+    "osram_rpca_steps": 14,
+    "osram_rpca_threshold_init": 0.1,
+    "osram_shift_filter_depth": 1,
+    "osram_shift_filter_width": 128,
+    "osram_source_relation": false,
+    "osram_source_relation_layout": "source-mean",
+    "osram_source_role": false,
+    "osram_source_role_mode": "residual",
+    "osram_source_role_v3": false,
+    "osram_source_role_v3_dim": 64,
+    "osram_source_role_v3_mode": "residual",
+    "osram_source_role_v3_pair_hidden": 128,
+    "osram_source_role_v3_variant": "standard",
+    "osram_source_tracking": false,
+    "osram_tasr": false,
+    "osram_tasr_source_mode": "real",
+    "osram_value_dim": 64,
+    "osram_write_ridge": 0.001,
+    "osram_write_step": 0.6,
+    "paired_history_views": false,
+    "postgraph_bilstm_ablation": "none",
+    "postgraph_sequence_mode": "independent",
+    "predictor_dropout": 0.1,
+    "preserve_selection_artifacts": true,
+    "pretrained_learning_rate": null,
+    "projector_dropout": 0.1,
+    "projector_lr_multiplier": 1,
+    "readout_rank": 8,
+    "readout_type": "shared",
+    "recurrent_padding_mode": "legacy",
+    "representation_type": "slot",
+    "seed": 66,
+    "simple_regression_predictor": false,
+    "target_private_rank": 0,
+    "target_space": "all-modalities",
+    "task_regression_loss": "mse",
+    "task_smooth_l1_beta": 1,
+    "teacher_checkpoint": null,
+    "teacher_mode": "ema",
+    "temperature": 0.03,
+    "text_core": false,
+    "text_subspace_checkpoint": null,
+    "time_attention": false,
+    "top_k": 2,
+    "train_missing_rates": [
+      0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7
+    ],
+    "train_rate_mode": "cyclic",
+    "training_objective": "emotion-only",
+    "uniform_forced_text_probability": 0.25,
+    "validation_fraction": 0.1,
+    "warmup_ratio": 0.05,
+    "weight_decay": 0.00001,
+    "window_future": 2,
+    "window_past": 2
+  },
+  "data_manifest_sha256": "b0a46beac761384282d86fa72d47a7ca514e532c3955b343ddf9557a855a6f83",
+  "environment": {
+    "cuda": "11.7",
+    "executable": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+    "numpy": "1.26.4",
+    "python": "3.10.13 | packaged by conda-forge | (main, Dec 23 2023, 15:36:39) [GCC 12.3.0]",
+    "sklearn": "1.3.2",
+    "torch": "1.13.1+cu117"
+  },
+  "flat_reference": "/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128",
+  "flat_summary_sha256": "f18cef416e62824c449d8085da544bcaf2391d54f2337039bebd172e3e50640f",
+  "gpu": {
+    "host_index": 1,
+    "logical_device": "cuda:0",
+    "uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049"
+  },
+  "gpu_uuid": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+  "independent_result_validation": {
+    "all24_prediction_artifacts_verified": true,
+    "all_aggregate_arithmetic_checked": true,
+    "all_pair_partitions_reconcile": true,
+    "gamma1_metrics_match_original": true
+  },
+  "label": "INTERNAL DIAGNOSTIC ONLY",
+  "mask_reference": {
+    "hashes": {
+      "0.0": "41f45c24f3012554c87ddab4ce3b918d42dff8edb8dd09c56acb921fc1f36172",
+      "0.1": "108cdfca332c1b03eea0a6a5440e9eb10416727748df799c30fb621cf2d786a1",
+      "0.2": "98d81b25911a637626aa3f7fcc8bba9f8a8f20511a3373ad9e6e98dab1f44f30",
+      "0.3": "4e95c30de45ba22720f52aa43f2bf247e39d86ddb472c71a85bc5dcd68acc1d4",
+      "0.4": "9a12cc1023fb206ce8ef4b46679c0ac4da3b77d8199f28189d485818f2147cdf",
+      "0.5": "7aca4d77537fe5ab1fdea444aae393b98a129128dfeacbba1d2ac6cce038eee7",
+      "0.6": "f14e547f1fd126d74e14170015f48c0eb946065daaec49c9992a498fb4a1b6b9",
+      "0.7": "759d1abc3aca383876345de6e85bbd39d0ef49807e543491ed121f4311de54d4"
+    },
+    "kind": "accepted-cmerc-MOSEI-fixed-test-bank"
+  },
+  "one_memory_scan_per_batch": true,
+  "original_flat_aggregate": {
+    "high": {
+      "ACC": 80.29719317556413,
+      "MSE": 0.7260828018188477,
+      "WF1": 80.01142724672636
+    },
+    "mean": {
+      "ACC": 83.60621904237755,
+      "MSE": 0.6081106886267662,
+      "WF1": 83.38704395907114
+    }
+  },
+  "original_predictions_reproduced": true,
+  "pid": 3022547,
+  "rates": {
+    "0.0": {
+      "checkpoint_sha256": "8bcd886c0f1711daefa11379264be7136c6c5ee0b77092e96c1b1075217ffde3",
+      "max_gamma1_direct_error": 2.384185791015625e-7,
+      "memory_scans": 22,
+      "saved_prediction_sha256": "9e08d038fccfa092b9dc524f3a9864272136dbd1d02fd564db244623ff5fb8f4",
+      "scales": {
+        "0.0": {
+          "metrics": {
+            "ACC": 87.47936158503026,
+            "MSE": 0.4571872055530548,
+            "WF1": 87.27369661258594
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3127,
+              "both_wrong": 393,
+              "corrections": 52,
+              "harms": 62
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3176,
+              "both_wrong": 449,
+              "corrections": 3,
+              "harms": 6
+            }
+          },
+          "prediction_sha256": "c1c3cda2e8c650a551651bf6bf6bb64cc59af45d6956922827905c40bce78301"
+        },
+        "0.5": {
+          "metrics": {
+            "ACC": 87.53439735828289,
+            "MSE": 0.45675772428512573,
+            "WF1": 87.33513199935291
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3127,
+              "both_wrong": 391,
+              "corrections": 54,
+              "harms": 62
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3179,
+              "both_wrong": 450,
+              "corrections": 2,
+              "harms": 3
+            }
+          },
+          "prediction_sha256": "bad810fd3dbb3ad7a16079bc548207e4cff4d389e8d5d42a1d4b941fd5bd9764"
+        },
+        "1.0": {
+          "metrics": {
+            "ACC": 87.56191524490919,
+            "MSE": 0.4564197063446045,
+            "WF1": 87.36988528421531
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3127,
+              "both_wrong": 390,
+              "corrections": 55,
+              "harms": 62
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 0,
+              "N_negative": 0,
+              "N_positive": 0,
+              "both_correct": 0,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3182,
+              "both_wrong": 452,
+              "corrections": 0,
+              "harms": 0
+            }
+          },
+          "prediction_sha256": "1b2a51e60c5b3eef8b64525c58a1df62369bd844f9f619770cacafa7db03e56e"
+        }
+      },
+      "selected_epoch": 24
+    },
+    "0.1": {
+      "checkpoint_sha256": "42e0422898b0e8422476d0d17acdf0da3eeecd0512e2cf1b4cd754dc4ed80c8f",
+      "max_gamma1_direct_error": 1.1920928955078125e-7,
+      "memory_scans": 22,
+      "saved_prediction_sha256": "2190df66d09798a6d7b690588fba57ee2d9d389602d555a5496d21ff855ea28d",
+      "scales": {
+        "0.0": {
+          "metrics": {
+            "ACC": 86.87396807925151,
+            "MSE": 0.4986202120780945,
+            "WF1": 86.65252783019083
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 28,
+              "N_negative": 11,
+              "N_positive": 17,
+              "both_correct": 23,
+              "both_wrong": 3,
+              "corrections": 1,
+              "harms": 1
+            },
+            "A_only_negative": {
+              "N": 11,
+              "N_negative": 11,
+              "N_positive": 0,
+              "both_correct": 7,
+              "both_wrong": 3,
+              "corrections": 0,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 17,
+              "N_negative": 0,
+              "N_positive": 17,
+              "both_correct": 16,
+              "both_wrong": 0,
+              "corrections": 1,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 4,
+              "N_negative": 0,
+              "N_positive": 4,
+              "both_correct": 3,
+              "both_wrong": 0,
+              "corrections": 1,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3037,
+              "both_wrong": 381,
+              "corrections": 120,
+              "harms": 96
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 28,
+              "N_negative": 11,
+              "N_positive": 17,
+              "both_correct": 24,
+              "both_wrong": 4,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 11,
+              "N_negative": 11,
+              "N_positive": 0,
+              "both_correct": 7,
+              "both_wrong": 4,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 17,
+              "N_negative": 0,
+              "N_positive": 17,
+              "both_correct": 17,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 4,
+              "N_negative": 0,
+              "N_positive": 4,
+              "both_correct": 4,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3151,
+              "both_wrong": 470,
+              "corrections": 6,
+              "harms": 7
+            }
+          },
+          "prediction_sha256": "76459b8b4553e53b5a743cd4ae632bc34689789991cf6ebddeb1d76000b9f336"
+        },
+        "0.5": {
+          "metrics": {
+            "ACC": 86.87396807925151,
+            "MSE": 0.49803680181503296,
+            "WF1": 86.66702242711676
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 28,
+              "N_negative": 11,
+              "N_positive": 17,
+              "both_correct": 23,
+              "both_wrong": 3,
+              "corrections": 1,
+              "harms": 1
+            },
+            "A_only_negative": {
+              "N": 11,
+              "N_negative": 11,
+              "N_positive": 0,
+              "both_correct": 7,
+              "both_wrong": 3,
+              "corrections": 0,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 17,
+              "N_negative": 0,
+              "N_positive": 17,
+              "both_correct": 16,
+              "both_wrong": 0,
+              "corrections": 1,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 4,
+              "N_negative": 0,
+              "N_positive": 4,
+              "both_correct": 3,
+              "both_wrong": 0,
+              "corrections": 1,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3038,
+              "both_wrong": 382,
+              "corrections": 119,
+              "harms": 95
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 28,
+              "N_negative": 11,
+              "N_positive": 17,
+              "both_correct": 24,
+              "both_wrong": 4,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 11,
+              "N_negative": 11,
+              "N_positive": 0,
+              "both_correct": 7,
+              "both_wrong": 4,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 17,
+              "N_negative": 0,
+              "N_positive": 17,
+              "both_correct": 17,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 4,
+              "N_negative": 0,
+              "N_positive": 4,
+              "both_correct": 4,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3156,
+              "both_wrong": 475,
+              "corrections": 1,
+              "harms": 2
+            }
+          },
+          "prediction_sha256": "3a72f275514e1a8db933b3e01b087af2de347d1dad10077db245dbfa54b10d84"
+        },
+        "1.0": {
+          "metrics": {
+            "ACC": 86.90148596587782,
+            "MSE": 0.49756866693496704,
+            "WF1": 86.69925972408515
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 28,
+              "N_negative": 11,
+              "N_positive": 17,
+              "both_correct": 23,
+              "both_wrong": 3,
+              "corrections": 1,
+              "harms": 1
+            },
+            "A_only_negative": {
+              "N": 11,
+              "N_negative": 11,
+              "N_positive": 0,
+              "both_correct": 7,
+              "both_wrong": 3,
+              "corrections": 0,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 17,
+              "N_negative": 0,
+              "N_positive": 17,
+              "both_correct": 16,
+              "both_wrong": 0,
+              "corrections": 1,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 4,
+              "N_negative": 0,
+              "N_positive": 4,
+              "both_correct": 3,
+              "both_wrong": 0,
+              "corrections": 1,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3039,
+              "both_wrong": 382,
+              "corrections": 119,
+              "harms": 94
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 28,
+              "N_negative": 11,
+              "N_positive": 17,
+              "both_correct": 24,
+              "both_wrong": 4,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 11,
+              "N_negative": 11,
+              "N_positive": 0,
+              "both_correct": 7,
+              "both_wrong": 4,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 17,
+              "N_negative": 0,
+              "N_positive": 17,
+              "both_correct": 17,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 4,
+              "N_negative": 0,
+              "N_positive": 4,
+              "both_correct": 4,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3158,
+              "both_wrong": 476,
+              "corrections": 0,
+              "harms": 0
+            }
+          },
+          "prediction_sha256": "a6883ba4c1617b8b5906ded9962850861a038114a80477939dbee4f9602b6ea8"
+        }
+      },
+      "selected_epoch": 24
+    },
+    "0.2": {
+      "checkpoint_sha256": "02c1b21e884fbc8fff451fb8a819b8729766aca81364ab6ab4a6d21191b51805",
+      "max_gamma1_direct_error": 3.5762786865234375e-7,
+      "memory_scans": 22,
+      "saved_prediction_sha256": "c033cb9cf61fcc87f0f3e3a6fd9d86e77ec87af71f070c6c1896d1cede63a915",
+      "scales": {
+        "0.0": {
+          "metrics": {
+            "ACC": 85.33296642817831,
+            "MSE": 0.5490643978118896,
+            "WF1": 85.25495141051267
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 110,
+              "N_negative": 39,
+              "N_positive": 71,
+              "both_correct": 88,
+              "both_wrong": 15,
+              "corrections": 1,
+              "harms": 6
+            },
+            "A_only_negative": {
+              "N": 39,
+              "N_negative": 39,
+              "N_positive": 0,
+              "both_correct": 27,
+              "both_wrong": 10,
+              "corrections": 1,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 71,
+              "N_negative": 0,
+              "N_positive": 71,
+              "both_correct": 61,
+              "both_wrong": 5,
+              "corrections": 0,
+              "harms": 5
+            },
+            "A_only_positive_near_flat": {
+              "N": 8,
+              "N_negative": 0,
+              "N_positive": 8,
+              "both_correct": 3,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 5
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3024,
+              "both_wrong": 445,
+              "corrections": 77,
+              "harms": 88
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 110,
+              "N_negative": 39,
+              "N_positive": 71,
+              "both_correct": 89,
+              "both_wrong": 21,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 39,
+              "N_negative": 39,
+              "N_positive": 0,
+              "both_correct": 28,
+              "both_wrong": 11,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 71,
+              "N_negative": 0,
+              "N_positive": 71,
+              "both_correct": 61,
+              "both_wrong": 10,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 8,
+              "N_negative": 0,
+              "N_positive": 8,
+              "both_correct": 3,
+              "both_wrong": 5,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3100,
+              "both_wrong": 527,
+              "corrections": 1,
+              "harms": 6
+            }
+          },
+          "prediction_sha256": "486c673fff93f49ba64821d87a2cb043fdd8828bc6badf0900e438417f829e09"
+        },
+        "0.5": {
+          "metrics": {
+            "ACC": 85.41552008805724,
+            "MSE": 0.5481848120689392,
+            "WF1": 85.34178296444911
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 110,
+              "N_negative": 39,
+              "N_positive": 71,
+              "both_correct": 88,
+              "both_wrong": 15,
+              "corrections": 1,
+              "harms": 6
+            },
+            "A_only_negative": {
+              "N": 39,
+              "N_negative": 39,
+              "N_positive": 0,
+              "both_correct": 27,
+              "both_wrong": 10,
+              "corrections": 1,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 71,
+              "N_negative": 0,
+              "N_positive": 71,
+              "both_correct": 61,
+              "both_wrong": 5,
+              "corrections": 0,
+              "harms": 5
+            },
+            "A_only_positive_near_flat": {
+              "N": 8,
+              "N_negative": 0,
+              "N_positive": 8,
+              "both_correct": 3,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 5
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3025,
+              "both_wrong": 443,
+              "corrections": 79,
+              "harms": 87
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 110,
+              "N_negative": 39,
+              "N_positive": 71,
+              "both_correct": 89,
+              "both_wrong": 21,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 39,
+              "N_negative": 39,
+              "N_positive": 0,
+              "both_correct": 28,
+              "both_wrong": 11,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 71,
+              "N_negative": 0,
+              "N_positive": 71,
+              "both_correct": 61,
+              "both_wrong": 10,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 8,
+              "N_negative": 0,
+              "N_positive": 8,
+              "both_correct": 3,
+              "both_wrong": 5,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3103,
+              "both_wrong": 527,
+              "corrections": 1,
+              "harms": 3
+            }
+          },
+          "prediction_sha256": "114cf9d59138200b1a70946fd8836092de868fa71e3724048f5eea55edaf27d6"
+        },
+        "1.0": {
+          "metrics": {
+            "ACC": 85.47055586130985,
+            "MSE": 0.5474151372909546,
+            "WF1": 85.4021567870942
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 110,
+              "N_negative": 39,
+              "N_positive": 71,
+              "both_correct": 88,
+              "both_wrong": 15,
+              "corrections": 1,
+              "harms": 6
+            },
+            "A_only_negative": {
+              "N": 39,
+              "N_negative": 39,
+              "N_positive": 0,
+              "both_correct": 27,
+              "both_wrong": 10,
+              "corrections": 1,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 71,
+              "N_negative": 0,
+              "N_positive": 71,
+              "both_correct": 61,
+              "both_wrong": 5,
+              "corrections": 0,
+              "harms": 5
+            },
+            "A_only_positive_near_flat": {
+              "N": 8,
+              "N_negative": 0,
+              "N_positive": 8,
+              "both_correct": 3,
+              "both_wrong": 0,
+              "corrections": 0,
+              "harms": 5
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3026,
+              "both_wrong": 442,
+              "corrections": 80,
+              "harms": 86
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 110,
+              "N_negative": 39,
+              "N_positive": 71,
+              "both_correct": 89,
+              "both_wrong": 21,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 39,
+              "N_negative": 39,
+              "N_positive": 0,
+              "both_correct": 28,
+              "both_wrong": 11,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 71,
+              "N_negative": 0,
+              "N_positive": 71,
+              "both_correct": 61,
+              "both_wrong": 10,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 8,
+              "N_negative": 0,
+              "N_positive": 8,
+              "both_correct": 3,
+              "both_wrong": 5,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3106,
+              "both_wrong": 528,
+              "corrections": 0,
+              "harms": 0
+            }
+          },
+          "prediction_sha256": "371c4db0f3e1bda0b8f9a2c854950b8b8456f32a9ebc674a55ef178025f95f73"
+        }
+      },
+      "selected_epoch": 12
+    },
+    "0.3": {
+      "checkpoint_sha256": "22e62d389902bc88c9ce5761ca94f2d7e60de09d0ec13bf27502a4fbed5071ac",
+      "max_gamma1_direct_error": 2.384185791015625e-7,
+      "memory_scans": 22,
+      "saved_prediction_sha256": "c9d158216ea6f76da143041502188568f6f7b9b3e38f63732f4a139963aeb713",
+      "scales": {
+        "0.0": {
+          "metrics": {
+            "ACC": 85.08530544854155,
+            "MSE": 0.570901095867157,
+            "WF1": 84.76998737480217
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 232,
+              "N_negative": 69,
+              "N_positive": 163,
+              "both_correct": 178,
+              "both_wrong": 41,
+              "corrections": 6,
+              "harms": 7
+            },
+            "A_only_negative": {
+              "N": 69,
+              "N_negative": 69,
+              "N_positive": 0,
+              "both_correct": 41,
+              "both_wrong": 25,
+              "corrections": 2,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 163,
+              "N_negative": 0,
+              "N_positive": 163,
+              "both_correct": 137,
+              "both_wrong": 16,
+              "corrections": 4,
+              "harms": 6
+            },
+            "A_only_positive_near_flat": {
+              "N": 15,
+              "N_negative": 0,
+              "N_positive": 15,
+              "both_correct": 7,
+              "both_wrong": 3,
+              "corrections": 3,
+              "harms": 2
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2985,
+              "both_wrong": 446,
+              "corrections": 107,
+              "harms": 96
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 232,
+              "N_negative": 69,
+              "N_positive": 163,
+              "both_correct": 180,
+              "both_wrong": 48,
+              "corrections": 4,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 69,
+              "N_negative": 69,
+              "N_positive": 0,
+              "both_correct": 43,
+              "both_wrong": 26,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 163,
+              "N_negative": 0,
+              "N_positive": 163,
+              "both_correct": 137,
+              "both_wrong": 22,
+              "corrections": 4,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 15,
+              "N_negative": 0,
+              "N_positive": 15,
+              "both_correct": 7,
+              "both_wrong": 5,
+              "corrections": 3,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3075,
+              "both_wrong": 534,
+              "corrections": 17,
+              "harms": 8
+            }
+          },
+          "prediction_sha256": "46de01ca2d30b089d3eaa796c430b7589ebbfa6509ef1922ae614f578b59f043"
+        },
+        "0.5": {
+          "metrics": {
+            "ACC": 84.92019812878371,
+            "MSE": 0.5696284174919128,
+            "WF1": 84.6262822503013
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 232,
+              "N_negative": 69,
+              "N_positive": 163,
+              "both_correct": 176,
+              "both_wrong": 41,
+              "corrections": 6,
+              "harms": 9
+            },
+            "A_only_negative": {
+              "N": 69,
+              "N_negative": 69,
+              "N_positive": 0,
+              "both_correct": 41,
+              "both_wrong": 25,
+              "corrections": 2,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 163,
+              "N_negative": 0,
+              "N_positive": 163,
+              "both_correct": 135,
+              "both_wrong": 16,
+              "corrections": 4,
+              "harms": 8
+            },
+            "A_only_positive_near_flat": {
+              "N": 15,
+              "N_negative": 0,
+              "N_positive": 15,
+              "both_correct": 6,
+              "both_wrong": 3,
+              "corrections": 3,
+              "harms": 3
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2985,
+              "both_wrong": 452,
+              "corrections": 101,
+              "harms": 96
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 232,
+              "N_negative": 69,
+              "N_positive": 163,
+              "both_correct": 180,
+              "both_wrong": 50,
+              "corrections": 2,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 69,
+              "N_negative": 69,
+              "N_positive": 0,
+              "both_correct": 43,
+              "both_wrong": 26,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 163,
+              "N_negative": 0,
+              "N_positive": 163,
+              "both_correct": 137,
+              "both_wrong": 24,
+              "corrections": 2,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 15,
+              "N_negative": 0,
+              "N_positive": 15,
+              "both_correct": 7,
+              "both_wrong": 6,
+              "corrections": 2,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3079,
+              "both_wrong": 544,
+              "corrections": 7,
+              "harms": 4
+            }
+          },
+          "prediction_sha256": "1d9b0f5ab42446dd690774cc261c536a08138302e9041a1e00b4128141f74c4f"
+        },
+        "1.0": {
+          "metrics": {
+            "ACC": 84.83764446890478,
+            "MSE": 0.5685674548149109,
+            "WF1": 84.56133524341718
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 232,
+              "N_negative": 69,
+              "N_positive": 163,
+              "both_correct": 174,
+              "both_wrong": 41,
+              "corrections": 6,
+              "harms": 11
+            },
+            "A_only_negative": {
+              "N": 69,
+              "N_negative": 69,
+              "N_positive": 0,
+              "both_correct": 41,
+              "both_wrong": 25,
+              "corrections": 2,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 163,
+              "N_negative": 0,
+              "N_positive": 163,
+              "both_correct": 133,
+              "both_wrong": 16,
+              "corrections": 4,
+              "harms": 10
+            },
+            "A_only_positive_near_flat": {
+              "N": 15,
+              "N_negative": 0,
+              "N_positive": 15,
+              "both_correct": 4,
+              "both_wrong": 3,
+              "corrections": 3,
+              "harms": 5
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2986,
+              "both_wrong": 456,
+              "corrections": 97,
+              "harms": 95
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 232,
+              "N_negative": 69,
+              "N_positive": 163,
+              "both_correct": 180,
+              "both_wrong": 52,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 69,
+              "N_negative": 69,
+              "N_positive": 0,
+              "both_correct": 43,
+              "both_wrong": 26,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 163,
+              "N_negative": 0,
+              "N_positive": 163,
+              "both_correct": 137,
+              "both_wrong": 26,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 15,
+              "N_negative": 0,
+              "N_positive": 15,
+              "both_correct": 7,
+              "both_wrong": 8,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3083,
+              "both_wrong": 551,
+              "corrections": 0,
+              "harms": 0
+            }
+          },
+          "prediction_sha256": "a42dc28c6fafa851d736b2cddd9cb2ef0037d25cd170b2d248d22fe58278a8d3"
+        }
+      },
+      "selected_epoch": 24
+    },
+    "0.4": {
+      "checkpoint_sha256": "067b841a6231eb5a2f6a76ea4730a4f6c6e4af938efe060ec17a341e913ca174",
+      "max_gamma1_direct_error": 1.7881393432617188e-7,
+      "memory_scans": 22,
+      "saved_prediction_sha256": "f5862e653227e2f6f9628fd380687288bd44b3b0cb84baba42c3eb65f7b8fdab",
+      "scales": {
+        "0.0": {
+          "metrics": {
+            "ACC": 83.04898183819482,
+            "MSE": 0.6460551619529724,
+            "WF1": 82.92987261081208
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 438,
+              "N_negative": 158,
+              "N_positive": 280,
+              "both_correct": 327,
+              "both_wrong": 83,
+              "corrections": 10,
+              "harms": 18
+            },
+            "A_only_negative": {
+              "N": 158,
+              "N_negative": 158,
+              "N_positive": 0,
+              "both_correct": 90,
+              "both_wrong": 58,
+              "corrections": 10,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 280,
+              "N_negative": 0,
+              "N_positive": 280,
+              "both_correct": 237,
+              "both_wrong": 25,
+              "corrections": 0,
+              "harms": 18
+            },
+            "A_only_positive_near_flat": {
+              "N": 48,
+              "N_negative": 0,
+              "N_positive": 48,
+              "both_correct": 25,
+              "both_wrong": 9,
+              "corrections": 0,
+              "harms": 14
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2908,
+              "both_wrong": 487,
+              "corrections": 110,
+              "harms": 129
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 438,
+              "N_negative": 158,
+              "N_positive": 280,
+              "both_correct": 335,
+              "both_wrong": 101,
+              "corrections": 2,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 158,
+              "N_negative": 158,
+              "N_positive": 0,
+              "both_correct": 100,
+              "both_wrong": 58,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 280,
+              "N_negative": 0,
+              "N_positive": 280,
+              "both_correct": 235,
+              "both_wrong": 43,
+              "corrections": 2,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 48,
+              "N_negative": 0,
+              "N_positive": 48,
+              "both_correct": 23,
+              "both_wrong": 23,
+              "corrections": 2,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3014,
+              "both_wrong": 606,
+              "corrections": 4,
+              "harms": 10
+            }
+          },
+          "prediction_sha256": "737344d17bd3e3bb3fe9271ad273be093f63717470a84e010bfa0b3d8c8e16f9"
+        },
+        "0.5": {
+          "metrics": {
+            "ACC": 83.13153549807375,
+            "MSE": 0.6452881693840027,
+            "WF1": 83.02375667834406
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 438,
+              "N_negative": 158,
+              "N_positive": 280,
+              "both_correct": 326,
+              "both_wrong": 83,
+              "corrections": 10,
+              "harms": 19
+            },
+            "A_only_negative": {
+              "N": 158,
+              "N_negative": 158,
+              "N_positive": 0,
+              "both_correct": 90,
+              "both_wrong": 58,
+              "corrections": 10,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 280,
+              "N_negative": 0,
+              "N_positive": 280,
+              "both_correct": 236,
+              "both_wrong": 25,
+              "corrections": 0,
+              "harms": 19
+            },
+            "A_only_positive_near_flat": {
+              "N": 48,
+              "N_negative": 0,
+              "N_positive": 48,
+              "both_correct": 24,
+              "both_wrong": 9,
+              "corrections": 0,
+              "harms": 15
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2906,
+              "both_wrong": 482,
+              "corrections": 115,
+              "harms": 131
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 438,
+              "N_negative": 158,
+              "N_positive": 280,
+              "both_correct": 335,
+              "both_wrong": 102,
+              "corrections": 1,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 158,
+              "N_negative": 158,
+              "N_positive": 0,
+              "both_correct": 100,
+              "both_wrong": 58,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 280,
+              "N_negative": 0,
+              "N_positive": 280,
+              "both_correct": 235,
+              "both_wrong": 44,
+              "corrections": 1,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 48,
+              "N_negative": 0,
+              "N_positive": 48,
+              "both_correct": 23,
+              "both_wrong": 24,
+              "corrections": 1,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3019,
+              "both_wrong": 608,
+              "corrections": 2,
+              "harms": 5
+            }
+          },
+          "prediction_sha256": "c56899ed1c660f873cf573f212404d303f947958c453ef722785ee2f410fe415"
+        },
+        "1.0": {
+          "metrics": {
+            "ACC": 83.21408915795267,
+            "MSE": 0.6446702480316162,
+            "WF1": 83.11737497392004
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 438,
+              "N_negative": 158,
+              "N_positive": 280,
+              "both_correct": 325,
+              "both_wrong": 83,
+              "corrections": 10,
+              "harms": 20
+            },
+            "A_only_negative": {
+              "N": 158,
+              "N_negative": 158,
+              "N_positive": 0,
+              "both_correct": 90,
+              "both_wrong": 58,
+              "corrections": 10,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 280,
+              "N_negative": 0,
+              "N_positive": 280,
+              "both_correct": 235,
+              "both_wrong": 25,
+              "corrections": 0,
+              "harms": 20
+            },
+            "A_only_positive_near_flat": {
+              "N": 48,
+              "N_negative": 0,
+              "N_positive": 48,
+              "both_correct": 23,
+              "both_wrong": 9,
+              "corrections": 0,
+              "harms": 16
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2906,
+              "both_wrong": 479,
+              "corrections": 118,
+              "harms": 131
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 438,
+              "N_negative": 158,
+              "N_positive": 280,
+              "both_correct": 335,
+              "both_wrong": 103,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 158,
+              "N_negative": 158,
+              "N_positive": 0,
+              "both_correct": 100,
+              "both_wrong": 58,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 280,
+              "N_negative": 0,
+              "N_positive": 280,
+              "both_correct": 235,
+              "both_wrong": 45,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 48,
+              "N_negative": 0,
+              "N_positive": 48,
+              "both_correct": 23,
+              "both_wrong": 25,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 3024,
+              "both_wrong": 610,
+              "corrections": 0,
+              "harms": 0
+            }
+          },
+          "prediction_sha256": "3ff59a44af1a8459a1bcaf017fb8f2bc0928342e19f23afe02ef1f27ceb4c177"
+        }
+      },
+      "selected_epoch": 12
+    },
+    "0.5": {
+      "checkpoint_sha256": "4c873f14570073253c3c52b1327c2a59cab0ccb4f89db63e8cda3fbd2a14638e",
+      "max_gamma1_direct_error": 2.384185791015625e-7,
+      "memory_scans": 22,
+      "saved_prediction_sha256": "17fb5bfce5ce970953c8bbf7d975a8d59516b1195000881a14355152816480c5",
+      "scales": {
+        "0.0": {
+          "metrics": {
+            "ACC": 82.11337369290038,
+            "MSE": 0.6768389344215393,
+            "WF1": 81.87911561593279
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 729,
+              "N_negative": 265,
+              "N_positive": 464,
+              "both_correct": 516,
+              "both_wrong": 158,
+              "corrections": 27,
+              "harms": 28
+            },
+            "A_only_negative": {
+              "N": 265,
+              "N_negative": 265,
+              "N_positive": 0,
+              "both_correct": 136,
+              "both_wrong": 101,
+              "corrections": 14,
+              "harms": 14
+            },
+            "A_only_positive": {
+              "N": 464,
+              "N_negative": 0,
+              "N_positive": 464,
+              "both_correct": 380,
+              "both_wrong": 57,
+              "corrections": 13,
+              "harms": 14
+            },
+            "A_only_positive_near_flat": {
+              "N": 50,
+              "N_negative": 0,
+              "N_positive": 50,
+              "both_correct": 24,
+              "both_wrong": 11,
+              "corrections": 7,
+              "harms": 8
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2883,
+              "both_wrong": 543,
+              "corrections": 101,
+              "harms": 107
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 729,
+              "N_negative": 265,
+              "N_positive": 464,
+              "both_correct": 540,
+              "both_wrong": 185,
+              "corrections": 3,
+              "harms": 1
+            },
+            "A_only_negative": {
+              "N": 265,
+              "N_negative": 265,
+              "N_positive": 0,
+              "both_correct": 150,
+              "both_wrong": 114,
+              "corrections": 0,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 464,
+              "N_negative": 0,
+              "N_positive": 464,
+              "both_correct": 390,
+              "both_wrong": 71,
+              "corrections": 3,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 50,
+              "N_negative": 0,
+              "N_positive": 50,
+              "both_correct": 31,
+              "both_wrong": 19,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2971,
+              "both_wrong": 642,
+              "corrections": 13,
+              "harms": 8
+            }
+          },
+          "prediction_sha256": "804a5002902e626ec1c7b481982c2835aed24087621decbebe5e1df478f0ac72"
+        },
+        "0.5": {
+          "metrics": {
+            "ACC": 82.05833791964777,
+            "MSE": 0.6756235957145691,
+            "WF1": 81.8381946075308
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 729,
+              "N_negative": 265,
+              "N_positive": 464,
+              "both_correct": 515,
+              "both_wrong": 158,
+              "corrections": 27,
+              "harms": 29
+            },
+            "A_only_negative": {
+              "N": 265,
+              "N_negative": 265,
+              "N_positive": 0,
+              "both_correct": 136,
+              "both_wrong": 101,
+              "corrections": 14,
+              "harms": 14
+            },
+            "A_only_positive": {
+              "N": 464,
+              "N_negative": 0,
+              "N_positive": 464,
+              "both_correct": 379,
+              "both_wrong": 57,
+              "corrections": 13,
+              "harms": 15
+            },
+            "A_only_positive_near_flat": {
+              "N": 50,
+              "N_negative": 0,
+              "N_positive": 50,
+              "both_correct": 24,
+              "both_wrong": 11,
+              "corrections": 7,
+              "harms": 8
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2882,
+              "both_wrong": 544,
+              "corrections": 100,
+              "harms": 108
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 729,
+              "N_negative": 265,
+              "N_positive": 464,
+              "both_correct": 540,
+              "both_wrong": 186,
+              "corrections": 2,
+              "harms": 1
+            },
+            "A_only_negative": {
+              "N": 265,
+              "N_negative": 265,
+              "N_positive": 0,
+              "both_correct": 150,
+              "both_wrong": 114,
+              "corrections": 0,
+              "harms": 1
+            },
+            "A_only_positive": {
+              "N": 464,
+              "N_negative": 0,
+              "N_positive": 464,
+              "both_correct": 390,
+              "both_wrong": 72,
+              "corrections": 2,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 50,
+              "N_negative": 0,
+              "N_positive": 50,
+              "both_correct": 31,
+              "both_wrong": 19,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2974,
+              "both_wrong": 647,
+              "corrections": 8,
+              "harms": 5
+            }
+          },
+          "prediction_sha256": "66894f266a33bb0398fd4a5c5ee54134c4adfc934d304530556573c15eb1e5a2"
+        },
+        "1.0": {
+          "metrics": {
+            "ACC": 81.97578425976884,
+            "MSE": 0.6746088266372681,
+            "WF1": 81.77834452336216
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 729,
+              "N_negative": 265,
+              "N_positive": 464,
+              "both_correct": 515,
+              "both_wrong": 159,
+              "corrections": 26,
+              "harms": 29
+            },
+            "A_only_negative": {
+              "N": 265,
+              "N_negative": 265,
+              "N_positive": 0,
+              "both_correct": 137,
+              "both_wrong": 101,
+              "corrections": 14,
+              "harms": 13
+            },
+            "A_only_positive": {
+              "N": 464,
+              "N_negative": 0,
+              "N_positive": 464,
+              "both_correct": 378,
+              "both_wrong": 58,
+              "corrections": 12,
+              "harms": 16
+            },
+            "A_only_positive_near_flat": {
+              "N": 50,
+              "N_negative": 0,
+              "N_positive": 50,
+              "both_correct": 24,
+              "both_wrong": 11,
+              "corrections": 7,
+              "harms": 8
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2880,
+              "both_wrong": 545,
+              "corrections": 99,
+              "harms": 110
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 729,
+              "N_negative": 265,
+              "N_positive": 464,
+              "both_correct": 541,
+              "both_wrong": 188,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 265,
+              "N_negative": 265,
+              "N_positive": 0,
+              "both_correct": 151,
+              "both_wrong": 114,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 464,
+              "N_negative": 0,
+              "N_positive": 464,
+              "both_correct": 390,
+              "both_wrong": 74,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 50,
+              "N_negative": 0,
+              "N_positive": 50,
+              "both_correct": 31,
+              "both_wrong": 19,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2979,
+              "both_wrong": 655,
+              "corrections": 0,
+              "harms": 0
+            }
+          },
+          "prediction_sha256": "92e8d547ab3383c58e511a54925fd7ab21a43c2ed7b0853fe56c38f5d6d0fc84"
+        }
+      },
+      "selected_epoch": 12
+    },
+    "0.6": {
+      "checkpoint_sha256": "7b4e392a2b832e2a5e5617346f181dc54bd59dd7dbfc2573c71c0e76eef9f694",
+      "max_gamma1_direct_error": 2.384185791015625e-7,
+      "memory_scans": 22,
+      "saved_prediction_sha256": "dc19a7ff256ee268f4dfebcb9137a60c387d33935a1fd410d52e12d2919b3712",
+      "scales": {
+        "0.0": {
+          "metrics": {
+            "ACC": 80.07705008255365,
+            "MSE": 0.7451528906822205,
+            "WF1": 79.71625652206885
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 929,
+              "N_negative": 339,
+              "N_positive": 590,
+              "both_correct": 662,
+              "both_wrong": 193,
+              "corrections": 31,
+              "harms": 43
+            },
+            "A_only_negative": {
+              "N": 339,
+              "N_negative": 339,
+              "N_positive": 0,
+              "both_correct": 199,
+              "both_wrong": 104,
+              "corrections": 13,
+              "harms": 23
+            },
+            "A_only_positive": {
+              "N": 590,
+              "N_negative": 0,
+              "N_positive": 590,
+              "both_correct": 463,
+              "both_wrong": 89,
+              "corrections": 18,
+              "harms": 20
+            },
+            "A_only_positive_near_flat": {
+              "N": 190,
+              "N_negative": 0,
+              "N_positive": 190,
+              "both_correct": 130,
+              "both_wrong": 27,
+              "corrections": 17,
+              "harms": 16
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2750,
+              "both_wrong": 585,
+              "corrections": 160,
+              "harms": 139
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 929,
+              "N_negative": 339,
+              "N_positive": 590,
+              "both_correct": 687,
+              "both_wrong": 233,
+              "corrections": 6,
+              "harms": 3
+            },
+            "A_only_negative": {
+              "N": 339,
+              "N_negative": 339,
+              "N_positive": 0,
+              "both_correct": 212,
+              "both_wrong": 124,
+              "corrections": 0,
+              "harms": 3
+            },
+            "A_only_positive": {
+              "N": 590,
+              "N_negative": 0,
+              "N_positive": 590,
+              "both_correct": 475,
+              "both_wrong": 109,
+              "corrections": 6,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 190,
+              "N_negative": 0,
+              "N_positive": 190,
+              "both_correct": 142,
+              "both_wrong": 43,
+              "corrections": 5,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2891,
+              "both_wrong": 707,
+              "corrections": 19,
+              "harms": 17
+            }
+          },
+          "prediction_sha256": "4e8575bc4ba47bbdf9555970d86c754aa2610ce28ab10551793366be01c39a18"
+        },
+        "0.5": {
+          "metrics": {
+            "ACC": 80.02201430930104,
+            "MSE": 0.7442046999931335,
+            "WF1": 79.70046631086511
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 929,
+              "N_negative": 339,
+              "N_positive": 590,
+              "both_correct": 661,
+              "both_wrong": 194,
+              "corrections": 30,
+              "harms": 44
+            },
+            "A_only_negative": {
+              "N": 339,
+              "N_negative": 339,
+              "N_positive": 0,
+              "both_correct": 200,
+              "both_wrong": 104,
+              "corrections": 13,
+              "harms": 22
+            },
+            "A_only_positive": {
+              "N": 590,
+              "N_negative": 0,
+              "N_positive": 590,
+              "both_correct": 461,
+              "both_wrong": 90,
+              "corrections": 17,
+              "harms": 22
+            },
+            "A_only_positive_near_flat": {
+              "N": 190,
+              "N_negative": 0,
+              "N_positive": 190,
+              "both_correct": 129,
+              "both_wrong": 28,
+              "corrections": 16,
+              "harms": 17
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2753,
+              "both_wrong": 590,
+              "corrections": 155,
+              "harms": 136
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 929,
+              "N_negative": 339,
+              "N_positive": 590,
+              "both_correct": 688,
+              "both_wrong": 236,
+              "corrections": 3,
+              "harms": 2
+            },
+            "A_only_negative": {
+              "N": 339,
+              "N_negative": 339,
+              "N_positive": 0,
+              "both_correct": 213,
+              "both_wrong": 124,
+              "corrections": 0,
+              "harms": 2
+            },
+            "A_only_positive": {
+              "N": 590,
+              "N_negative": 0,
+              "N_positive": 590,
+              "both_correct": 475,
+              "both_wrong": 112,
+              "corrections": 3,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 190,
+              "N_negative": 0,
+              "N_positive": 190,
+              "both_correct": 142,
+              "both_wrong": 45,
+              "corrections": 3,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2899,
+              "both_wrong": 717,
+              "corrections": 9,
+              "harms": 9
+            }
+          },
+          "prediction_sha256": "3cab07d9446de5516ddb36e5b37300233d23823708ff9b5ec378b06dc24f4447"
+        },
+        "1.0": {
+          "metrics": {
+            "ACC": 80.02201430930104,
+            "MSE": 0.7437124252319336,
+            "WF1": 79.7393468612266
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 929,
+              "N_negative": 339,
+              "N_positive": 590,
+              "both_correct": 661,
+              "both_wrong": 195,
+              "corrections": 29,
+              "harms": 44
+            },
+            "A_only_negative": {
+              "N": 339,
+              "N_negative": 339,
+              "N_positive": 0,
+              "both_correct": 202,
+              "both_wrong": 104,
+              "corrections": 13,
+              "harms": 20
+            },
+            "A_only_positive": {
+              "N": 590,
+              "N_negative": 0,
+              "N_positive": 590,
+              "both_correct": 459,
+              "both_wrong": 91,
+              "corrections": 16,
+              "harms": 24
+            },
+            "A_only_positive_near_flat": {
+              "N": 190,
+              "N_negative": 0,
+              "N_positive": 190,
+              "both_correct": 127,
+              "both_wrong": 29,
+              "corrections": 15,
+              "harms": 19
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2754,
+              "both_wrong": 591,
+              "corrections": 154,
+              "harms": 135
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 929,
+              "N_negative": 339,
+              "N_positive": 590,
+              "both_correct": 690,
+              "both_wrong": 239,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 339,
+              "N_negative": 339,
+              "N_positive": 0,
+              "both_correct": 215,
+              "both_wrong": 124,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 590,
+              "N_negative": 0,
+              "N_positive": 590,
+              "both_correct": 475,
+              "both_wrong": 115,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 190,
+              "N_negative": 0,
+              "N_positive": 190,
+              "both_correct": 142,
+              "both_wrong": 48,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2908,
+              "both_wrong": 726,
+              "corrections": 0,
+              "harms": 0
+            }
+          },
+          "prediction_sha256": "d75abf0f0408c672dea850364ce18b0567711d39116a7c4065cd936b6153ccce"
+        }
+      },
+      "selected_epoch": 24
+    },
+    "0.7": {
+      "checkpoint_sha256": "7394089b3518b27f486b821fdb7fd3da8b04caae29ecb742c724cd1e5567396a",
+      "max_gamma1_direct_error": 2.384185791015625e-7,
+      "memory_scans": 22,
+      "saved_prediction_sha256": "52fe627bc6c85edc07dfb287135b6d586eea398d86615bcf1d52f79b58133e65",
+      "scales": {
+        "0.0": {
+          "metrics": {
+            "ACC": 78.97633461750138,
+            "MSE": 0.7934340834617615,
+            "WF1": 78.45445462331026
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 1226,
+              "N_negative": 446,
+              "N_positive": 780,
+              "both_correct": 883,
+              "both_wrong": 254,
+              "corrections": 34,
+              "harms": 55
+            },
+            "A_only_negative": {
+              "N": 446,
+              "N_negative": 446,
+              "N_positive": 0,
+              "both_correct": 235,
+              "both_wrong": 168,
+              "corrections": 24,
+              "harms": 19
+            },
+            "A_only_positive": {
+              "N": 780,
+              "N_negative": 0,
+              "N_positive": 780,
+              "both_correct": 648,
+              "both_wrong": 86,
+              "corrections": 10,
+              "harms": 36
+            },
+            "A_only_positive_near_flat": {
+              "N": 85,
+              "N_negative": 0,
+              "N_positive": 85,
+              "both_correct": 33,
+              "both_wrong": 21,
+              "corrections": 7,
+              "harms": 24
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2758,
+              "both_wrong": 647,
+              "corrections": 112,
+              "harms": 117
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 1226,
+              "N_negative": 446,
+              "N_positive": 780,
+              "both_correct": 907,
+              "both_wrong": 302,
+              "corrections": 10,
+              "harms": 7
+            },
+            "A_only_negative": {
+              "N": 446,
+              "N_negative": 446,
+              "N_positive": 0,
+              "both_correct": 259,
+              "both_wrong": 180,
+              "corrections": 0,
+              "harms": 7
+            },
+            "A_only_positive": {
+              "N": 780,
+              "N_negative": 0,
+              "N_positive": 780,
+              "both_correct": 648,
+              "both_wrong": 122,
+              "corrections": 10,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 85,
+              "N_negative": 0,
+              "N_positive": 85,
+              "both_correct": 32,
+              "both_wrong": 45,
+              "corrections": 8,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2842,
+              "both_wrong": 744,
+              "corrections": 28,
+              "harms": 20
+            }
+          },
+          "prediction_sha256": "b0f9c67f9d6fc4ec58d0dd76ed9060c5974d393f27810a29849e7fafaa50a0d2"
+        },
+        "0.5": {
+          "metrics": {
+            "ACC": 78.97633461750138,
+            "MSE": 0.7908579707145691,
+            "WF1": 78.50140193669456
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 1226,
+              "N_negative": 446,
+              "N_positive": 780,
+              "both_correct": 881,
+              "both_wrong": 251,
+              "corrections": 37,
+              "harms": 57
+            },
+            "A_only_negative": {
+              "N": 446,
+              "N_negative": 446,
+              "N_positive": 0,
+              "both_correct": 235,
+              "both_wrong": 165,
+              "corrections": 27,
+              "harms": 19
+            },
+            "A_only_positive": {
+              "N": 780,
+              "N_negative": 0,
+              "N_positive": 780,
+              "both_correct": 646,
+              "both_wrong": 86,
+              "corrections": 10,
+              "harms": 38
+            },
+            "A_only_positive_near_flat": {
+              "N": 85,
+              "N_negative": 0,
+              "N_positive": 85,
+              "both_correct": 32,
+              "both_wrong": 21,
+              "corrections": 7,
+              "harms": 25
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2755,
+              "both_wrong": 644,
+              "corrections": 115,
+              "harms": 120
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 1226,
+              "N_negative": 446,
+              "N_positive": 780,
+              "both_correct": 910,
+              "both_wrong": 304,
+              "corrections": 8,
+              "harms": 4
+            },
+            "A_only_negative": {
+              "N": 446,
+              "N_negative": 446,
+              "N_positive": 0,
+              "both_correct": 262,
+              "both_wrong": 180,
+              "corrections": 0,
+              "harms": 4
+            },
+            "A_only_positive": {
+              "N": 780,
+              "N_negative": 0,
+              "N_positive": 780,
+              "both_correct": 648,
+              "both_wrong": 124,
+              "corrections": 8,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 85,
+              "N_negative": 0,
+              "N_positive": 85,
+              "both_correct": 32,
+              "both_wrong": 46,
+              "corrections": 7,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2851,
+              "both_wrong": 753,
+              "corrections": 19,
+              "harms": 11
+            }
+          },
+          "prediction_sha256": "d0a3976fe5de74597758d0a8e6b956cb9b2d52b6e43f180ba2714089b223985e"
+        },
+        "1.0": {
+          "metrics": {
+            "ACC": 78.75619152449092,
+            "MSE": 0.7889376878738403,
+            "WF1": 78.35198885987302
+          },
+          "paired_vs_flat66": {
+            "A_only": {
+              "N": 1226,
+              "N_negative": 446,
+              "N_positive": 780,
+              "both_correct": 875,
+              "both_wrong": 249,
+              "corrections": 39,
+              "harms": 63
+            },
+            "A_only_negative": {
+              "N": 446,
+              "N_negative": 446,
+              "N_positive": 0,
+              "both_correct": 237,
+              "both_wrong": 163,
+              "corrections": 29,
+              "harms": 17
+            },
+            "A_only_positive": {
+              "N": 780,
+              "N_negative": 0,
+              "N_positive": 780,
+              "both_correct": 638,
+              "both_wrong": 86,
+              "corrections": 10,
+              "harms": 46
+            },
+            "A_only_positive_near_flat": {
+              "N": 85,
+              "N_negative": 0,
+              "N_positive": 85,
+              "both_correct": 25,
+              "both_wrong": 21,
+              "corrections": 7,
+              "harms": 32
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2742,
+              "both_wrong": 639,
+              "corrections": 120,
+              "harms": 133
+            }
+          },
+          "paired_vs_gamma1": {
+            "A_only": {
+              "N": 1226,
+              "N_negative": 446,
+              "N_positive": 780,
+              "both_correct": 914,
+              "both_wrong": 312,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_negative": {
+              "N": 446,
+              "N_negative": 446,
+              "N_positive": 0,
+              "both_correct": 266,
+              "both_wrong": 180,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive": {
+              "N": 780,
+              "N_negative": 0,
+              "N_positive": 780,
+              "both_correct": 648,
+              "both_wrong": 132,
+              "corrections": 0,
+              "harms": 0
+            },
+            "A_only_positive_near_flat": {
+              "N": 85,
+              "N_negative": 0,
+              "N_positive": 85,
+              "both_correct": 32,
+              "both_wrong": 53,
+              "corrections": 0,
+              "harms": 0
+            },
+            "all": {
+              "N": 3634,
+              "N_negative": 1350,
+              "N_positive": 2284,
+              "both_correct": 2862,
+              "both_wrong": 772,
+              "corrections": 0,
+              "harms": 0
+            }
+          },
+          "prediction_sha256": "5118886e23721157d31173636b417189b6c1c13cf96360a8b9c7c36d289dbe04"
+        }
+      },
+      "selected_epoch": 24
+    }
+  },
+  "remote_output": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2",
+  "scales": [
+    0,
+    0.5,
+    1
+  ],
+  "seconds": 76.74808884097729,
+  "source": "/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/execution_v1/runs/n10",
+  "source_commit": "a92dfacdad22345f5235765a09095da4369c0f7e",
+  "source_manifest_sha256": "060328e38c31eb92880101de4724479415e8486ff8c747c2719bf7cef1542f8d",
+  "source_summary_sha256": "9822118c4ed7fe7b744f3e7d72eb173cd94a0bd7c9e56321db33ea9b1dcdd50a",
+  "status": "complete",
+  "summary_sha256": "ce2a5a1a810019b9fdf0e6910b6951223c49ccd31a5fe2990bfa9f2f025787ec",
+  "total_memory_scans": 176,
+  "totals": {
+    "0.0": {
+      "paired_vs_flat66": {
+        "A_only": {
+          "N": 3692,
+          "corrections": 110,
+          "harms": 158
+        },
+        "A_only_negative": {
+          "N": 1327,
+          "corrections": 64,
+          "harms": 59
+        },
+        "A_only_positive": {
+          "N": 2365,
+          "corrections": 46,
+          "harms": 99
+        },
+        "A_only_positive_near_flat": {
+          "N": 400,
+          "corrections": 35,
+          "harms": 69
+        },
+        "all": {
+          "N": 29072,
+          "corrections": 839,
+          "harms": 834
+        }
+      },
+      "paired_vs_gamma1": {
+        "A_only": {
+          "N": 3692,
+          "corrections": 25,
+          "harms": 11
+        },
+        "A_only_negative": {
+          "N": 1327,
+          "corrections": 0,
+          "harms": 11
+        },
+        "A_only_positive": {
+          "N": 2365,
+          "corrections": 25,
+          "harms": 0
+        },
+        "A_only_positive_near_flat": {
+          "N": 400,
+          "corrections": 18,
+          "harms": 0
+        },
+        "all": {
+          "N": 29072,
+          "corrections": 91,
+          "harms": 82
+        }
+      }
+    },
+    "0.5": {
+      "paired_vs_flat66": {
+        "A_only": {
+          "N": 3692,
+          "corrections": 112,
+          "harms": 165
+        },
+        "A_only_negative": {
+          "N": 1327,
+          "corrections": 67,
+          "harms": 58
+        },
+        "A_only_positive": {
+          "N": 2365,
+          "corrections": 45,
+          "harms": 107
+        },
+        "A_only_positive_near_flat": {
+          "N": 400,
+          "corrections": 34,
+          "harms": 73
+        },
+        "all": {
+          "N": 29072,
+          "corrections": 838,
+          "harms": 835
+        }
+      },
+      "paired_vs_gamma1": {
+        "A_only": {
+          "N": 3692,
+          "corrections": 16,
+          "harms": 7
+        },
+        "A_only_negative": {
+          "N": 1327,
+          "corrections": 0,
+          "harms": 7
+        },
+        "A_only_positive": {
+          "N": 2365,
+          "corrections": 16,
+          "harms": 0
+        },
+        "A_only_positive_near_flat": {
+          "N": 400,
+          "corrections": 13,
+          "harms": 0
+        },
+        "all": {
+          "N": 29072,
+          "corrections": 49,
+          "harms": 42
+        }
+      }
+    },
+    "1.0": {
+      "paired_vs_flat66": {
+        "A_only": {
+          "N": 3692,
+          "corrections": 112,
+          "harms": 174
+        },
+        "A_only_negative": {
+          "N": 1327,
+          "corrections": 69,
+          "harms": 53
+        },
+        "A_only_positive": {
+          "N": 2365,
+          "corrections": 43,
+          "harms": 121
+        },
+        "A_only_positive_near_flat": {
+          "N": 400,
+          "corrections": 33,
+          "harms": 85
+        },
+        "all": {
+          "N": 29072,
+          "corrections": 842,
+          "harms": 846
+        }
+      },
+      "paired_vs_gamma1": {
+        "A_only": {
+          "N": 3692,
+          "corrections": 0,
+          "harms": 0
+        },
+        "A_only_negative": {
+          "N": 1327,
+          "corrections": 0,
+          "harms": 0
+        },
+        "A_only_positive": {
+          "N": 2365,
+          "corrections": 0,
+          "harms": 0
+        },
+        "A_only_positive_near_flat": {
+          "N": 400,
+          "corrections": 0,
+          "harms": 0
+        },
+        "all": {
+          "N": 29072,
+          "corrections": 0,
+          "harms": 0
+        }
+      }
+    }
+  },
+  "training_updates": 0
+}
