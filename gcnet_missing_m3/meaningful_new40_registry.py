@@ -135,6 +135,7 @@ NESTED_SWEEP = {
     'nested_ab_last_layer': {'last_layer': True},
     'nested_dim32': {'dim': 32},
     'nested_dim128': {'dim': 128},
+    'mosei_capacity_nested256': {'dim': 256},
     'nested_dim704': {'dim': 704},
     'nested_mlp256': {'mlp_hidden': 256},
     'nested_mlp512': {'mlp_hidden': 512},
