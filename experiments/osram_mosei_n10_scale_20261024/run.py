@@ -49,6 +49,13 @@ def aggregate(rates):
             for scope,rs in (('mean',RATES),('high',RATES[5:]))}
 
 
+def validate_checkpoint_identity(state, selected, expected_config):
+    # torch.save retains dataclass tuples; the protected SUMMARY is JSON.
+    actual = json.loads(json.dumps(state['identity']['config']))
+    if state['epoch'] != selected['epoch'] or actual != expected_config:
+        raise ValueError('Wrong selected checkpoint identity')
+
+
 def report(output, summary):
     lines = ['# Frozen N10 correction strength', '', 'INTERNAL DIAGNOSTIC ONLY',
         'Same completed N10 checkpoints, exact accepted masks, no training. Gamma0 is NOT separately-trained Flat.',
@@ -128,8 +135,7 @@ def main(argv=None):
                 if h.sha(fp)!=baseline['best_by_rate'][rate]['prediction_sha256']:
                     raise ValueError('Original Flat prediction hash changed')
                 state=torch.load(ckpt,map_location='cpu',weights_only=False)
-                if state['epoch']!=selected['epoch'] or state['identity']['config']!=source['config']:
-                    raise ValueError('Wrong selected checkpoint identity')
+                validate_checkpoint_identity(state,selected,source['config'])
                 model.load_state_dict(state['model'],strict=True);del state
                 before=h.backbone_digest(model)
                 with np.load(prediction,allow_pickle=False) as stored:

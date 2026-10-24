@@ -52,3 +52,14 @@ def test_aggregate_requires_all_eight_rates_and_equal_rate_weight():
     assert result['high']['ACC'] == 6.
     with pytest.raises(ValueError):
         aggregate({k:v for k,v in rates.items() if k!='0.7'})
+
+
+def test_checkpoint_identity_normalizes_json_sequences_but_not_configuration_values():
+    from experiments.osram_mosei_n10_scale_20261024.run import validate_checkpoint_identity
+    state = dict(epoch=12, identity=dict(config=dict(train_missing_rates=(0.,.1), osram_write_step=.6)))
+    expected = dict(train_missing_rates=[0.,.1], osram_write_step=.6)
+    validate_checkpoint_identity(state, dict(epoch=12), expected)
+    with pytest.raises(ValueError):
+        validate_checkpoint_identity(state, dict(epoch=13), expected)
+    with pytest.raises(ValueError):
+        validate_checkpoint_identity(state, dict(epoch=12), dict(expected,osram_write_step=.4))

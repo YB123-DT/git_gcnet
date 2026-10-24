@@ -40,3 +40,11 @@ Five focused tests cover exact endpoint identity, half-strength arithmetic,
 read-only inputs, finite authorized grid/shapes, nonzero-gold polarity counts
 and complete equal-rate aggregation. The real replay itself performs the
 checkpoint/mask/forward parity checks; no separate training smoke is added.
+
+The initial replay_v1 stopped before inference: checkpoint config retains
+`train_missing_rates` as a tuple, whereas SUMMARY.json stores the same values
+as a list. Canonical JSON identity comparison fixes this serialization-only
+false mismatch; epoch and all actual config values remain strictly checked.
+A regression test accepts tuple/list equivalence but rejects changed epochs
+or write_step. Failed output/source_v1 are preserved; retry uses source_v2 and
+replay_v2, with the same protected checkpoints and three coefficients.
