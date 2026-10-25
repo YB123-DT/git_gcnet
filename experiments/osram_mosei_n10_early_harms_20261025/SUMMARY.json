@@ -1,0 +1,3116 @@
+{
+  "label": "INTERNAL DIAGNOSTIC ONLY",
+  "status": "complete",
+  "source_commit": "02b21f6701001958dcc3b7e37a3fb7b5a981b19d",
+  "analysis_sha256": "950ae8aa71cbd7f67da1f5739eee2c203bf893a731acd1cd7bc32ce3da44a5ee",
+  "training_updates": 0,
+  "model_forwards": 0,
+  "gpu_used": false,
+  "protocol": "Saved exact GCNet masks; original per-rate Test-best checkpoints",
+  "definitions": {
+    "cohort": "current A-only, y>0, zero-based indices1/2 (turns2/3)",
+    "target": "Flat>0 and full Nested<=0 inside the fixed cohort",
+    "off": "Bypass only extra Nested task-input corrections; original CHM retained",
+    "inference": "same Nested weights across off cases; Flat is separately trained",
+    "counting": "rate-utterance records, not independent observations"
+  },
+  "pooled": {
+    "cohort": {
+      "N": 581,
+      "corrections": 5,
+      "harms": 57,
+      "both_correct": 483,
+      "both_wrong": 36
+    },
+    "target_records": 57,
+    "target_unique_utterances": 49,
+    "cases": {
+      "all_off": {
+        "target": {
+          "N": 57,
+          "restored_positive": 13,
+          "remains_nonpositive": 44,
+          "prediction_increased": 57,
+          "prediction_decreased": 0,
+          "mean_prediction_shift": 0.05273781344294548
+        },
+        "versus_full": {
+          "all_non_neutral": {
+            "N": 29072,
+            "corrections": 91,
+            "harms": 82,
+            "both_correct": 24220,
+            "both_wrong": 4679
+          },
+          "early_A_only_non_neutral": {
+            "N": 782,
+            "corrections": 13,
+            "harms": 5,
+            "both_correct": 572,
+            "both_wrong": 192
+          },
+          "early_A_only_positive": {
+            "N": 581,
+            "corrections": 13,
+            "harms": 0,
+            "both_correct": 488,
+            "both_wrong": 80
+          }
+        },
+        "versus_flat_early_positive": {
+          "N": 581,
+          "corrections": 5,
+          "harms": 44,
+          "both_correct": 496,
+          "both_wrong": 36
+        }
+      },
+      "all_half": {
+        "target": {
+          "N": 57,
+          "restored_positive": 5,
+          "remains_nonpositive": 52,
+          "prediction_increased": 57,
+          "prediction_decreased": 0,
+          "mean_prediction_shift": 0.02593161351978779
+        },
+        "versus_full": {
+          "all_non_neutral": {
+            "N": 29072,
+            "corrections": 49,
+            "harms": 42,
+            "both_correct": 24260,
+            "both_wrong": 4721
+          },
+          "early_A_only_non_neutral": {
+            "N": 782,
+            "corrections": 5,
+            "harms": 2,
+            "both_correct": 575,
+            "both_wrong": 200
+          },
+          "early_A_only_positive": {
+            "N": 581,
+            "corrections": 5,
+            "harms": 0,
+            "both_correct": 488,
+            "both_wrong": 88
+          }
+        },
+        "versus_flat_early_positive": {
+          "N": 581,
+          "corrections": 5,
+          "harms": 52,
+          "both_correct": 488,
+          "both_wrong": 36
+        }
+      },
+      "Local_off": {
+        "target": {
+          "N": 57,
+          "restored_positive": 1,
+          "remains_nonpositive": 56,
+          "prediction_increased": 38,
+          "prediction_decreased": 19,
+          "mean_prediction_shift": 0.0021615729201585054
+        },
+        "versus_full": {
+          "all_non_neutral": {
+            "N": 29072,
+            "corrections": 15,
+            "harms": 11,
+            "both_correct": 24291,
+            "both_wrong": 4755
+          },
+          "early_A_only_non_neutral": {
+            "N": 782,
+            "corrections": 1,
+            "harms": 0,
+            "both_correct": 577,
+            "both_wrong": 204
+          },
+          "early_A_only_positive": {
+            "N": 581,
+            "corrections": 1,
+            "harms": 0,
+            "both_correct": 488,
+            "both_wrong": 92
+          }
+        },
+        "versus_flat_early_positive": {
+          "N": 581,
+          "corrections": 5,
+          "harms": 56,
+          "both_correct": 484,
+          "both_wrong": 36
+        }
+      },
+      "Base_off": {
+        "target": {
+          "N": 57,
+          "restored_positive": 2,
+          "remains_nonpositive": 55,
+          "prediction_increased": 57,
+          "prediction_decreased": 0,
+          "mean_prediction_shift": 0.015008778311312199
+        },
+        "versus_full": {
+          "all_non_neutral": {
+            "N": 29072,
+            "corrections": 40,
+            "harms": 35,
+            "both_correct": 24267,
+            "both_wrong": 4730
+          },
+          "early_A_only_non_neutral": {
+            "N": 782,
+            "corrections": 2,
+            "harms": 1,
+            "both_correct": 576,
+            "both_wrong": 203
+          },
+          "early_A_only_positive": {
+            "N": 581,
+            "corrections": 2,
+            "harms": 0,
+            "both_correct": 488,
+            "both_wrong": 91
+          }
+        },
+        "versus_flat_early_positive": {
+          "N": 581,
+          "corrections": 5,
+          "harms": 55,
+          "both_correct": 485,
+          "both_wrong": 36
+        }
+      },
+      "Gap-A_off": {
+        "target": {
+          "N": 57,
+          "restored_positive": 0,
+          "remains_nonpositive": 57,
+          "prediction_increased": 0,
+          "prediction_decreased": 1,
+          "mean_prediction_shift": -1.1110514730461318e-09
+        },
+        "versus_full": {
+          "all_non_neutral": {
+            "N": 29072,
+            "corrections": 5,
+            "harms": 5,
+            "both_correct": 24297,
+            "both_wrong": 4765
+          },
+          "early_A_only_non_neutral": {
+            "N": 782,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 577,
+            "both_wrong": 205
+          },
+          "early_A_only_positive": {
+            "N": 581,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 488,
+            "both_wrong": 93
+          }
+        },
+        "versus_flat_early_positive": {
+          "N": 581,
+          "corrections": 5,
+          "harms": 57,
+          "both_correct": 483,
+          "both_wrong": 36
+        }
+      },
+      "Gap-T_off": {
+        "target": {
+          "N": 57,
+          "restored_positive": 4,
+          "remains_nonpositive": 53,
+          "prediction_increased": 57,
+          "prediction_decreased": 0,
+          "mean_prediction_shift": 0.022502722218632698
+        },
+        "versus_full": {
+          "all_non_neutral": {
+            "N": 29072,
+            "corrections": 37,
+            "harms": 17,
+            "both_correct": 24285,
+            "both_wrong": 4733
+          },
+          "early_A_only_non_neutral": {
+            "N": 782,
+            "corrections": 4,
+            "harms": 1,
+            "both_correct": 576,
+            "both_wrong": 201
+          },
+          "early_A_only_positive": {
+            "N": 581,
+            "corrections": 4,
+            "harms": 0,
+            "both_correct": 488,
+            "both_wrong": 89
+          }
+        },
+        "versus_flat_early_positive": {
+          "N": 581,
+          "corrections": 5,
+          "harms": 53,
+          "both_correct": 487,
+          "both_wrong": 36
+        }
+      },
+      "Gap-V_off": {
+        "target": {
+          "N": 57,
+          "restored_positive": 1,
+          "remains_nonpositive": 56,
+          "prediction_increased": 57,
+          "prediction_decreased": 0,
+          "mean_prediction_shift": 0.011707554571330547
+        },
+        "versus_full": {
+          "all_non_neutral": {
+            "N": 29072,
+            "corrections": 10,
+            "harms": 5,
+            "both_correct": 24297,
+            "both_wrong": 4760
+          },
+          "early_A_only_non_neutral": {
+            "N": 782,
+            "corrections": 1,
+            "harms": 0,
+            "both_correct": 577,
+            "both_wrong": 204
+          },
+          "early_A_only_positive": {
+            "N": 581,
+            "corrections": 1,
+            "harms": 0,
+            "both_correct": 488,
+            "both_wrong": 92
+          }
+        },
+        "versus_flat_early_positive": {
+          "N": 581,
+          "corrections": 5,
+          "harms": 56,
+          "both_correct": 484,
+          "both_wrong": 36
+        }
+      }
+    },
+    "target_restored_by_any_off_case": 13,
+    "target_all_off_restored_and_slot_restored": {
+      "Local_off": 1,
+      "Base_off": 2,
+      "Gap-A_off": 0,
+      "Gap-T_off": 4,
+      "Gap-V_off": 1
+    }
+  },
+  "per_rate": {
+    "0.0": {
+      "flat_epoch": 21,
+      "nested_epoch": 24,
+      "cohort": {
+        "N": 0,
+        "corrections": 0,
+        "harms": 0,
+        "both_correct": 0,
+        "both_wrong": 0
+      },
+      "target_records": 0,
+      "target_unique_utterances": 0,
+      "cases": {
+        "all_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 3,
+              "harms": 6,
+              "both_correct": 3176,
+              "both_wrong": 449
+            },
+            "early_A_only_non_neutral": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 0,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 0,
+            "both_wrong": 0
+          }
+        },
+        "all_half": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 2,
+              "harms": 3,
+              "both_correct": 3179,
+              "both_wrong": 450
+            },
+            "early_A_only_non_neutral": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 0,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 0,
+            "both_wrong": 0
+          }
+        },
+        "Local_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 1,
+              "both_correct": 3181,
+              "both_wrong": 451
+            },
+            "early_A_only_non_neutral": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 0,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 0,
+            "both_wrong": 0
+          }
+        },
+        "Base_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 2,
+              "harms": 4,
+              "both_correct": 3178,
+              "both_wrong": 450
+            },
+            "early_A_only_non_neutral": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 0,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 0,
+            "both_wrong": 0
+          }
+        },
+        "Gap-A_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3182,
+              "both_wrong": 452
+            },
+            "early_A_only_non_neutral": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 0,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 0,
+            "both_wrong": 0
+          }
+        },
+        "Gap-T_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3182,
+              "both_wrong": 452
+            },
+            "early_A_only_non_neutral": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 0,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 0,
+            "both_wrong": 0
+          }
+        },
+        "Gap-V_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3182,
+              "both_wrong": 452
+            },
+            "early_A_only_non_neutral": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 0,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 0,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 0,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 0,
+            "both_wrong": 0
+          }
+        }
+      },
+      "target_restored_by_any_off_case": 0,
+      "target_all_off_restored_and_slot_restored": {
+        "Local_off": 0,
+        "Base_off": 0,
+        "Gap-A_off": 0,
+        "Gap-T_off": 0,
+        "Gap-V_off": 0
+      }
+    },
+    "0.1": {
+      "flat_epoch": 23,
+      "nested_epoch": 24,
+      "cohort": {
+        "N": 3,
+        "corrections": 0,
+        "harms": 0,
+        "both_correct": 3,
+        "both_wrong": 0
+      },
+      "target_records": 0,
+      "target_unique_utterances": 0,
+      "cases": {
+        "all_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 6,
+              "harms": 7,
+              "both_correct": 3151,
+              "both_wrong": 470
+            },
+            "early_A_only_non_neutral": {
+              "N": 4,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 4,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 3,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 3,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 3,
+            "both_wrong": 0
+          }
+        },
+        "all_half": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 2,
+              "both_correct": 3156,
+              "both_wrong": 475
+            },
+            "early_A_only_non_neutral": {
+              "N": 4,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 4,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 3,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 3,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 3,
+            "both_wrong": 0
+          }
+        },
+        "Local_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3158,
+              "both_wrong": 476
+            },
+            "early_A_only_non_neutral": {
+              "N": 4,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 4,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 3,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 3,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 3,
+            "both_wrong": 0
+          }
+        },
+        "Base_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 3,
+              "both_correct": 3155,
+              "both_wrong": 475
+            },
+            "early_A_only_non_neutral": {
+              "N": 4,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 4,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 3,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 3,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 3,
+            "both_wrong": 0
+          }
+        },
+        "Gap-A_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3158,
+              "both_wrong": 476
+            },
+            "early_A_only_non_neutral": {
+              "N": 4,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 4,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 3,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 3,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 3,
+            "both_wrong": 0
+          }
+        },
+        "Gap-T_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 3158,
+              "both_wrong": 475
+            },
+            "early_A_only_non_neutral": {
+              "N": 4,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 4,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 3,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 3,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 3,
+            "both_wrong": 0
+          }
+        },
+        "Gap-V_off": {
+          "target": {
+            "N": 0,
+            "restored_positive": 0,
+            "remains_nonpositive": 0,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": null
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 1,
+              "both_correct": 3157,
+              "both_wrong": 476
+            },
+            "early_A_only_non_neutral": {
+              "N": 4,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 4,
+              "both_wrong": 0
+            },
+            "early_A_only_positive": {
+              "N": 3,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3,
+              "both_wrong": 0
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 3,
+            "corrections": 0,
+            "harms": 0,
+            "both_correct": 3,
+            "both_wrong": 0
+          }
+        }
+      },
+      "target_restored_by_any_off_case": 0,
+      "target_all_off_restored_and_slot_restored": {
+        "Local_off": 0,
+        "Base_off": 0,
+        "Gap-A_off": 0,
+        "Gap-T_off": 0,
+        "Gap-V_off": 0
+      }
+    },
+    "0.2": {
+      "flat_epoch": 16,
+      "nested_epoch": 12,
+      "cohort": {
+        "N": 16,
+        "corrections": 0,
+        "harms": 5,
+        "both_correct": 11,
+        "both_wrong": 0
+      },
+      "target_records": 5,
+      "target_unique_utterances": 5,
+      "cases": {
+        "all_off": {
+          "target": {
+            "N": 5,
+            "restored_positive": 0,
+            "remains_nonpositive": 5,
+            "prediction_increased": 5,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.020983265712857246
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 6,
+              "both_correct": 3100,
+              "both_wrong": 527
+            },
+            "early_A_only_non_neutral": {
+              "N": 20,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 13,
+              "both_wrong": 7
+            },
+            "early_A_only_positive": {
+              "N": 16,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 11,
+              "both_wrong": 5
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 16,
+            "corrections": 0,
+            "harms": 5,
+            "both_correct": 11,
+            "both_wrong": 0
+          }
+        },
+        "all_half": {
+          "target": {
+            "N": 5,
+            "restored_positive": 0,
+            "remains_nonpositive": 5,
+            "prediction_increased": 5,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.010321162641048431
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 3,
+              "both_correct": 3103,
+              "both_wrong": 527
+            },
+            "early_A_only_non_neutral": {
+              "N": 20,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 13,
+              "both_wrong": 7
+            },
+            "early_A_only_positive": {
+              "N": 16,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 11,
+              "both_wrong": 5
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 16,
+            "corrections": 0,
+            "harms": 5,
+            "both_correct": 11,
+            "both_wrong": 0
+          }
+        },
+        "Local_off": {
+          "target": {
+            "N": 5,
+            "restored_positive": 0,
+            "remains_nonpositive": 5,
+            "prediction_increased": 4,
+            "prediction_decreased": 1,
+            "mean_prediction_shift": 0.0005661845207214355
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 2,
+              "both_correct": 3104,
+              "both_wrong": 527
+            },
+            "early_A_only_non_neutral": {
+              "N": 20,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 13,
+              "both_wrong": 7
+            },
+            "early_A_only_positive": {
+              "N": 16,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 11,
+              "both_wrong": 5
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 16,
+            "corrections": 0,
+            "harms": 5,
+            "both_correct": 11,
+            "both_wrong": 0
+          }
+        },
+        "Base_off": {
+          "target": {
+            "N": 5,
+            "restored_positive": 0,
+            "remains_nonpositive": 5,
+            "prediction_increased": 5,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.006246240343898535
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 4,
+              "both_correct": 3102,
+              "both_wrong": 527
+            },
+            "early_A_only_non_neutral": {
+              "N": 20,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 13,
+              "both_wrong": 7
+            },
+            "early_A_only_positive": {
+              "N": 16,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 11,
+              "both_wrong": 5
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 16,
+            "corrections": 0,
+            "harms": 5,
+            "both_correct": 11,
+            "both_wrong": 0
+          }
+        },
+        "Gap-A_off": {
+          "target": {
+            "N": 5,
+            "restored_positive": 0,
+            "remains_nonpositive": 5,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.0
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3106,
+              "both_wrong": 528
+            },
+            "early_A_only_non_neutral": {
+              "N": 20,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 13,
+              "both_wrong": 7
+            },
+            "early_A_only_positive": {
+              "N": 16,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 11,
+              "both_wrong": 5
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 16,
+            "corrections": 0,
+            "harms": 5,
+            "both_correct": 11,
+            "both_wrong": 0
+          }
+        },
+        "Gap-T_off": {
+          "target": {
+            "N": 5,
+            "restored_positive": 0,
+            "remains_nonpositive": 5,
+            "prediction_increased": 5,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.010120244696736336
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 2,
+              "both_correct": 3104,
+              "both_wrong": 528
+            },
+            "early_A_only_non_neutral": {
+              "N": 20,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 13,
+              "both_wrong": 7
+            },
+            "early_A_only_positive": {
+              "N": 16,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 11,
+              "both_wrong": 5
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 16,
+            "corrections": 0,
+            "harms": 5,
+            "both_correct": 11,
+            "both_wrong": 0
+          }
+        },
+        "Gap-V_off": {
+          "target": {
+            "N": 5,
+            "restored_positive": 0,
+            "remains_nonpositive": 5,
+            "prediction_increased": 5,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.0034473449923098087
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 3106,
+              "both_wrong": 528
+            },
+            "early_A_only_non_neutral": {
+              "N": 20,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 13,
+              "both_wrong": 7
+            },
+            "early_A_only_positive": {
+              "N": 16,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 11,
+              "both_wrong": 5
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 16,
+            "corrections": 0,
+            "harms": 5,
+            "both_correct": 11,
+            "both_wrong": 0
+          }
+        }
+      },
+      "target_restored_by_any_off_case": 0,
+      "target_all_off_restored_and_slot_restored": {
+        "Local_off": 0,
+        "Base_off": 0,
+        "Gap-A_off": 0,
+        "Gap-T_off": 0,
+        "Gap-V_off": 0
+      }
+    },
+    "0.3": {
+      "flat_epoch": 16,
+      "nested_epoch": 24,
+      "cohort": {
+        "N": 47,
+        "corrections": 1,
+        "harms": 6,
+        "both_correct": 37,
+        "both_wrong": 3
+      },
+      "target_records": 6,
+      "target_unique_utterances": 6,
+      "cases": {
+        "all_off": {
+          "target": {
+            "N": 6,
+            "restored_positive": 3,
+            "remains_nonpositive": 3,
+            "prediction_increased": 6,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.05769205093383789
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 17,
+              "harms": 8,
+              "both_correct": 3075,
+              "both_wrong": 534
+            },
+            "early_A_only_non_neutral": {
+              "N": 57,
+              "corrections": 3,
+              "harms": 0,
+              "both_correct": 44,
+              "both_wrong": 10
+            },
+            "early_A_only_positive": {
+              "N": 47,
+              "corrections": 3,
+              "harms": 0,
+              "both_correct": 38,
+              "both_wrong": 6
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 47,
+            "corrections": 1,
+            "harms": 3,
+            "both_correct": 40,
+            "both_wrong": 3
+          }
+        },
+        "all_half": {
+          "target": {
+            "N": 6,
+            "restored_positive": 1,
+            "remains_nonpositive": 5,
+            "prediction_increased": 6,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.028337225317955017
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 7,
+              "harms": 4,
+              "both_correct": 3079,
+              "both_wrong": 544
+            },
+            "early_A_only_non_neutral": {
+              "N": 57,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 44,
+              "both_wrong": 12
+            },
+            "early_A_only_positive": {
+              "N": 47,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 38,
+              "both_wrong": 8
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 47,
+            "corrections": 1,
+            "harms": 5,
+            "both_correct": 38,
+            "both_wrong": 3
+          }
+        },
+        "Local_off": {
+          "target": {
+            "N": 6,
+            "restored_positive": 0,
+            "remains_nonpositive": 6,
+            "prediction_increased": 5,
+            "prediction_decreased": 1,
+            "mean_prediction_shift": 0.0018753024050965905
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 2,
+              "harms": 2,
+              "both_correct": 3081,
+              "both_wrong": 549
+            },
+            "early_A_only_non_neutral": {
+              "N": 57,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 44,
+              "both_wrong": 13
+            },
+            "early_A_only_positive": {
+              "N": 47,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 38,
+              "both_wrong": 9
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 47,
+            "corrections": 1,
+            "harms": 6,
+            "both_correct": 37,
+            "both_wrong": 3
+          }
+        },
+        "Base_off": {
+          "target": {
+            "N": 6,
+            "restored_positive": 0,
+            "remains_nonpositive": 6,
+            "prediction_increased": 6,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.01592187210917473
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 5,
+              "harms": 3,
+              "both_correct": 3080,
+              "both_wrong": 546
+            },
+            "early_A_only_non_neutral": {
+              "N": 57,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 44,
+              "both_wrong": 13
+            },
+            "early_A_only_positive": {
+              "N": 47,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 38,
+              "both_wrong": 9
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 47,
+            "corrections": 1,
+            "harms": 6,
+            "both_correct": 37,
+            "both_wrong": 3
+          }
+        },
+        "Gap-A_off": {
+          "target": {
+            "N": 6,
+            "restored_positive": 0,
+            "remains_nonpositive": 6,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.0
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 1,
+              "both_correct": 3082,
+              "both_wrong": 551
+            },
+            "early_A_only_non_neutral": {
+              "N": 57,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 44,
+              "both_wrong": 13
+            },
+            "early_A_only_positive": {
+              "N": 47,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 38,
+              "both_wrong": 9
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 47,
+            "corrections": 1,
+            "harms": 6,
+            "both_correct": 37,
+            "both_wrong": 3
+          }
+        },
+        "Gap-T_off": {
+          "target": {
+            "N": 6,
+            "restored_positive": 1,
+            "remains_nonpositive": 5,
+            "prediction_increased": 6,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.024831324815750122
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 5,
+              "harms": 2,
+              "both_correct": 3081,
+              "both_wrong": 546
+            },
+            "early_A_only_non_neutral": {
+              "N": 57,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 44,
+              "both_wrong": 12
+            },
+            "early_A_only_positive": {
+              "N": 47,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 38,
+              "both_wrong": 8
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 47,
+            "corrections": 1,
+            "harms": 5,
+            "both_correct": 38,
+            "both_wrong": 3
+          }
+        },
+        "Gap-V_off": {
+          "target": {
+            "N": 6,
+            "restored_positive": 0,
+            "remains_nonpositive": 6,
+            "prediction_increased": 6,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.01352264080196619
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 3083,
+              "both_wrong": 550
+            },
+            "early_A_only_non_neutral": {
+              "N": 57,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 44,
+              "both_wrong": 13
+            },
+            "early_A_only_positive": {
+              "N": 47,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 38,
+              "both_wrong": 9
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 47,
+            "corrections": 1,
+            "harms": 6,
+            "both_correct": 37,
+            "both_wrong": 3
+          }
+        }
+      },
+      "target_restored_by_any_off_case": 3,
+      "target_all_off_restored_and_slot_restored": {
+        "Local_off": 0,
+        "Base_off": 0,
+        "Gap-A_off": 0,
+        "Gap-T_off": 1,
+        "Gap-V_off": 0
+      }
+    },
+    "0.4": {
+      "flat_epoch": 15,
+      "nested_epoch": 12,
+      "cohort": {
+        "N": 72,
+        "corrections": 0,
+        "harms": 7,
+        "both_correct": 62,
+        "both_wrong": 3
+      },
+      "target_records": 7,
+      "target_unique_utterances": 7,
+      "cases": {
+        "all_off": {
+          "target": {
+            "N": 7,
+            "restored_positive": 1,
+            "remains_nonpositive": 6,
+            "prediction_increased": 7,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.025521891191601753
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 4,
+              "harms": 10,
+              "both_correct": 3014,
+              "both_wrong": 606
+            },
+            "early_A_only_non_neutral": {
+              "N": 88,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 72,
+              "both_wrong": 15
+            },
+            "early_A_only_positive": {
+              "N": 72,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 62,
+              "both_wrong": 9
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 72,
+            "corrections": 0,
+            "harms": 6,
+            "both_correct": 63,
+            "both_wrong": 3
+          }
+        },
+        "all_half": {
+          "target": {
+            "N": 7,
+            "restored_positive": 0,
+            "remains_nonpositive": 7,
+            "prediction_increased": 7,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.012523448094725609
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 2,
+              "harms": 5,
+              "both_correct": 3019,
+              "both_wrong": 608
+            },
+            "early_A_only_non_neutral": {
+              "N": 88,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 72,
+              "both_wrong": 16
+            },
+            "early_A_only_positive": {
+              "N": 72,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 62,
+              "both_wrong": 10
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 72,
+            "corrections": 0,
+            "harms": 7,
+            "both_correct": 62,
+            "both_wrong": 3
+          }
+        },
+        "Local_off": {
+          "target": {
+            "N": 7,
+            "restored_positive": 0,
+            "remains_nonpositive": 7,
+            "prediction_increased": 5,
+            "prediction_decreased": 2,
+            "mean_prediction_shift": 0.0016533040907233953
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 2,
+              "harms": 3,
+              "both_correct": 3021,
+              "both_wrong": 608
+            },
+            "early_A_only_non_neutral": {
+              "N": 88,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 72,
+              "both_wrong": 16
+            },
+            "early_A_only_positive": {
+              "N": 72,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 62,
+              "both_wrong": 10
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 72,
+            "corrections": 0,
+            "harms": 7,
+            "both_correct": 62,
+            "both_wrong": 3
+          }
+        },
+        "Base_off": {
+          "target": {
+            "N": 7,
+            "restored_positive": 0,
+            "remains_nonpositive": 7,
+            "prediction_increased": 7,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.008108503185212612
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 2,
+              "harms": 5,
+              "both_correct": 3019,
+              "both_wrong": 608
+            },
+            "early_A_only_non_neutral": {
+              "N": 88,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 72,
+              "both_wrong": 16
+            },
+            "early_A_only_positive": {
+              "N": 72,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 62,
+              "both_wrong": 10
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 72,
+            "corrections": 0,
+            "harms": 7,
+            "both_correct": 62,
+            "both_wrong": 3
+          }
+        },
+        "Gap-A_off": {
+          "target": {
+            "N": 7,
+            "restored_positive": 0,
+            "remains_nonpositive": 7,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.0
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 1,
+              "both_correct": 3023,
+              "both_wrong": 610
+            },
+            "early_A_only_non_neutral": {
+              "N": 88,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 72,
+              "both_wrong": 16
+            },
+            "early_A_only_positive": {
+              "N": 72,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 62,
+              "both_wrong": 10
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 72,
+            "corrections": 0,
+            "harms": 7,
+            "both_correct": 62,
+            "both_wrong": 3
+          }
+        },
+        "Gap-T_off": {
+          "target": {
+            "N": 7,
+            "restored_positive": 0,
+            "remains_nonpositive": 7,
+            "prediction_increased": 7,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.010676809586584568
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 2,
+              "harms": 2,
+              "both_correct": 3022,
+              "both_wrong": 608
+            },
+            "early_A_only_non_neutral": {
+              "N": 88,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 72,
+              "both_wrong": 16
+            },
+            "early_A_only_positive": {
+              "N": 72,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 62,
+              "both_wrong": 10
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 72,
+            "corrections": 0,
+            "harms": 7,
+            "both_correct": 62,
+            "both_wrong": 3
+          }
+        },
+        "Gap-V_off": {
+          "target": {
+            "N": 7,
+            "restored_positive": 0,
+            "remains_nonpositive": 7,
+            "prediction_increased": 7,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.00429548230022192
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 1,
+              "both_correct": 3023,
+              "both_wrong": 609
+            },
+            "early_A_only_non_neutral": {
+              "N": 88,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 72,
+              "both_wrong": 16
+            },
+            "early_A_only_positive": {
+              "N": 72,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 62,
+              "both_wrong": 10
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 72,
+            "corrections": 0,
+            "harms": 7,
+            "both_correct": 62,
+            "both_wrong": 3
+          }
+        }
+      },
+      "target_restored_by_any_off_case": 1,
+      "target_all_off_restored_and_slot_restored": {
+        "Local_off": 0,
+        "Base_off": 0,
+        "Gap-A_off": 0,
+        "Gap-T_off": 0,
+        "Gap-V_off": 0
+      }
+    },
+    "0.5": {
+      "flat_epoch": 16,
+      "nested_epoch": 12,
+      "cohort": {
+        "N": 110,
+        "corrections": 1,
+        "harms": 8,
+        "both_correct": 94,
+        "both_wrong": 7
+      },
+      "target_records": 8,
+      "target_unique_utterances": 8,
+      "cases": {
+        "all_off": {
+          "target": {
+            "N": 8,
+            "restored_positive": 1,
+            "remains_nonpositive": 7,
+            "prediction_increased": 8,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.03431788086891174
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 13,
+              "harms": 8,
+              "both_correct": 2971,
+              "both_wrong": 642
+            },
+            "early_A_only_non_neutral": {
+              "N": 150,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 108,
+              "both_wrong": 41
+            },
+            "early_A_only_positive": {
+              "N": 110,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 95,
+              "both_wrong": 14
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 110,
+            "corrections": 1,
+            "harms": 7,
+            "both_correct": 95,
+            "both_wrong": 7
+          }
+        },
+        "all_half": {
+          "target": {
+            "N": 8,
+            "restored_positive": 0,
+            "remains_nonpositive": 8,
+            "prediction_increased": 8,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.016851535066962242
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 8,
+              "harms": 5,
+              "both_correct": 2974,
+              "both_wrong": 647
+            },
+            "early_A_only_non_neutral": {
+              "N": 150,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 108,
+              "both_wrong": 42
+            },
+            "early_A_only_positive": {
+              "N": 110,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 95,
+              "both_wrong": 15
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 110,
+            "corrections": 1,
+            "harms": 8,
+            "both_correct": 94,
+            "both_wrong": 7
+          }
+        },
+        "Local_off": {
+          "target": {
+            "N": 8,
+            "restored_positive": 0,
+            "remains_nonpositive": 8,
+            "prediction_increased": 7,
+            "prediction_decreased": 1,
+            "mean_prediction_shift": 0.003661942668259144
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 2979,
+              "both_wrong": 654
+            },
+            "early_A_only_non_neutral": {
+              "N": 150,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 108,
+              "both_wrong": 42
+            },
+            "early_A_only_positive": {
+              "N": 110,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 95,
+              "both_wrong": 15
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 110,
+            "corrections": 1,
+            "harms": 8,
+            "both_correct": 94,
+            "both_wrong": 7
+          }
+        },
+        "Base_off": {
+          "target": {
+            "N": 8,
+            "restored_positive": 0,
+            "remains_nonpositive": 8,
+            "prediction_increased": 8,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.011239995248615742
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 7,
+              "harms": 3,
+              "both_correct": 2976,
+              "both_wrong": 648
+            },
+            "early_A_only_non_neutral": {
+              "N": 150,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 108,
+              "both_wrong": 42
+            },
+            "early_A_only_positive": {
+              "N": 110,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 95,
+              "both_wrong": 15
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 110,
+            "corrections": 1,
+            "harms": 8,
+            "both_correct": 94,
+            "both_wrong": 7
+          }
+        },
+        "Gap-A_off": {
+          "target": {
+            "N": 8,
+            "restored_positive": 0,
+            "remains_nonpositive": 8,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.0
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 2979,
+              "both_wrong": 655
+            },
+            "early_A_only_non_neutral": {
+              "N": 150,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 108,
+              "both_wrong": 42
+            },
+            "early_A_only_positive": {
+              "N": 110,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 95,
+              "both_wrong": 15
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 110,
+            "corrections": 1,
+            "harms": 8,
+            "both_correct": 94,
+            "both_wrong": 7
+          }
+        },
+        "Gap-T_off": {
+          "target": {
+            "N": 8,
+            "restored_positive": 0,
+            "remains_nonpositive": 8,
+            "prediction_increased": 8,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.012140000239014626
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 8,
+              "harms": 1,
+              "both_correct": 2978,
+              "both_wrong": 647
+            },
+            "early_A_only_non_neutral": {
+              "N": 150,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 108,
+              "both_wrong": 42
+            },
+            "early_A_only_positive": {
+              "N": 110,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 95,
+              "both_wrong": 15
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 110,
+            "corrections": 1,
+            "harms": 8,
+            "both_correct": 94,
+            "both_wrong": 7
+          }
+        },
+        "Gap-V_off": {
+          "target": {
+            "N": 8,
+            "restored_positive": 0,
+            "remains_nonpositive": 8,
+            "prediction_increased": 8,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.006286744028329849
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 2979,
+              "both_wrong": 654
+            },
+            "early_A_only_non_neutral": {
+              "N": 150,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 108,
+              "both_wrong": 42
+            },
+            "early_A_only_positive": {
+              "N": 110,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 95,
+              "both_wrong": 15
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 110,
+            "corrections": 1,
+            "harms": 8,
+            "both_correct": 94,
+            "both_wrong": 7
+          }
+        }
+      },
+      "target_restored_by_any_off_case": 1,
+      "target_all_off_restored_and_slot_restored": {
+        "Local_off": 0,
+        "Base_off": 0,
+        "Gap-A_off": 0,
+        "Gap-T_off": 0,
+        "Gap-V_off": 0
+      }
+    },
+    "0.6": {
+      "flat_epoch": 19,
+      "nested_epoch": 24,
+      "cohort": {
+        "N": 143,
+        "corrections": 1,
+        "harms": 9,
+        "both_correct": 118,
+        "both_wrong": 15
+      },
+      "target_records": 9,
+      "target_unique_utterances": 9,
+      "cases": {
+        "all_off": {
+          "target": {
+            "N": 9,
+            "restored_positive": 3,
+            "remains_nonpositive": 6,
+            "prediction_increased": 9,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.06292471289634705
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 19,
+              "harms": 17,
+              "both_correct": 2891,
+              "both_wrong": 707
+            },
+            "early_A_only_non_neutral": {
+              "N": 200,
+              "corrections": 3,
+              "harms": 2,
+              "both_correct": 142,
+              "both_wrong": 53
+            },
+            "early_A_only_positive": {
+              "N": 143,
+              "corrections": 3,
+              "harms": 0,
+              "both_correct": 119,
+              "both_wrong": 21
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 143,
+            "corrections": 1,
+            "harms": 6,
+            "both_correct": 121,
+            "both_wrong": 15
+          }
+        },
+        "all_half": {
+          "target": {
+            "N": 9,
+            "restored_positive": 1,
+            "remains_nonpositive": 8,
+            "prediction_increased": 9,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.0308917798101902
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 9,
+              "harms": 9,
+              "both_correct": 2899,
+              "both_wrong": 717
+            },
+            "early_A_only_non_neutral": {
+              "N": 200,
+              "corrections": 1,
+              "harms": 1,
+              "both_correct": 143,
+              "both_wrong": 55
+            },
+            "early_A_only_positive": {
+              "N": 143,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 119,
+              "both_wrong": 23
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 143,
+            "corrections": 1,
+            "harms": 8,
+            "both_correct": 119,
+            "both_wrong": 15
+          }
+        },
+        "Local_off": {
+          "target": {
+            "N": 9,
+            "restored_positive": 0,
+            "remains_nonpositive": 9,
+            "prediction_increased": 4,
+            "prediction_decreased": 5,
+            "mean_prediction_shift": 0.00039493912481702864
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 3,
+              "harms": 2,
+              "both_correct": 2906,
+              "both_wrong": 723
+            },
+            "early_A_only_non_neutral": {
+              "N": 200,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 144,
+              "both_wrong": 56
+            },
+            "early_A_only_positive": {
+              "N": 143,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 119,
+              "both_wrong": 24
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 143,
+            "corrections": 1,
+            "harms": 9,
+            "both_correct": 118,
+            "both_wrong": 15
+          }
+        },
+        "Base_off": {
+          "target": {
+            "N": 9,
+            "restored_positive": 0,
+            "remains_nonpositive": 9,
+            "prediction_increased": 9,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.01639625057578087
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 7,
+              "harms": 7,
+              "both_correct": 2901,
+              "both_wrong": 719
+            },
+            "early_A_only_non_neutral": {
+              "N": 200,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 144,
+              "both_wrong": 56
+            },
+            "early_A_only_positive": {
+              "N": 143,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 119,
+              "both_wrong": 24
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 143,
+            "corrections": 1,
+            "harms": 9,
+            "both_correct": 118,
+            "both_wrong": 15
+          }
+        },
+        "Gap-A_off": {
+          "target": {
+            "N": 9,
+            "restored_positive": 0,
+            "remains_nonpositive": 9,
+            "prediction_increased": 0,
+            "prediction_decreased": 1,
+            "mean_prediction_shift": -7.0366592552773e-09
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 1,
+              "harms": 2,
+              "both_correct": 2906,
+              "both_wrong": 725
+            },
+            "early_A_only_non_neutral": {
+              "N": 200,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 144,
+              "both_wrong": 56
+            },
+            "early_A_only_positive": {
+              "N": 143,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 119,
+              "both_wrong": 24
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 143,
+            "corrections": 1,
+            "harms": 9,
+            "both_correct": 118,
+            "both_wrong": 15
+          }
+        },
+        "Gap-T_off": {
+          "target": {
+            "N": 9,
+            "restored_positive": 1,
+            "remains_nonpositive": 8,
+            "prediction_increased": 9,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.029610775411128998
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 8,
+              "harms": 4,
+              "both_correct": 2904,
+              "both_wrong": 718
+            },
+            "early_A_only_non_neutral": {
+              "N": 200,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 144,
+              "both_wrong": 55
+            },
+            "early_A_only_positive": {
+              "N": 143,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 119,
+              "both_wrong": 23
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 143,
+            "corrections": 1,
+            "harms": 8,
+            "both_correct": 119,
+            "both_wrong": 15
+          }
+        },
+        "Gap-V_off": {
+          "target": {
+            "N": 9,
+            "restored_positive": 0,
+            "remains_nonpositive": 9,
+            "prediction_increased": 9,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.01487499289214611
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 2,
+              "harms": 2,
+              "both_correct": 2906,
+              "both_wrong": 724
+            },
+            "early_A_only_non_neutral": {
+              "N": 200,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 144,
+              "both_wrong": 56
+            },
+            "early_A_only_positive": {
+              "N": 143,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 119,
+              "both_wrong": 24
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 143,
+            "corrections": 1,
+            "harms": 9,
+            "both_correct": 118,
+            "both_wrong": 15
+          }
+        }
+      },
+      "target_restored_by_any_off_case": 3,
+      "target_all_off_restored_and_slot_restored": {
+        "Local_off": 0,
+        "Base_off": 0,
+        "Gap-A_off": 0,
+        "Gap-T_off": 1,
+        "Gap-V_off": 0
+      }
+    },
+    "0.7": {
+      "flat_epoch": 16,
+      "nested_epoch": 24,
+      "cohort": {
+        "N": 190,
+        "corrections": 2,
+        "harms": 22,
+        "both_correct": 158,
+        "both_wrong": 8
+      },
+      "target_records": 22,
+      "target_unique_utterances": 22,
+      "cases": {
+        "all_off": {
+          "target": {
+            "N": 22,
+            "restored_positive": 5,
+            "remains_nonpositive": 17,
+            "prediction_increased": 22,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.06979399919509888
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 28,
+              "harms": 20,
+              "both_correct": 2842,
+              "both_wrong": 744
+            },
+            "early_A_only_non_neutral": {
+              "N": 263,
+              "corrections": 5,
+              "harms": 3,
+              "both_correct": 189,
+              "both_wrong": 66
+            },
+            "early_A_only_positive": {
+              "N": 190,
+              "corrections": 5,
+              "harms": 0,
+              "both_correct": 160,
+              "both_wrong": 25
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 190,
+            "corrections": 2,
+            "harms": 17,
+            "both_correct": 163,
+            "both_wrong": 8
+          }
+        },
+        "all_half": {
+          "target": {
+            "N": 22,
+            "restored_positive": 3,
+            "remains_nonpositive": 19,
+            "prediction_increased": 22,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.034362293779850006
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 19,
+              "harms": 11,
+              "both_correct": 2851,
+              "both_wrong": 753
+            },
+            "early_A_only_non_neutral": {
+              "N": 263,
+              "corrections": 3,
+              "harms": 1,
+              "both_correct": 191,
+              "both_wrong": 68
+            },
+            "early_A_only_positive": {
+              "N": 190,
+              "corrections": 3,
+              "harms": 0,
+              "both_correct": 160,
+              "both_wrong": 27
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 190,
+            "corrections": 2,
+            "harms": 19,
+            "both_correct": 161,
+            "both_wrong": 8
+          }
+        },
+        "Local_off": {
+          "target": {
+            "N": 22,
+            "restored_positive": 1,
+            "remains_nonpositive": 21,
+            "prediction_increased": 13,
+            "prediction_decreased": 9,
+            "mean_prediction_shift": 0.0029410815332084894
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 5,
+              "harms": 1,
+              "both_correct": 2861,
+              "both_wrong": 767
+            },
+            "early_A_only_non_neutral": {
+              "N": 263,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 192,
+              "both_wrong": 70
+            },
+            "early_A_only_positive": {
+              "N": 190,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 160,
+              "both_wrong": 29
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 190,
+            "corrections": 2,
+            "harms": 21,
+            "both_correct": 159,
+            "both_wrong": 8
+          }
+        },
+        "Base_off": {
+          "target": {
+            "N": 22,
+            "restored_positive": 2,
+            "remains_nonpositive": 20,
+            "prediction_increased": 22,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.01974964328110218
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 15,
+              "harms": 6,
+              "both_correct": 2856,
+              "both_wrong": 757
+            },
+            "early_A_only_non_neutral": {
+              "N": 263,
+              "corrections": 2,
+              "harms": 1,
+              "both_correct": 191,
+              "both_wrong": 69
+            },
+            "early_A_only_positive": {
+              "N": 190,
+              "corrections": 2,
+              "harms": 0,
+              "both_correct": 160,
+              "both_wrong": 28
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 190,
+            "corrections": 2,
+            "harms": 20,
+            "both_correct": 160,
+            "both_wrong": 8
+          }
+        },
+        "Gap-A_off": {
+          "target": {
+            "N": 22,
+            "restored_positive": 0,
+            "remains_nonpositive": 22,
+            "prediction_increased": 0,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.0
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 4,
+              "harms": 1,
+              "both_correct": 2861,
+              "both_wrong": 768
+            },
+            "early_A_only_non_neutral": {
+              "N": 263,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 192,
+              "both_wrong": 71
+            },
+            "early_A_only_positive": {
+              "N": 190,
+              "corrections": 0,
+              "harms": 0,
+              "both_correct": 160,
+              "both_wrong": 30
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 190,
+            "corrections": 2,
+            "harms": 22,
+            "both_correct": 158,
+            "both_wrong": 8
+          }
+        },
+        "Gap-T_off": {
+          "target": {
+            "N": 22,
+            "restored_positive": 2,
+            "remains_nonpositive": 20,
+            "prediction_increased": 22,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.029305052012205124
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 13,
+              "harms": 6,
+              "both_correct": 2856,
+              "both_wrong": 759
+            },
+            "early_A_only_non_neutral": {
+              "N": 263,
+              "corrections": 2,
+              "harms": 1,
+              "both_correct": 191,
+              "both_wrong": 69
+            },
+            "early_A_only_positive": {
+              "N": 190,
+              "corrections": 2,
+              "harms": 0,
+              "both_correct": 160,
+              "both_wrong": 28
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 190,
+            "corrections": 2,
+            "harms": 20,
+            "both_correct": 160,
+            "both_wrong": 8
+          }
+        },
+        "Gap-V_off": {
+          "target": {
+            "N": 22,
+            "restored_positive": 1,
+            "remains_nonpositive": 21,
+            "prediction_increased": 22,
+            "prediction_decreased": 0,
+            "mean_prediction_shift": 0.01612367294728756
+          },
+          "versus_full": {
+            "all_non_neutral": {
+              "N": 3634,
+              "corrections": 5,
+              "harms": 1,
+              "both_correct": 2861,
+              "both_wrong": 767
+            },
+            "early_A_only_non_neutral": {
+              "N": 263,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 192,
+              "both_wrong": 70
+            },
+            "early_A_only_positive": {
+              "N": 190,
+              "corrections": 1,
+              "harms": 0,
+              "both_correct": 160,
+              "both_wrong": 29
+            }
+          },
+          "versus_flat_early_positive": {
+            "N": 190,
+            "corrections": 2,
+            "harms": 21,
+            "both_correct": 159,
+            "both_wrong": 8
+          }
+        }
+      },
+      "target_restored_by_any_off_case": 5,
+      "target_all_off_restored_and_slot_restored": {
+        "Local_off": 1,
+        "Base_off": 2,
+        "Gap-A_off": 0,
+        "Gap-T_off": 2,
+        "Gap-V_off": 1
+      }
+    }
+  },
+  "manifests": {
+    "nested": {
+      "path": "/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/execution_v1/runs/n10/SUMMARY.json",
+      "sha256": "9822118c4ed7fe7b744f3e7d72eb173cd94a0bd7c9e56321db33ea9b1dcdd50a"
+    },
+    "flat": {
+      "path": "/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128/SUMMARY.json",
+      "sha256": "f18cef416e62824c449d8085da544bcaf2391d54f2337039bebd172e3e50640f"
+    },
+    "global": {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/SUMMARY.json",
+      "sha256": "ce2a5a1a810019b9fdf0e6910b6951223c49ccd31a5fe2990bfa9f2f025787ec"
+    },
+    "slots": {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/SUMMARY.json",
+      "sha256": "4f1ec7dad5fd2b50eef33f0cd111197d3b7b49a7bfcf4b5f570e2e5a6fe5ed7f"
+    }
+  },
+  "prediction_files": [
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/execution_v1/runs/n10/predictions_miss_0p0.npz",
+      "sha256": "9e08d038fccfa092b9dc524f3a9864272136dbd1d02fd564db244623ff5fb8f4"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128/predictions_miss_0p0.npz",
+      "sha256": "a1d484c47efc33ee0c861b15cb1f167198321205adef758e3714f4e839212d4e"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p0_miss_0p0.npz",
+      "sha256": "c1c3cda2e8c650a551651bf6bf6bb64cc59af45d6956922827905c40bce78301"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p5_miss_0p0.npz",
+      "sha256": "bad810fd3dbb3ad7a16079bc548207e4cff4d389e8d5d42a1d4b941fd5bd9764"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_1p0_miss_0p0.npz",
+      "sha256": "1b2a51e60c5b3eef8b64525c58a1df62369bd844f9f619770cacafa7db03e56e"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_1p0_miss_0p0.npz",
+      "sha256": "1b2a51e60c5b3eef8b64525c58a1df62369bd844f9f619770cacafa7db03e56e"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Base_0p0_miss_0p0.npz",
+      "sha256": "8293a60a6b7e7efcb68e63741e858b67dd7d49f1c20b317941ed00fa315cd587"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-A_0p0_miss_0p0.npz",
+      "sha256": "1b2a51e60c5b3eef8b64525c58a1df62369bd844f9f619770cacafa7db03e56e"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-T_0p0_miss_0p0.npz",
+      "sha256": "1b2a51e60c5b3eef8b64525c58a1df62369bd844f9f619770cacafa7db03e56e"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-V_0p0_miss_0p0.npz",
+      "sha256": "1b2a51e60c5b3eef8b64525c58a1df62369bd844f9f619770cacafa7db03e56e"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Local_0p0_miss_0p0.npz",
+      "sha256": "08b1a83ea9c8f410c2b565dc874e9ae8a518a8c0509acc5064c862d2dc6ba588"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/execution_v1/runs/n10/predictions_miss_0p1.npz",
+      "sha256": "2190df66d09798a6d7b690588fba57ee2d9d389602d555a5496d21ff855ea28d"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128/predictions_miss_0p1.npz",
+      "sha256": "5b18744d21fbf7f10b2fb463ff64e1ba5dabd40c62b1a4084f3f4ef3fc431b81"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p0_miss_0p1.npz",
+      "sha256": "76459b8b4553e53b5a743cd4ae632bc34689789991cf6ebddeb1d76000b9f336"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p5_miss_0p1.npz",
+      "sha256": "3a72f275514e1a8db933b3e01b087af2de347d1dad10077db245dbfa54b10d84"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_1p0_miss_0p1.npz",
+      "sha256": "a6883ba4c1617b8b5906ded9962850861a038114a80477939dbee4f9602b6ea8"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_1p0_miss_0p1.npz",
+      "sha256": "a6883ba4c1617b8b5906ded9962850861a038114a80477939dbee4f9602b6ea8"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Base_0p0_miss_0p1.npz",
+      "sha256": "0a27eee258c031242d794828dcd21dbe66b1065871b433d2c64dd38797f94a7f"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-A_0p0_miss_0p1.npz",
+      "sha256": "d43a612378b3b6024787cb9086f97328fec4f61382bc5ccc87becb508860df4a"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-T_0p0_miss_0p1.npz",
+      "sha256": "290816618cb75e1e12583ebfcff37b7808dd87c512d85e838ecf6fde80f04d66"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-V_0p0_miss_0p1.npz",
+      "sha256": "c573646d3a7e80b3b4714c0eda436f3e6195de2170bb2363cfa64dc2751071a5"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Local_0p0_miss_0p1.npz",
+      "sha256": "6c16fe29bf4041876ad0dd12f6dac63c1b547b7b32aa830a3d3b7c564d35c573"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/execution_v1/runs/n10/predictions_miss_0p2.npz",
+      "sha256": "c033cb9cf61fcc87f0f3e3a6fd9d86e77ec87af71f070c6c1896d1cede63a915"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128/predictions_miss_0p2.npz",
+      "sha256": "9d21260d9db641556b51740db8c1125e82164e0c5aaafe93affcbbfd35561602"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p0_miss_0p2.npz",
+      "sha256": "486c673fff93f49ba64821d87a2cb043fdd8828bc6badf0900e438417f829e09"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p5_miss_0p2.npz",
+      "sha256": "114cf9d59138200b1a70946fd8836092de868fa71e3724048f5eea55edaf27d6"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_1p0_miss_0p2.npz",
+      "sha256": "371c4db0f3e1bda0b8f9a2c854950b8b8456f32a9ebc674a55ef178025f95f73"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_1p0_miss_0p2.npz",
+      "sha256": "371c4db0f3e1bda0b8f9a2c854950b8b8456f32a9ebc674a55ef178025f95f73"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Base_0p0_miss_0p2.npz",
+      "sha256": "fa9a225fd39ed96f9c0675f3d7758d3f8df74fd7fe35ccd490fce989065394be"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-A_0p0_miss_0p2.npz",
+      "sha256": "982ea9dfd518efc3f55dd8e0354df5466da16693f3b861e4437f60712c620c47"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-T_0p0_miss_0p2.npz",
+      "sha256": "d729b9b4ba895beba6ef4fcaa991d68fc5735847726d919c0fa93f61ac4b4c9c"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-V_0p0_miss_0p2.npz",
+      "sha256": "7517c2065ea23af763dd49fa77593a5de74283075f5eeb6bcd443b3ca98d63ea"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Local_0p0_miss_0p2.npz",
+      "sha256": "0b79dce405e87c4c8506d66b909bdab3f30e231419a4649cab71b3542af36823"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/execution_v1/runs/n10/predictions_miss_0p3.npz",
+      "sha256": "c9d158216ea6f76da143041502188568f6f7b9b3e38f63732f4a139963aeb713"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128/predictions_miss_0p3.npz",
+      "sha256": "551b41b2d9e6db9df6c73a9f88473e932b4ebb2b4eb79a8dfe171077bf9a8152"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p0_miss_0p3.npz",
+      "sha256": "46de01ca2d30b089d3eaa796c430b7589ebbfa6509ef1922ae614f578b59f043"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p5_miss_0p3.npz",
+      "sha256": "1d9b0f5ab42446dd690774cc261c536a08138302e9041a1e00b4128141f74c4f"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_1p0_miss_0p3.npz",
+      "sha256": "a42dc28c6fafa851d736b2cddd9cb2ef0037d25cd170b2d248d22fe58278a8d3"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_1p0_miss_0p3.npz",
+      "sha256": "a42dc28c6fafa851d736b2cddd9cb2ef0037d25cd170b2d248d22fe58278a8d3"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Base_0p0_miss_0p3.npz",
+      "sha256": "0274e3765472f966f3160e9fc76e2b742d29339ab768745d74df59e7abc454a2"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-A_0p0_miss_0p3.npz",
+      "sha256": "29cc3ad0f76248e2a226720aa87b54113561fe24701b94a08d7096ab5d032358"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-T_0p0_miss_0p3.npz",
+      "sha256": "f3961371301cbc94eefee23d1057f42fa75899923a2d3135b849aa8bb2a45aca"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-V_0p0_miss_0p3.npz",
+      "sha256": "35f6acf5b6483dd16b806924a688f8bee51932b430046ea39ca2e9fa86851b78"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Local_0p0_miss_0p3.npz",
+      "sha256": "56a9a482b43fae5bd49eeee6899b7451787084120e2de4afce289105ffbec515"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/execution_v1/runs/n10/predictions_miss_0p4.npz",
+      "sha256": "f5862e653227e2f6f9628fd380687288bd44b3b0cb84baba42c3eb65f7b8fdab"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128/predictions_miss_0p4.npz",
+      "sha256": "13cf57fb8517eb003a9725535b4c0adf62e9d84d305e618460e8c26d7461a62f"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p0_miss_0p4.npz",
+      "sha256": "737344d17bd3e3bb3fe9271ad273be093f63717470a84e010bfa0b3d8c8e16f9"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p5_miss_0p4.npz",
+      "sha256": "c56899ed1c660f873cf573f212404d303f947958c453ef722785ee2f410fe415"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_1p0_miss_0p4.npz",
+      "sha256": "3ff59a44af1a8459a1bcaf017fb8f2bc0928342e19f23afe02ef1f27ceb4c177"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_1p0_miss_0p4.npz",
+      "sha256": "3ff59a44af1a8459a1bcaf017fb8f2bc0928342e19f23afe02ef1f27ceb4c177"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Base_0p0_miss_0p4.npz",
+      "sha256": "e4f35698b28ebc937d95a3bb89b4920a8c8917c8a49c0dafb6c7ba5d70f32d0f"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-A_0p0_miss_0p4.npz",
+      "sha256": "51a926f5e8f6d42a4a45fe82d48178df74666f816ac62bf78f546c7617652c8e"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-T_0p0_miss_0p4.npz",
+      "sha256": "f4d8b52ee74025ec91fce5fa5947e9bfbb3b73abe167dd55aaed2f35f237d378"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-V_0p0_miss_0p4.npz",
+      "sha256": "3d363d17fa8892b7f05d9393679707fc73e68276c6acb2ed4963da6834967cff"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Local_0p0_miss_0p4.npz",
+      "sha256": "a96a36df9675a78554cbbbf30c490e29fbdd7e5959f680a09db8ef525438bc91"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/execution_v1/runs/n10/predictions_miss_0p5.npz",
+      "sha256": "17fb5bfce5ce970953c8bbf7d975a8d59516b1195000881a14355152816480c5"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128/predictions_miss_0p5.npz",
+      "sha256": "48daf8864ac57abb13e2e73f3f776db220a4828643659ebf8d5a06f0a4e24f61"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p0_miss_0p5.npz",
+      "sha256": "804a5002902e626ec1c7b481982c2835aed24087621decbebe5e1df478f0ac72"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p5_miss_0p5.npz",
+      "sha256": "66894f266a33bb0398fd4a5c5ee54134c4adfc934d304530556573c15eb1e5a2"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_1p0_miss_0p5.npz",
+      "sha256": "92e8d547ab3383c58e511a54925fd7ab21a43c2ed7b0853fe56c38f5d6d0fc84"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_1p0_miss_0p5.npz",
+      "sha256": "92e8d547ab3383c58e511a54925fd7ab21a43c2ed7b0853fe56c38f5d6d0fc84"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Base_0p0_miss_0p5.npz",
+      "sha256": "aa55c74c17693609b7b1e5684050793d589cbdf2a70fb6ae04269f3ad6a397a2"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-A_0p0_miss_0p5.npz",
+      "sha256": "3af8a1abeb23c47fa49d454821f961f03c91ed2d9f80ab8c5f5dba9405ed6eb8"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-T_0p0_miss_0p5.npz",
+      "sha256": "395a53d9a38d02e3fd404aceb9dfac5ad42563c64f10a2b79e5925eea25843ab"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-V_0p0_miss_0p5.npz",
+      "sha256": "4b00ff535406b0a038566f012027eed7be02f2321f39223e9bc7bb18819d0a22"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Local_0p0_miss_0p5.npz",
+      "sha256": "ee21c501eec96b3e92f6dcf0520581c1e85658795af08fef02b4566c286c39c7"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/execution_v1/runs/n10/predictions_miss_0p6.npz",
+      "sha256": "dc19a7ff256ee268f4dfebcb9137a60c387d33935a1fd410d52e12d2919b3712"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128/predictions_miss_0p6.npz",
+      "sha256": "84ef81ed193f654787abce33cdb75fcc32095bf557e77394c4c568f6676703ed"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p0_miss_0p6.npz",
+      "sha256": "4e8575bc4ba47bbdf9555970d86c754aa2610ce28ab10551793366be01c39a18"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p5_miss_0p6.npz",
+      "sha256": "3cab07d9446de5516ddb36e5b37300233d23823708ff9b5ec378b06dc24f4447"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_1p0_miss_0p6.npz",
+      "sha256": "d75abf0f0408c672dea850364ce18b0567711d39116a7c4065cd936b6153ccce"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_1p0_miss_0p6.npz",
+      "sha256": "d75abf0f0408c672dea850364ce18b0567711d39116a7c4065cd936b6153ccce"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Base_0p0_miss_0p6.npz",
+      "sha256": "c36ee225f5ed6335f5bc6f2288e45d2afe1f1c675baa1216c850fb4fc2db097a"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-A_0p0_miss_0p6.npz",
+      "sha256": "c96b8e13747c832f7c6deb565fec6f81fd39f8d8739803ba0a642d57ef8cdd90"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-T_0p0_miss_0p6.npz",
+      "sha256": "f0877b4cc376962c5081f541ca34d6f411cdb5f626da42d0a26f15515bd4982b"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-V_0p0_miss_0p6.npz",
+      "sha256": "7448158c87dec92a917a1a3cfe910d0ed4523c6a398f4fd6a02cdd8be229666b"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Local_0p0_miss_0p6.npz",
+      "sha256": "96d74d051b320124de612cca9bc55c3a90cfef42bd3ac3362e707c40ab7fa88b"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/execution_v1/runs/n10/predictions_miss_0p7.npz",
+      "sha256": "52fe627bc6c85edc07dfb287135b6d586eea398d86615bcf1d52f79b58133e65"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128/predictions_miss_0p7.npz",
+      "sha256": "a0c917790029687104621f71ab4ba5c1355671abcb14d7a568170354093c06d2"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p0_miss_0p7.npz",
+      "sha256": "b0f9c67f9d6fc4ec58d0dd76ed9060c5974d393f27810a29849e7fafaa50a0d2"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_0p5_miss_0p7.npz",
+      "sha256": "d0a3976fe5de74597758d0a8e6b956cb9b2d52b6e43f180ba2714089b223985e"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/replay_v2/gamma_1p0_miss_0p7.npz",
+      "sha256": "5118886e23721157d31173636b417189b6c1c13cf96360a8b9c7c36d289dbe04"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_1p0_miss_0p7.npz",
+      "sha256": "5118886e23721157d31173636b417189b6c1c13cf96360a8b9c7c36d289dbe04"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Base_0p0_miss_0p7.npz",
+      "sha256": "6dcc6f84e67f44688b522d43b1e55d8a3e8edca3132aeaa241474378a9331330"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-A_0p0_miss_0p7.npz",
+      "sha256": "5b66015d908da479bf0b2827807d6f1f0b234a6b6cca9027706b2db7a4c749ac"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-T_0p0_miss_0p7.npz",
+      "sha256": "b2903602870e177d36ec9a136fcce7c50719d9c370bca7e480a0b555562a3705"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Gap-V_0p0_miss_0p7.npz",
+      "sha256": "08f3266f488393d2cc39d528364055630b28d84471f6057ce3c66f7e1c494789"
+    },
+    {
+      "path": "/data2/yb/remote_experiments/osram_mosei_n10_scale_20261024/slot_replay_v1/gamma_Local_0p0_miss_0p7.npz",
+      "sha256": "6b26919ae2229731307ed7dcc443fc1a7ba70bc1af08b9f3493a4c726569dd0c"
+    }
+  ]
+}
