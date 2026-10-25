@@ -2,7 +2,16 @@
 
 INTERNAL TEST-ORACLE SCREEN
 
-Status: implementation verified; two formal 150-epoch runs authorized, launch pending.
+Status: both formal 150-epoch runs started and verified running on biggpu GPU0.
+Last launch check: residual epoch4, replace epoch3; eight selected-rate artifacts
+exist for each run, training mask/update/LR parity passes and no error is recorded.
+These are early progress observations, not final performance results.
+
+Source commit: `b92490d` (uploaded to `github/feature/ecerc-features`).
+Immutable source: `/data2/yb/remote_experiments/osram_source_moe_mosi_20261025/source_b92490d`.
+Runs: `execution_v1/residual` and `execution_v1/replace` below the same parent.
+Persistent tmux sessions: `source_moe_residual_20261025` (PID3505754),
+`source_moe_replace_20261025` (PID3505822). No other task was modified or stopped.
 
 | Arm | Allocated parameters | Trainable parameters | MoE parameters | GPU smoke peak MiB | Smoke seconds |
 |---|---:|---:|---:|---:|---:|
@@ -52,4 +61,4 @@ Extra source decomposition tracks joint-write Value contributions, not pure moda
 Runtime outputs: `/data2/yb/remote_experiments/osram_source_moe_mosi_20261025/`.
 Each completed run publishes per-rate ACC/W-F1/MSE and selected epochs in its
 `RESULT.md`, `SUMMARY.json`, `best_by_rate.json`, with protected BEST/last weights
-and same-call predictions. No formal training scores available at this verification point.
+and same-call predictions. Final scores are pending completion.

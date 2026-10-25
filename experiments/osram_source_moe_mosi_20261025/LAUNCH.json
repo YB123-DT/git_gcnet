@@ -1,0 +1,24 @@
+{
+  "status": "running",
+  "server": "biggpu",
+  "physical_gpu": 0,
+  "gpu_uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+  "python": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+  "source_commit": "b92490d",
+  "source_snapshot": "/data2/yb/remote_experiments/osram_source_moe_mosi_20261025/source_b92490d",
+  "output_root": "/data2/yb/remote_experiments/osram_source_moe_mosi_20261025/execution_v1",
+  "dataset": "CMUMOSI",
+  "seed": 66,
+  "epochs": 150,
+  "missing_protocol": "gcnet-random-mask-v1",
+  "selection": "INTERNAL TEST-ORACLE SCREEN; per-rate W-F1",
+  "scope": "Only these two independently trained variants; no additional seeds or HPO",
+  "runs": [
+    {"mode": "residual", "pid": 3505754, "tmux": "source_moe_residual_20261025", "observed_epoch": 4, "training_inputs_exact": true, "selected_rate_count": 8},
+    {"mode": "replace", "pid": 3505822, "tmux": "source_moe_replace_20261025", "observed_epoch": 3, "training_inputs_exact": true, "selected_rate_count": 8}
+  ],
+  "smoke": {
+    "residual": {"status": "smoke_passed", "epochs": 3, "seconds": 18.405, "peak_memory_mib": 3112.786, "finite_nonzero_added_parameter_tensors": 38, "strict_reload_exact": true},
+    "replace": {"status": "smoke_passed", "epochs": 3, "seconds": 15.148, "peak_memory_mib": 3290.440, "finite_nonzero_added_parameter_tensors": 38, "strict_reload_exact": true}
+  }
+}
