@@ -18,13 +18,13 @@ def parent_model():
     return MissingM3GraphModel(**kw)
 
 
-def view():
-    a = torch.tensor([[[1, 0, 1]], [[0, 1, 0]], [[1, 1, 1]]]).float()
-    complete = torch.randn(3, 1, 12)
+def view(batch_size=1):
+    a = torch.tensor([[[1, 0, 1]], [[0, 1, 0]], [[1, 1, 1]]]).float().repeat(1, batch_size, 1)
+    complete = torch.randn(3, batch_size, 12)
     mask = torch.cat([a[..., i:i+1].expand(-1, -1, width)
                       for i, width in enumerate((3, 4, 5))], -1)
     return dict(incomplete=complete * mask, complete=complete, availability=a,
-                qmask=torch.zeros(1, 3).long(), umask=torch.ones(1, 3), lengths=[3])
+                qmask=torch.zeros(batch_size, 3).long(), umask=torch.ones(batch_size, 3), lengths=[3]*batch_size)
 
 
 def projection():
@@ -33,12 +33,13 @@ def projection():
 
 @pytest.mark.parametrize('mode', ['neumiss', 'signature', 'csdi'])
 @pytest.mark.parametrize('training', [False, True])
-def test_zero_exit_exact_original_rng_one_scan(mode, training):
+@pytest.mark.parametrize('batch_size', [1, 2, 32])
+def test_zero_exit_exact_original_rng_one_scan(mode, training, batch_size):
     torch.set_num_threads(1)
     torch.manual_seed(4)
     original = parent_model().train(training)
     joint = JointBlockModel(copy.deepcopy(original), mode, projection() if mode == 'csdi' else None).train(training)
-    data = view()
+    data = view(batch_size)
     scans = []
     handle = joint.parent.osram.register_forward_hook(lambda *args: scans.append(1))
     torch.manual_seed(91)

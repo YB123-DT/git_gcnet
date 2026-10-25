@@ -106,8 +106,13 @@ class JointBlockModel(nn.Module):
                 samples = self.denoiser.rsample(observed, availability, frame.context, valid,
                     n_samples=4, generator=generator, query_keys=query_keys)
             delta = self.bridge(frame.local, samples, availability, valid)
-            hypothesis_hidden = self.parent.osram.emotion_norm(frame.anchor.unsqueeze(2) + delta)
-            hypothesis_predictions = self.parent.smax_fc(hypothesis_hidden * valid[..., None, None])
+            # Preserve the original T,B GEMM shape for each task prediction.
+            # Folding K into the linear batch can select a different GEMM
+            # kernel and perturb even an exactly zero correction.
+            hypothesis_predictions = torch.stack([
+                self.parent.smax_fc(self.parent.osram.emotion_norm(
+                    frame.anchor + delta[:, :, k]) * valid[..., None])
+                for k in range(delta.shape[2])], dim=2)
             prediction = hypothesis_predictions.mean(2)
             if self.training:
                 if 'complete' not in view:

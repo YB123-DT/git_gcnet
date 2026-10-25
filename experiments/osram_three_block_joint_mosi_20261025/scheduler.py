@@ -135,22 +135,77 @@ def run_phase(args, state, phase):
 
 
 def collect(args, state):
+    import csv
+
     summaries = {job['mode']: json.loads(Path(job['summary']).read_text())
                  for job in state['train']}
+    if set(summaries) != set(MODES):
+        raise ValueError('All four formal summaries are required')
+    reference_trace = reference_masks = None
+    compact = {}
+    rates = tuple(f'{i / 10:.1f}' for i in range(8))
+    for mode in MODES:
+        summary = summaries[mode]
+        output = Path(next(job['output'] for job in state['train'] if job['mode'] == mode))
+        history = json.loads((output / 'history.json').read_text())
+        if (summary.get('status') != 'complete' or summary.get('epoch') != 150
+                or len(history) != 150):
+            raise ValueError(f'{mode}: expected 150 completed epochs and history rows')
+        trace = [(row['epoch'], row['optimizer_steps'], row['mask_trace_sha256'])
+                 for row in history]
+        if ([row[0] for row in trace] != list(range(1, 151))
+                or any(row[1] <= 0 or not row[2] for row in trace)):
+            raise ValueError(f'{mode}: invalid epoch/optimizer/mask trace')
+        masks = summary['identity']['mask_hashes']
+        if set(masks) != set(rates) or any(not value for value in masks.values()):
+            raise ValueError(f'{mode}: eight exact test mask hashes required')
+        if reference_trace is None:
+            reference_trace, reference_masks = trace, masks
+        elif trace != reference_trace or masks != reference_masks:
+            raise ValueError(f'{mode}: optimizer steps or training/test masks differ across arms')
+        if set(summary['best_by_rate']) != set(rates):
+            raise ValueError(f'{mode}: eight selected rate results required')
+        compact[mode] = dict(summary=str(output / 'SUMMARY.json'),
+                             aggregate=summary['aggregate'],
+                             per_rate={r: summary['best_by_rate'][r]['metrics']['router']
+                                       for r in rates})
     result = dict(status='complete', source_commit=args.source_commit,
                   completed_at=now(), protocol='internal per-rate Test-oracle exploration',
-                  methods=summaries)
+                  verification=dict(epochs=150, matched_optimizer_steps=True,
+                                    matched_training_mask_traces=True,
+                                    matched_test_mask_hashes=reference_masks), methods=compact)
     save(args.root / 'RESULT.json', result)
     lines = ['# Four-arm MOSI joint-block result', '',
              f'Source commit: `{args.source_commit}`', '',
-             'Internal per-rate Test-oracle exploration; four matched seed66 arms.', '']
-    for mode, summary in summaries.items():
-        metrics = {key: value for key, value in summary.items()
-                   if key in ('metrics', 'aggregate', 'mean_wf1', 'high_missing_wf1',
-                              'mean_f1', 'best_by_rate', 'evaluation')}
-        lines.extend([f'## {mode}', '', f'Summary: `{args.root / "train" / mode / "SUMMARY.json"}`',
-                      '', '```json', json.dumps(metrics, indent=2), '```', ''])
+             'Internal per-rate Test-oracle exploration; four matched seed66 arms.', '',
+             'Verified 150 epochs per arm, identical epoch optimizer counts and training mask traces, '
+             'and identical eight-rate test mask hashes.', '',
+             '| Method | Mean ACC | Mean WF1 | High WF1 | Mean MSE | Δ WF1 vs Flat |',
+             '| --- | ---: | ---: | ---: | ---: | ---: |']
+    baseline = compact['flat']['aggregate']['router']['mean']['WF1']
+    rows = []
+    for mode in MODES:
+        aggregate = compact[mode]['aggregate']['router']
+        mean, high = aggregate['mean'], aggregate['high']
+        values = [mean['ACC'], mean['WF1'], high['WF1'], mean['MSE'], mean['WF1'] - baseline]
+        lines.append('| ' + mode + ' | ' + ' | '.join(f'{v:.4f}' for v in values) + ' |')
+        rows.append(dict(method=mode, rate='mean', ACC=mean['ACC'], WF1=mean['WF1'],
+                         high_WF1=high['WF1'], MSE=mean['MSE'], delta_WF1=mean['WF1']-baseline))
+    lines.extend(['', '| Method | Missing rate | ACC | WF1 | MSE | Δ WF1 vs Flat |',
+                  '| --- | ---: | ---: | ---: | ---: | ---: |'])
+    for mode in MODES:
+        for rate in rates:
+            metrics = compact[mode]['per_rate'][rate]
+            delta = metrics['WF1'] - compact['flat']['per_rate'][rate]['WF1']
+            lines.append(f'| {mode} | {rate} | {metrics["ACC"]:.4f} | '
+                         f'{metrics["WF1"]:.4f} | {metrics["MSE"]:.4f} | {delta:.4f} |')
+            rows.append(dict(method=mode, rate=rate, ACC=metrics['ACC'], WF1=metrics['WF1'],
+                             high_WF1='', MSE=metrics['MSE'], delta_WF1=delta))
     (args.root / 'RESULT.md').write_text('\n'.join(lines))
+    with (args.root / 'RESULT.csv').open('w', newline='') as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def main(argv=None):

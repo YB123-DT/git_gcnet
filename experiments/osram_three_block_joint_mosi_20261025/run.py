@@ -212,6 +212,12 @@ def main():
         if not args.resume:
             torch.save(masks, args.output/'fixed_masks.pt')
         torch.cuda.reset_peak_memory_stats()
+        if not args.resume:
+            _, initial_arrays = evaluate(bundle, model, masks['test']['0.3'], '0.3', True)
+            initial_error = float(np.max(np.abs(initial_arrays['prediction']-initial_arrays['base_prediction'])))
+            if initial_error != 0:
+                raise ValueError(f'Zero-exit initial task prediction changed: {initial_error}')
+            summary['initial_real_batch_exact'] = True
         for epoch in range(start, 3 if args.smoke else 150):
             for group in optimizer.param_groups:
                 group['lr'] = 3e-4 if epoch < 100 else 3e-4/10
@@ -244,6 +250,15 @@ def main():
                 aux_loss=row['aux_loss'], mean=summary['aggregate']['router']['mean'],
                 seconds=summary['seconds'], improved_rates=improved)), flush=True)
         selected.validate_selected(args.output, best)
+        # Check actual model-state restoration against its exact selected predictions.
+        restored = torch.load(args.output/best['0.3']['checkpoint'], map_location='cpu', weights_only=False)
+        model.load_state_dict(restored['model'], strict=True)
+        _, replay = evaluate(bundle, model, masks['test']['0.3'], '0.3', args.smoke)
+        with np.load(args.output/best['0.3']['predictions']) as saved:
+            for key in ('labels', 'availability', 'conversation_ids', 'utterance_indices'):
+                np.testing.assert_array_equal(replay[key], saved[key])
+            np.testing.assert_allclose(replay['prediction'], saved['prediction'], rtol=1e-5, atol=1e-6)
+            summary['checkpoint_replay_max_abs'] = float(np.max(np.abs(replay['prediction']-saved['prediction'])))
         if any(h.sha(ROOT/p) != digest for p, digest in identity['source_hashes'].items()):
             raise ValueError('Source snapshot changed during training')
         if hasattr(model, 'mode') and not any(r['gradients'].get('block', r['gradients'].get('bridge', {})).get('nonzero')
