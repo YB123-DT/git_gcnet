@@ -23,6 +23,7 @@ def main():
     args.root.mkdir(parents=True,exist_ok=False)
     state=dict(status='preflight',pid=os.getpid(),gpu_uuid=args.gpu_uuid,
                source_commit=args.source_commit,python=sys.executable,runs={})
+    os.environ['CUDA_VISIBLE_DEVICES']=args.gpu_uuid
     if 'cmerc-repro' not in sys.executable:
         raise RuntimeError('Use the existing cmerc-repro environment')
     import torch
