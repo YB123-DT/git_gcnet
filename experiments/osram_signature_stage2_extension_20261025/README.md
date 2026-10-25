@@ -45,7 +45,7 @@ Use immutable committed source and cmerc-repro Python on biggpu:
 
 ```bash
 /data2/yb/conda_envs/cmerc-repro/bin/python -u -m experiments.osram_signature_stage2_extension_20261025.scheduler \
- --root /data2/yb/remote_experiments/osram_signature_stage2_extension_20261025/execution_v1 \
+ --root /data2/yb/remote_experiments/osram_signature_stage2_extension_20261025/execution_v2 \
  --source-commit ACTUAL_SOURCE_SHA \
  --gpu0-uuid GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45 \
  --gpu1-uuid GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049 \
@@ -71,3 +71,14 @@ three seeds. Rates are NOT independent seed repeats. MOSEI has no seed SD.
 Selection is per-rate Test-best W-F1,earliest ties,so the mean is not one
 deployment checkpoint. Additional training budget and compounded Test-oracle
 selection must be disclosed; results cannot prove independent generalization.
+
+## Retained preflight attempt
+
+Execution_v1 (source e47c60f) stopped before formal training: MOSI67 smoke passed,
+but MOSEI's source guard detected `meaningful_new40_registry.py`. An exact review
+against immutable parent git3777ab1 showed only27 new literal Nested-sweep
+entries, with the remaining AST identical. Flat's `meaningful_block=none`
+does not instantiate this adapter. The corrected preparation accepts ONLY this
+specific old/current SHA pair when the block is none; unknown changes still
+fail, and full saved-prediction replay remains mandatory. Execution_v1 is
+retained as failed preflight evidence, never included in performance results.

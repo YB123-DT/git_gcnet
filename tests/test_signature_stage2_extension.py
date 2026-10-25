@@ -127,3 +127,37 @@ def test_repaired_mosei_cache_checks_shared_mask_but_own_prediction(monkeypatch)
     assert len(rows) == 1 and bundle['parent_identity']['saved_prediction_replay']['classes_exact']
     with pytest.raises(ValueError,match='match'):
         prepare.test_cache(bundle,reader,'0.3')
+
+
+def test_registry_exception_requires_exact_reviewed_pair_and_disabled_block(monkeypatch):
+    pair = prepare.REVIEWED_REGISTRY_PAIR
+    cfg = SimpleNamespace(osram_meaningful_block='none')
+    monkeypatch.setattr(prepare.h, 'sha', lambda path: pair['current'])
+    core = {prepare.REGISTRY_PATH: pair['parent']}
+    assert prepare._core_differences(core,cfg) == {prepare.REGISTRY_PATH:pair}
+    with pytest.raises(ValueError,match='active meaningful'):
+        prepare._core_differences(core,SimpleNamespace(osram_meaningful_block='nested_dim32'))
+    with pytest.raises(ValueError,match='registry'):
+        prepare._core_differences({prepare.REGISTRY_PATH:'unknown-parent'},cfg)
+    monkeypatch.setattr(prepare.h, 'sha', lambda path:'unreviewed-current')
+    with pytest.raises(ValueError,match='registry'):
+        prepare._core_differences(core,cfg)
+    with pytest.raises(ValueError,match='Unreviewed changed core'):
+        prepare._core_differences({'gcnet_missing_m3/meaningful_input_new40.py':'old'},cfg)
+
+
+def test_original_flat_none_never_constructs_meaningful_adapter(monkeypatch):
+    from gcnet_missing_m3.meaningful_input import MeaningfulInputAdapter
+    from gcnet_missing_m3.model import MissingM3GraphModel
+    from tests.test_completion_memory_write import model_kwargs,inputs
+    def forbidden(*args,**kwargs):
+        raise AssertionError('inactive registry adapter was constructed')
+    monkeypatch.setattr(MeaningfulInputAdapter,'__init__',forbidden)
+    cfg = model_kwargs()
+    cfg.update(completion_path='none',osram_meaningful_block='none')
+    model = MissingM3GraphModel(**cfg).eval()
+    assert not hasattr(model.osram,'meaningful_block')
+    x,a,q,u,lengths = inputs()
+    with torch.no_grad():
+        prediction = model([x],a,q,u,lengths)[0]
+    assert torch.isfinite(prediction).all()

@@ -25,6 +25,12 @@ NEW_DEFAULTS = dict(osram_source_relation=False, osram_source_relation_layout='s
     osram_reread_rank_rtol=1e-5, osram_reread_rank_atol=1e-7)
 REVIEWED_CHANGED_CORE = {'gcnet_missing_m3/model.py', 'gcnet_missing_m3/osram.py',
                          'gcnet_missing_m3/train_gcnet.py'}
+REGISTRY_PATH = 'gcnet_missing_m3/meaningful_new40_registry.py'
+# Exact reviewed diff from repaired parent's source_v2 / commit 3777ab1:
+# 27 literal NESTED_SWEEP entries added; existing definitions are unchanged.
+REVIEWED_REGISTRY_PAIR = dict(
+    parent='c159c7a8211671a22a18479d28f6cbbfe9bfd347d9ec345de422a836434b49e1',
+    current='5491725bd76a1de571a668f921e214de1966b8904851f868d5790f01d1055467')
 
 
 def parent_path(dataset, seed):
@@ -42,6 +48,19 @@ def mask_path(dataset, seed):
 
 def _canonical(value):
     return json.loads(json.dumps(value))
+
+
+def _core_differences(core, cfg):
+    changes = {p: dict(parent=sha, current=h.sha(ROOT / p)) for p, sha in core.items()
+               if h.sha(ROOT / p) != sha}
+    unreviewed = set(changes) - REVIEWED_CHANGED_CORE
+    if REGISTRY_PATH in unreviewed:
+        if cfg.osram_meaningful_block != 'none' or changes[REGISTRY_PATH] != REVIEWED_REGISTRY_PAIR:
+            raise ValueError('Unreviewed meaningful registry change or active meaningful block')
+        unreviewed.remove(REGISTRY_PATH)
+    if unreviewed:
+        raise ValueError('Unreviewed changed core source: ' + str(unreviewed))
+    return changes
 
 
 def _config(raw, dataset, seed):
@@ -140,10 +159,7 @@ def setup(dataset, seed, uuid, output, rate):
     reader = FrozenFlatReader(bundle['model'])
     core = {p: sha for p, sha in accepted['identity']['source_hashes'].items()
             if p.startswith(('gcnet_missing_m3/', 'gcnet_modality_jepa/'))}
-    changes = {p: dict(parent=sha, current=h.sha(ROOT / p)) for p, sha in core.items()
-               if h.sha(ROOT / p) != sha}
-    if set(changes) - REVIEWED_CHANGED_CORE:
-        raise ValueError('Unreviewed changed core source: ' + str(set(changes) - REVIEWED_CHANGED_CORE))
+    changes = _core_differences(core, bundle['cfg'])
     identity = dict(dataset=dataset, seed=seed, rate=rate, parent_path=str(path),
         parent_id=digest, checkpoint=str(checkpoint), checkpoint_sha256=digest, epoch=state['epoch'],
         summary_sha256=h.sha(path / 'SUMMARY.json'), config=asdict(bundle['cfg']),
@@ -151,7 +167,7 @@ def setup(dataset, seed, uuid, output, rate):
         masks_parent_path=str(mask_path(dataset, seed)),
         parent_rng_repair=accepted['identity'].get('rng_repair'),
         added_default_config_fields=bundle['added_default_config_fields'], core_source_differences=changes,
-        core_difference_review='Only disabled SourceRelation/V3/MoE/reread extensions and optional Flat callback; original Flat branch unchanged.',
+        core_difference_review='Disabled SourceRelation/V3/MoE/reread extensions and optional Flat callback; exact reviewed registry hash pair adds only 27 unused Nested sweep entries with meaningful_block=none; original Flat branch unchanged.',
         saved_prediction_replay_required=True,
         parent_comparison='Own selected per-rate parent; repaired MOSEI parent is distinct from earlier unified control.')
     bundle['parent_identity'] = identity
