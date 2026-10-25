@@ -28,9 +28,11 @@ def setup(uuid, output):
         raise ValueError('Accepted rate0.3 checkpoint SHA256 differs')
     bundle = control.setup(uuid, Path(output), original)
     state = torch.load(path, map_location='cpu', weights_only=False)
-    if state['epoch'] != selected['epoch'] or state['identity'] != accepted['identity']:
+    canonical = lambda value: json.loads(json.dumps(value))
+    if state['epoch'] != selected['epoch'] or canonical(state['identity']) != accepted['identity']:
         raise ValueError('Accepted checkpoint epoch/identity differs')
-    if json.loads(json.dumps(asdict(bundle['cfg']))) != accepted['identity']['config']:
+    current_config = canonical(asdict(bundle['cfg']))
+    if any(current_config.get(k) != v for k,v in accepted['identity']['config'].items()):
         raise ValueError('Frozen parent configuration differs')
     for key in ('torch', 'numpy', 'sklearn'):
         if bundle['environment'][key] != accepted['environment'][key]:
@@ -39,7 +41,9 @@ def setup(uuid, output):
     reader = FrozenFlatReader(bundle['model'])
     identity = dict(parent_id=digest, checkpoint_sha256=digest, checkpoint=str(path),
                     epoch=state['epoch'], rate='0.3', environment=bundle['environment'],
-                    config=asdict(bundle['cfg']), summary_sha256=h.sha(PARENT / 'SUMMARY.json'))
+                    config=asdict(bundle['cfg']), summary_sha256=h.sha(PARENT / 'SUMMARY.json'),
+                    added_default_config_fields={k:v for k,v in current_config.items()
+                                                 if k not in accepted['identity']['config']})
     bundle['parent_identity'] = identity
     return bundle, reader, identity
 
