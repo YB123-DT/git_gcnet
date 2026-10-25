@@ -15,7 +15,8 @@ def ridge_prediction(block, frame, bank, conversation_ids, rate_index, parent_id
     valid = frame.valid.T
     hidden = frame.hidden.transpose(0, 1)[valid]
     a = frame.availability.transpose(0, 1)[valid]
-    patterns = (a.long() * a.new_tensor([4, 2, 1])).sum(-1).long()
+    bits = torch.tensor([4, 2, 1],device=a.device,dtype=torch.long)
+    patterns = (a.long() * bits).sum(-1)
     ids = [str(conversation_ids[b]) for b, t in valid.nonzero().tolist()]
     delta = block(hidden, bank, ids, rate_index, patterns, parent_id)
     output = frame.prediction.transpose(0, 1).clone()

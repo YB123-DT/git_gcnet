@@ -44,3 +44,17 @@ def test_hypothesis_decode_uses_same_head():
     actual = reader.decode_delta(frame, delta)
     expected = torch.stack([reader.decode_delta(frame, delta[:, :, k]) for k in range(4)], 2)
     torch.testing.assert_close(actual, expected)
+
+
+def test_ridge_query_uses_modality_bits_not_observation_count():
+    from osram_four_block_wiring.wiring import ridge_prediction
+    parent = Parent()
+    reader = FrozenFlatReader(parent)
+    a = torch.tensor([[[True,True,True]],[[True,False,True]]])
+    frame = reader(torch.randn(2,1,1600),a,torch.zeros(1,2),torch.ones(1,2),[2])
+    seen = []
+    def block(hidden,bank,ids,rate,patterns,parent_id):
+        seen.extend(patterns.tolist())
+        return hidden.new_zeros(len(hidden),1)
+    ridge_prediction(block,frame,None,['query'],0,'parent')
+    assert seen == [7,5]
