@@ -141,7 +141,7 @@ def main():
             checks=dict(parameters_unchanged=True, no_parameter_grads=True, hooked_prediction_exact=True,
                         hook_rng_unchanged=True, mask_boundaries_valid=True, same_train_cohort=True),
             seconds=time.monotonic()-start, peak_gpu_mib=torch.cuda.max_memory_allocated()/2**20,
-            limitation='One checkpoint, four batches per rate, no temporal persistence or causal uselessness inference. Gradients include later losses; conditions refer to source utterance availability.')
+            limitation=f'One checkpoint, up to {args.batches} batches per rate (actual {len(batches)} total), no temporal persistence or causal uselessness inference. Gradients include later losses; conditions refer to source utterance availability.')
         np.savez_compressed(args.output/'train_masks.npz', **mask_arrays)
         h.write_json(args.output/'RESULT.json', result)
         lines = ['# MOSI projector usage audit', '', 'INTERNAL DIAGNOSTIC ONLY', '',

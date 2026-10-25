@@ -3,7 +3,7 @@
 INTERNAL DIAGNOSTIC ONLY. No training or parameter recycling authorized here.
 
 Scope: MOSI seed66 accepted cmerc-repro Flat, new GCNet random-mask-v1,
-one fixed protected miss0.3 BEST checkpoint. Four training batches (batch32)
+one fixed protected miss0.3 BEST checkpoint. Up to four training batches (batch32)
 at each of eight rates, same conversation cohort, original sampler including
 host/guest and padded rectangle. No test labels or test inference.
 
@@ -31,3 +31,9 @@ if still free at launch, never GPU4. Snapshot code before running; no existing
 jobs or checkpoints modified. Full JSON includes all channel/condition means,
 configuration, environment, checkpoint hash, mask hashes and conversation IDs.
 Masks stay in the independent remote output; only small JSON/Markdown tracked.
+
+Actual execution exhausted the official training loader in two batches per
+rate: 52 conversations / 1,284 utterances, repeated under eight masks. The
+original remote JSON's limitation text says four batches; that was the cap,
+not actual count. Its batch/cohort arrays correctly contain 16 batches. This
+wording is corrected in the runner and RESULT.md without changing raw evidence.
