@@ -61,7 +61,8 @@ def main():
                 write(args.root/'QUEUE.json',state)
             if running:time.sleep(5)
         if any(state['runs'][phase+'_'+m]['status']=='failed' for m in MODES):
-            state['status']='failed';write(args.root/'QUEUE.json',state);return
+            state['status']='failed';write(args.root/'QUEUE.json',state)
+            raise RuntimeError('At least one child failed; see QUEUE.json and per-method logs')
     state['status']='complete';write(args.root/'QUEUE.json',state)
     results={m:json.loads((args.root/('train_'+m)/'SUMMARY.json').read_text()) for m in MODES}
     baseline=results['neumiss']['baseline_aggregate']

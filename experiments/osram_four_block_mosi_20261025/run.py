@@ -151,11 +151,14 @@ def main():
     if not args.resume and (args.output/'SUMMARY.json').exists():
         raise FileExistsError('Existing run cannot be overwritten')
     torch.set_num_threads(1)
+    from experiments.osram_iemocap_b6_transfer_20261015.worker import repair_uuid_rng
+    uuid_rng = repair_uuid_rng(torch)
     tick = time.monotonic()
     summary = dict(status='preflight',mode=args.mode,source_commit=args.source_commit,pid=os.getpid(),epoch=0)
     h.write_json(args.output/'SUMMARY.json',summary)
     try:
         bundle, reader, identity = prepare.setup(args.gpu_uuid,args.output)
+        identity.update(smoke=args.smoke,max_batches=1 if args.smoke else None,uuid_rng=uuid_rng)
         device = next(reader.parent.parameters()).device
         before = h.backbone_digest(reader.parent)
         cache = prepare.build_test_cache(bundle,reader)
@@ -184,8 +187,9 @@ def main():
             stage_path = args.output/'denoiser_last.pt'
             start_noise, noise_history = 0, []
             if args.resume and stage_path.exists():
-                saved = torch.load(stage_path,map_location=device)
+                saved = torch.load(stage_path,map_location='cpu')
                 assert saved['parent_id']==identity['parent_id']
+                assert saved['smoke'] == args.smoke
                 denoiser.load_state_dict(saved['model'],strict=True)
                 noise_optimizer.load_state_dict(saved['optimizer'])
                 start_noise, noise_history = saved['epoch'],saved['history']
@@ -198,7 +202,8 @@ def main():
                 noise_history.append(dict(epoch=epoch+1,noise_loss=loss_row,mask_hash=mask_hash))
                 torch.save(dict(parent_id=identity['parent_id'],model=denoiser.state_dict(),
                     optimizer=noise_optimizer.state_dict(),epoch=epoch+1,history=noise_history,
-                    rng=h.rng_state(),generator=generator.get_state(),projection=projection.state_dict()),stage_path)
+                    rng=h.rng_state(),generator=generator.get_state(),projection=projection.state_dict(),
+                    smoke=args.smoke),stage_path)
                 summary.update(status='denoising',denoising_epoch=epoch+1,noise_loss=loss_row)
                 h.write_json(args.output/'SUMMARY.json',summary)
                 print(f'csdi denoise {epoch+1}: {loss_row:.6f}',flush=True)
@@ -228,7 +233,7 @@ def main():
         reset_training_stochasticity(66,bundle['cfg'].fold)
         generator.manual_seed(6602)
         if args.resume and (args.output/'last.pt').exists():
-            saved = torch.load(args.output/'last.pt',map_location=device)
+            saved = torch.load(args.output/'last.pt',map_location='cpu')
             assert saved['identity'] == identity
             block.load_state_dict(saved['block'],strict=True);optimizer.load_state_dict(saved['optimizer'])
             start_epoch,history,best = saved['epoch'],saved['history'],saved['best']
@@ -249,8 +254,8 @@ def main():
         assert before == h.backbone_digest(reader.parent)
         assert all(p.grad is None for p in reader.parent.parameters())
         # Strict branch checkpoint recovery on the last state.
-        saved = torch.load(args.output/'last.pt',map_location=device)
-        assert all(torch.equal(v,saved['block'][k]) for k,v in block.state_dict().items())
+        saved = torch.load(args.output/'last.pt',map_location='cpu')
+        assert all(torch.equal(v.cpu(),saved['block'][k]) for k,v in block.state_dict().items())
         summary.update(status='smoke_passed' if args.smoke else 'complete',seconds=time.monotonic()-tick,
             checks=dict(summary['checks'],parent_unchanged=True,parent_grad_none=True,last_state_exact=True))
         write_report(args.output,summary)
