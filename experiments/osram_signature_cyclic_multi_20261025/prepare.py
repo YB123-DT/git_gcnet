@@ -36,6 +36,15 @@ def meld_case():
     return build_cases()['MELD']
 
 
+def configure_environment(dataset, output):
+    """Bind MELD paths before any trainer imports the process-global config."""
+    if dataset == 'MELD':
+        case = meld_case()
+        os.environ.update(GCNET_MELD_PICKLE=str(MELD_FEATURE),
+            GCNET_DATASET_ROOT=str(Path(case['numerical_source']['source'])/'dataset'),
+            GCNET_CACHE_ROOT=str(Path(output).parent/'feature_cache'/'MELD'))
+
+
 def parent_path(dataset, seed):
     if dataset == 'CMUMOSI' and seed in (66,67):
         return previous.parent_path(dataset,seed)

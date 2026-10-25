@@ -111,13 +111,16 @@ def main():
     import fcntl
     import numpy as np
     import torch
+    from . import prepare
+    # The original trainer snapshots config.PATH_TO_LABEL during import.
+    # Bind the protected MELD pickle before importing that trainer, not in setup.
+    prepare.configure_environment(args.dataset, args.output)
     from gcnet_modality_jepa.train_gcnet import reset_training_stochasticity
     from experiments.osram_iemocap_b6_transfer_20261015.worker import repair_uuid_rng
     from experiments.osram_tasr_20261018 import runner_helpers as h
     from experiments.osram_mosi_gcnet_testbest_20261020.worker import _atomic_arrays
     from experiments.osram_signature_cyclic68_20261025.train import train_epoch
     from osram_four_block_wiring import SignatureBlock
-    from . import prepare
     rate = prepare.validate_rate(args.rate)
     torch.set_num_threads(1)
     repair = repair_uuid_rng(torch)

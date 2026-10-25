@@ -6,6 +6,22 @@ from pathlib import Path
 import pytest
 
 
+def test_meld_environment_is_bound_before_first_config_import(tmp_path):
+    import os
+    import subprocess
+    import sys
+    script = '''
+import sys
+from pathlib import Path
+from experiments.osram_signature_cyclic_multi_20261025 import prepare as p
+assert 'config' not in sys.modules
+p.configure_environment('MELD', Path(sys.argv[1]))
+import config
+assert config.PATH_TO_LABEL['MELD'] == str(p.MELD_FEATURE)
+'''
+    subprocess.run([sys.executable,'-c',script,str(tmp_path)],check=True,env=os.environ.copy())
+
+
 def test_parent_paths_cover_only_authorized_completed_parents():
     from experiments.osram_signature_cyclic_multi_20261025 import prepare as p
     assert p.parent_path('CMUMOSI',66) == p.previous.MOSI66

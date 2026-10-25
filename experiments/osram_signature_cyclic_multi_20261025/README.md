@@ -47,7 +47,7 @@ Run from a committed immutable snapshot on biggpu with cmerc-repro:
 
 ```bash
 /data2/yb/conda_envs/cmerc-repro/bin/python -u -m experiments.osram_signature_cyclic_multi_20261025.scheduler \
- --root /data2/yb/remote_experiments/osram_signature_cyclic_multi_20261025/execution_v1 \
+ --root /data2/yb/remote_experiments/osram_signature_cyclic_multi_20261025/execution_v2 \
  --source-commit ACTUAL_SOURCE_SHA \
  --gpu-map 0=GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45,1=GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049,2=GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4,3=GPU-cab071a3-de66-5a82-35d8-9f8b5b731e7a \
  --per-gpu 6
@@ -67,3 +67,13 @@ BEST and complete last state. Final RESULT.md/JSON/CSV report each rate,each
 seed,eight-rate/high means and own-parent paired changes. Incomplete jobs
 are not ranked or silently included. These exploratory Test-oracle scores
 and additional training budgets are not independent generalization evidence.
+
+## Preserved preflight attempt
+
+`execution_v1` / source `b37c873` did not start any formal jobs. MOSI and
+MOSEI two-update smokes passed; MELD failed because process-global config was
+imported before its dataset environment was bound. The protected pickle and
+checkpoints were not missing or changed. A fresh-process regression test now
+requires the MELD path to be bound before the first config import. Corrected
+source runs in a new `execution_v2`; the failed queue/logs are retained and
+are never mixed into results. No training algorithm/hyperparameter changed.
