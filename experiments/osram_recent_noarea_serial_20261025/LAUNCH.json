@@ -1,0 +1,139 @@
+{
+  "observed_at": "2026-10-25T16:50:32.099344+00:00",
+  "server": "biggpu",
+  "source_commit": "814c5d9986eff8aaff4cc8f0b6b93236bb71e9d5",
+  "numerical_cwd": "/data2/yb/remote_experiments/osram_signature_cyclic_multi_20261025/source_e0ca94c",
+  "overlay": "/data2/yb/remote_experiments/osram_recent_noarea_serial_20261025/source_814c5d9",
+  "output": "/data2/yb/remote_experiments/osram_recent_noarea_serial_20261025/execution_v1",
+  "tmux": "recent_noarea_serial_20261025",
+  "command": [
+    "/data2/yb/conda_envs/cmerc-repro/bin/python",
+    "/data2/yb/remote_experiments/osram_recent_noarea_serial_20261025/source_814c5d9/experiments/osram_recent_noarea_serial_20261025/scheduler.py",
+    "--root",
+    "/data2/yb/remote_experiments/osram_recent_noarea_serial_20261025/execution_v1",
+    "--source-commit",
+    "814c5d9986eff8aaff4cc8f0b6b93236bb71e9d5",
+    "--gpu-map",
+    "0=GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45,1=GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049,2=GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4",
+    "--per-gpu",
+    "6"
+  ],
+  "gpu_map": {
+    "0": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+    "1": "GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049",
+    "2": "GPU-a8bb25f8-e771-1975-ef10-fdc0679488a4"
+  },
+  "started_at": "2026-10-25T16:47:45.356284+00:00",
+  "status": "train",
+  "formal_counts": {
+    "running": 18
+  },
+  "overlay_hashes": {
+    "experiments/osram_recent_noarea_serial_20261025/stage2.py": "9bda0661dec3f88b466c01c6533137d26709e46b3d7a7f0a1b6d8c146abee017",
+    "experiments/osram_recent_noarea_serial_20261025/summarize.py": "74ab3501223a38714a8cace69149c4d7e69c327658f684032a116fbcd01f159a",
+    "experiments/osram_recent_noarea_serial_20261025/scheduler.py": "6b43e019fa195431dacdc5180a284cd8eacae44cdd7fdb280f9f37d19daf0a70",
+    "experiments/osram_recent_noarea_serial_20261025/model.py": "f828c58f60283ac457e375bb054d3d1d4bfa410dd0e956843f27d850d8758c55",
+    "experiments/osram_recent_noarea_serial_20261025/stage1.py": "0558d5456fb31871ad8a3ab34f6b1903c9396b260d830db04d4ff745b4919f39",
+    "experiments/osram_recent_noarea_serial_20261025/blocks.py": "21b8cfbad64dc9f40d04fb2f37427d64c2156fd792608b6560efe9dc0dce8baf",
+    "experiments/osram_signature_noarea_iemocap68_20261025/block.py": "5d7f165fd14f3124e5a1047db1d60c1a76e25e5488816aeb34f04ef0efad8f67",
+    "tests/test_recent_noarea_serial_stage2.py": "d4e4c0d82605476124deaefa930282716732a71dfc1555293642b6c7d9d2203d",
+    "tests/test_recent_noarea_serial_stage1.py": "191756d847f5d1f3e12c78ff3c20ed8e453a9c2bbb0f3de34fbfda1a6c207727",
+    "tests/test_recent_noarea_serial_queue.py": "ee2ce359a4e5be1c6d0c98d9864fc2221c1131f3e8cd3bbb77289758756a92a1",
+    "tests/test_signature_order_audit_controls.py": "c2a2ff454badc429eec24ea95e91ee31dc54fbcb08069ab75106a8b6519ac589",
+    "tests/test_recent_noarea_serial_model.py": "59047ccbb5fcf22456f0d1c3227c3383188a9206d28bc724123d0249856b8e88"
+  },
+  "smokes": [
+    {
+      "id": "stage1_parallel",
+      "status": "smoke_passed",
+      "summary": "/data2/yb/remote_experiments/osram_recent_noarea_serial_20261025/execution_v1/smoke/stage1_parallel/SUMMARY.json",
+      "summary_sha256": "0ee804619b312d1730270541a8087cb4bee7ebd817c92fd5cec6aaed2191cdb9",
+      "seconds": 27.235647432971746,
+      "peak_memory_mib": 1285.97900390625,
+      "peak_rss_gib": 2.540435791015625,
+      "checks": null,
+      "initial_real_batch_exact": true,
+      "initial_actual_memory_scan_probe": {
+        "forwards": 1,
+        "scans": 1
+      },
+      "first_nonzero_block_task_gradient_epoch": 1
+    },
+    {
+      "id": "stage1_serial",
+      "status": "smoke_passed",
+      "summary": "/data2/yb/remote_experiments/osram_recent_noarea_serial_20261025/execution_v1/smoke/stage1_serial/SUMMARY.json",
+      "summary_sha256": "9d56a596493a80f24362ed8cc565f6be3a0fada569f69b8516b0425490c6a234",
+      "seconds": 25.218882655957714,
+      "peak_memory_mib": 1372.71728515625,
+      "peak_rss_gib": 2.5439414978027344,
+      "checks": null,
+      "initial_real_batch_exact": true,
+      "initial_actual_memory_scan_probe": {
+        "forwards": 1,
+        "scans": 1
+      },
+      "first_nonzero_block_task_gradient_epoch": 2
+    },
+    {
+      "id": "stage2_parallel_0.7",
+      "status": "smoke_passed",
+      "summary": "/data2/yb/remote_experiments/osram_recent_noarea_serial_20261025/execution_v1/smoke/stage2_parallel_0.7/SUMMARY.json",
+      "summary_sha256": "5514e8473d5262030c7c473db8617153c02a0a03baf6a10fb6e7ecc4481924eb",
+      "seconds": 7.722911960911006,
+      "peak_memory_mib": 414.41748046875,
+      "peak_rss_gib": 2.3393630981445312,
+      "checks": {
+        "checkpoint_replay_exact": true,
+        "cyclic_train_rates_verified": true,
+        "exact_learning_rate_expression": true,
+        "finite_connected_block_gradients": true,
+        "no_auxiliary_loss": true,
+        "nonzero_branch_gradient_and_update": true,
+        "only_block_optimizer": true,
+        "only_requested_test_rate": true,
+        "original_initial_prediction_exact": true,
+        "original_parent_and_test_mask_exact": true,
+        "original_training_mask_and_optimizer_trace_exact": true,
+        "parent_eval": true,
+        "parent_grad_none": true,
+        "parent_unchanged": true,
+        "selected_all_arrays_exact": true,
+        "single_live_scan_verified": true
+      },
+      "initial_real_batch_exact": true,
+      "initial_actual_memory_scan_probe": null,
+      "first_nonzero_block_task_gradient_epoch": null
+    },
+    {
+      "id": "stage2_serial_0.7",
+      "status": "smoke_passed",
+      "summary": "/data2/yb/remote_experiments/osram_recent_noarea_serial_20261025/execution_v1/smoke/stage2_serial_0.7/SUMMARY.json",
+      "summary_sha256": "10127b5762f0f82afe0e0147453cffca654baf3ad3d56a44cca3cc6f390bb198",
+      "seconds": 7.624608765006997,
+      "peak_memory_mib": 525.44873046875,
+      "peak_rss_gib": 2.3351364135742188,
+      "checks": {
+        "checkpoint_replay_exact": true,
+        "cyclic_train_rates_verified": true,
+        "exact_learning_rate_expression": true,
+        "finite_connected_block_gradients": true,
+        "no_auxiliary_loss": true,
+        "nonzero_branch_gradient_and_update": true,
+        "only_block_optimizer": true,
+        "only_requested_test_rate": true,
+        "original_initial_prediction_exact": true,
+        "original_parent_and_test_mask_exact": true,
+        "original_training_mask_and_optimizer_trace_exact": true,
+        "parent_eval": true,
+        "parent_grad_none": true,
+        "parent_unchanged": true,
+        "selected_all_arrays_exact": true,
+        "single_live_scan_verified": true
+      },
+      "initial_real_batch_exact": true,
+      "initial_actual_memory_scan_probe": null,
+      "first_nonzero_block_task_gradient_epoch": null
+    }
+  ]
+}
