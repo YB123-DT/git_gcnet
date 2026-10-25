@@ -65,20 +65,20 @@ and per-rate multiple-parent models are disclosed. Internal Test-oracle only.
 
 ## File ownership and steps
 
-- [ ] blocks.py,model.py,tests/test_recent_noarea_serial_model.py: write failing
+- [x] blocks.py,model.py,tests/test_recent_noarea_serial_model.py: write failing
   tests,implement minimal module/wiring,verify no direction,causal/window/masks,
   initial identity,zero-history centering,backward zeros,gradients,freeze/train,
   one scan,hookcleanup and state restore. Own only these files.
-- [ ] stage1.py,tests/test_recent_noarea_serial_stage1.py: reuse original joint
+- [x] stage1.py,tests/test_recent_noarea_serial_stage1.py: reuse original joint
   setup/train/evaluate helpers,lock finite two-mode scope,complete RNG resume,
   selected artifacts,initial identity/source/mask parity,finite gradients and
   actual updates. Real smoke3updates;do not launch. Own only these files.
-- [ ] stage2.py,tests/test_recent_noarea_serial_stage2.py: reuse pinned prepare
+- [x] stage2.py,tests/test_recent_noarea_serial_stage2.py: reuse pinned prepare
   and original cyclictrain helpers;own-rateparent/masks,originalfrozenidentity,
   cached predict_frame evaluation,complete RNG resume. Verify actual parent
   no-grad/digest and branch gradients,selected replay. No launches. Own only
   these files.
-- [ ] scheduler.py,summarize.py,README/tests: root integrates modules,validates
+- [x] scheduler.py,summarize.py,README/tests: root integrates modules,validates
   all focused tests,deploys committed immutable overlay and preserves sourcee0.
   Four real-data GPU smokes (stage xmode) gate18formaljobs unless a strictly
   reusable parallel stage2 result is found. UUID physical0/1/2 only,max6/card,
@@ -92,3 +92,9 @@ Verification commands:
 `python -m pytest -q tests/test_recent_noarea_serial_model.py tests/test_recent_noarea_serial_stage1.py tests/test_recent_noarea_serial_stage2.py tests/test_recent_noarea_serial_queue.py`
 then compileall/diff check,real GPU smoke,formal live status and final validated
 selected predictions. Smoke never counts as effectiveness evidence.
+
+Implementation checkpoint: 38focused localtests passed. Independent read-only
+spec/quality review found and verified the fix for blocked-unlaunched queue
+recovery;serial first-step zero-gradient behavior now has an explicit3update
+regression without changing zero initialization. Real GPU smoke/deployment are
+the next gate,not yet claimed complete here.
