@@ -119,6 +119,29 @@ def selected_arrays(ref):
     return selected
 
 
+def parent_environment(accepted, actual, seed, output):
+    """Seed66 predates full package provenance; never invent missing versions."""
+    recorded = accepted['provenance']['environment']
+    proof = dict(recorded=recorded,unrecorded_historical_versions=[])
+    for key in ('torch','numpy','sklearn'):
+        if key not in recorded:
+            if seed != 66 or key != 'sklearn':
+                raise ValueError('Protected parent environment version missing: '+key)
+            proof['unrecorded_historical_versions'].append(key)
+        elif actual[key] != recorded[key]:
+            raise ValueError('Protected cmerc environment differs: '+key)
+    executable = recorded.get('executable')
+    if executable is None and seed == 66:
+        manifest = Path(output).parents[3]/'MANIFEST.json'
+        payload = json.loads(manifest.read_text())
+        executable = payload['provenance']['environment']['executable']
+        proof.update(launcher_manifest=str(manifest),launcher_manifest_sha256=h.sha(manifest))
+    if executable != '/data2/yb/conda_envs/cmerc-repro/bin/python':
+        raise ValueError('Protected parent cmerc executable differs or is unproved')
+    proof['executable'] = executable
+    return proof
+
+
 def setup(seed, fold, uuid, output, rate):
     configure_environment(output)
     from experiments.osram_iemocap_b6_transfer_20261015.worker import require_replication_environment
@@ -138,9 +161,7 @@ def setup(seed, fold, uuid, output, rate):
     cfg, added = parent_config(raw,seed,fold)
     environment = require_replication_environment(torch)
     gpu = guard_gpu(uuid)
-    for key in ('torch','numpy','sklearn'):
-        if environment[key] != accepted['provenance']['environment'][key]:
-            raise ValueError('Protected cmerc environment differs: '+key)
+    environment_proof = parent_environment(accepted,environment,seed,path)
     label = DATA_ROOT/'IEMOCAP/IEMOCAP_features_raw_6way.pkl'
     if h.sha(label) != LABEL_SHA:
         raise ValueError('Protected six-class label data changed')
@@ -178,6 +199,7 @@ def setup(seed, fold, uuid, output, rate):
         checkpoint_sha256=ref['checkpoint_sha256'],epoch=ref['epoch'],
         summary_sha256=h.sha(path/'SUMMARY.json'),config_sha256=h.sha(path/'config.json'),
         aggregate_sha256=case['aggregate_sha256'],config=asdict(cfg),environment=environment,
+        parent_environment_proof=environment_proof,
         dataset_sha256=LABEL_SHA,feature_roots=roots,parent_frozen=True,
         train_rates=list(map(float,RATES)),test_rates=[rate],saved_prediction_replay_required=True,
         selected_prediction=ref['selection'],selected_prediction_sha256=ref['selection_sha256'],

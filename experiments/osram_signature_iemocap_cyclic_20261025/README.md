@@ -39,6 +39,15 @@ SHA. Old/current source differences only admit exact reviewed inactive extension
 hash pairs; strict loading and bit-exact original logits/classes replay remain
 mandatory. Unknown changes fail rather than replacing the parent or feature set.
 
+The read-only15fold/120checkpoint/120prediction/120mask audit passed before GPU
+launch (PRECHECK.json). Seed66 old summaries did not record sklearn's version;
+the retained original launcher proves the cmerc executable, while Torch/NumPy
+are matched from each summary. That missing historical version is explicitly
+recorded rather than invented. Current runtime requirements are unchanged and
+exact numerical prediction replay is still mandatory. Initial source83eb544
+was never launched; a follow-up source records this metadata-schema distinction
+before any real smoke or formal training.
+
 Before trainer/config imports,bootstrap the original IEMOCAP datasetroot and
 clear any inherited MELD override. Each normal run replays its accepted saved
 mask with exactly one original scan perbatch,then checks zero-initialized branch

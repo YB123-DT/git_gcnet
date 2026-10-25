@@ -119,3 +119,20 @@ def test_unreviewed_core_drift_is_never_silently_accepted(monkeypatch):
     hashes['gcnet_modality_jepa/gcnet_legacy_random_mask.py'] = '0'*64
     with pytest.raises(ValueError,match='Unreviewed changed core'):
         p.core_differences(hashes,cfg)
+
+
+def test_seed66_environment_uses_retained_launcher_proof_not_invented_sklearn(tmp_path):
+    from experiments.osram_signature_iemocap_cyclic_20261025 import prepare as p
+    path = tmp_path/'runs/iemocap6/seed_66/fold_5'
+    path.mkdir(parents=True)
+    (tmp_path/'MANIFEST.json').write_text(json.dumps(dict(provenance=dict(environment=dict(
+        executable='/data2/yb/conda_envs/cmerc-repro/bin/python')))))
+    actual = dict(torch='1.13.1+cu117', numpy='1.26.4', sklearn='1.3.2')
+    recorded = dict(provenance=dict(environment=dict(torch=actual['torch'],numpy=actual['numpy'])))
+    proof = p.parent_environment(recorded,actual,66,path)
+    assert proof['unrecorded_historical_versions'] == ['sklearn']
+    assert len(proof['launcher_manifest_sha256']) == 64
+    with pytest.raises(ValueError):
+        p.parent_environment(recorded,actual,67,path)
+    with pytest.raises(ValueError):
+        p.parent_environment(dict(provenance=dict(environment=dict(torch='wrong',numpy=actual['numpy']))),actual,66,path)
