@@ -1,4 +1,4 @@
-"""Frozen N10 input-correction scale replay: exactly gamma0/.5/1, no training."""
+"""Frozen N10 input-correction scale replay, no training."""
 import argparse
 import csv
 import hashlib
@@ -15,6 +15,7 @@ SOURCE = Path('/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/
 FLAT = Path('/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128')
 GPU = 'GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049'
 SCALES = (0., .5, 1.)
+FINE_SCALES = (.1, .2, 1.)
 SLOTS = ('Local', 'Base', 'Gap-A', 'Gap-T', 'Gap-V')
 RATES = tuple(f'{i/10:.1f}' for i in range(8))
 
@@ -31,15 +32,18 @@ def scaled_inputs(raw, corrected, gamma):
     return tuple(a+gamma*(b-a) for a,b in zip(raw, corrected))
 
 
-def make_cases(per_slot=False):
+def make_cases(per_slot=False, fine=False):
+    if fine and not per_slot:
+        raise ValueError('Fine strengths are only approved one slot at a time')
     if not per_slot:
         return {str(g):(None,g) for g in SCALES}
+    scales = FINE_SCALES if fine else SCALES
     return {'1.0':(None,1.), **{f'{slot}_{g}':(slot,g)
-        for slot in SLOTS for g in (0.,.5)}}
+        for slot in SLOTS for g in scales if g!=1.}}
 
 
 def scale_one_slot(raw, corrected, slot, gamma):
-    if slot not in SLOTS or gamma not in SCALES:
+    if slot not in SLOTS or gamma not in (*SCALES, *FINE_SCALES):
         raise ValueError('Unknown slot or coefficient outside the approved grid')
     if len(raw)!=3 or len(corrected)!=3 or any(a.shape!=b.shape for a,b in zip(raw,corrected)):
         raise ValueError('Correction cannot change a slot shape')
@@ -116,7 +120,7 @@ def report_slots(output,summary):
     if 'aggregate' in summary:
         reference=summary['aggregate']['1.0']['mean']['WF1']
         for slot in SLOTS:
-            for g in SCALES:
+            for g in summary.get('scales',SCALES):
                 case='1.0' if g==1. else f'{slot}_{g}'
                 a=summary['aggregate'][case]
                 lines.append(f"| {slot} | {g} | {a['mean']['ACC']:.6f} | {a['mean']['WF1']:.6f} | {a['high']['WF1']:.6f} | {a['mean']['WF1']-reference:+.6f} |")
@@ -124,12 +128,12 @@ def report_slots(output,summary):
         'Fixed per-rate Test-best checkpoints/exact masks. No retraining or combined-coefficient oracle.',
         'Any test-selected preferred coefficient is exploratory, not independent deployment evidence.']
     (output/'RESULT.md').write_text('\n'.join(lines)+'\n')
-    cases=make_cases(True)
+    cases=summary.get('cases') or {k:dict(slot=s,gamma=g) for k,(s,g) in make_cases(True).items()}
     with (output/'PER_RATE.csv').open('w',newline='') as stream:
         writer=csv.DictWriter(stream,fieldnames=['rate','case','slot','gamma','ACC','WF1','MSE'])
         writer.writeheader()
-        writer.writerows(dict(rate=r,case=case,slot=cases[case][0] or 'all_full',
-            gamma=cases[case][1],**v['metrics']) for r,item in summary['rates'].items()
+        writer.writerows(dict(rate=r,case=case,slot=cases[case]['slot'] or 'all_full',
+            gamma=cases[case]['gamma'],**v['metrics']) for r,item in summary['rates'].items()
             for case,v in item['scales'].items())
 
 
@@ -138,8 +142,11 @@ def main(argv=None):
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--source-commit',required=True)
     parser.add_argument('--per-slot',action='store_true',help='Change one correction slot at a time, others fixed at1')
+    parser.add_argument('--fine-slots',action='store_true',help='With --per-slot, replay gamma0.1/0.2 instead of0/0.5')
     args=parser.parse_args(argv)
-    cases=make_cases(args.per_slot)
+    if args.fine_slots and not args.per_slot:
+        parser.error('--fine-slots requires --per-slot')
+    cases=make_cases(args.per_slot,fine=args.fine_slots)
     os.environ.update(CUDA_VISIBLE_DEVICES=GPU,OMP_NUM_THREADS='1',MKL_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1')
     import torch
     from experiments.osram_nested_cmerc_tuning_20261023.run import verify_source_snapshot
@@ -167,7 +174,7 @@ def main(argv=None):
         source_manifest_sha256=manifest['manifest_sha256'],pid=os.getpid(),gpu_uuid=GPU,
         source=str(SOURCE),source_summary_sha256=h.sha(SOURCE/'SUMMARY.json'),
         flat_reference=str(FLAT),flat_summary_sha256=h.sha(FLAT/'SUMMARY.json'),
-        original_flat_aggregate=baseline['aggregate']['router'],scales=SCALES,rates={},training_updates=0,
+        original_flat_aggregate=baseline['aggregate']['router'],scales=FINE_SCALES if args.fine_slots else SCALES,rates={},training_updates=0,
         mode='per-slot' if args.per_slot else 'joint',
         cases={key:dict(slot=slot,gamma=g) for key,(slot,g) in cases.items()})
     h.write_json(args.output/'SUMMARY.json',summary)

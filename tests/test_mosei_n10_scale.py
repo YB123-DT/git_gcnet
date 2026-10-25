@@ -73,8 +73,34 @@ def test_per_slot_cases_have_one_shared_full_and_ten_single_slot_interventions()
     assert set(cases.values()) == {(None,1.)} | {(s,g) for s in ('Local','Base','Gap-A','Gap-T','Gap-V') for g in (0.,.5)}
 
 
+def test_fine_grid_is_opt_in_and_changes_one_slot_at_point_one_or_point_two():
+    from experiments.osram_mosei_n10_scale_20261024.run import make_cases
+    cases = make_cases(True, fine=True)
+    assert len(cases) == 11
+    assert set(cases.values()) == {(None,1.)} | {(s,g) for s in ('Local','Base','Gap-A','Gap-T','Gap-V') for g in (.1,.2)}
+    with pytest.raises(ValueError):
+        make_cases(False, fine=True)
+
+
+def test_fine_report_preserves_actual_case_coefficients(tmp_path):
+    import csv
+    from experiments.osram_mosei_n10_scale_20261024.run import make_cases, report_slots
+    cases=make_cases(True,fine=True)
+    metrics=dict(ACC=80.,WF1=79.,MSE=.5)
+    summary=dict(status='complete',scales=(.1,.2,1.),
+        cases={k:dict(slot=s,gamma=g) for k,(s,g) in cases.items()},
+        rates={'0.1':dict(scales={k:dict(metrics=metrics) for k in cases})},
+        aggregate={k:dict(mean=metrics,high=metrics) for k in cases})
+    report_slots(tmp_path,summary)
+    with (tmp_path/'PER_RATE.csv').open() as stream:
+        rows=list(csv.DictReader(stream))
+    assert len(rows)==11
+    assert {float(r['gamma']) for r in rows}=={.1,.2,1.}
+    assert '| Gap-T | 0.2 |' in (tmp_path/'RESULT.md').read_text()
+
+
 @pytest.mark.parametrize('slot', ['Local','Base','Gap-A','Gap-T','Gap-V'])
-@pytest.mark.parametrize('gamma', [0., .5, 1.])
+@pytest.mark.parametrize('gamma', [0., .1, .2, .5, 1.])
 def test_only_selected_slot_changes_and_all_other_corrections_remain_full(slot,gamma):
     from experiments.osram_mosei_n10_scale_20261024.run import scale_one_slot
     raw=(np.ones((2,1,4)),np.ones((2,1,1024)),np.ones((2,1,3,1024)))

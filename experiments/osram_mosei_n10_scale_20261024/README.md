@@ -67,3 +67,17 @@ other inputs, no mutation, backward zeros and inactive gap zeros.
 /data2/yb/conda_envs/cmerc-repro/bin/python -u -m experiments.osram_mosei_n10_scale_20261024.run \
   --per-slot --source-commit SOURCE_SHA --output ROOT/slot_replay_v1
 ```
+
+## Fine single-slot strengths (2026-10-25 follow-up)
+
+The next explicit request refines correction strength to0.1/0.2, not missing
+rate. Add `--fine-slots --per-slot`:one common full-strength reference plus
+Local/Base/Gap-A/Gap-T/Gap-V at0.1 and0.2, all other corrections fixed at1.
+The old default and `--per-slot` grids are unchanged. No combined settings,
+retraining or new checkpoint selection. Use a separate immutable source_v4
+and output fine_slot_replay_v1; old results remain untouched.
+
+```bash
+/data2/yb/conda_envs/cmerc-repro/bin/python -u -m experiments.osram_mosei_n10_scale_20261024.run \
+  --per-slot --fine-slots --source-commit SOURCE_SHA --output ROOT/fine_slot_replay_v1
+```
