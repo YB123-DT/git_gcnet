@@ -135,6 +135,7 @@ class TrainConfig:
     osram_source_role_v3_pair_hidden: int = 128
     osram_source_role_v3_mode: str = 'residual'
     osram_source_role_v3_variant: str = 'standard'
+    osram_source_moe_mode: str = 'off'
     osram_conditional_reread: bool = False
     osram_reread_mode: str = 'free'
     osram_reread_rank_rtol: float = 1e-5
@@ -227,6 +228,8 @@ class TrainConfig:
                 raise ValueError(f'{name} must be a positive integer')
         if self.osram_source_role_v3_dim % 4:
             raise ValueError('osram_source_role_v3_dim must be divisible by four')
+        if self.osram_source_moe_mode not in ('off', 'replace', 'residual'):
+            raise ValueError('osram_source_moe_mode must be off, replace or residual')
         if self.osram_source_role_v3_mode not in ('residual', 'direct'):
             raise ValueError('osram_source_role_v3_mode must be residual or direct')
         if self.osram_source_role_v3_mode == 'direct' and not self.osram_source_role_v3:
@@ -3499,6 +3502,7 @@ def run_experiment(
         osram_source_role_v3_pair_hidden=config_value.osram_source_role_v3_pair_hidden,
         osram_source_role_v3_mode=config_value.osram_source_role_v3_mode,
         osram_source_role_v3_variant=config_value.osram_source_role_v3_variant,
+        osram_source_moe_mode=config_value.osram_source_moe_mode,
         osram_conditional_reread=config_value.osram_conditional_reread,
         osram_reread_mode=config_value.osram_reread_mode,
         osram_reread_rank_rtol=config_value.osram_reread_rank_rtol,
@@ -4263,6 +4267,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--osram-reread-mode', choices=('free', 'span'), default='free')
     parser.add_argument('--osram-reread-rank-rtol', type=float, default=1e-5)
     parser.add_argument('--osram-reread-rank-atol', type=float, default=1e-7)
+    parser.add_argument('--osram-source-moe-mode', choices=('off', 'replace', 'residual'),
+                        default='off', help='Twelve-slot source/role expert mixture connection')
     parser.add_argument('--osram-source-role-v3', action='store_true',
                         help='Hierarchical same-source pair / same-role source interaction on Flat read inputs.')
     parser.add_argument('--osram-source-role-v3-dim', type=int, default=64,
@@ -4684,6 +4690,7 @@ def main(argv=None) -> None:
         osram_source_role_v3_pair_hidden=args.osram_source_role_v3_pair_hidden,
         osram_source_role_v3_mode=args.osram_source_role_v3_mode,
         osram_source_role_v3_variant=args.osram_source_role_v3_variant,
+        osram_source_moe_mode=args.osram_source_moe_mode,
         osram_conditional_reread=args.osram_conditional_reread,
         osram_reread_mode=args.osram_reread_mode,
         osram_reread_rank_rtol=args.osram_reread_rank_rtol,

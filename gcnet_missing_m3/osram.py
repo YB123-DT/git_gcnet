@@ -877,12 +877,21 @@ class OSRAMBackbone(nn.Module):
         osram_source_role_v3_pair_hidden: int = 128,
         osram_source_role_v3_mode: str = 'residual',
         osram_source_role_v3_variant: str = 'standard',
+        osram_source_moe_mode: str = 'off',
         osram_conditional_reread: bool = False,
         osram_reread_mode: str = 'free',
         osram_reread_rank_rtol: float = 1e-5,
         osram_reread_rank_atol: float = 1e-7,
     ) -> None:
         super().__init__()
+        if osram_source_moe_mode not in ('off', 'replace', 'residual'):
+            raise ValueError('source MoE mode must be off, replace or residual')
+        self.osram_source_moe_mode = osram_source_moe_mode
+        if osram_source_moe_mode != 'off' and (
+                osram_source_role_v3 or osram_source_relation or osram_source_role
+                or osram_tasr or osram_conditional_reread or osram_disable_local_skip
+                or osram_meaningful_block != 'none' or osram_readout_fusion != 'flat'):
+            raise ValueError('Source MoE requires original Local Skip and no other source block')
         self.osram_source_role = bool(osram_source_role)
         self.osram_source_relation = bool(osram_source_relation)
         self.osram_source_role_v3 = bool(osram_source_role_v3)
@@ -930,8 +939,8 @@ class OSRAMBackbone(nn.Module):
         if self.osram_source_role and osram_tasr:
             raise ValueError('Coupled source-role and TASR are separate experiments')
         self.osram_tasr = bool(osram_tasr)
-        self.osram_source_tracking = bool(osram_source_tracking or osram_tasr or osram_source_role or osram_source_relation or osram_source_role_v3)
-        if self.osram_source_role or self.osram_source_relation or self.osram_source_role_v3:
+        self.osram_source_tracking = bool(osram_source_tracking or osram_tasr or osram_source_role or osram_source_relation or osram_source_role_v3 or osram_source_moe_mode != 'off')
+        if self.osram_source_role or self.osram_source_relation or self.osram_source_role_v3 or osram_source_moe_mode != 'off':
             self.osram_source_audit = True
             self.osram_source_grad = True
         self.osram_tasr_source_mode = osram_tasr_source_mode
@@ -1447,6 +1456,14 @@ class OSRAMBackbone(nn.Module):
                         num_memory_heads=self.num_heads,
                         flat_hidden_dim=self.emotion_adapter[1].out_features,
                         variant=self.osram_source_role_v3_variant)
+
+        if self.osram_source_moe_mode != 'off':
+            from .source_moe import SourceRoleMixtureOfExperts
+            with torch.random.fork_rng(devices=[]):
+                self.source_moe = SourceRoleMixtureOfExperts(
+                    self.latent_dim, self.num_heads * self.value_dim, self.output_dim)
+            if self.osram_source_moe_mode == 'replace':
+                self.emotion_adapter.requires_grad_(False)
 
         if self.osram_conditional_reread:
             from .conditional_reread import ConditionalMemoryReread
@@ -2353,6 +2370,19 @@ class OSRAMBackbone(nn.Module):
                     local, emotion_base, emotion_gap, availability, umask,
                     local_skip=self.local_skip, adapter=self.emotion_adapter)
                 hidden = self.emotion_norm(flat_anchor + residual)
+            elif self.osram_source_moe_mode != 'off':
+                # Slot identity/trajectory also convey history. Merely zeroing
+                # its vectors would not implement a valid Local-only ablation.
+                if self.osram_ablation != 'full' or self.osram_emotion_ablation != 'full':
+                    raise ValueError('Source MoE runtime ablations require an explicit slot-mask design')
+                trace = self.last_source_trace
+                source_base, source_gap = trace['source_base'], trace['source_gap']
+                expert_output = self.source_moe(local, source_base, source_gap,
+                    trace['trajectory'], availability, umask)
+                anchor = self.local_skip(local)
+                if self.osram_source_moe_mode == 'residual':
+                    anchor = anchor + self.emotion_adapter(emotion_input)
+                hidden = self.emotion_norm(anchor + expert_output)
             elif self.osram_source_relation:
                 trace = self.last_source_trace
                 source_base = trace['source_base']
@@ -2511,6 +2541,8 @@ class OSRAMBackbone(nn.Module):
             diagnostics['tasr'] = self.tasr.last_diagnostics
         if self.osram_source_role:
             diagnostics['source_role'] = self.source_role.last_diagnostics
+        if self.osram_source_moe_mode != 'off':
+            diagnostics['source_moe'] = self.source_moe.last_diagnostics
         if self.osram_source_relation:
             diagnostics['source_relation'] = self.source_relation.last_diagnostics
         if self.osram_source_role_v3:
