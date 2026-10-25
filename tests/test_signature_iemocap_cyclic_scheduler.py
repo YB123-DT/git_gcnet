@@ -8,6 +8,30 @@ import pytest
 MODULE = 'experiments.osram_signature_iemocap_cyclic_20261025'
 
 
+def test_controller_accepts_twelve_workers_and_records_effective_limit(tmp_path, monkeypatch):
+    scheduler = importlib.import_module(MODULE + '.scheduler')
+    captured = {}
+    monkeypatch.setattr(scheduler, 'guard_gpu', lambda *args: None)
+
+    def capture(args, state, phase, peaks=None):
+        captured.update(limit=args.per_gpu, state_limit=state['max_per_gpu'])
+        raise RuntimeError('admission captured before launching any worker')
+
+    monkeypatch.setattr(scheduler, 'run_phase', capture)
+    result = scheduler.main(['--root', str(tmp_path/'queue'), '--source-commit', 'source',
+                             '--gpu-map', '0=GPU-ok', '--per-gpu', '12'])
+    assert result == 1
+    assert captured == dict(limit=12, state_limit=12)
+
+
+@pytest.mark.parametrize('limit', ['0', '13'])
+def test_controller_rejects_out_of_bounds_capacity(tmp_path, limit):
+    scheduler = importlib.import_module(MODULE + '.scheduler')
+    with pytest.raises(SystemExit):
+        scheduler.main(['--root', str(tmp_path/'queue'), '--source-commit', 'source',
+                        '--gpu-map', '0=GPU-ok', '--per-gpu', limit])
+
+
 def test_finite_queue_covers_every_seed_fold_rate_once():
     scheduler = importlib.import_module(MODULE + '.scheduler')
     jobs = scheduler.jobs_for('train')

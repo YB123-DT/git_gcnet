@@ -132,8 +132,8 @@ def main(argv=None):
     parser.add_argument('--poll-seconds', type=float, default=5)
     parser.add_argument('--resume', action='store_true')
     args = parser.parse_args(argv)
-    if not 1 <= args.per_gpu <= 6 or args.poll_seconds < 1:
-        parser.error('per-gpu must be 1..6 and poll-seconds >=1')
+    if not 1 <= args.per_gpu <= 12 or args.poll_seconds < 1:
+        parser.error('per-gpu must be 1..12 and poll-seconds >=1')
     args.root = args.root.resolve()
     args.root.mkdir(parents=True, exist_ok=args.resume)
     with (args.root/'scheduler.lock').open('a') as lock:
@@ -146,7 +146,8 @@ def main(argv=None):
             cwd=os.getcwd())
         if state['source_commit'] != args.source_commit:
             raise ValueError('Queue resume requires identical immutable source')
-        state.update(pid=os.getpid(), command=[sys.executable]+sys.argv)
+        state.update(pid=os.getpid(), command=[sys.executable]+sys.argv,
+                     max_per_gpu=args.per_gpu, gpu_map=args.gpu_map)
         try:
             previous = os.environ.get('CUDA_VISIBLE_DEVICES')
             try:
