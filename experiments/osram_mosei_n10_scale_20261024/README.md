@@ -48,3 +48,22 @@ false mismatch; epoch and all actual config values remain strictly checked.
 A regression test accepts tuple/list equivalence but rejects changed epochs
 or write_step. Failed output/source_v1 are preserved; retry uses source_v2 and
 replay_v2, with the same protected checkpoints and three coefficients.
+
+## One slot at a time (2026-10-25 follow-up)
+
+User explicitly requests separate, not joint, strengths. Add `--per-slot` to
+the same entry. Independently scale Local/Base/Gap-A/Gap-T/Gap-V by0/.5/1 while
+the other four corrections stay exactly1. There are11 unique readouts per
+scan:one common full1 plus ten single-slot interventions. LocalSkip remains
+the original Local even in the Local intervention. No combination search,
+new training, other coefficients or new seeds are included.
+
+Source_v3 and slot_replay_v1 are separate from all original sources and the
+completed joint replay. The default entry remains joint; old artifacts are
+not modified. New unit cases cover all15 slot/strength mappings, unchanged
+other inputs, no mutation, backward zeros and inactive gap zeros.
+
+```bash
+/data2/yb/conda_envs/cmerc-repro/bin/python -u -m experiments.osram_mosei_n10_scale_20261024.run \
+  --per-slot --source-commit SOURCE_SHA --output ROOT/slot_replay_v1
+```

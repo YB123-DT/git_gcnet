@@ -63,3 +63,37 @@ def test_checkpoint_identity_normalizes_json_sequences_but_not_configuration_val
         validate_checkpoint_identity(state, dict(epoch=13), expected)
     with pytest.raises(ValueError):
         validate_checkpoint_identity(state, dict(epoch=12), dict(expected,osram_write_step=.4))
+
+
+def test_per_slot_cases_have_one_shared_full_and_ten_single_slot_interventions():
+    from experiments.osram_mosei_n10_scale_20261024.run import make_cases
+    assert make_cases(False) == {'0.0': (None,0.), '0.5': (None,.5), '1.0': (None,1.)}
+    cases = make_cases(True)
+    assert len(cases) == 11 and cases['1.0'] == (None,1.)
+    assert set(cases.values()) == {(None,1.)} | {(s,g) for s in ('Local','Base','Gap-A','Gap-T','Gap-V') for g in (0.,.5)}
+
+
+@pytest.mark.parametrize('slot', ['Local','Base','Gap-A','Gap-T','Gap-V'])
+@pytest.mark.parametrize('gamma', [0., .5, 1.])
+def test_only_selected_slot_changes_and_all_other_corrections_remain_full(slot,gamma):
+    from experiments.osram_mosei_n10_scale_20261024.run import scale_one_slot
+    raw=(np.ones((2,1,4)),np.ones((2,1,1024)),np.ones((2,1,3,1024)))
+    corrected=tuple(x+4 for x in raw)
+    result=scale_one_slot(raw,corrected,slot,gamma)
+    names=('Local','Base','Gap-A','Gap-T','Gap-V')
+    got=(result[0],result[1],*(result[2][:,:,i] for i in range(3)))
+    for name,value in zip(names,got):
+        np.testing.assert_array_equal(value,np.full_like(value,1+4*(gamma if name==slot else 1.)))
+    for x in raw:np.testing.assert_array_equal(x,np.ones_like(x))
+    for x in corrected:np.testing.assert_array_equal(x,5*np.ones_like(x))
+
+
+def test_slot_scaling_preserves_zero_backward_and_zero_inactive_gap():
+    from experiments.osram_mosei_n10_scale_20261024.run import scale_one_slot
+    raw=(np.ones((2,1,4)),np.zeros((2,1,1024)),np.zeros((2,1,3,1024)))
+    corrected=tuple(x.copy() for x in raw)
+    corrected[2][:,:,1,:512]=2
+    result=scale_one_slot(raw,corrected,'Gap-T',.5)
+    np.testing.assert_array_equal(result[2][:,:,1,:512],1.)
+    np.testing.assert_array_equal(result[2][...,512:],0.)
+    np.testing.assert_array_equal(result[2][:,:,[0,2]],0.)

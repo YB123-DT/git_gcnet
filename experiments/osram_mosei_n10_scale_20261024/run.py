@@ -15,6 +15,7 @@ SOURCE = Path('/data2/yb/remote_experiments/osram_mosei_flat128_nested_20261024/
 FLAT = Path('/data2/yb/remote_experiments/osram_mosei_capacity_cmerc_20261024/execution_v1/runs/f128')
 GPU = 'GPU-56b14af1-00dc-4542-e2d8-5bba1dd39049'
 SCALES = (0., .5, 1.)
+SLOTS = ('Local', 'Base', 'Gap-A', 'Gap-T', 'Gap-V')
 RATES = tuple(f'{i/10:.1f}' for i in range(8))
 
 
@@ -28,6 +29,32 @@ def scaled_inputs(raw, corrected, gamma):
     if gamma == 1.:
         return corrected
     return tuple(a+gamma*(b-a) for a,b in zip(raw, corrected))
+
+
+def make_cases(per_slot=False):
+    if not per_slot:
+        return {str(g):(None,g) for g in SCALES}
+    return {'1.0':(None,1.), **{f'{slot}_{g}':(slot,g)
+        for slot in SLOTS for g in (0.,.5)}}
+
+
+def scale_one_slot(raw, corrected, slot, gamma):
+    if slot not in SLOTS or gamma not in SCALES:
+        raise ValueError('Unknown slot or coefficient outside the approved grid')
+    if len(raw)!=3 or len(corrected)!=3 or any(a.shape!=b.shape for a,b in zip(raw,corrected)):
+        raise ValueError('Correction cannot change a slot shape')
+    if gamma==1.:
+        return corrected
+    result=list(corrected)
+    if slot in ('Local','Base'):
+        index=SLOTS.index(slot)
+        result[index]=raw[index] if gamma==0. else raw[index]+gamma*(corrected[index]-raw[index])
+    else:
+        index=SLOTS.index(slot)-2
+        result[2]=corrected[2].clone() if hasattr(corrected[2],'clone') else corrected[2].copy()
+        before,after=raw[2][:,:,index],corrected[2][:,:,index]
+        result[2][:,:,index]=before if gamma==0. else before+gamma*(after-before)
+    return tuple(result)
 
 
 def paired_counts(labels, original, prediction, mask=None):
@@ -57,6 +84,8 @@ def validate_checkpoint_identity(state, selected, expected_config):
 
 
 def report(output, summary):
+    if summary.get('mode')=='per-slot':
+        return report_slots(output,summary)
     lines = ['# Frozen N10 correction strength', '', 'INTERNAL DIAGNOSTIC ONLY',
         'Same completed N10 checkpoints, exact accepted masks, no training. Gamma0 is NOT separately-trained Flat.',
         'Original LocalSkip and CHM stay unchanged; gamma scales all five task-input correction slots together.', '',
@@ -78,11 +107,39 @@ def report(output, summary):
                          for g,v in item['scales'].items())
 
 
+def report_slots(output,summary):
+    lines=['# Frozen N10 one-slot correction strength','','INTERNAL DIAGNOSTIC ONLY',
+        'Exactly one slot changes; all other corrections stay at1. LocalSkip and CHM are untouched.',
+        'Eleven unique readouts per scan:one common full plus five slots times two non-full strengths.','',
+        '| Slot | Gamma | ACC | W-F1 | High W-F1 | Delta WF1 vs full |',
+        '|---|---:|---:|---:|---:|---:|']
+    if 'aggregate' in summary:
+        reference=summary['aggregate']['1.0']['mean']['WF1']
+        for slot in SLOTS:
+            for g in SCALES:
+                case='1.0' if g==1. else f'{slot}_{g}'
+                a=summary['aggregate'][case]
+                lines.append(f"| {slot} | {g} | {a['mean']['ACC']:.6f} | {a['mean']['WF1']:.6f} | {a['high']['WF1']:.6f} | {a['mean']['WF1']-reference:+.6f} |")
+    lines+=['','State:'+summary['status'],'Completed rates:'+','.join(summary['rates']),
+        'Fixed per-rate Test-best checkpoints/exact masks. No retraining or combined-coefficient oracle.',
+        'Any test-selected preferred coefficient is exploratory, not independent deployment evidence.']
+    (output/'RESULT.md').write_text('\n'.join(lines)+'\n')
+    cases=make_cases(True)
+    with (output/'PER_RATE.csv').open('w',newline='') as stream:
+        writer=csv.DictWriter(stream,fieldnames=['rate','case','slot','gamma','ACC','WF1','MSE'])
+        writer.writeheader()
+        writer.writerows(dict(rate=r,case=case,slot=cases[case][0] or 'all_full',
+            gamma=cases[case][1],**v['metrics']) for r,item in summary['rates'].items()
+            for case,v in item['scales'].items())
+
+
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--source-commit',required=True)
+    parser.add_argument('--per-slot',action='store_true',help='Change one correction slot at a time, others fixed at1')
     args=parser.parse_args(argv)
+    cases=make_cases(args.per_slot)
     os.environ.update(CUDA_VISIBLE_DEVICES=GPU,OMP_NUM_THREADS='1',MKL_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1')
     import torch
     from experiments.osram_nested_cmerc_tuning_20261023.run import verify_source_snapshot
@@ -110,7 +167,9 @@ def main(argv=None):
         source_manifest_sha256=manifest['manifest_sha256'],pid=os.getpid(),gpu_uuid=GPU,
         source=str(SOURCE),source_summary_sha256=h.sha(SOURCE/'SUMMARY.json'),
         flat_reference=str(FLAT),flat_summary_sha256=h.sha(FLAT/'SUMMARY.json'),
-        original_flat_aggregate=baseline['aggregate']['router'],scales=SCALES,rates={},training_updates=0)
+        original_flat_aggregate=baseline['aggregate']['router'],scales=SCALES,rates={},training_updates=0,
+        mode='per-slot' if args.per_slot else 'joint',
+        cases={key:dict(slot=slot,gamma=g) for key,(slot,g) in cases.items()})
     h.write_json(args.output/'SUMMARY.json',summary)
     try:
         torch.set_num_threads(1)
@@ -145,7 +204,7 @@ def main(argv=None):
                 for key in ('labels','availability','conversation_ids','utterance_indices'):
                     np.testing.assert_array_equal(flat[key],expected[key])
                 loader.sampler.set_epoch(0)
-                pieces={str(g):[] for g in SCALES};cursor=0;start_scans=scans[0];max_error=0.
+                pieces={key:[] for key in cases};cursor=0;start_scans=scans[0];max_error=0.
                 with h.isolated_rng(66+99193),torch.no_grad():
                     for index,raw in enumerate(loader):
                         data=trainer._move_batch(raw,torch.device('cuda:0'));meta=metadata(data);n=len(meta['labels'])
@@ -172,16 +231,18 @@ def main(argv=None):
                             if not torch.equal(x[...,512:],y[...,512:]):raise RuntimeError('Backward half changed')
                         rng=torch.cuda.get_rng_state().clone()
                         valid=data[7].bool()
-                        for gamma in SCALES:
-                            current=flat_prediction(model,*capture['raw'],readout=scaled_inputs(original,corrected,gamma))
+                        for case,(slot,gamma) in cases.items():
+                            readout=(scaled_inputs(original,corrected,gamma) if slot is None else
+                                     scale_one_slot(original,corrected,slot,gamma))
+                            current=flat_prediction(model,*capture['raw'],readout=readout)
                             values=current.T[valid].cpu().numpy()
                             if not np.isfinite(values).all():raise RuntimeError('Nonfinite replay')
-                            if gamma==1.:
+                            if case=='1.0':
                                 reference=direct.T[valid].cpu().numpy()
                                 np.testing.assert_allclose(values,reference,atol=1e-6,rtol=1e-6)
                                 np.testing.assert_array_equal(values>0,reference>0)
                                 max_error=max(max_error,float(abs(values-reference).max()))
-                            pieces[str(gamma)].append(values)
+                            pieces[case].append(values)
                         if not torch.equal(rng,torch.cuda.get_rng_state()):raise RuntimeError('Readout replay changed CUDA RNG')
                         cursor+=n
                 if cursor!=len(expected['labels']) or scans[0]-start_scans!=len(loader):
@@ -212,7 +273,7 @@ def main(argv=None):
                 print(json.dumps(dict(rate=rate,scales={g:v['metrics'] for g,v in results.items()})),flush=True)
         finally:
             handle.remove()
-        summary['aggregate']={str(g):aggregate({r:v['scales'][str(g)]['metrics'] for r,v in summary['rates'].items()}) for g in SCALES}
+        summary['aggregate']={case:aggregate({r:v['scales'][case]['metrics'] for r,v in summary['rates'].items()}) for case in cases}
         summary.update(status='complete',seconds=time.monotonic()-tick,all_parameters_unchanged=True,
                        original_predictions_reproduced=True,one_memory_scan_per_batch=True)
         if verify_source_snapshot(ROOT,args.source_commit)!=manifest:raise RuntimeError('Immutable source changed')
