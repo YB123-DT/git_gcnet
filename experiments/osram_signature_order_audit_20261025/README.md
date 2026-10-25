@@ -73,3 +73,28 @@ One short GPU inference process, not another training job. Use only the currentl
 authorized physical0/1/2 UUIDs, never GPU4 or other users' tasks. Shared-resource
 runtime is not a controlled speed benchmark. Full predictions stay remote;
 commit only small reports, tests, configuration and aggregate statistics.
+
+## IEMOCAP-6 seed68 follow-up
+
+The user selected seed68 for mechanism analysis after seeing its ACC/UA gains.
+The independent `iemocap.py` entry point reuses the SAME controls but reports
+both ACC and fixed-six-class UA,including label0; no sentiment zero-label filter
+or MSE criterion is used. Default scope is all5folds×8rates,40selected branches.
+All means keep folds/rates equally weighted. Empty strata remain N/A and their
+nonempty-cell coverage is explicit. No new checkpoint selection or training.
+
+Numerical cwd is the unchanged IEMOCAP snapshot `source_21e46f2`,SHA
+`21e46f2ecd092345818659694db8ff372672c35e`. Run the new namespace overlay:
+
+```bash
+PYTHONPATH=/path/to/new/audit_overlay CUDA_VISIBLE_DEVICES=HEALTHY_UUID \
+ /data2/yb/conda_envs/cmerc-repro/bin/python -u \
+ -m experiments.osram_signature_order_audit_20261025.iemocap \
+ --selected-root /data2/yb/remote_experiments/osram_signature_iemocap_cyclic_20261025/execution_v1/train \
+ --output /path/to/new/audit/execution_iemocap68_v1 --source-commit AUDIT_SHA \
+ --gpu-uuid HEALTHY_UUID
+```
+
+No extra seeds or new trainable models are implied. Positive seed68 sensitivity
+would still need to be distinguished from independent multi-seed mechanism
+validation; negative evidence is retained along with the measured branch gains.
