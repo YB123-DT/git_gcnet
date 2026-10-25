@@ -50,3 +50,12 @@ This isolates directional area under this frozen-parent training budget; it
 does not isolate all benefits of endpoints,time,counts or additional capacity.
 NoArea matching full weakens a directional-mechanism explanation,while a full
 advantage on one seed does not prove it is the universal cause of improvement.
+
+## Preserved preflight failure
+
+The first overlay68ab183/execution_v1 stopped before any formal job or data
+forward: the runner accidentally renamed the shared IEMOCAP68 block import to
+a nonexistent IEMOCAP66 package. A regression test now resolves that exact
+runtime import and verifies it is the original shared NoArea class. The fix
+changes only that import. Keep the failed source/log/output intact and use a
+new immutable overlay/execution_v2; no failed attempt is ranked as a result.

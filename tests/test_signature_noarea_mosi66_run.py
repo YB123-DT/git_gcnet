@@ -100,3 +100,17 @@ def test_training_history_contiguous_and_complete():
         validate_history([dict(epoch=e) for e in range(1, 150)], 150)
     with pytest.raises(ValueError):
         validate_history([dict(epoch=1), dict(epoch=1)], 2)
+
+
+def test_runtime_shared_noarea_import_resolves_the_original_block():
+    import ast
+    import importlib
+    import inspect
+    from experiments.osram_signature_noarea_mosi66_20261025 import run
+    from experiments.osram_signature_noarea_iemocap68_20261025.block import NoAreaSignatureBlock
+    imports = [node for node in ast.walk(ast.parse(inspect.getsource(run.main)))
+        if isinstance(node, ast.ImportFrom)
+        and any(alias.name == 'block' and alias.asname == 'noarea' for alias in node.names)]
+    assert len(imports) == 1
+    shared = importlib.import_module(imports[0].module+'.block')
+    assert shared.NoAreaSignatureBlock is NoAreaSignatureBlock

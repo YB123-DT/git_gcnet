@@ -79,7 +79,7 @@ def main():
     from experiments.osram_mosi_gcnet_testbest_20261020.worker import _atomic_arrays
     from experiments.osram_signature_cyclic68_20261025.train import train_epoch
     from experiments.osram_signature_cyclic_multi_20261025 import prepare
-    from experiments.osram_signature_noarea_iemocap66_20261025 import block as noarea
+    from experiments.osram_signature_noarea_iemocap68_20261025 import block as noarea
     from osram_four_block_wiring import SignatureBlock
     rate = prepare.validate_rate(args.rate)
     torch.set_num_threads(1)
