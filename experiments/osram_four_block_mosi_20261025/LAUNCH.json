@@ -1,0 +1,33 @@
+{
+  "status": "running",
+  "server": "biggpu",
+  "source_commit": "d88495a",
+  "source_snapshot": "/data2/yb/remote_experiments/osram_four_block_mosi_20261025/source_v5",
+  "output_root": "/data2/yb/remote_experiments/osram_four_block_mosi_20261025/execution_v5",
+  "tmux": "four_block_mosi_v5_20261025",
+  "queue_pid": 3807891,
+  "python": "/data2/yb/conda_envs/cmerc-repro/bin/python",
+  "physical_gpu": 0,
+  "gpu_uuid": "GPU-43d98f5a-edab-1498-e9db-eeeb2d909d45",
+  "parallel_processes": 4,
+  "dataset": "CMUMOSI",
+  "seed": 66,
+  "parent": "One protected accepted cmerc Flat miss0.3 BEST epoch75, frozen",
+  "parent_sha256": "5fe31689597ca975ccbc60eeb2d3235eafafe7e64bee6979f8b3acf7a5fa40fe",
+  "task_epochs": 150,
+  "csdi_denoising_epochs": 150,
+  "lr": "3e-4 epochs1-100; 3e-5 epochs101-150",
+  "batch_size": 32,
+  "weight_decay": 0.00001,
+  "missing": "gcnet-random-mask-v1",
+  "selection": "INTERNAL TEST-ORACLE SCREEN; per-rate W-F1 on common exact parent masks",
+  "smoke": "All four passed real3-step smoke, parent unchanged, nonzero branch gradients, exact zero-exit initialization except intentionally nonzero Ridge",
+  "tests": "15 passed in cmerc-repro, 2.35seconds",
+  "scope": "Only four independent MOSI66 arms; no HPO, extra seeds or changed parent",
+  "methods": {
+    "neumiss": {"parameters":245984},
+    "signature": {"parameters":281856},
+    "ridge": {"parameters":105665},
+    "csdi": {"bridge_parameters":265158,"denoiser_parameters":310401,"note":"Self-contained conditional DDPM internals; unavailable reference archive's610753 parameter count is not claimed."}
+  }
+}

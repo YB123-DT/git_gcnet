@@ -74,3 +74,13 @@ Formal scope: four methods, one seed, MOSI only, no HPO or automatic additional
 seeds. Three zero-exit branches must reproduce parent at initialization; Ridge
 is evaluated with its real nonzero initialization. All frozen weights must
 remain unchanged and no parent parameter may accumulate gradients.
+
+Actual launch: see LAUNCH.json. Source `d88495a`, immutable source_v5,
+execution_v5, four simultaneous processes on physical GPU0. All four real
+smokes passed after fixes; 15 tests passed in the actual cmerc-repro environment.
+Earlier failed/invalid attempts are retained in INVALID_ATTEMPTS.json and do
+not participate in ranking. The conditional DDPM has310401 trainable parameters
+and its bridge265158; the unavailable archive's610753 denoiser count is not
+reproduced or silently advertised. The20-step linear beta schedule has a
+relatively high terminal alpha_bar, so Gaussian-prior approximation is a known
+limitation of this declared first configuration, not a tuned guarantee.
