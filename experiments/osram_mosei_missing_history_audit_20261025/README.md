@@ -19,6 +19,15 @@ in the target-removal conditions. These are frozen-input interventions, not
 separately trained Local/Memory predictors. They remove entire original task
 inputs, unlike the preceding Nested correction-only strength audit.
 
+For N10, retained task-side Local already contains its learned Nested Local
+correction. Thus the `Local` row means zero Base/Gap classification slots with
+that Local held fixed, NOT a history-free N10 predictor. Likewise, removing
+Gap-m at Flat input does not erase its earlier influence on Nested-corrected
+Local/Base. Flat128 has no such extra mixing; its `Local` row uses original
+Local. This distinction is essential when interpreting pathway sensitivity.
+Recorded N10 Base/Gap norms are also the post-Nested task-input norms, not
+raw CHM reads before the correction; Flat128 norms are the original reads.
+
 Save all predictions, labels/IDs/indices/availability and forward read norms.
 Report per-rate ACC/W-F1/MSE, label supports, positive/negative Recall,
 corrections/harms relative to Full and Local, and Base/each Gap norm. Compare
