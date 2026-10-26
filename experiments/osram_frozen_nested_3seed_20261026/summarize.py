@@ -40,7 +40,10 @@ def aggregate_rows(rows):
                 and r['rate'] == rate and r['seed'] in (66, 67, 68)]
             if len(chosen) != 3 or {r['seed'] for r in chosen} != {66, 67, 68}:
                 continue
-            keys = [k for k in chosen[0] if k.endswith(('ACC','UA','WF1','CE','MSE'))]
+            # Legacy MOSI66 also records branch_off_* diagnostics. They are not
+            # present in the unchanged67/68 schema and cannot form a seed mean.
+            keys = [k for k in chosen[0] if k.endswith(('ACC','UA','WF1','CE','MSE'))
+                    and all(k in row for row in chosen)]
             results.append(dict(dataset=dataset, seed='66/67/68', fold='all', rate=rate,
                 aggregation='mean_three_seed_equal_fold_equal_rate',
                 **{k:statistics.mean(r[k] for r in chosen) for k in keys},
