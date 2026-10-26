@@ -1,6 +1,8 @@
 # Signature / NeuMiss checkpoint cleanup
 
-2026-10-26, biggpu. **Immediate removal complete;112 active dependencies deferred.**
+2026-10-26, biggpu. **Both removal phases complete.** Initial1819 removals are
+recorded below; the remaining112 were removed at07:17:44UTC after successful
+Nested finalization. Total1931 weights /27569302071logical bytes, about25.676GiB.
 User explicitly requested deletion to release storage; only these methods are
 exempted from the prior keep-new-Missing-checkpoints instruction.
 
@@ -13,6 +15,17 @@ exempted from the prior keep-new-Missing-checkpoints instruction.
 | Signature BEST retained for current Nested |112,128249360bytes (122.31MiB)|
 | Unexpected skips or failures |0|
 | Exact immediate target paths confirmed absent |1819/1819|
+
+## Deferred phase completed,07:17:44UTC
+
+Nested128/128 training branches completed, then all192 total selected artifacts
+were verified. A collector-only legacy-field bug was repaired without any
+retraining or model/mask changes (see Nested POSTPROCESS_RECOVERY.json). Once
+QUEUE and RESULT both reported complete with the original training source, the
+existing watcher removed the exact112 planned Signature references. All3638
+retained-evidence hashes were checked again and remain unchanged. The watcher
+exited successfully; `DEFERRED_RECEIPT.json` is the actual completed receipt.
+These112 weights are now also permanently unavailable. Flat/Nested remain.
 
 Removed Signature/NeuMiss frozen and joint training weights, including Signature
 NoArea and serial/parallel variants, with their best/intermediate/last states.
@@ -35,8 +48,8 @@ are not used for Nested initialization. Protect exactly112 reference paths, not
 all checkpoints or whole directories. The final Nested collector itself does
 not require Signature weights.
 
-A persistent CPU-only watcher is running in tmux `sig_neu_cleanup_20261026`,
-PID1314272 at the verified capture. It waits for the original128-job Nested queue
+At the initial capture a persistent CPU-only watcher ran in tmux
+`sig_neu_cleanup_20261026`, PID1314272. It waited for the original128-job Nested queue
 to report complete and the matching-source final collector to validate192 total
 selections. Only then may it remove the original112 inventoried files, after
 checking stat/SHA, process exclusions and all retained evidence again. It cannot
@@ -62,8 +75,9 @@ Remote directory:
   SHA256`ec6767b723c873b1df9a09c4f6ed3f01a7ad5fb1d5b3c378d9d16564b3a1f4f9`.
 - `immediate_receipt/RECEIPT.json`: original complete receipt; reproduced in Git.
 - `deferred_watcher.log`: waiting/completion output.
-- `deferred_receipt/RECEIPT.json`: created only after successful deferred deletion;
-  not yet present at this capture and not reported as completed.
+- `deferred_receipt/RECEIPT.json`: successful deferred deletion at07:17:44UTC,
+  copied to Git as DEFERRED_RECEIPT.json. The earlier AUDIT.json is a historical
+  waiting-state capture, not current status.
 
 `AUDIT.json` preserves verified watcher command/PID, target-absence checks and
 Nested progress. Full2.13MB manifest/journal stay remote with SHA anchors; Git
