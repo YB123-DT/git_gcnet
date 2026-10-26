@@ -107,6 +107,26 @@ can be reused. Keep CUDA-context/allocator and live-system reserves, stagger
 admission, and observe actual throughput; concurrent historical wall times are
 not isolated speed benchmarks.
 
+## Runner and collector review
+
+The new `run.py` and `summarize.py` received a read-only correctness review,
+including resume identity/cost preservation, pinned numerical-root selection,
+protected-parent array compatibility and the actual seed66 queue schema.
+No confirmed correctness defect was found in this pass. The focused local CPU
+runner, summary and protocol tests passed:13/13.
+
+A separate read-only cmerc invocation called the existing pinned MOSI/cross
+collectors against every real seed66 queue entry, matching the calls made by
+the new collector. Its output was:
+
+```text
+SEED66_CURRENT_VALIDATED 64 datasets {'MELD': 8, 'CMUMOSI': 8, 'IEMOCAPSix': 40, 'CMUMOSEI': 8} seedkeys [66] all_rate_fold_keys True
+```
+
+This confirms that all64 protected seed66 artifacts currently validate and
+provide the dataset/seed/fold/rate keys needed for the192-row aggregate.
+It does not substitute for new67/68 GPU replay or formal-run acceptance.
+
 ## Reproducible artifact-audit command
 
 This is the command used for the successful full128 audit. It reads protected
