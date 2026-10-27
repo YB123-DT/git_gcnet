@@ -31,3 +31,16 @@ def test_average_requires_exact_complete_eight_rates():
     assert 'lr1e3' not in result
     assert aggregates(rows[:-1])=={}
     assert aggregates(rows+[rows[0]])=={}
+
+
+def test_flat_summary_never_inherits_nested_contributions_or_cost():
+    from experiments.osram_mosei_frozen_nested_lr_20261027.summarize import flat_row
+    nested=dict(ACC=81.,WF1=80.,MSE=.9,Flat_ACC=80.,Flat_WF1=79.,Flat_MSE=1.,
+        added_parameters=159235,full_parameters=13500000,corrections=17,harms=9,
+        delta_Flat_ACC=1.,selected_epoch=3,seconds=999.,peak_memory_mib=800.)
+    actual=flat_row(nested,11,'baseline.npz')
+    assert actual['ACC']==80. and actual['WF1']==79. and actual['MSE']==1.
+    assert actual['added_parameters']==actual['corrections']==actual['harms']==actual['delta_Flat_ACC']==0
+    assert actual['selected_epoch']==11 and actual['predictions']=='baseline.npz'
+    assert actual['seconds'] is None and actual['peak_memory_mib'] is None
+    assert actual['full_parameters']==13500000-159235

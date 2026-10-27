@@ -4,7 +4,16 @@ import json
 from pathlib import Path
 import statistics
 
-from .protocol import EPOCHS,LRS,RATES,reference_dir,sha,validate_epoch_trace,validate_reference
+from .protocol import EPOCHS,LRS,PARAMETERS,RATES,reference_dir,sha,validate_epoch_trace,validate_reference
+
+
+def flat_row(nested,parent_epoch,predictions):
+    row=dict(nested,config='flat',learning_rate=None,ACC=nested['Flat_ACC'],
+        WF1=nested['Flat_WF1'],MSE=nested['Flat_MSE'],added_parameters=0,
+        full_parameters=nested['full_parameters']-PARAMETERS,corrections=0,harms=0,
+        selected_epoch=parent_epoch,predictions=str(predictions),seconds=None,peak_memory_mib=None)
+    row.update({k:0. for k in row if k.startswith('delta_Flat_')})
+    return row
 
 
 def aggregates(rows):
@@ -26,7 +35,7 @@ def summarize(root,source,jobs):
         job=dict(output=str(output),dataset='CMUMOSEI',fold=1,rate=rate)
         row,_=selected_row(job,ref['identity']['source_commit'])
         rows.append(dict(row,config='default3e4',learning_rate=3e-4))
-        rows.append(dict(row,config='flat',ACC=row['Flat_ACC'],WF1=row['Flat_WF1'],MSE=row['Flat_MSE'],learning_rate=None))
+        rows.append(flat_row(row,ref['identity']['parent']['epoch'],output/ref['baseline_artifact']['path']))
     for job in jobs:
         if job['status']!='complete':raise ValueError('Cannot rank unfinished LR runs')
         output=Path(job['output'])
