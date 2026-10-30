@@ -18,8 +18,15 @@ sampler直接使用仓库原文件，不重新发明Memory数学定义。
 在输入LN之前置零。因此这是容量匹配消融，不能声称A0省去了Memory计算或参数。
 Local Skip全部保留。未激活Gap保持硬零，联合写入和读写顺序不动。
 
-执行范围：MOSEI seed66，60轮，constant LR1e-4，Adam，WD1e-5，batch32。
-仅这四组；本轮不额外训练第二阶段GNN、不扩种子或数据集。
+最新执行范围仅MOSEI和IEMOCAP-6，各seed66的A0–A3：
+
+|数据|Fold|Epoch|LR|选点指标|
+|---|---|---:|---:|---|
+|MOSEI|原官方划分|60|constant1e-4|逐率Test W-F1|
+|IEMOCAP-6|原五折|100|constant1e-3|逐率Test ACC，保留同次UA/W-F1|
+
+两者均Adam、WD1e-5、batch32。本轮不训练第二阶段GNN、不扩种子、不做MOSI/MELD。
+MOSEI已在第一份不可变快照启动；IEMOCAP扩展使用新快照，不修改正在运行的源码。
 
 ## 环境与数据
 
@@ -66,6 +73,11 @@ $PY -m experiments.cam_unified_20261030.scheduler \
 通过tmux持久运行。每卡最多4组，显存余量不足自动排队。物理GPU4和坏卡UUID
 永远排除。失败不悄悄重跑，不杀其他人的进程。QUEUE.json保留PID/UUID/命令/退出码。
 
+IEMOCAP入口为`iemocap.py --variant A0 --fold 5 ...`，实际参数以`--help`为准。
+`iemocap_scheduler.py`固定20组（四消融×五折），先跑fold5，随后fold1–4。
+它会计入仍在运行的MOSEI任务，只在共享卡有空槽后补位，而非再叠加四组。
+`iemocap_summarize.py`列出所有fold/rate；不足五个完整fold不填最终五折均值。
+
 ## 指标与选点
 
 按用户指定逐rate Test-best W-F1，ACC/W-F1/MSE必须来自该次相同预测；并列取
@@ -77,6 +89,10 @@ $PY -m experiments.cam_unified_20261030.scheduler \
 单checkpoint部署性能，也不作为独立测试泛化结论。共同mask只保证配对条件，
 不会消除Test-oracle选择偏差。输出逐率结果、高缺失0.5/0.6/0.7均值及状态；
 未完成或失败组不列为最终成绩。
+
+IEMOCAP的训练器约定与MOSEI不同：五折原模型均使用fold5派生初始化种子，
+数据和训练随机状态仍使用实际fold；官方训练loader已包含其余四个session，
+不能再错误地合并held-out session。UA为全部六类Recall的宏平均。
 
 ## 第二阶段
 

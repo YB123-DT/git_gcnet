@@ -61,6 +61,13 @@ used a fold5-derived initialization despite official fold1 data; do not generali
 that convention to MOSEI. Host/guest random-mask sampling follows native GCNet
 padded-batch rectangles. Fixed replay masks do not replace training sampling.
 
+The newly requested IEMOCAP-6 extension follows its accepted native trainer:
+**all five folds use a fold5-derived model-initialization seed**, while data,
+masks and training RNG retain each actual fold. The official training loader
+already contains all four training sessions; its held-out-session validation
+loader must not be merged into training. Reproduce the accepted protocol rather
+than calling a metadata helper named `full_training_split` as a data merge.
+
 ## Remaining limits
 
 One seed and Test-oracle selection support internal mechanism comparison only.

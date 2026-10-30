@@ -2,9 +2,11 @@
 
 Scope approved in chat: organize original Flat/CAM checkpoint inference and the
 separate frozen Nested second stage; then run one seed of A0–A3 from scratch.
-Dataset was not explicitly named in the final approval. The assistant announced
-MOSEI seed66, 60 epochs, constant LR1e-4 as a bounded continuation of the current
-MOSEI work. No other dataset, seed, HPO, or second-stage training is launched.
+Initial approval did not explicitly name a dataset; MOSEI seed66,60epochs,
+constant1e-4 was announced and its four jobs were started. The subsequent user
+instruction explicitly limits the work to **IEMOCAP-6 and MOSEI**. Extend only
+IEMOCAP-6 seed66/fivefold (original100epochs/1e-3), without interrupting MOSEI.
+No MOSI, MELD, extra seed, HPO, or second-stage training is launched.
 
 ## Implementation order
 
