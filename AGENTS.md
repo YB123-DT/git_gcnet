@@ -1,5 +1,11 @@
 # OSRAM task delivery agreement
 
+- 最新清理授权（2026-10-30）：用户明确“行先清掉，新miss也可以删”。仅本轮
+  七批淘汰调参权重允许覆盖旧“新miss全部保留”规则，精确范围和执行回执见
+  `experiments/osram_checkpoint_cleanup_20261030/`。正式Flat基线、当前Frozen
+  Nested三种子和容量实验、必要父模型、选定代表配置及全部Mask/预测/分数/
+  配置/日志仍保留。不得将本次授权扩大为全仓库新Miss权重自动删除。
+
 - 权重清理记录（2026-10-22）：用户要求删除V3之前两版被替代实现的checkpoint。
   SourceRelation与12-token SourceRoleTokens合计81个BEST/last/smoke/恢复副本已删，
   13.244GiB，不可恢复；代码、Mask、预测、日志、历史与报告保留，189个证据文件
