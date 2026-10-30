@@ -37,7 +37,33 @@ Latest user update: **only IEMOCAP-6 and MOSEI**. Keep the four running MOSEI
 jobs untouched; extend the unified package for original-protocol IEMOCAP-6
 seed66/fivefold A0–A3, using100epochs/1e-3 and ACC-selected matching UA/WF1.
 No MOSI, MELD, extra seed, HPO or second-stage GNN training is authorized here.
-IEMOCAP implementation/preflight is pending at the time of this record.
+IEMOCAP implementation is pinned to source commit
+`152a91eb1882796eac3ac827f8377c721d97086e`, a separate165-file441189-byte bundle
+with SHA256`1e9167a3e44d3492ce06364767d1ad762f91af8a364108be93f2fa06ff32a547`.
+Source:`/data2/yb/remote_experiments/cam_unified_20261030/source_152a91e`.
+Outputs:`/data2/yb/remote_experiments/cam_unified_20261030/iemocap_execution_v1`.
+
+IEMOCAP GPU preflight passed in33.60s: protected fold5/miss0.3/epoch69 all1623
+test logits/predictions/metadata matched bit-for-bit. ACC64.325323,UA63.389523,
+WF1=64.126752 are replay compatibility numbers, not new ablation scores.
+The real longest training batch contained32 conversations with padded length110;
+CE/backward/update and state restoration passed. Peak allocated2032.21MiB,
+reserved2214MiB; admission budget3840MiB per training process.
+
+The finite20-job IEMOCAP queue is running in tmux`cam_iemocap_20261030`.
+It processes fold5 first, thenfold1–4; each fold has A0–A3. It subtracts live
+MOSEI workers from the shared per-GPU limit4 and waits for slots instead of
+launching an additional4 processes over them. At queue launch all4MOSEI
+processes were alive, so IEMOCAP was **queued, not yet formally training**.
+Only GPU7 was available; no other person's job was stopped or migrated.
+The queue automatically summarizes every fold/rate when complete; no further
+interactive command is required to advance its approved finite scope.
+
+Latest local verification:64 focused/native tests passed (5.71s), plus independent
+14-test IEMOCAP review. The native model/sampler packages remain unmodified.
+The environment emitted an optional torch-sparse import warning about
+libcusparse.so.11; no environment was changed to suppress it. Both original
+checkpoint prediction replays were exact on the actual OSRAM path.
 
 Recovery check verifies state loading and CUDA RNG coverage; numerical equality
 of the next optimizer update after interruption has not been independently
