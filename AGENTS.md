@@ -1,5 +1,10 @@
 # OSRAM task delivery agreement
 
+- 最新追加清理（2026-10-30）：用户要求继续清理更多淘汰checkpoint。本轮仅追加
+  `experiments/osram_checkpoint_cleanup_extra_20261030/PLAN.md`列出的八批候选；
+  正式基线、当前模型及父权重、Flat容量对照、选定V3配置和必要诊断引用仍保护。
+  不授权删除数据、特征缓存、源码快照或实验记录；具体删除以逐文件回执为准。
+
 - 最新清理授权（2026-10-30）：用户明确“行先清掉，新miss也可以删”。仅本轮
   七批淘汰调参权重允许覆盖旧“新miss全部保留”规则，精确范围和执行回执见
   `experiments/osram_checkpoint_cleanup_20261030/`。正式Flat基线、当前Frozen
